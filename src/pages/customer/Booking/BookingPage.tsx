@@ -28,7 +28,7 @@ export default function BookingPage() {
     ];
 
     // ── shared input class ─────────────────────────────────────
-    const inputClass = 'w-full bg-[#F8FAFC] border-blue-50 rounded-2xl p-4 text-sm outline-none transition-all';
+    const inputClass = 'w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl md:rounded-2xl p-2.5 md:p-4 text-xs md:text-sm outline-none transition-all focus:border-amber-400 focus:bg-white';
 
     return (
         <div className="min-h-screen pb-24" style={{ backgroundColor: '#F8F9FF' }}>
@@ -90,24 +90,24 @@ export default function BookingPage() {
                         {/* Step 1 — Chọn dịch vụ */}
                         <motion.div
                             initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
-                            className="p-10 rounded-[2.5rem] shadow-sm border border-blue-50"
+                            className="p-4 md:p-10 rounded-3xl md:rounded-[2.5rem] shadow-sm border border-blue-50"
                             style={{ backgroundColor: '#EFF4FF' }}
                         >
-                            <div className="flex items-center gap-3 mb-10">
-                                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center"
+                            <div className="flex items-center gap-3 mb-6 md:mb-10">
+                                <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-blue-50 flex items-center justify-center"
                                     style={{ color: COLORS.navy }}>
-                                    <Settings size={20} />
+                                    <Settings size={16} className="md:w-[20px] md:h-[20px]" />
                                 </div>
-                                <h2 className="text-2xl font-bold" style={{ color: COLORS.navy }}>Chọn Dịch Vụ Bảo Dưỡng</h2>
+                                <h2 className="text-base md:text-2xl font-bold" style={{ color: COLORS.navy }}>Chọn Dịch Vụ Bảo Dưỡng</h2>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-2 gap-2 md:gap-6">
                                 {services.map((service) => {
                                     const isSelected = selectedService === service.id;
                                     return (
                                         <label
                                             key={service.id}
-                                            className="relative p-8 rounded-3xl border-2 transition-all cursor-pointer flex flex-col group"
+                                            className="relative p-3 md:p-8 rounded-2xl md:rounded-3xl border-2 transition-all cursor-pointer flex flex-col group"
                                             style={{
                                                 borderColor: isSelected ? COLORS.orange : '#EFF4FF',
                                                 backgroundColor: isSelected ? 'rgba(249,161,27,0.06)' : '#FFFFFF',
@@ -116,35 +116,35 @@ export default function BookingPage() {
                                             <input type="radio" name="service" className="hidden" onChange={() => setSelectedService(service.id)} />
 
                                             {service.badge && (
-                                                <div className="absolute top-4 right-4 text-[9px] font-bold px-2 py-1 rounded-lg"
+                                                <div className="absolute top-2 right-2 text-[6px] md:text-[9px] font-bold px-1 py-0.5 md:px-2 md:py-1 rounded-sm md:rounded-lg"
                                                     style={{ backgroundColor: COLORS.orange, color: COLORS.navy }}>
                                                     {service.badge}
                                                 </div>
                                             )}
 
-                                            <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                                                <Settings style={{ color: `${COLORS.navy}66` }} />
+                                            <div className="w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-[#F8FAFC] shadow-sm flex items-center justify-center mb-3 md:mb-6 group-hover:scale-110 transition-transform shrink-0">
+                                                <Settings size={16} className="md:w-6 md:h-6" style={{ color: `${COLORS.navy}66` }} />
                                             </div>
 
-                                            <h3 className="text-xl font-bold mb-3" style={{ color: COLORS.navy }}>{service.title}</h3>
-                                            <p className="text-sm mb-8 leading-relaxed" style={{ color: `${COLORS.navy}80` }}>
+                                            <h3 className="text-xs md:text-xl font-bold mb-1 md:mb-3 line-clamp-1 md:line-clamp-none" style={{ color: COLORS.navy }}>{service.title}</h3>
+                                            <p className="hidden md:block text-sm mb-8 leading-relaxed" style={{ color: `${COLORS.navy}80` }}>
                                                 {service.desc}
                                             </p>
 
-                                            <div className="mt-auto flex justify-between items-end">
+                                            <div className="mt-auto flex justify-between items-end gap-1">
                                                 <div>
-                                                    <div className="text-[10px] font-bold uppercase mb-1" style={{ color: `${COLORS.navy}4D` }}>Giá từ</div>
-                                                    <div className="text-lg font-bold" style={{ color: COLORS.navy }}>{service.price}</div>
+                                                    <div className="text-[7px] md:text-[10px] font-bold uppercase mb-0.5 md:mb-1" style={{ color: `${COLORS.navy}4D` }}>Giá từ</div>
+                                                    <div className="text-xs md:text-lg font-bold" style={{ color: COLORS.navy }}>{service.price}</div>
                                                 </div>
                                                 <div
-                                                    className="w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all"
+                                                    className="w-5 h-5 md:w-8 md:h-8 rounded-full border-2 flex items-center justify-center transition-all shrink-0"
                                                     style={{
                                                         borderColor: isSelected ? COLORS.orange : '#DBEAFE',
                                                         backgroundColor: isSelected ? COLORS.orange : 'transparent',
                                                         color: isSelected ? COLORS.navy : 'transparent',
                                                     }}
                                                 >
-                                                    <Check size={16} strokeWidth={4} />
+                                                    <Check size={10} className="md:w-4 md:h-4" strokeWidth={4} />
                                                 </div>
                                             </div>
                                         </label>
@@ -156,23 +156,23 @@ export default function BookingPage() {
                         {/* Step 3 — Thông tin xe */}
                         <motion.div
                             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                            className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-blue-50"
+                            className="bg-white p-4 md:p-10 rounded-3xl md:rounded-[2.5rem] shadow-sm border border-blue-50"
                         >
-                            <div className="flex items-center gap-3 mb-10">
-                                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center" style={{ color: COLORS.navy }}>
-                                    <Car size={20} />
+                            <div className="flex items-center gap-3 mb-6 md:mb-10">
+                                <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-blue-50 flex items-center justify-center" style={{ color: COLORS.navy }}>
+                                    <Car size={16} className="md:w-[20px] md:h-[20px]" />
                                 </div>
-                                <h2 className="text-2xl font-bold" style={{ color: COLORS.navy }}>Thông Tin Phương Tiện</h2>
+                                <h2 className="text-base md:text-2xl font-bold" style={{ color: COLORS.navy }}>Thông Tin Phương Tiện</h2>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="grid grid-cols-2 gap-3 md:gap-8">
                                 {[
                                     { label: 'Hãng Xe', placeholder: 'Ví dụ: Toyota, Honda...', col: '' },
                                     { label: 'Dòng Xe (Model)', placeholder: 'Ví dụ: Camry, Civic...', col: '' },
-                                    { label: 'Biển Số Xe', placeholder: 'Ví dụ: 30A-123.45', col: 'md:col-span-2' },
+                                    { label: 'Biển Số Xe', placeholder: 'Ví dụ: 30A-123.45', col: 'col-span-2' },
                                 ].map((field) => (
                                     <div key={field.label} className={field.col}>
-                                        <label className="block text-[11px] font-bold uppercase tracking-widest mb-2 px-1"
+                                        <label className="block text-[9px] md:text-[11px] font-bold uppercase tracking-widest mb-1.5 md:mb-2 px-1"
                                             style={{ color: `${COLORS.navy}66` }}>
                                             {field.label}
                                         </label>
@@ -185,23 +185,23 @@ export default function BookingPage() {
                         {/* Step 4 — Thông tin liên hệ */}
                         <motion.div
                             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                            className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-blue-50"
+                            className="bg-white p-4 md:p-10 rounded-3xl md:rounded-[2.5rem] shadow-sm border border-blue-50"
                         >
-                            <div className="flex items-center gap-3 mb-10">
-                                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center" style={{ color: COLORS.navy }}>
-                                    <User size={20} />
+                            <div className="flex items-center gap-3 mb-6 md:mb-10">
+                                <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-blue-50 flex items-center justify-center" style={{ color: COLORS.navy }}>
+                                    <User size={16} className="md:w-[20px] md:h-[20px]" />
                                 </div>
-                                <h2 className="text-2xl font-bold" style={{ color: COLORS.navy }}>Thông Tin Liên Hệ</h2>
+                                <h2 className="text-base md:text-2xl font-bold" style={{ color: COLORS.navy }}>Thông Tin Liên Hệ</h2>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <div className="grid grid-cols-2 gap-3 md:gap-8">
                                 {[
-                                    { label: 'HỌ VÀ TÊN', placeholder: 'Ví dụ: Nguyễn Văn A', type: 'text' },
-                                    { label: 'SỐ ĐIỆN THOẠI', placeholder: 'Ví dụ: 0912345678', type: 'text' },
-                                    { label: 'EMAIL', placeholder: 'Ví dụ: a.nguyen@example.com', type: 'email' },
+                                    { label: 'HỌ VÀ TÊN', placeholder: 'Ví dụ: Nguyễn Văn A', type: 'text', col: '' },
+                                    { label: 'SỐ ĐIỆN THOẠI', placeholder: 'Ví dụ: 0912345678', type: 'text', col: '' },
+                                    { label: 'EMAIL', placeholder: 'Ví dụ: a.nguyen@example.com', type: 'email', col: 'col-span-2' },
                                 ].map((field) => (
-                                    <div key={field.label}>
-                                        <label className="block text-[11px] font-bold uppercase tracking-widest mb-2 px-1"
+                                    <div key={field.label} className={field.col}>
+                                        <label className="block text-[9px] md:text-[11px] font-bold uppercase tracking-widest mb-1.5 md:mb-2 px-1"
                                             style={{ color: `${COLORS.navy}66` }}>
                                             {field.label}
                                         </label>
@@ -301,7 +301,7 @@ export default function BookingPage() {
                             </div>
 
                             <div className="mt-6 text-[10px] text-white/30 text-center leading-relaxed relative z-10">
-                                Bằng cách nhấn tiếp tục, bạn đồng ý với các điều khoản dịch vụ của AMGIntelligent.
+                                Bằng cách nhấn tiếp tục, bạn đồng ý với các điều khoản dịch vụ của AGMIntelligent.
                             </div>
                         </div>
 

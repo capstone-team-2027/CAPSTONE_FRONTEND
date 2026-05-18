@@ -113,7 +113,7 @@ export default function AppointmentsTab({
               <span>Chọn phương tiện của bạn</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               {[
                 {
                   id: 'porsche',
@@ -157,7 +157,7 @@ export default function AppointmentsTab({
               <span>Chọn dịch vụ cần thiết</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {[
                 { id: 'thaynhot', label: 'Thay nhớt', desc: 'Nhớt tổng hợp cao cấp', price: '1.500.000đ', icon: Wrench },
                 { id: 'canchinh', label: 'Cân chỉnh lốp', desc: 'Kiểm tra áp suất & đảo lốp', price: '800.000đ', icon: Settings },
@@ -219,7 +219,7 @@ export default function AppointmentsTab({
               <span>Chọn thời gian phù hợp</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
               {/* Calendar */}
               <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs">
                 <div className="flex items-center justify-between mb-4 px-1">

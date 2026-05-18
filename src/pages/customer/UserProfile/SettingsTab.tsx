@@ -33,14 +33,12 @@ function ToggleSwitch({
     <button
       type="button"
       onClick={onToggle}
-      className={`w-11 h-6 rounded-full transition-colors relative px-0.5 ${
-        active ? 'bg-brand-orange' : 'bg-gray-200'
-      }`}
+      className={`w-11 h-6 rounded-full transition-colors relative px-0.5 ${active ? 'bg-brand-orange' : 'bg-gray-200'
+        }`}
     >
       <div
-        className={`w-5 h-5 rounded-full bg-white shadow-xs transition-transform ${
-          active ? 'translate-x-5' : 'translate-x-0'
-        }`}
+        className={`w-5 h-5 rounded-full bg-white shadow-xs transition-transform ${active ? 'translate-x-5' : 'translate-x-0'
+          }`}
       />
     </button>
   );
@@ -73,9 +71,9 @@ export default function SettingsTab({
         </h2>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column */}
-        <div className="lg:col-span-7 flex flex-col gap-6">
+        <div className="sm:col-span-1 lg:col-span-7 flex flex-col gap-6">
           {/* Profile Card */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-xs p-6 flex flex-col gap-6">
             <div className="flex items-center gap-3">
@@ -100,34 +98,26 @@ export default function SettingsTab({
                 <span className="text-[11px] font-bold text-gray-400">Ảnh đại diện</span>
               </div>
 
-              <div className="flex-1 flex flex-col gap-3 w-full">
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 mb-1">Họ và tên</label>
-                  <input
-                    type="text"
-                    value={settingsData.fullName}
-                    onChange={(e) => onSettingChange('fullName', e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 font-bold text-xs text-brand-blue focus:outline-none focus:border-brand-blue"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex-1 w-full">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-400 mb-1">Email</label>
+                    <label className="block text-[10px] font-bold text-gray-400 mb-1">Họ và tên</label>
                     <input
-                      type="email"
-                      value={settingsData.email}
-                      onChange={(e) => onSettingChange('email', e.target.value)}
+                      type="text"
+                      value={settingsData.fullName}
+                      onChange={(e) => onSettingChange('fullName', e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-gray-200 font-bold text-xs text-brand-blue focus:outline-none focus:border-brand-blue"
                     />
                   </div>
+
                   <div>
                     <label className="block text-[10px] font-bold text-gray-400 mb-1">Số điện thoại</label>
                     <input
                       type="text"
                       value={settingsData.phone}
-                      onChange={(e) => onSettingChange('phone', e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-gray-200 font-bold text-xs text-brand-blue focus:outline-none focus:border-brand-blue"
+                      readOnly
+                      disabled
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-xs text-brand-blue/50 bg-slate-50 cursor-not-allowed focus:outline-none"
                     />
                   </div>
                 </div>
@@ -166,24 +156,11 @@ export default function SettingsTab({
                 />
               </div>
             </div>
-
-            <div className="bg-blue-50/60 rounded-xl p-4 border border-blue-100 flex items-center justify-between">
-              <div className="flex flex-col">
-                <span className="font-bold text-xs text-brand-blue">Xác thực 2 yếu tố (2FA)</span>
-                <span className="text-[10px] text-gray-400 mt-0.5">
-                  Tăng cường bảo mật cho tài khoản của bạn.
-                </span>
-              </div>
-              <ToggleSwitch
-                active={settingsData.enable2FA}
-                onToggle={() => onSettingChange('enable2FA', !settingsData.enable2FA)}
-              />
-            </div>
           </div>
         </div>
 
         {/* Right Column */}
-        <div className="lg:col-span-5 flex flex-col gap-6">
+        <div className="sm:col-span-1 lg:col-span-5 flex flex-col gap-6">
           {/* Notifications Card */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-xs p-6 flex flex-col gap-5">
             <div className="flex items-center gap-3">
@@ -197,7 +174,6 @@ export default function SettingsTab({
             </p>
             <div className="flex flex-col gap-4 pt-1">
               {[
-                { label: 'Email', field: 'notifyEmail', value: settingsData.notifyEmail },
                 { label: 'SMS', field: 'notifySMS', value: settingsData.notifySMS },
                 { label: 'Push Notification', field: 'notifyPush', value: settingsData.notifyPush },
               ].map((item) => (
@@ -221,17 +197,7 @@ export default function SettingsTab({
               <h3 className="text-sm font-bold text-brand-blue">Tùy chỉnh</h3>
             </div>
             <div className="flex flex-col gap-4 pt-1">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-xs text-brand-blue">Ngôn ngữ</span>
-                <select
-                  value={settingsData.language}
-                  onChange={(e) => onSettingChange('language', e.target.value)}
-                  className="bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1.5 font-bold text-xs text-brand-blue focus:outline-none focus:border-brand-blue cursor-pointer"
-                >
-                  <option value="Tiếng Việt">Tiếng Việt</option>
-                  <option value="English">English</option>
-                </select>
-              </div>
+
               <div className="flex items-center justify-between">
                 <span className="font-bold text-xs text-brand-blue">Chế độ tối</span>
                 <ToggleSwitch
@@ -252,7 +218,7 @@ export default function SettingsTab({
             <div className="flex items-center gap-4 pt-1">
               <a
                 href="#terms"
-                onClick={(e) => { e.preventDefault(); alert('Điều khoản sử dụng dịch vụ AMG Intelligent.'); }}
+                onClick={(e) => { e.preventDefault(); alert('Điều khoản sử dụng dịch vụ AGM Intelligent.'); }}
                 className="font-bold text-[11px] text-brand-blue hover:underline"
               >
                 Điều khoản

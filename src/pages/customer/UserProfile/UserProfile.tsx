@@ -28,7 +28,7 @@ const MENU_ITEMS = [
 
 export default function UserProfile() {
     useEffect(() => {
-        document.title = 'Thông tin cá nhân | AMG Intelligent';
+        document.title = 'Thông tin cá nhân | AGM Intelligent';
     }, []);
 
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -198,8 +198,8 @@ export default function UserProfile() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 {/* Sidebar */}
-                <div className="lg:col-span-3 flex flex-col gap-3">
-                    <div className="px-4 py-1">
+                <div className="lg:col-span-3 flex flex-col gap-2 md:gap-3">
+                    <div className="hidden lg:block px-4 py-1">
                         <h2 className="text-gray-400 font-bold text-base tracking-wide">Thông tin cá nhân</h2>
                     </div>
 
@@ -207,9 +207,9 @@ export default function UserProfile() {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="bg-[#F1F5F9] rounded-2xl p-4 flex flex-col justify-between border border-gray-200/60 shadow-sm min-h-[580px]"
+                        className="bg-[#F1F5F9] rounded-2xl p-3 md:p-4 flex flex-col justify-between border border-gray-200/60 shadow-sm min-h-auto lg:min-h-[580px]"
                     >
-                        <div className="space-y-2 pt-2">
+                        <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-col lg:space-y-2 pt-1 lg:pt-2">
                             {MENU_ITEMS.map((item) => {
                                 const IconComponent = item.icon;
                                 const isActive = activeTab === item.id;
@@ -219,27 +219,27 @@ export default function UserProfile() {
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
                                         onClick={() => setActiveTab(item.id)}
-                                        className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold text-sm transition-all text-left ${isActive
+                                        className={`w-full flex items-center gap-2.5 md:gap-3 px-3 py-2.5 md:px-4 md:py-3.5 rounded-xl font-bold text-xs md:text-sm transition-all text-left ${isActive
                                             ? 'bg-[#F9A11B] text-brand-blue shadow-md shadow-orange-500/10'
                                             : 'text-brand-blue/70 hover:bg-white/60 hover:text-brand-blue'
                                             }`}
                                     >
                                         <IconComponent
-                                            className={`w-5 h-5 ${isActive ? 'text-brand-blue' : 'text-brand-blue/60'}`}
+                                            className={`w-4 h-4 md:w-5 md:h-5 shrink-0 ${isActive ? 'text-brand-blue' : 'text-brand-blue/60'}`}
                                         />
-                                        <span>{item.label}</span>
+                                        <span className="truncate">{item.label}</span>
                                     </motion.button>
                                 );
                             })}
                         </div>
 
-                        <div className="pt-4 border-t border-gray-200/80 space-y-2 mt-auto">
+                        <div className="pt-3 lg:pt-4 border-t border-gray-200/80 grid grid-cols-2 gap-2 lg:flex lg:flex-col lg:space-y-2 mt-3 lg:mt-auto">
                             <button
                                 onClick={() => alert('Hệ thống hỗ trợ trực tuyến đang kết nối...')}
-                                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm text-brand-blue/70 hover:bg-white/60 hover:text-brand-blue transition-all text-left"
+                                className="w-full flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-xl font-medium text-xs md:text-sm text-brand-blue/70 hover:bg-white/60 hover:text-brand-blue transition-all text-left bg-white/40 lg:bg-transparent"
                             >
-                                <HelpCircle className="w-5 h-5 text-brand-blue/60" />
-                                <span>Trợ giúp & Hỗ trợ</span>
+                                <HelpCircle className="w-4 h-4 md:w-5 md:h-5 text-brand-blue/60 shrink-0" />
+                                <span className="truncate">Trợ giúp & Hỗ trợ</span>
                             </button>
 
                             <button
@@ -249,10 +249,10 @@ export default function UserProfile() {
                                         window.location.href = '/login';
                                     }
                                 }}
-                                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm text-red-600 hover:bg-red-50 transition-all text-left group"
+                                className="w-full flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-xl font-bold text-xs md:text-sm text-red-600 hover:bg-red-50 transition-all text-left group bg-red-50/30 lg:bg-transparent"
                             >
-                                <LogOut className="w-5 h-5 text-red-600 group-hover:translate-x-1 transition-transform" />
-                                <span>Đăng xuất</span>
+                                <LogOut className="w-4 h-4 md:w-5 md:h-5 text-red-600 group-hover:translate-x-1 transition-transform shrink-0" />
+                                <span className="truncate">Đăng xuất</span>
                             </button>
                         </div>
                     </motion.div>

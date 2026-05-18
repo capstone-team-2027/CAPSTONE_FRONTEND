@@ -72,7 +72,7 @@ export default function ForgotPassword() {
                             Quên Mật Khẩu
                         </h2>
                         <p style={{ color: `${COLORS.navy}80` }}>
-                            Nhập địa chỉ email liên kết với tài khoản AMG Intelligent của bạn.
+                            Nhập địa chỉ email liên kết với tài khoản AGM Intelligent của bạn.
                             Chúng tôi sẽ gửi một liên kết bảo mật để đặt lại mật khẩu.
                         </p>
                     </div>

@@ -11,13 +11,13 @@ const LEADERS = [
         name: 'Nguyễn Minh Tuấn',
         role: 'Sáng lập & Giám đốc điều hành',
         image: '/staff/leader.jpg',
-        bio: 'Với hơn 20 năm kinh nghiệm trong ngành công nghiệp ô tô, ông Tuấn đã xây dựng AMG dựa trên triết lý "Chính trực & Chính xác". Ông tin rằng sự minh bạch là chìa khóa để xây dựng niềm tin lâu dài với khách hàng.',
+        bio: 'Với hơn 20 năm kinh nghiệm trong ngành công nghiệp ô tô, ông Tuấn đã xây dựng AGM dựa trên triết lý "Chính trực & Chính xác". Ông tin rằng sự minh bạch là chìa khóa để xây dựng niềm tin lâu dài với khách hàng.',
     },
     {
         name: 'Trần Thu Hà',
         role: 'Giám đốc Dịch vụ',
         image: '/staff/leadernu.webp',
-        bio: 'Chuyên gia quản lý quy trình kỹ thuật đạt chuẩn quốc tế. Bà Hà đảm bảo mọi quy trình sửa chữa tại AMG Intelligent đều tuân thủ nghiêm ngặt các tiêu chuẩn an toàn và hiệu suất cao nhất.',
+        bio: 'Chuyên gia quản lý quy trình kỹ thuật đạt chuẩn quốc tế. Bà Hà đảm bảo mọi quy trình sửa chữa tại AGM Intelligent đều tuân thủ nghiêm ngặt các tiêu chuẩn an toàn và hiệu suất cao nhất.',
     },
 ];
 

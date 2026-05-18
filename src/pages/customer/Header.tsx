@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Menu, X } from 'lucide-react';
+import { Bell, Menu, X, Home, Wrench, Cpu, Phone, User } from 'lucide-react';
 
 import Logo from '../../components/share/Logo';
 import { Button } from '../../components/share/Button';
@@ -19,6 +19,14 @@ const NAV_ITEMS: NavItem[] = [
     { name: 'Linh Kiện', path: '/parts' },
     { name: 'Đội Ngũ', path: '/team' },
     { name: 'Tư Vấn', path: '/phone-service' },
+];
+
+const MOBILE_TAB_ITEMS = [
+    { name: 'Trang Chủ', path: '/', icon: Home },
+    { name: 'Dịch Vụ', path: '/services', icon: Wrench },
+    { name: 'Linh Kiện', path: '/parts', icon: Cpu },
+    { name: 'Tư Vấn', path: '/phone-service', icon: Phone },
+    { name: 'Cá Nhân', path: '/userprofile', icon: User },
 ];
 
 // ────────────────────────────────────────────────────────────
@@ -161,15 +169,31 @@ export default function Navbar() {
                             )}
                         </div>
 
-                        {/* MOBILE TOGGLE */}
-                        <button
-                            type="button"
-                            onClick={toggleMenu}
-                            aria-label="Toggle menu"
-                            className="md:hidden p-2 text-white/70 hover:text-white transition-colors"
-                        >
-                            {isOpen ? <X size={24} /> : <Menu size={24} />}
-                        </button>
+                        {/* MOBILE ACTIONS */}
+                        <div className="flex md:hidden items-center gap-3">
+                            {isAuthenticated && (
+                                <button
+                                    type="button"
+                                    aria-label="Notifications"
+                                    className="relative p-2 text-white/70 hover:text-white transition-colors"
+                                >
+                                    <Bell className="w-5 h-5" />
+                                    <span
+                                        className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full"
+                                        style={{ backgroundColor: COLORS.orange }}
+                                    />
+                                </button>
+                            )}
+
+                            <button
+                                type="button"
+                                onClick={toggleMenu}
+                                aria-label="Toggle menu"
+                                className="p-2 text-white/70 hover:text-white transition-colors"
+                            >
+                                {isOpen ? <X size={24} /> : <Menu size={24} />}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -230,7 +254,75 @@ export default function Navbar() {
                     )}
                 </AnimatePresence>
             </header>
-            <Outlet />
+            
+            <main className="pb-20 md:pb-0">
+                <Outlet />
+            </main>
+
+            {/* MOBILE BOTTOM NAVIGATION BAR (Shopee Style) */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#00285E]/95 backdrop-blur-xl border-t border-white/10 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgb(0,0,0,0.5)]">
+                <div className="h-16 flex items-center justify-around px-2 relative">
+                    {MOBILE_TAB_ITEMS.map((item) => {
+                        // Check if current route matches this tab
+                        const active = item.path === '/' 
+                            ? location.pathname === '/' 
+                            : item.path === '/userprofile'
+                                ? ['/userprofile', '/login', '/signup', '/forgot-password'].includes(location.pathname)
+                                : location.pathname === item.path;
+                        
+                        const Icon = item.icon;
+                        
+                        // If "Cá Nhân" and not logged in, navigate to /login
+                        const targetPath = item.path === '/userprofile' && !isAuthenticated ? '/login' : item.path;
+
+                        return (
+                            <Link
+                                key={item.name}
+                                to={targetPath}
+                                className="flex flex-col items-center justify-center flex-1 h-full relative group"
+                            >
+                                <motion.div
+                                    animate={active ? { scale: 1.12, y: -4 } : { scale: 1, y: 0 }}
+                                    transition={{ type: 'spring', stiffness: 350, damping: 15 }}
+                                    className="relative flex items-center justify-center p-1"
+                                >
+                                    {/* Active background glow */}
+                                    {active && (
+                                        <motion.div
+                                            layoutId="activeTabGlow"
+                                            className="absolute -inset-2 bg-[#F9A11B]/15 blur-md rounded-full -z-10"
+                                            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                                        />
+                                    )}
+                                    
+                                    <Icon
+                                        className={`w-6 h-6 transition-colors duration-300 ${
+                                            active ? 'text-[#F9A11B]' : 'text-white/50 group-hover:text-white'
+                                        }`}
+                                    />
+                                </motion.div>
+                                
+                                <span
+                                    className={`text-[10px] mt-0.5 font-medium tracking-wide transition-all duration-300 ${
+                                        active ? 'text-[#F9A11B] font-semibold scale-105' : 'text-white/40'
+                                    }`}
+                                >
+                                    {item.name}
+                                </span>
+
+                                {/* Safe small active indicator dot under the text */}
+                                {active && (
+                                    <motion.div
+                                        layoutId="activeTabDot"
+                                        className="absolute bottom-1.5 w-1 h-1 rounded-full bg-[#F9A11B]"
+                                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                                    />
+                                )}
+                            </Link>
+                        );
+                    })}
+                </div>
+            </div>
         </>
 
     );

@@ -117,7 +117,7 @@ export default function Signup() {
                         transition={{ delay: 0.1 }}
                         className="text-5xl font-display leading-[1.1] mb-6"
                     >
-                        AMG <br />
+                        AGM <br />
                         <span style={{ color: COLORS.orange }}>Intelligent</span>
                     </motion.h1>
 
@@ -165,7 +165,7 @@ export default function Signup() {
                             className="text-xs font-bold uppercase tracking-[0.2em] mb-3"
                             style={{ color: COLORS.orange }}
                         >
-                            AMG INTELLIGENT — PORTAL
+                            AGM INTELLIGENT — PORTAL
                         </p>
                         <h2 className="text-5xl font-display mb-3" style={{ color: COLORS.navy }}>
                             Tạo Tài Khoản

@@ -41,7 +41,7 @@ export default function Logo({ size = 'md', className = '' }: LogoProps) {
                 className={`${s.text} font-bold font-display tracking-tight uppercase`}
                 style={{ color: COLORS.white }}
             >
-                AMG INTELLIGENT
+                AGM INTELLIGENT
             </span>
         </Link>
     );

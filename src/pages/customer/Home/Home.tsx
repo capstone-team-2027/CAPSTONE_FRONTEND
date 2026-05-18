@@ -12,7 +12,8 @@ import {
     Calendar,
     Phone,
     ArrowRight,
-    Star
+    Star,
+    Cpu
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { COLORS } from '../../../components/share/Color';
@@ -93,6 +94,7 @@ export default function Home() {
             displayTitle: 'Bộ tăng áp',
             sub: 'Hệ thống truyền động',
             image: '/images/Turbocharger Assembly.png',
+            icon: <Cpu size={22} />,
             desc: 'Dịch vụ tối ưu hóa và tái cấu trúc hệ thống tăng áp để cung cấp công suất tối đa và độ bền bỉ vượt trội. Mỗi bộ phận đều được kiểm tra độ cân bằng động chính xác.',
             stats: [
                 { label: 'Cấp độ linh kiện', value: 'OEM' },
@@ -105,6 +107,7 @@ export default function Home() {
             displayTitle: 'Hệ thống phanh gốm',
             sub: 'Phanh',
             image: '/images/phanhgom.jpg',
+            icon: <ShieldCheck size={22} />,
             desc: 'Xử lý các vật liệu ma sát tiên tiến cho hiệu suất phanh vượt trội mà không bị phai màu dưới nhiệt độ cực cao. Thích hợp cho xe hiệu năng cao và xe đua.',
             stats: [
                 { label: 'Tiêu chuẩn', value: 'Track' },
@@ -117,11 +120,25 @@ export default function Home() {
             displayTitle: 'Treo chủ động',
             sub: 'Cầu treo',
             image: '/images/treo.jpg',
+            icon: <Wrench size={22} />,
             desc: 'Hiệu chuẩn các bộ giảm chấn điện tử để cân bằng hoàn hảo giữa sự thoải mái và khả năng xử lý thể thao. Chẩn đoán rò rỉ và lỗi cảm biến chính xác.',
             stats: [
                 { label: 'Phản ứng', value: '10ms' },
                 { label: 'Cảm biến', value: '4-Point' },
                 { label: 'Độ chuẩn', value: '99%' }
+            ]
+        },
+        {
+            title: 'Lập trình ECU thông minh',
+            displayTitle: 'Tối ưu hóa ECU',
+            sub: 'Điện & Điện tử',
+            image: '/images/ECU.jpg',
+            icon: <Settings size={22} />,
+            desc: 'Hiệu chỉnh phần mềm quản lý động cơ để tối ưu hóa công suất, mô-men xoắn và hiệu suất nhiên liệu. Đảm bảo các thông số vận hành an toàn và tin cậy.',
+            stats: [
+                { label: 'Công suất', value: '+25%' },
+                { label: 'Mô-men xoắn', value: '+30%' },
+                { label: 'Phản hồi ga', value: 'Instant' }
             ]
         }
     ];
@@ -134,7 +151,7 @@ export default function Home() {
             name: 'Miu Lê',
             role: 'PORSCHE 911 GT3 RS OWNER',
             image: '/images/miule.webp',
-            text: '"AMG đã thay đổi hoàn toàn quá trình chuẩn bị cho ngày đua xe của tôi. Khả năng chẩn đoán chính xác của họ đã phát hiện ra một vấn đề mà đại lý của tôi bỏ sót trong nhiều tháng. Kỹ thuật viên thực sự là những chuyên gia đích thực."',
+            text: '"AGM đã thay đổi hoàn toàn quá trình chuẩn bị cho ngày đua xe của tôi. Khả năng chẩn đoán chính xác của họ đã phát hiện ra một vấn đề mà đại lý của tôi bỏ sót trong nhiều tháng. Kỹ thuật viên thực sự là những chuyên gia đích thực."',
             rating: '5.0 SAO'
         },
         {
@@ -142,7 +159,7 @@ export default function Home() {
             name: 'Dược Sĩ Tiến',
             role: 'BMW M4 COMPETITION OWNER',
             image: '/images/dst.webp',
-            text: '"Dịch vụ chăm sóc xe ở đây rất tỉ mỉ. Lớp phủ gốm của họ làm xe tôi trông như vừa mới xuất xưởng. Tôi rất ấn tượng với sự chuyên nghiệp và cơ sở vật chất hiện đại của AMG."',
+            text: '"Dịch vụ chăm sóc xe ở đây rất tỉ mỉ. Lớp phủ gốm của họ làm xe tôi trông như vừa mới xuất xưởng. Tôi rất ấn tượng với sự chuyên nghiệp và cơ sở vật chất hiện đại của AGM."',
             rating: '5.0 SAO'
         },
         {
@@ -150,7 +167,7 @@ export default function Home() {
             name: 'Sơn Tùng M-TP',
             role: 'MERCEDES-BENZ S-CLASS OWNER',
             image: '/images/sontung.jpg',
-            text: '"Tôi tìm đến AMG để bảo trì định kỳ và rất hài lòng. Quy trình đặt lịch nhanh chóng, kỹ thuật viên giải thích rõ ràng và minh bạch về chi phí. Đây là địa chỉ tin cậy của tôi."',
+            text: '"Tôi tìm đến AGM để bảo trì định kỳ và rất hài lòng. Quy trình đặt lịch nhanh chóng, kỹ thuật viên giải thích rõ ràng và minh bạch về chi phí. Đây là địa chỉ tin cậy của tôi."',
             rating: '5.0 SAO'
         }
     ];
@@ -172,7 +189,7 @@ export default function Home() {
     return (
         <div className="overflow-hidden bg-white">
             {/* Hero Section */}
-            <section className="relative min-h-[90vh] flex items-center bg-[#00285E] overflow-hidden py-20">
+            <section className="relative h-44 sm:h-56 md:min-h-[90vh] flex items-center bg-[#00285E] overflow-hidden py-0 md:py-20">
                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
                     <iframe
                         src="https://player.vimeo.com/video/1192315795?background=1&autoplay=1&loop=1&byline=0&title=0&muted=1"
@@ -189,17 +206,17 @@ export default function Home() {
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ duration: 0.8 }}
                         >
-                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 text-white/80 text-[10px] font-bold uppercase tracking-widest mb-8 border border-white/10 backdrop-blur-sm">
+                            <div className="hidden md:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 text-white/80 text-[10px] font-bold uppercase tracking-widest mb-8 border border-white/10 backdrop-blur-sm">
                                 <ShieldCheck size={14} style={{ color: COLORS.orange }} />
                                 Được chứng nhận bởi 12 nhà sản xuất hàng đầu
                             </div>
 
-                            <h1 className="text-6xl md:text-[5.5rem] font-display text-white mb-6 leading-[1.05] tracking-tight">
-                                <span className="block">Chăm sóc</span>
-                                <span className="block mt-2" style={{ color: COLORS.orange }}>Cho xế yêu</span>
+                            <h1 className="text-2xl sm:text-3xl md:text-[5.5rem] font-display text-white mb-2 md:mb-6 leading-[1.1] md:leading-[1.05] tracking-tight">
+                                <span className="inline md:block">Chăm sóc </span>
+                                <span className="inline md:block mt-0 md:mt-2" style={{ color: COLORS.orange }}>XẾ YÊU</span>
                             </h1>
 
-                            <div className="space-y-4 mb-10 max-w-lg">
+                            <div className="hidden md:block space-y-4 mb-10 max-w-lg">
                                 <p className="text-white/70 leading-relaxed font-medium">
                                     Kỹ thuật viên được chứng nhận bởi nhà máy. Chẩn đoán đạt tiêu chuẩn đại lý.
                                 </p>
@@ -209,36 +226,40 @@ export default function Home() {
                             </div>
 
                             {/* ── HERO BUTTONS ── */}
-                            <div className="flex flex-wrap gap-4 mb-16">
+                            <div className="flex items-center gap-4 mt-4 md:mt-0 mb-0 md:mb-16">
                                 {/* Primary — nền cam, chữ navy */}
-                                <Button
-                                    to="/booking"
-                                    size="md"
-                                    bg={COLORS.orange}
-                                    color={COLORS.navy}
-                                    icon={<ArrowRight size={20} />}
-                                >
-                                    Đặt Lịch Ngay
-                                </Button>
+                                <div className="scale-75 md:scale-100 origin-left">
+                                    <Button
+                                        to="/phone-service"
+                                        size="md"
+                                        bg={COLORS.orange}
+                                        color={COLORS.navy}
+                                        icon={<ArrowRight size={20} />}
+                                    >
+                                        Đặt Lịch Ngay
+                                    </Button>
+                                </div>
 
                                 {/* Ghost — trong suốt, viền trắng mờ, chữ trắng */}
-                                <Button
-                                    size="md"
-                                    bg="transparent"
-                                    color={COLORS.white}
-                                    icon={<span className="text-white/50 text-xl font-normal">↓</span>}
-                                    style={{ border: '1px solid rgba(255,255,255,0.2)' }}
-                                    onClick={() =>
-                                        document
-                                            .getElementById('services-grid')
-                                            ?.scrollIntoView({ behavior: 'smooth' })
-                                    }
-                                >
-                                    Trải nghiệm Dịch Vụ
-                                </Button>
+                                <div className="hidden md:block">
+                                    <Button
+                                        size="md"
+                                        bg="transparent"
+                                        color={COLORS.white}
+                                        icon={<span className="text-white/50 text-xl font-normal">↓</span>}
+                                        style={{ border: '1px solid rgba(255,255,255,0.2)' }}
+                                        onClick={() =>
+                                            document
+                                                .getElementById('services-grid')
+                                                ?.scrollIntoView({ behavior: 'smooth' })
+                                        }
+                                    >
+                                        Trải nghiệm Dịch Vụ
+                                    </Button>
+                                </div>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-12 border-t border-white/10 pt-10">
+                            <div className="hidden md:grid grid-cols-3 gap-12 border-t border-white/10 pt-10">
                                 {stats.map((stat) => (
                                     <div key={stat.label}>
                                         <div className="text-4xl font-bold text-white mb-1 font-display">{stat.value}</div>
@@ -305,6 +326,33 @@ export default function Home() {
                 </div>
             </section>
 
+            {/* MOBILE QUICK CATEGORIES (Shopee Style) */}
+            <div className="md:hidden bg-white py-8 border-b border-gray-100/50">
+                <div className="grid grid-cols-4 gap-y-6 gap-x-2 text-center px-4">
+                    {[
+                        { name: 'Dịch Vụ', path: '/services', icon: Wrench, color: '#F9A11B', bg: '#FFF7ED' },
+                        { name: 'Linh Kiện', path: '/parts', icon: Cpu, color: '#8B5CF6', bg: '#F5F3FF' },
+                        { name: 'Đội Ngũ', path: '/team', icon: UserCheck, color: '#EC4899', bg: '#FDF2F8' },
+                        { name: 'Đặt Lịch', path: '/phone-service', icon: Calendar, color: '#06B6D4', bg: '#ECFEFF' },
+                    ].map((item, idx) => {
+                        const Icon = item.icon;
+                        return (
+                            <Link key={idx} to={item.path} className="flex flex-col items-center group active:scale-95 transition-transform duration-150">
+                                <div
+                                    className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-xs mb-2 transition-colors duration-300"
+                                    style={{ backgroundColor: item.bg }}
+                                >
+                                    <Icon className="w-5 h-5" style={{ color: item.color }} />
+                                </div>
+                                <span className="text-[11px] font-bold text-slate-700 tracking-tight leading-tight">
+                                    {item.name}
+                                </span>
+                            </Link>
+                        );
+                    })}
+                </div>
+            </div>
+
             {/* Services Grid Section */}
             <section id="services-grid" className="py-20 bg-[#EDF3FF]">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -320,11 +368,11 @@ export default function Home() {
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-8">
                         {[
                             { title: 'Bảo trì chính xác', desc: 'Thay dầu định kỳ, kiểm tra chất lỏng, thay bộ lọc và kiểm tra toàn diện nhiều điểm bằng các quy trình theo tiêu chuẩn của nhà sản xuất.', image: '/images/Precision Maintenance (1).png', icon: <Settings size={16} style={{ color: COLORS.orange }} /> },
                             { title: 'Sửa chữa nâng cao', desc: 'Sửa chữa động cơ, đại tu hộp số, phục hồi hệ thống phanh và tinh chỉnh hệ thống treo bởi các kỹ thuật viên bậc thầy được chứng nhận.', image: '/images/Advanced Repair.png', icon: <Wrench size={16} style={{ color: COLORS.orange }} /> },
-                            { title: 'Chẩn đoán kỹ thuật số', desc: 'Phân tích động cơ bằng máy tính, lập trình ECU, giải quyết mã lỗi và giám sát hiệu suất theo thời gian thực với các máy quét cấp đại lý.', image: '/images/Digital Diagnostics.png', icon: <Clock size={16} style={{ color: COLORS.orange }} /> },
+                            { title: 'Chẩn đoán kỹ thuật số', desc: 'Phân tích động cơ bằng máy tính, lập trình ECU, giải quyết mã lỗi và giám sát hiệu suất theo thời gian thực với các máy quét cấp đại lý.', image: '/images/ECU.jpg', icon: <Clock size={16} style={{ color: COLORS.orange }} /> },
                             { title: 'Dịch vụ chăm sóc xe cao cấp', desc: 'Dịch vụ phủ gốm, hiệu chỉnh sơn, vệ sinh nội thất chuyên sâu và dán phim bảo vệ để đạt được chất lượng hoàn thiện như trong showroom.', image: '/images/Elite Detailing.png', icon: <Droplets size={16} style={{ color: COLORS.orange }} /> },
                             { title: 'Tối ưu hóa hiệu năng', desc: 'Nâng cấp turbo, tối ưu hóa hệ thống ống xả, điều chỉnh hệ thống nạp khí và tăng công suất đã được kiểm nghiệm trên máy đo công suất.', image: '/images/Performance Tuning.png', icon: <Zap size={16} style={{ color: COLORS.orange }} /> },
                             { title: 'Bảo vệ xe', desc: 'Các dịch vụ bảo hành mở rộng, xử lý chống gỉ, phủ gầm và giải pháp lưu trữ có kiểm soát nhiệt độ cho xe cổ.', image: '/images/Vehicle Protection.png', icon: <ShieldCheck size={16} style={{ color: COLORS.orange }} /> }
@@ -332,22 +380,22 @@ export default function Home() {
                             <motion.div
                                 key={idx}
                                 whileHover={{ y: -10 }}
-                                className="bg-white rounded-2xl overflow-hidden shadow-sm border border-white group"
+                                className={`${idx >= 4 ? 'hidden md:block' : ''} bg-white rounded-2xl overflow-hidden shadow-sm border border-white group`}
                             >
-                                <div className="p-4 pt-6">
-                                    <div className="w-10 h-10 rounded-lg bg-[#F1F5F9] flex items-center justify-center mb-6 mx-4"
+                                <div className="p-2.5 md:p-4 md:pt-6">
+                                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-[#F1F5F9] flex items-center justify-center mb-3 md:mb-6 mx-2 md:mx-4"
                                         style={{ color: COLORS.navy }}>
                                         {feature.icon}
                                     </div>
-                                    <div className="aspect-[16/10] rounded-xl overflow-hidden mb-6 mx-4">
+                                    <div className="aspect-[16/10] rounded-xl overflow-hidden mb-3 md:mb-6 mx-2 md:mx-4">
                                         <img src={feature.image} alt={feature.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                                     </div>
-                                    <div className="px-4 pb-4">
-                                        <h3 className="text-lg font-bold mb-3 transition-colors group-hover:opacity-70"
+                                    <div className="px-2 md:px-4 pb-2 md:pb-4">
+                                        <h3 className="text-xs md:text-lg font-bold mb-1 md:mb-3 transition-colors group-hover:opacity-70 line-clamp-1 md:line-clamp-none"
                                             style={{ color: COLORS.navy }}>
                                             {feature.title}
                                         </h3>
-                                        <p className="text-[10px] leading-relaxed mb-4" style={{ color: `${COLORS.navy}80` }}>
+                                        <p className="hidden md:block text-[10px] leading-relaxed mb-4" style={{ color: `${COLORS.navy}80` }}>
                                             {feature.desc}
                                         </p>
                                     </div>
@@ -359,7 +407,7 @@ export default function Home() {
             </section>
 
             {/* Booking Process Section */}
-            <section className="py-40 bg-white">
+            <section className="hidden md:block py-40 bg-white">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center mb-24">
                         <span className="font-bold text-[10px] tracking-[0.2em] uppercase mb-4 block" style={{ color: COLORS.orange }}>
@@ -398,7 +446,7 @@ export default function Home() {
             </section>
 
             {/* Expert Team Section */}
-            <section className="py-32 bg-white">
+            <section className="hidden md:block py-32 bg-white">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-24 items-center">
                         <div>
@@ -407,12 +455,12 @@ export default function Home() {
                             </span>
                             <h2 className="text-6xl font-display mb-10 leading-[1.1]" style={{ color: COLORS.navy }}>Chuyên gia ưu tú</h2>
                             <p className="mb-12 text-sm leading-relaxed font-medium max-w-lg" style={{ color: `${COLORS.navy}99` }}>
-                                Mỗi chiếc xe được giao cho AMG đều được xử lý bởi các kỹ thuật viên bậc thầy được chứng nhận từ nhà máy,
+                                Mỗi chiếc xe được giao cho AGM đều được xử lý bởi các kỹ thuật viên bậc thầy được chứng nhận từ nhà máy,
                                 với hàng chục năm kinh nghiệm tổng hợp từ các thương hiệu ô tô danh tiếng nhất thế giới.
                             </p>
 
                             {/* ── PILL TOGGLE — dùng Button với bg động ── */}
-                            <div className="flex flex-wrap gap-3 mb-10">
+                            <div className="flex overflow-x-auto scrollbar-none gap-3 mb-10 -mx-4 px-4 flex-nowrap md:flex-wrap md:mx-0 md:px-0">
                                 {teamMembers.map((member, i) => (
                                     <Button
                                         key={member.name}
@@ -512,53 +560,55 @@ export default function Home() {
             </section>
 
             {/* Tech Specs Interactive Section */}
-            <section className="py-40 bg-[#EDF3FF]">
+            <section className="py-20 md:py-40 bg-[#EDF3FF]">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-24 items-center">
-                        <div className="lg:col-span-5">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 md:gap-24 items-center">
+                        <div className="lg:col-span-5 w-full">
                             <span className="font-bold text-[10px] tracking-[0.2em] uppercase mb-4 block" style={{ color: COLORS.orange }}>CÔNG NGHỆ</span>
-                            <h2 className="text-6xl font-display mb-10 leading-[1.05]" style={{ color: COLORS.navy }}>Thông số kỹ thuật</h2>
-                            <p className="mb-14 text-sm leading-relaxed font-medium max-w-md" style={{ color: `${COLORS.navy}99` }}>
+                            <h2 className="text-4xl md:text-6xl font-display mb-6 md:mb-10 leading-[1.05]" style={{ color: COLORS.navy }}>Thông số kỹ thuật</h2>
+                            <p className="mb-8 md:mb-14 text-xs md:text-sm leading-relaxed font-medium max-w-md" style={{ color: `${COLORS.navy}99` }}>
                                 Phương pháp chẩn đoán bằng sơ đồ tháo rời của chúng tôi phân tích từng hệ thống cấu thành, cho phép các kỹ sư của chúng tôi xác định và giải quyết các vấn đề với độ chính xác cao.
                             </p>
 
-                            <div className="space-y-5">
+                            <div className="grid grid-cols-2 md:block gap-3 md:space-y-5">
                                 {techSpecs.map((item, idx) => (
                                     <motion.div
                                         whileHover={{ scale: 1.02, x: 5 }}
                                         whileTap={{ scale: 0.98 }}
                                         key={idx}
                                         onClick={() => setActiveTechIndex(idx)}
-                                        className="p-7 rounded-[2rem] border transition-all cursor-pointer flex items-center justify-between group"
+                                        className="p-4 md:p-7 rounded-[1.5rem] md:rounded-[2rem] border transition-all cursor-pointer flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-0 group"
                                         style={activeTechIndex === idx
                                             ? { backgroundColor: COLORS.navy, borderColor: COLORS.navy }
                                             : { backgroundColor: COLORS.white, borderColor: '#EFF6FF' }}
                                     >
-                                        <div className="flex items-center gap-6">
-                                            <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                                        <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-6">
+                                            <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0"
                                                 style={activeTechIndex === idx
                                                     ? { backgroundColor: 'rgba(255,255,255,0.1)', color: COLORS.orange }
                                                     : { backgroundColor: '#EFF6FF', color: COLORS.navy }}>
-                                                <Settings size={22} />
+                                                {item.icon}
                                             </div>
                                             <div>
-                                                <div className="text-lg font-bold transition-colors"
+                                                <div className="text-xs md:text-lg font-bold transition-colors line-clamp-1 md:line-clamp-none"
                                                     style={{ color: activeTechIndex === idx ? COLORS.white : COLORS.navy }}>
                                                     {item.title}
                                                 </div>
-                                                <div className="text-[10px] uppercase font-bold tracking-[0.2em] mt-1"
+                                                <div className="text-[9px] md:text-[10px] uppercase font-bold tracking-[0.15em] md:tracking-[0.2em] mt-0.5 md:mt-1"
                                                     style={{ color: activeTechIndex === idx ? 'rgba(255,255,255,0.4)' : `${COLORS.navy}33` }}>
                                                     {item.sub}
                                                 </div>
                                             </div>
                                         </div>
-                                        <ArrowRight size={20} style={{ color: activeTechIndex === idx ? COLORS.orange : '#BFDBFE' }} />
+                                        <div className="hidden md:block">
+                                            <ArrowRight size={20} style={{ color: activeTechIndex === idx ? COLORS.orange : '#BFDBFE' }} />
+                                        </div>
                                     </motion.div>
                                 ))}
                             </div>
                         </div>
 
-                        <div className="lg:col-span-7 rounded-[4rem] p-16 md:p-24 relative overflow-hidden text-white min-h-[750px] flex flex-col shadow-3xl shadow-blue-900/40"
+                        <div className="hidden lg:flex lg:col-span-7 rounded-[2rem] md:rounded-[4rem] p-6 sm:p-16 md:p-24 relative overflow-hidden text-white min-h-[500px] md:min-h-[750px] flex-col shadow-3xl shadow-blue-900/40"
                             style={{ backgroundColor: COLORS.navy }}>
                             <div className="absolute top-12 left-12">
                                 <div className="inline-flex items-center gap-2 px-4 py-2 backdrop-blur-md rounded-lg text-[10px] font-bold uppercase tracking-widest border"
@@ -605,7 +655,7 @@ export default function Home() {
             </section>
 
             {/* Modern Testimonial Slider Area */}
-            <section className="py-40 bg-white">
+            <section className="hidden md:block py-40 bg-white">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center mb-24">
                         <span className="font-bold text-[10px] tracking-[0.2em] uppercase mb-4 block" style={{ color: COLORS.orange }}>
@@ -683,17 +733,17 @@ export default function Home() {
                         </div>
                         <Link to="#" className="text-[11px] font-bold uppercase tracking-[0.2em] flex items-center gap-3 transition-all border-b-2 pb-2 group hover:opacity-60"
                             style={{ color: COLORS.navy, borderColor: `${COLORS.navy}1A` }}>
-                            View All Articles <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                            Xem Tất Cả <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
                         </Link>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+                    <div className="flex md:grid md:grid-cols-3 overflow-x-auto md:overflow-x-visible snap-x snap-mandatory md:snap-none scrollbar-none gap-6 md:gap-12 pb-8 md:pb-0 px-4 md:px-0 -mx-4 md:mx-0">
                         {[
                             { title: 'Khoa học sau lớp phủ gốm: Tại sao khoản đầu tư của bạn xứng đáng được bảo vệ', date: 'Tháng 5 2026', tag: 'Chi tiết', image: '/images/The Science Behind Ceramic Coatings_ Why Your Investment Deserves Protection.png', desc: 'Lớp phủ gốm hiện đại liên kết ở cấp độ phân tử, tạo ra một lớp chặn kỹ nước bền hơn sáp truyền thống nhiều năm...' },
                             { title: 'Hiểu về tinh chỉnh ECU: Tăng công suất không ảnh hưởng đến độ an toàn', date: 'Tháng 4 2026', tag: 'Hiệu Năng', image: '/images/Understanding ECU Tuning_ Power Gains Without Compromising Reliability.png', desc: 'Hiệu suất và tuổi thọ như thế nào? Các chuyên gia điều chỉnh động cơ của chúng tôi giải thích các thông số an toàn...' },
                             { title: 'Hướng dẫn bảo quản mùa đông: Bảo vệ xe cổ của bạn trong những tháng lạnh giá', date: 'Tháng 5 2026', tag: 'Bảo Trì', image: '/images/Winter Storage Guide_ Protecting Your Collector Vehicle Through the Cold Months.png', desc: 'Kiểm soát khí hậu, bảo dưỡng ắc quy, bảo quản lốp xe, và chuẩn bị chất lỏng — danh sách kiểm tra đầy đủ...' }
                         ].map((article, idx) => (
-                            <div key={idx} className="group cursor-pointer">
+                            <div key={idx} className="group cursor-pointer snap-align-start shrink-0 w-[82vw] md:w-auto">
                                 <div className="aspect-[16/10] rounded-[2.5rem] overflow-hidden mb-8 relative border border-blue-50 shadow-sm">
                                     <img src={article.image} alt={article.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" />
                                     <div className="absolute top-6 left-6 inline-flex px-4 py-1.5 bg-white/90 backdrop-blur-md rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-xl"
@@ -719,34 +769,35 @@ export default function Home() {
             </section>
 
             {/* High-Impact CTA */}
-            <section className="py-24 relative overflow-hidden">
+            <section className="py-8 md:py-24 relative overflow-hidden">
                 {/* Full-bleed background image */}
                 <div className="absolute inset-0 z-0">
                     <img src="/images/sectionbook.png" alt="" className="w-full h-full object-cover" />
                 </div>
 
                 <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-16 bg-white/5 rounded-[4rem] p-16 md:p-24 border border-white/10 relative overflow-hidden">
-                        <div className="max-w-xl text-center md:text-left relative z-10">
-                            <h2 className="text-6xl font-display text-white mb-8 leading-[1.05]">Sẵn sàng <br /> trải nghiệm?</h2>
-                            <p className="text-white/50 font-medium text-sm leading-relaxed">
-                                Chiếc xe của bạn xứng đáng được chăm sóc bởi những chuyên gia tốt nhất. Hãy đặt lịch hẹn hôm nay và trải nghiệm tiêu chuẩn chăm sóc xe hơi AMG Intelligent.
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-6 md:gap-16 bg-white/5 rounded-[2rem] md:rounded-[4rem] p-6 md:p-24 border border-white/10 relative overflow-hidden">
+                        <div className="max-w-xl text-center sm:text-left relative z-10">
+                            <h2 className="text-2xl sm:text-3xl md:text-6xl font-display text-white leading-tight md:leading-[1.05]">Sẵn sàng <br className="hidden md:inline" /> trải nghiệm?</h2>
+                            <p className="hidden md:block text-white/50 font-medium text-sm leading-relaxed mt-8">
+                                Chiếc xe của bạn xứng đáng được chăm sóc bởi những chuyên gia tốt nhất. Hãy đặt lịch hẹn hôm nay và trải nghiệm tiêu chuẩn chăm sóc xe hơi AGM Intelligent.
                             </p>
                         </div>
 
-                        <div className="flex flex-col items-center md:items-end gap-10 shrink-0 relative z-10">
+                        <div className="flex flex-col items-center sm:items-end gap-6 md:gap-10 shrink-0 w-full sm:w-auto relative z-10">
                             <Button
                                 to="/phone-service"
-                                size="lg"
+                                size="md"
                                 bg={COLORS.orange}
                                 color={COLORS.navy}
-                                icon={<ArrowRight size={28} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />}
-                                style={{ boxShadow: '0 20px 60px rgba(249,161,27,0.3)' }}
+                                icon={<ArrowRight size={20} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />}
+                                className="w-full sm:w-auto justify-center"
+                                style={{ boxShadow: '0 12px 30px rgba(249,161,27,0.2)' }}
                             >
                                 Tư Vấn Ngay
                             </Button>
 
-                            <div className="flex items-center gap-8" style={{ color: `${COLORS.white}66` }}>
+                            <div className="hidden md:flex items-center gap-8" style={{ color: `${COLORS.white}66` }}>
                                 <div className="text-right">
                                     <div className="text-[11px] uppercase font-bold tracking-[0.3em] mb-1" style={{ color: `${COLORS.white}66` }}>(555) 234-5678</div>
                                     <div className="text-[10px] uppercase font-bold tracking-[0.2em]" style={{ color: `${COLORS.white}40` }}>THỨ 2 - THỨ 7: 7:00 AM - 7:00 PM</div>

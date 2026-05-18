@@ -18,7 +18,7 @@ export default function Footer() {
                                 </div>
                                 <span className="text-2xl font-bold font-display tracking-tighter uppercase"
                                     style={{ color: COLORS.navy }}>
-                                    AMG INTELLIGENT
+                                    AGM INTELLIGENT
                                 </span>
                             </Link>
 
@@ -118,7 +118,7 @@ export default function Footer() {
                                 </li>
                                 <li className="flex items-center gap-4">
                                     <Mail size={18} className="shrink-0" style={{ color: COLORS.orange }} />
-                                    <span style={{ color: `${COLORS.navy}66` }}>amgintelligent@gmail.com</span>
+                                    <span style={{ color: `${COLORS.navy}66` }}>agmintelligent@gmail.com</span>
                                 </li>
                             </ul>
 
@@ -142,7 +142,7 @@ export default function Footer() {
                         style={{ borderColor: '#EFF6FF' }}>
                         <p className="text-[11px] font-bold uppercase tracking-[0.1em]"
                             style={{ color: `${COLORS.navy}40` }}>
-                            © 2026 AMG Intelligent Service. All rights reserved.
+                            © 2026 AGM Intelligent Service. All rights reserved.
                         </p>
                         <div className="flex divide-x" style={{ borderColor: '#DBEAFE' }}>
                             {['Điều khoản', 'Điều khoản dịch vụ', 'Cài đặt cookie'].map((item, i) => (

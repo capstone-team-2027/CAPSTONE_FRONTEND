@@ -27,9 +27,10 @@ function App() {
           <Route path="forgot-password" element={<ForgotPassword />} />
           <Route path="team" element={<Team />} />
         </Route>
-
       </Routes>
-      <Footer />
+      <div className="hidden md:block">
+        <Footer />
+      </div>
     </>
   )
 }
