@@ -13,7 +13,7 @@ export default function ForgotPassword() {
     return (
         <div className="min-h-[calc(100vh-80px)] flex items-stretch">
 
-            {/* ── LEFT DECORATION ─────────────────────────────── */}
+            {/* ── LEFT DECORATION ─────────────────────────── */}
             <div className="hidden lg:flex w-1/2 relative overflow-hidden items-center justify-center p-20"
                 style={{ backgroundColor: COLORS.navy }}>
                 <div className="absolute inset-0 z-0">
