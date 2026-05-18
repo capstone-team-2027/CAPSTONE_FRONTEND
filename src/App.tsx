@@ -1,22 +1,22 @@
-import { Route, Routes } from "react-router-dom"
-import Header from "./pages/customer/Header"
-import Home from "./pages/customer/Home/Home"
-import Services from "./pages/customer/Service/Services"
-import Parts from "./pages/customer/Parts/Parts"
-import BookingPage from "./pages/customer/Booking/BookingPage"
-import Signup from "./pages/customer/Home/SingUp"
-import Footer from "./pages/customer/Footer"
-import Login from "./pages/customer/Home/Login"
-import UserProfile from "./pages/customer/UserProfile/UserProfile"
-import ForgotPassword from "./pages/customer/Home/ForgotPassword"
-import Team from "./pages/customer/Team/Team"
-
+import { Route, Routes } from "react-router-dom";
+import Header from "./pages/customer/Header";
+import Home from "./pages/customer/Home/Home";
+import Services from "./pages/customer/Service/Services";
+import Parts from "./pages/customer/Parts/Parts";
+import BookingPage from "./pages/customer/Booking/BookingPage";
+import Signup from "./pages/customer/Home/SingUp";
+import Footer from "./pages/customer/Footer";
+import Login from "./pages/customer/Home/Login";
+import UserProfile from "./pages/customer/UserProfile/UserProfile";
+import ForgotPassword from "./pages/customer/Home/ForgotPassword";
+import Team from "./pages/customer/Team/Team";
+import OtpVerification from "./pages/customer/Home/verify-otp";
+import VerifyPhone from "./pages/customer/Home/verify-phone";
 function App() {
-
   return (
     <>
       <Routes>
-        <Route path="/" element={<Header />} >
+        <Route path="/" element={<Header />}>
           <Route path="" element={<Home />} />
           <Route path="services" element={<Services />} />
           <Route path="parts" element={<Parts />} />
@@ -26,13 +26,15 @@ function App() {
           <Route path="userprofile" element={<UserProfile />} />
           <Route path="forgot-password" element={<ForgotPassword />} />
           <Route path="team" element={<Team />} />
+          <Route path="otp-verification" element={<OtpVerification />} />
+          <Route path="verify-phone" element={<VerifyPhone />} />
         </Route>
       </Routes>
       <div className="hidden md:block">
         <Footer />
       </div>
     </>
-  )
+  );
 }
 
-export default App
+export default App;
