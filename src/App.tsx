@@ -8,6 +8,8 @@ import Signup from "./pages/customer/Home/SingUp"
 import Footer from "./pages/customer/Footer"
 import Login from "./pages/customer/Home/Login"
 import UserProfile from "./pages/customer/UserProfile/UserProfile"
+import ForgotPassword from "./pages/customer/Home/ForgotPassword"
+import Team from "./pages/customer/Team/Team"
 
 function App() {
 
@@ -22,6 +24,8 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/userprofile" element={<UserProfile />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/team" element={<Team />} />
         </Route>
 
       </Routes>
