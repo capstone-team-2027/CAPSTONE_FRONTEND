@@ -7,6 +7,7 @@ import BookingPage from "./pages/customer/Booking/BookingPage"
 import Signup from "./pages/customer/Home/SingUp"
 import Footer from "./pages/customer/Footer"
 import Login from "./pages/customer/Home/Login"
+import UserProfile from "./pages/customer/UserProfile/UserProfile"
 
 function App() {
 
@@ -20,6 +21,7 @@ function App() {
           <Route path="/phone-service" element={<BookingPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/userprofile" element={<UserProfile />} />
         </Route>
 
       </Routes>
