@@ -24,7 +24,8 @@ export const useFetchClient = () => {
 
     try {
       const response = await fetch(url, options);
-      const data = await response.json();
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : {};
 
       if (!response.ok) {
         throw new Error(data.message || "Có lỗi xảy ra từ máy chủ");
@@ -58,7 +59,8 @@ export const useFetchClient = () => {
 
     try {
       const response = await fetch(url, options);
-      const data = await response.json();
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : {};
 
       if (response.status === 401) {
         console.warn("Lỗi 401: Token hết hạn hoặc bay màu. Đá về Login!");

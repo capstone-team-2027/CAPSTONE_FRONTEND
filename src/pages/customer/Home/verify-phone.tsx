@@ -13,6 +13,7 @@ import {
   initRecaptcha,
   clearRecaptcha,
 } from "../../../services/firebaseOtp";
+import { AUTH_API_ENDPOINTS } from '../../../constants/customer/authApiEndpoints';
 
 const PHONE_REGEX_VN = /^(0|\+84)(3|5|7|8|9)\d{8}$/;
 
@@ -64,10 +65,7 @@ export default function VerifyPhone() {
     setIsLoading(true);
     setErrorMsg("");
     try {
-      await fetchPublic(
-        `${import.meta.env.VITE_API_BASE_URL}/api/auth/phone`,
-        "POST",
-        { phone: normalizedPhone },
+      await fetchPublic(AUTH_API_ENDPOINTS.CHECK_PHONE, 'POST',{ phone: normalizedPhone },
       );
       const confirmation = await sendOtp(normalizedPhone);
       setConfirmation(confirmation);
