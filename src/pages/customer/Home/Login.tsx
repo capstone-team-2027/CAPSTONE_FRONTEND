@@ -1,15 +1,14 @@
 import { motion } from 'motion/react';
 import { Lock, Eye, EyeOff, ShieldCheck, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
-import type { SyntheticEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import 'react-phone-input-2/lib/style.css';
 import * as PhoneInputLib from 'react-phone-input-2';
 import { COLORS } from '../../../components/share/Color';
 import { Button } from '../../../components/share/Button';
-
-
-
+import { useFetchClient } from '../../../hook/useFetchClient';
+import { validateLoginField, validateLoginForm, type LoginFormData } from '../../../validate/LoginSchema';
+import { AUTH_API_ENDPOINTS } from '../../../constants/customer/authApiEndpoints';
 
 // ── resolve PhoneInput default export ─────────────────────────
 type Mod = { default?: unknown };
@@ -26,13 +25,14 @@ type PhoneInputProps = {
     country?: string;
     value?: string;
     onChange?: (value: string) => void;
+    onBlur?: () => void;
     enableSearch?: boolean;
     searchPlaceholder?: string;
     inputProps?: { name?: string };
 };
 const PhoneInput = resolveDefault<React.ComponentType<PhoneInputProps>>(PhoneInputLib);
 
-// ── PhoneInput styles — khớp với design navy/white của form ───
+// ── PhoneInput styles ──────────────────────────────────────────
 const phoneStyles = `
     .login-phone .react-tel-input .form-control {
         width: 100% !important;
@@ -93,7 +93,7 @@ const phoneStyles = `
         background: #F8FAFC !important;
         padding: 8px !important;
     }
-    .login-phone .react-tel-input .country-list .search-box {
+    .login-phone .react-tel-input .search-box {
         background: white !important;
         border: 1px solid #EFF6FF !important;
         border-radius: 0.5rem !important;
@@ -109,31 +109,128 @@ const phoneStyles = `
     .login-phone .react-tel-input .dial-code {
         color: ${COLORS.navy}60 !important;
     }
+    .login-phone .react-tel-input .form-control.input-error {
+        border-color: #EF4444 !important;
+        box-shadow: 0 0 0 4px rgba(239,68,68,0.1) !important;
+    }
 `;
 
 // ── MAIN COMPONENT ────────────────────────────────────────────
 export default function Login() {
+    const navigate = useNavigate();
+    const { fetchPublic } = useFetchClient();
+
+    // Form state
     const [phone, setPhone] = useState('');
+    const [password, setPassword] = useState('');
+    const [rememberMe, setRememberMe] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
-    const handleLogin = (e: SyntheticEvent) => {
+    // UI state
+    const [errors, setErrors] = useState<Partial<Record<keyof LoginFormData, string>>>({});
+    const [apiError, setApiError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+
+    // ── Helpers ──────────────────────────────────────────────
+    const normalizePhone = (raw: string): string => {
+        const digits = raw.replace(/\D/g, '');
+        if (digits.startsWith('840') && digits.length === 12) return digits.slice(2);
+        if (digits.startsWith('84') && digits.length === 11) return '0' + digits.slice(2);
+        if (digits.startsWith('0') && digits.length === 10) return digits;
+        return digits;
+    };
+
+    // ── Validate khi blur từng field ─────────────────────────
+    const handlePhoneBlur = () => {
+        const msg = validateLoginField('phone', normalizePhone(phone));
+        setErrors((prev) => ({ ...prev, phone: msg }));
+    };
+
+    const handlePasswordBlur = () => {
+        const msg = validateLoginField('password', password);
+        setErrors((prev) => ({ ...prev, password: msg }));
+    };
+
+    // ── Submit ───────────────────────────────────────────────
+    const handleLogin = async (e: React.SyntheticEvent) => {
         e.preventDefault();
-        localStorage.setItem('isAuthenticated', 'true');
-        window.location.href = '/userprofile';
+        setApiError(null);
+
+        const formData: LoginFormData = {
+            phone: normalizePhone(phone),
+            password,
+        };
+
+        // --- 1. Validate toàn bộ form ---
+        const validationErrors = validateLoginForm(formData);
+        if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors);
+            return;
+        }
+        setErrors({});
+
+        // --- 2. Gọi API ---
+        try {
+            setIsLoading(true);
+
+            const res = await fetchPublic(
+                AUTH_API_ENDPOINTS.LOGIN,
+                'POST',
+                { phone: formData.phone, password: formData.password },
+            );
+
+            // --- 3. Bóc tách chính xác dữ liệu theo Shape mới của Backend ---
+            // Tùy thuộc vào FetchClient của bạn có bọc dữ liệu trong một key `.data` hay không:
+            const apiData = res?.data ? res.data : res;
+
+            const accessToken: string = apiData?.accessToken;
+            const refreshToken: string = apiData?.refreshToken;
+            const userData = apiData?.user;
+
+            if (!accessToken) throw new Error('Không nhận được mã xác thực (Token) từ hệ thống.');
+
+            // --- 4. Lưu Token & Thông tin User vào Storage ---
+            const storage = rememberMe ? localStorage : sessionStorage;
+
+            // Luôn khuyến khích đồng bộ accessToken vào localStorage nếu useFetchClient chỉ đọc từ đó
+            localStorage.setItem('token', accessToken);
+            storage.setItem('accessToken', accessToken);
+
+            if (refreshToken) {
+                storage.setItem('refreshToken', refreshToken);
+            }
+            if (userData) {
+                storage.setItem('user', JSON.stringify(userData));
+            }
+
+            // --- 5. Điều hướng sang trang Profile ---
+            navigate('/userprofile');
+
+        } catch (err: any) {
+            setApiError(err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const inputClass = 'w-full h-14 bg-white border border-blue-50 rounded-2xl text-sm outline-none transition-all shadow-sm';
+    const inputErrorClass = 'border-red-400 focus:border-red-400 focus:ring-2 focus:ring-red-100';
 
     return (
         <div className="min-h-[calc(100vh-80px)] flex items-stretch">
             <style>{phoneStyles}</style>
 
             {/* ── LEFT DECORATION ─────────────────────────────── */}
-            <div className="hidden lg:flex w-1/2 relative overflow-hidden items-center justify-center p-20"
-                style={{ backgroundColor: COLORS.navy }}>
+            <div
+                className="hidden lg:flex w-1/2 relative overflow-hidden items-center justify-center p-20"
+                style={{ backgroundColor: COLORS.navy }}
+            >
                 <div className="absolute inset-0 z-0">
-                    <img src="/images/div.w-full.png" alt="Dashboard"
-                        className="w-full h-full object-cover opacity-30 grayscale" />
+                    <img
+                        src="/images/div.w-full.png"
+                        alt="Dashboard"
+                        className="w-full h-full object-cover opacity-30 grayscale"
+                    />
                     <div className="absolute inset-0 bg-gradient-to-br from-[#050B18] via-[#050B18CC] to-transparent" />
                 </div>
 
@@ -187,8 +284,10 @@ export default function Login() {
             </div>
 
             {/* ── RIGHT LOGIN FORM ─────────────────────────────── */}
-            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 md:p-20"
-                style={{ backgroundColor: '#F8FAFC' }}>
+            <div
+                className="w-full lg:w-1/2 flex items-center justify-center p-8 md:p-20"
+                style={{ backgroundColor: '#F8FAFC' }}
+            >
                 <div className="w-full max-w-md">
                     <div className="mb-12 text-center lg:text-left">
                         <h2 className="text-4xl font-display mb-4" style={{ color: COLORS.navy }}>
@@ -199,48 +298,80 @@ export default function Login() {
                         </p>
                     </div>
 
-                    <form onSubmit={handleLogin} className="space-y-6">
+                    <form onSubmit={handleLogin} className="space-y-6" noValidate>
 
-                        {/* ── SỐ ĐIỆN THOẠI — PhoneInput ── */}
+                        {/* ── API Error Banner ── */}
+                        {apiError && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-medium"
+                            >
+                                {apiError}
+                            </motion.div>
+                        )}
+
+                        {/* ── SỐ ĐIỆN THOẠI ── */}
                         <div>
-                            <label className="block text-[11px] font-bold uppercase tracking-widest mb-2 px-1"
-                                style={{ color: `${COLORS.navy}66` }}>
+                            <label
+                                className="block text-[11px] font-bold uppercase tracking-widest mb-2 px-1"
+                                style={{ color: `${COLORS.navy}66` }}
+                            >
                                 Số Điện Thoại
                             </label>
-                            <div className="login-phone">
+                            <div className={`login-phone ${errors.phone ? 'phone-error' : ''}`}>
                                 <PhoneInput
                                     country="vn"
                                     value={phone}
-                                    onChange={setPhone}
+                                    onChange={(val) => {
+                                        setPhone(val);
+                                        if (errors.phone) setErrors((prev) => ({ ...prev, phone: undefined }));
+                                    }}
+                                    onBlur={handlePhoneBlur}
                                     enableSearch
                                     searchPlaceholder="Tìm quốc gia..."
                                     inputProps={{ name: 'phone' }}
                                 />
                             </div>
+                            {errors.phone && (
+                                <p className="mt-1.5 px-1 text-xs text-red-500 font-medium">{errors.phone}</p>
+                            )}
                         </div>
 
                         {/* ── MẬT KHẨU ── */}
                         <div>
                             <div className="flex justify-between items-center mb-2 px-1">
-                                <label className="block text-[11px] font-bold uppercase tracking-widest"
-                                    style={{ color: `${COLORS.navy}66` }}>
+                                <label
+                                    className="block text-[11px] font-bold uppercase tracking-widest"
+                                    style={{ color: `${COLORS.navy}66` }}
+                                >
                                     Mật Khẩu
                                 </label>
-                                <Link to="/forgot-password"
+                                <Link
+                                    to="/forgot-password"
                                     className="text-xs font-bold transition-colors hover:opacity-70"
-                                    style={{ color: `${COLORS.navy}99` }}>
-                                    Quên mật khẩu ?
+                                    style={{ color: `${COLORS.navy}99` }}
+                                >
+                                    Quên mật khẩu?
                                 </Link>
                             </div>
                             <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none"
-                                    style={{ color: `${COLORS.navy}4D` }}>
+                                <div
+                                    className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none"
+                                    style={{ color: `${COLORS.navy}4D` }}
+                                >
                                     <Lock size={18} />
                                 </div>
                                 <input
                                     type={showPassword ? 'text' : 'password'}
                                     placeholder="••••••••"
-                                    className={`${inputClass} pl-12 pr-12`}
+                                    value={password}
+                                    onChange={(e) => {
+                                        setPassword(e.target.value);
+                                        if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }));
+                                    }}
+                                    onBlur={handlePasswordBlur}
+                                    className={`${inputClass} pl-12 pr-12 ${errors.password ? inputErrorClass : 'focus:border-orange-400 focus:ring-2 focus:ring-orange-50'}`}
                                 />
                                 <button
                                     type="button"
@@ -251,27 +382,45 @@ export default function Login() {
                                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
                             </div>
+                            {errors.password && (
+                                <p className="mt-1.5 px-1 text-xs text-red-500 font-medium">{errors.password}</p>
+                            )}
                         </div>
 
-                        {/* Remember me */}
+                        {/* ── Remember me ── */}
                         <div className="flex items-center gap-3 px-1">
-                            <input type="checkbox" className="w-4 h-4 rounded border-blue-100" />
-                            <span className="text-sm" style={{ color: `${COLORS.navy}99` }}>
+                            <input
+                                type="checkbox"
+                                id="rememberMe"
+                                checked={rememberMe}
+                                onChange={(e) => setRememberMe(e.target.checked)}
+                                className="w-4 h-4 rounded border-blue-100 accent-orange-400"
+                            />
+                            <label htmlFor="rememberMe" className="text-sm cursor-pointer" style={{ color: `${COLORS.navy}99` }}>
                                 Ghi nhớ tôi trên thiết bị này
-                            </span>
+                            </label>
                         </div>
 
-                        {/* ── Submit ── */}
+                        {/* ── Submit Button ── */}
                         <Button
                             size="md"
                             bg={COLORS.orange}
                             color={COLORS.navy}
-                            icon={<ChevronRight size={18} />}
+                            icon={isLoading ? undefined : <ChevronRight size={18} />}
                             className="w-full justify-center rounded-2xl mt-8"
-                            style={{ boxShadow: '0 8px 24px rgba(120,53,15,0.1)' }}
-                            onClick={(e) => handleLogin(e)}
+                            style={{ boxShadow: '0 8px 24px rgba(120,53,15,0.1)', opacity: isLoading ? 0.7 : 1 }}
+                            onClick={handleLogin}
+                            disabled={isLoading}
                         >
-                            Đăng nhập
+                            {isLoading ? (
+                                <span className="flex items-center gap-2">
+                                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                                    </svg>
+                                    Đang đăng nhập...
+                                </span>
+                            ) : 'Đăng nhập'}
                         </Button>
                     </form>
 
@@ -281,8 +430,10 @@ export default function Login() {
                             <div className="absolute inset-0 flex items-center px-4">
                                 <div className="w-full border-t border-blue-100" />
                             </div>
-                            <span className="relative z-10 bg-[#F8FAFC] px-4 text-[10px] font-bold uppercase tracking-widest"
-                                style={{ color: `${COLORS.navy}4D` }}>
+                            <span
+                                className="relative z-10 bg-[#F8FAFC] px-4 text-[10px] font-bold uppercase tracking-widest"
+                                style={{ color: `${COLORS.navy}4D` }}
+                            >
                                 OR CONTINUE WITH
                             </span>
                         </div>
@@ -310,8 +461,11 @@ export default function Login() {
 
                     <p className="mt-12 text-center text-sm" style={{ color: `${COLORS.navy}80` }}>
                         Bạn chưa có tài khoản?{' '}
-                        <Link to="/verify-phone" className="font-bold transition-colors hover:opacity-70"
-                            style={{ color: COLORS.navy }}>
+                        <Link
+                            to="/signup"
+                            className="font-bold transition-colors hover:opacity-70"
+                            style={{ color: COLORS.navy }}
+                        >
                             Tạo tài khoản
                         </Link>
                     </p>

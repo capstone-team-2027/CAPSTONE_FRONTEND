@@ -4,5 +4,4 @@ export const AUTH_API_ENDPOINTS = {
     LOGIN: `${API_BASE_URL}/api/auth/login`,
     REGISTER: `${API_BASE_URL}/api/auth/register`,
     CHECK_PHONE: `${API_BASE_URL}/api/auth/phone`,
-    GET_PROFILE: `${API_BASE_URL}/api/auth/profile`,
 };
