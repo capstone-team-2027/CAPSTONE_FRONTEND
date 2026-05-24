@@ -211,8 +211,12 @@ export default function Login() {
                 }));
             }
             // --- 5. Điều hướng sang trang Profile ---
-            navigate('/');
-
+            if (userData.role === "CUSTOMER") {
+                navigate('/');
+            }
+            if (userData.role === "ADMIN") {
+                navigate('/admin');
+            }
         } catch (err: any) {
             setApiError(err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');
         } finally {

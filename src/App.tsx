@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 import Header from "./pages/customer/Header";
 import Home from "./pages/customer/Home/Home";
 import Services from "./pages/customer/Service/Services";
@@ -12,7 +12,13 @@ import ForgotPassword from "./pages/customer/Home/ForgotPassword";
 import Team from "./pages/customer/Team/Team";
 import OtpVerification from "./pages/customer/Home/verify-otp";
 import VerifyPhone from "./pages/customer/Home/verify-phone";
+import AdminLayout from "./pages/admin/AdminLayout";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+
 function App() {
+  const location = useLocation();
+  const isAdminPath = location.pathname.startsWith("/admin");
+
   return (
     <>
       <Routes>
@@ -29,10 +35,15 @@ function App() {
           <Route path="otp-verification" element={<OtpVerification />} />
           <Route path="verify-phone" element={<VerifyPhone />} />
         </Route>
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route path="" element={<AdminDashboard />} />
+        </Route>
       </Routes>
-      <div className="hidden md:block">
-        <Footer />
-      </div>
+      {!isAdminPath && (
+        <div className="hidden md:block">
+          <Footer />
+        </div>
+      )}
     </>
   );
 }

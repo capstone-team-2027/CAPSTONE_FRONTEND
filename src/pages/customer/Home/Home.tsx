@@ -191,12 +191,11 @@ export default function Home() {
             {/* Hero Section */}
             <section className="relative h-44 sm:h-56 md:min-h-[90vh] flex items-center bg-[#00285E] overflow-hidden py-0 md:py-20">
                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    <iframe
-                        src="https://player.vimeo.com/video/1192315795?background=1&autoplay=1&loop=1&byline=0&title=0&muted=1"
-                        className="absolute inset-0 w-full h-full scale-[1.35] opacity-40 border-none"
-                        allow="autoplay; fullscreen"
+                    <img
+                        src="/images/carhome.png"
+                        alt="Hero Background"
+                        className="w-full h-full object-cover"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-r from-[#00285E] via-[#00285E]/70 to-[#00285E]/40" />
                 </div>
 
                 <div className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
@@ -536,7 +535,7 @@ export default function Home() {
                                     className="aspect-[4/5] rounded-[3rem] overflow-hidden shadow-3xl border-[12px] border-white relative"
                                 >
                                     <img src={teamMembers[activeMemberIndex].image} className="w-full h-full object-cover" alt={teamMembers[activeMemberIndex].fullName} />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-[#00285E]/90 via-transparent to-transparent" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent" />
                                     <div className="absolute bottom-12 left-12">
                                         <div className="px-4 py-1.5 bg-white/90 backdrop-blur-md inline-block text-[10px] font-bold mb-5 rounded-lg shadow-sm" style={{ color: COLORS.navy }}>
                                             {teamMembers[activeMemberIndex].label}
