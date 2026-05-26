@@ -14,6 +14,7 @@ import OtpVerification from "./pages/customer/Home/verify-otp";
 import VerifyPhone from "./pages/customer/Home/verify-phone";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import ServiceCombos from "./pages/admin/ServiceCombos";
 
 function App() {
   const location = useLocation();
@@ -37,6 +38,7 @@ function App() {
         </Route>
         <Route path="/admin" element={<AdminLayout />}>
           <Route path="" element={<AdminDashboard />} />
+          <Route path="serviceCombos" element={<ServiceCombos />} />
         </Route>
       </Routes>
       {!isAdminPath && (
