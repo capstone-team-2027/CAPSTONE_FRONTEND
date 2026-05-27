@@ -16,7 +16,8 @@ import {
   X,
   CheckCircle,
   Info,
-  AlertTriangle
+  AlertTriangle,
+  Package
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -81,7 +82,9 @@ export default function AdminLayout() {
     { name: 'Khách Hàng', icon: Users, path: '/admin/customers' },
     { name: 'Nhân sự', icon: UserCog, path: '/admin/employees' },
     { name: 'Dịch vụ', icon: Wrench, path: '/admin/services' },
+    { name: 'Tài nguyên', icon: Package, path: '/admin/resources' },
     { name: 'Báo cáo tài chính', icon: BarChart3, path: '/admin/finance' },
+
     { name: 'Cài đặt', icon: Settings, path: '/admin/settings' },
   ];
 

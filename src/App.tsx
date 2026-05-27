@@ -16,6 +16,7 @@ import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminServices from "./pages/admin/services/AdminServices";
+import AdminResources from "./pages/admin/resources/AdminResources";
 
 function App() {
   const location = useLocation();
@@ -39,6 +40,7 @@ function App() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route path="" element={<AdminDashboard />} />
           <Route path="services" element={<AdminServices />} />
+          <Route path="resources" element={<AdminResources />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
       </Routes>
