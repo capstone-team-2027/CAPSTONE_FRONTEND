@@ -39,7 +39,7 @@ export const useFetchClient = () => {
   // LOẠI 2: PRIVATE JSON (Có Token + Bảo vệ)
   // Dùng cho: Xem xe, Đặt lịch... (Nơi cần quyền, body là JSON)
   // ==========================================
-  const fetchPrivate = async (
+  const fetchPrivate = async <T>(
     url: string,
     method: string = "GET",
     bodyData: any = null,

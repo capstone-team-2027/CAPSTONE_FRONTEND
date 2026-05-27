@@ -39,7 +39,7 @@ export default function AdminLayout() {
     { name: 'Tổng quan', icon: LayoutDashboard, path: '/admin' },
     { name: 'Kho phụ tùng', icon: Boxes, path: '/admin/parts' },
     { name: 'Khách Hàng', icon: Users, path: '/admin/customers' },
-    { name: 'Nhân sự', icon: UserCog, path: '/admin/employees' },
+    { name: 'Nhân sự', icon: UserCog, path: '/admin/staff' },
     { name: 'Dịch vụ', icon: Wrench, path: '/admin/services' },
     { name: 'Báo cáo tài chính', icon: BarChart3, path: '/admin/finance' },
     { name: 'Cài đặt', icon: Settings, path: '/admin/settings' },
