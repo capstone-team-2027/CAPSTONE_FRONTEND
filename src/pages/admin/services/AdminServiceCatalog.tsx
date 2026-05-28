@@ -17,8 +17,7 @@ import {
 import { useOutletContext } from "react-router-dom";
 import { type Category, type ServiceCatalog } from "../../../model/dto/serviceCatalog.dto";
 import { useFetchClient } from '../../../hook/useFetchClient';
-import { SERVICE_CATALOG_API_ENDPOINTS } from '../../../constants/admin/serviceCatalog';
-import { SERVICE_CATEGORY_API_ENDPOINTS} from '../../../constants/admin/serviceCategories';
+import { SERVICE_CATALOG_API_ENDPOINTS } from '../../../constants/admin/serviceCatalogApiEndPoint';
 const formatPrice = (price: number) => `${price.toLocaleString("vi-VN")}đ`;
 
 export default function AdminServiceManagement() {
@@ -291,7 +290,7 @@ function ServiceFormModal({ initial, onClose, onRefresh }: ServiceFormModalProps
 
   const handleGetCategory = async () => {
     try {
-      const result = await fetchPrivate(SERVICE_CATEGORY_API_ENDPOINTS.SERVICE_CATEGORY)
+      const result = await fetchPrivate(SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATEGORY)
       setCategoryList(result.data)
     } catch (error) {
       console.error("Lỗi lấy danh sách danh mục", error);

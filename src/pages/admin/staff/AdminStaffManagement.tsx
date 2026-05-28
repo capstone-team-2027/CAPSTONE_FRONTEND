@@ -12,7 +12,7 @@ import {
 import { useOutletContext } from "react-router-dom";
 import type { Role, StaffManagement } from "../../../model/dto/staffManagement.dto";
 import { useFetchClient } from "../../../hook/useFetchClient";
-import { STAFF_MANAGEMENT_API_ENDPOINTS } from "../../../constants/admin/staffManagement";
+import { STAFF_MANAGEMENT_API_ENDPOINTS } from "../../../constants/admin/staffManagementApiEndPoint";
 
 type StaffStatus = "ACTIVE" | "INACTIVE" | "PENDING" | "BANNED";
 

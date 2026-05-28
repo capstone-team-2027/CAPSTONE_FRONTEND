@@ -13,7 +13,7 @@ import {
   X
 } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
-import { SERVICE_COMBOS_API_ENDPOINTS } from '../../../constants/admin/serviceCombosApiEndPoint';
+import { SERVICE_CATEGORY_API_ENDPOINTS } from '../../../constants/admin/serviceCategoriesApiEndPoint';
 
 interface ServiceCombo {
   id: number;
@@ -52,7 +52,7 @@ export default function AdminServices() {
   const loadCategories = async () => {
     setLoading(true);
     try {
-      const url = `${SERVICE_COMBOS_API_ENDPOINTS.LIST}?page=${page}&limit=${limit}&include_services=false`;
+      const url = `${SERVICE_CATEGORY_API_ENDPOINTS.LIST}?page=${page}&limit=${limit}&include_services=false`;
 
       const res = await fetchPrivate(url, 'GET');
       if (res.success && res.data) {
@@ -127,7 +127,7 @@ export default function AdminServices() {
       };
 
       if (editingCategory) {
-        const res = await fetchPrivate(SERVICE_COMBOS_API_ENDPOINTS.UPDATE(editingCategory.id), 'PUT', payload);
+        const res = await fetchPrivate(SERVICE_CATEGORY_API_ENDPOINTS.UPDATE(editingCategory.id), 'PUT', payload);
         if (res.success) {
           showToast('Cập nhật danh mục dịch vụ thành công!', 'success');
           loadCategories();
@@ -136,7 +136,7 @@ export default function AdminServices() {
           showToast(res.message || 'Lỗi khi cập nhật danh mục dịch vụ', 'warning');
         }
       } else {
-        const res = await fetchPrivate(SERVICE_COMBOS_API_ENDPOINTS.CREATE, 'POST', payload);
+        const res = await fetchPrivate(SERVICE_CATEGORY_API_ENDPOINTS.CREATE, 'POST', payload);
         if (res.success) {
           showToast('Thêm danh mục dịch vụ mới thành công!', 'success');
           loadCategories();
@@ -156,7 +156,7 @@ export default function AdminServices() {
   const handleDeleteCategory = async (id: number, name: string) => {
     if (window.confirm(`Bạn có chắc chắn muốn xóa danh mục dịch vụ "${name}"?`)) {
       try {
-        const res = await fetchPrivate(SERVICE_COMBOS_API_ENDPOINTS.DELETE(id), 'DELETE');
+        const res = await fetchPrivate(SERVICE_CATEGORY_API_ENDPOINTS.DELETE(id), 'DELETE');
         if (res.success) {
           showToast(`Đã xóa danh mục "${name}" thành công`, 'success');
           loadCategories();
@@ -173,7 +173,7 @@ export default function AdminServices() {
   const handleToggleActive = async (cat: ServiceCombo) => {
     try {
       const newStatus = !cat.is_active;
-      const res = await fetchPrivate(SERVICE_COMBOS_API_ENDPOINTS.UPDATE(cat.id), 'PUT', { is_active: newStatus });
+      const res = await fetchPrivate(SERVICE_CATEGORY_API_ENDPOINTS.UPDATE(cat.id), 'PUT', { is_active: newStatus });
       if (res.success) {
         showToast(`Đã ${newStatus ? 'kích hoạt' : 'tắt'} danh mục "${cat.category_name}"`, 'success');
         loadCategories();
