@@ -373,8 +373,16 @@ function WarrantyFormModal({ initial, policies, onClose, onSave }: WarrantyFormM
   const [policyCode, setPolicyCode] = useState(initial?.policy_code ?? '');
   const [policyName, setPolicyName] = useState(initial?.policy_name ?? '');
   const [warrantyType, setWarrantyType] = useState<'TIME' | 'DISTANCE' | 'BOTH' | 'NONE'>(initial?.warranty_type ?? 'TIME');
-  const [durationMonths, setDurationMonths] = useState<number | ''>(initial?.duration_months ?? 12);
-  const [distanceKm, setDistanceKm] = useState<number | ''>(initial?.distance_km ?? 10000);
+  const [durationMonths, setDurationMonths] = useState<number | ''>(
+    initial?.duration_months !== null && initial?.duration_months !== undefined
+      ? initial.duration_months
+      : ''
+  );
+  const [distanceKm, setDistanceKm] = useState<number | ''>(
+    initial?.distance_km !== null && initial?.distance_km !== undefined
+      ? initial.distance_km
+      : ''
+  );
   const [description, setDescription] = useState(initial?.description ?? '');
   const [isActive, setIsActive] = useState<boolean>(initial?.is_active ?? true);
 
@@ -394,14 +402,14 @@ function WarrantyFormModal({ initial, policies, onClose, onSave }: WarrantyFormM
     }
 
     if (warrantyType === 'TIME' || warrantyType === 'BOTH') {
-      if (!durationMonths || durationMonths <= 0 || isNaN(durationMonths)) {
+      if (durationMonths !== '' && (durationMonths <= 0 || isNaN(durationMonths))) {
         setErrorMsg('Thời hạn bảo hành (Tháng) phải lớn hơn 0.');
         return;
       }
     }
 
     if (warrantyType === 'DISTANCE' || warrantyType === 'BOTH') {
-      if (!distanceKm || distanceKm <= 0 || isNaN(distanceKm)) {
+      if (distanceKm !== '' && (distanceKm <= 0 || isNaN(distanceKm))) {
         setErrorMsg('Giới hạn quãng đường bảo hành (KM) phải lớn hơn 0.');
         return;
       }
@@ -423,8 +431,8 @@ function WarrantyFormModal({ initial, policies, onClose, onSave }: WarrantyFormM
       policy_code: policyCode.trim().toUpperCase(),
       policy_name: policyName.trim(),
       warranty_type: warrantyType,
-      duration_months: (warrantyType === 'TIME' || warrantyType === 'BOTH') ? Number(durationMonths) : null,
-      distance_km: (warrantyType === 'DISTANCE' || warrantyType === 'BOTH') ? Number(distanceKm) : null,
+      duration_months: durationMonths !== '' ? Number(durationMonths) : null,
+      distance_km: distanceKm !== '' ? Number(distanceKm) : null,
       description: description.trim() || null,
       is_active: isActive,
     });
