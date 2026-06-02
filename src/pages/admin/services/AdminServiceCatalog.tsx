@@ -24,7 +24,8 @@ import { type Category, type ServiceCatalog } from "../../../model/dto/serviceCa
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { SERVICE_CATALOG_API_ENDPOINTS } from '../../../constants/admin/serviceCatalogApiEndPoint';
 import { SERVICE_CATEGORY_API_ENDPOINTS } from '../../../constants/admin/serviceCategoriesApiEndPoint';
-import { type ServiceCombo, getServiceCombos, saveServiceCombos, ComboFormModal } from "./AdminServiceCombo";
+import { type ServiceCombo, ComboFormModal } from "./AdminServiceCombo";
+import { SERVICE_COMBOS_API_ENDPOINTS } from "../../../constants/admin/serviceCombosApiEndPoint";
 
 // LocalStorage helpers for prices and combos persistence
 const getServicePrices = (): Record<number, number> => {
@@ -145,10 +146,43 @@ export default function AdminServiceManagement() {
     }
   };
 
+  const handleGetServiceCombos = async () => {
+    try {
+      const result = await fetchPrivate(SERVICE_COMBOS_API_ENDPOINTS.LIST_SERVICE_COMBOS, 'GET');
+      if (result && result.data) {
+        const combosData = (result.data || []).map((c: any) => {
+          let discount = 10;
+          if (c.combo_name.toLowerCase().includes("toàn diện") || c.combo_name.toLowerCase().includes("làm đẹp")) {
+            discount = 15;
+          }
+          let catId = 0;
+          if (c.catalogs && c.catalogs.length > 0) {
+            catId = c.catalogs[0].category_id || 0;
+          }
+
+          return {
+            id: c.id,
+            combo_name: c.combo_name,
+            category_id: catId,
+            service_ids: c.catalogs ? c.catalogs.map((item: any) => item.id) : [],
+            discount_percentage: discount,
+            description: c.description || "",
+            is_active: c.is_active,
+            createdAt: c.createdAt,
+          };
+        });
+        setCombos(combosData);
+      }
+    } catch (error) {
+      console.error('Lỗi lấy danh sách combo:', error);
+      showToast('Không thể tải danh sách gói combo', 'warning');
+    }
+  };
+
   useEffect(() => {
     handleGetServiceCatalog();
     handleGetCategory();
-    setCombos(getServiceCombos());
+    handleGetServiceCombos();
   }, []);
 
   // Prepopulate mock service prices and combos if empty
@@ -190,36 +224,6 @@ export default function AdminServiceManagement() {
       if (pricesUpdated) {
         localStorage.setItem("service_prices", JSON.stringify(currentPrices));
       }
-
-      const currentCombos = getServiceCombos();
-      if (currentCombos.length === 0) {
-        const ids = services.map((s) => s.id);
-        const firstCat = categoryList[0]?.id || 1;
-        const secondCat = categoryList[1]?.id || categoryList[0]?.id || 1;
-
-        const mockCombos: ServiceCombo[] = [
-          {
-            id: 10001,
-            combo_name: "Combo Bảo dưỡng Định kỳ Cơ bản",
-            category_id: firstCat,
-            service_ids: ids.slice(0, 3).length > 0 ? ids.slice(0, 3) : [1, 2],
-            discount_percentage: 10,
-            is_active: true,
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 10002,
-            combo_name: "Combo Chăm sóc & Làm đẹp Toàn diện",
-            category_id: secondCat,
-            service_ids: ids.slice(3, 6).length > 0 ? ids.slice(3, 6) : [3, 4],
-            discount_percentage: 15,
-            is_active: true,
-            createdAt: new Date().toISOString(),
-          },
-        ];
-        setCombos(mockCombos);
-        saveServiceCombos(mockCombos);
-      }
     }
   }, [services, categoryList]);
 
@@ -259,26 +263,34 @@ export default function AdminServiceManagement() {
     setIsCategoryModalOpen(true);
   };
 
-  const handleDeleteCombo = (id: number, name: string) => {
-    if (window.confirm(`Bạn có chắc chắn muốn xóa gói combo dịch vụ "${name}"?`)) {
-      const updated = combos.filter(c => c.id !== id);
-      setCombos(updated);
-      saveServiceCombos(updated);
-      showToast(`Đã xóa gói combo "${name}" thành công`, "success");
+  const handleDeleteCombo = async (id: number, name: string) => {
+    if (window.confirm(`Bạn có chắc chắn muốn xóa/tắt hoạt động gói combo dịch vụ "${name}"?`)) {
+      try {
+        const comboToUpdate = combos.find(c => c.id === id);
+        if (!comboToUpdate) return;
+
+        await fetchPrivate(
+          SERVICE_COMBOS_API_ENDPOINTS.UPDATE_SERVICE_COMBOS(id),
+          "PUT",
+          {
+            combo_name: comboToUpdate.combo_name,
+            description: comboToUpdate.description,
+            serviceCatalogIds: comboToUpdate.service_ids,
+            is_active: false
+          }
+        );
+        showToast(`Đã tắt hoạt động gói combo "${name}" thành công`, "success");
+        handleGetServiceCombos();
+      } catch (err: any) {
+        console.error("Lỗi khi xóa combo:", err);
+        showToast(err.message || "Không thể thực hiện yêu cầu xóa", "warning");
+      }
     }
   };
 
-  const handleSaveCombo = (savedCombo: ServiceCombo) => {
-    let updated: ServiceCombo[];
-    if (editingCombo) {
-      updated = combos.map(c => c.id === savedCombo.id ? savedCombo : c);
-      showToast("Cập nhật gói dịch vụ thành công", "success");
-    } else {
-      updated = [...combos, savedCombo];
-      showToast("Tạo gói dịch vụ thành công", "success");
-    }
-    setCombos(updated);
-    saveServiceCombos(updated);
+  const handleSaveCombo = (_savedCombo: ServiceCombo) => {
+    handleGetServiceCombos();
+    showToast(editingCombo ? "Cập nhật gói dịch vụ thành công" : "Tạo gói dịch vụ thành công", "success");
     setIsComboModalOpen(false);
     setEditingCombo(null);
   };
@@ -329,14 +341,13 @@ export default function AdminServiceManagement() {
       .join(", ");
   };
 
-  const calculateComboPrices = (serviceIds: number[], discount: number) => {
+  const calculateComboPrice = (serviceIds: number[]) => {
     const servicePrices = getServicePrices();
-    const totalOriginal = serviceIds.reduce((sum, id) => {
+    const total = serviceIds.reduce((sum, id) => {
       const price = servicePrices[id] ?? 300000;
       return sum + price;
     }, 0);
-    const discounted = totalOriginal * (1 - discount / 100);
-    return { totalOriginal, discounted };
+    return total;
   };
 
   // Filter lists based on search queries
@@ -698,9 +709,7 @@ export default function AdminServiceManagement() {
                   <th className="py-4 px-6">Tên gói combo</th>
                   <th className="py-4 px-4">Phân loại</th>
                   <th className="py-4 px-4">Dịch vụ đi kèm</th>
-                  <th className="py-4 px-4">Giảm giá</th>
-                  <th className="py-4 px-4">Giá gốc</th>
-                  <th className="py-4 px-4">Giá Combo</th>
+                  <th className="py-4 px-4">Tổng giá</th>
                   <th className="py-4 px-4">Trạng thái</th>
                   <th className="py-4 px-6 text-right">Thao tác</th>
                 </tr>
@@ -709,7 +718,7 @@ export default function AdminServiceManagement() {
                 {filteredCombos.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={6}
                       className="py-12 text-center text-slate-400 text-sm"
                     >
                       Không tìm thấy gói combo dịch vụ phù hợp...
@@ -717,7 +726,7 @@ export default function AdminServiceManagement() {
                   </tr>
                 ) : (
                   filteredCombos.map((c) => {
-                    const { totalOriginal, discounted } = calculateComboPrices(c.service_ids, c.discount_percentage);
+                    const totalPrice = calculateComboPrice(c.service_ids);
                     return (
                       <tr
                         key={c.id}
@@ -727,6 +736,11 @@ export default function AdminServiceManagement() {
                           <span className="font-bold text-[#00285E] text-sm block">
                             {c.combo_name}
                           </span>
+                          {c.description && (
+                            <span className="text-slate-400 text-xs block mt-0.5 max-w-xs truncate" title={c.description}>
+                              {c.description}
+                            </span>
+                          )}
                         </td>
 
                         <td className="py-4 px-4">
@@ -738,16 +752,8 @@ export default function AdminServiceManagement() {
                           {getComboServicesNames(c.service_ids) || "—"}
                         </td>
 
-                        <td className="py-4 px-4 text-emerald-600 font-bold text-sm">
-                          {c.discount_percentage}%
-                        </td>
-
-                        <td className="py-4 px-4 text-slate-400 text-sm line-through">
-                          {totalOriginal.toLocaleString("vi-VN")} đ
-                        </td>
-
                         <td className="py-4 px-4 text-slate-900 font-black text-sm">
-                          {discounted.toLocaleString("vi-VN")} đ
+                          {totalPrice.toLocaleString("vi-VN")} đ
                         </td>
 
                         <td className="py-4 px-4">
@@ -769,13 +775,6 @@ export default function AdminServiceManagement() {
                               title="Chỉnh sửa"
                             >
                               <Pencil size={16} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteCombo(c.id, c.combo_name)}
-                              className="p-2 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition-colors"
-                              title="Xóa"
-                            >
-                              <Trash2 size={16} />
                             </button>
                           </div>
                         </td>
@@ -909,6 +908,7 @@ export default function AdminServiceManagement() {
           initial={editingCombo}
           services={services}
           categories={categoryList}
+          existingCombos={combos}
           onClose={() => {
             setIsComboModalOpen(false);
             setEditingCombo(null);

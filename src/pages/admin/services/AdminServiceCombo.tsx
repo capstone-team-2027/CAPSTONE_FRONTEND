@@ -2,6 +2,8 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import { Boxes, X, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { type Category, type ServiceCatalog } from "../../../model/dto/serviceCatalog.dto";
+import { useFetchClient } from "../../../hook/useFetchClient";
+import { SERVICE_COMBOS_API_ENDPOINTS } from "../../../constants/admin/serviceCombosApiEndPoint";
 
 export interface ServiceCombo {
   id: number;
@@ -9,6 +11,7 @@ export interface ServiceCombo {
   category_id: number;
   service_ids: number[];
   discount_percentage: number;
+  description: string;
   is_active: boolean;
   createdAt: string;
 }
@@ -44,17 +47,17 @@ interface ComboFormModalProps {
   initial: ServiceCombo | null;
   services: ServiceCatalog[];
   categories: Category[];
+  existingCombos: ServiceCombo[];
   onClose: () => void;
   onSave: (combo: ServiceCombo) => void;
 }
 
-export function ComboFormModal({ initial, services, categories, onClose, onSave }: ComboFormModalProps) {
+export function ComboFormModal({ initial, services, categories, existingCombos, onClose, onSave }: ComboFormModalProps) {
   const [name, setName] = useState(initial?.combo_name ?? "");
-  const [categoryId, setCategoryId] = useState<number>(initial?.category_id ?? 0);
   const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>(initial?.service_ids ?? []);
-  const [discount, setDiscount] = useState<number>(initial?.discount_percentage ?? 10);
+  const [desc, setDesc] = useState<string>(initial?.description ?? "");
   const [isActive, setIsActive] = useState<boolean>(initial?.is_active ?? true);
-  
+
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
@@ -64,29 +67,26 @@ export function ComboFormModal({ initial, services, categories, onClose, onSave 
   const totalOriginal = selectedServiceIds.reduce((sum, id) => {
     return sum + (servicePrices[id] ?? 300000);
   }, 0);
-  const discountedPrice = totalOriginal * (1 - discount / 100);
 
-  const handleSave = () => {
+  const { fetchPrivate } = useFetchClient();
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
     if (!name.trim()) {
       setErrorMsg("Tên gói combo không được để trống");
       return;
     }
-    if (categoryId === 0) {
-      setErrorMsg("Vui lòng chọn danh mục cho combo");
+    if (initial === null && selectedServiceIds.length < 1) {
+      setErrorMsg("Gói combo mới phải chứa ít nhất 2 dịch vụ");
       return;
     }
     if (selectedServiceIds.length === 0) {
       setErrorMsg("Gói combo phải chứa ít nhất một dịch vụ");
       return;
     }
-    if (discount < 0 || discount > 100 || isNaN(discount)) {
-      setErrorMsg("Phần trăm chiết khấu phải từ 0% đến 100%");
-      return;
-    }
-    
+
     // Check duplication
-    const existing = getServiceCombos();
-    const isDuplicate = existing.some(
+    const isDuplicate = existingCombos.some(
       c => c.combo_name.trim().toLowerCase() === name.trim().toLowerCase() && c.id !== initial?.id
     );
     if (isDuplicate) {
@@ -94,21 +94,53 @@ export function ComboFormModal({ initial, services, categories, onClose, onSave 
       return;
     }
 
-    const savedCombo: ServiceCombo = {
-      id: initial?.id ?? Date.now(),
-      combo_name: name.trim(),
-      category_id: categoryId,
-      service_ids: selectedServiceIds,
-      discount_percentage: discount,
-      is_active: isActive,
-      createdAt: initial?.createdAt ?? new Date().toISOString(),
-    };
-
-    setSuccessMsg(initial ? "Cập nhật gói dịch vụ thành công!" : "Tạo gói dịch vụ thành công!");
+    setIsSaving(true);
     setErrorMsg("");
-    setTimeout(() => {
-      onSave(savedCombo);
-    }, 800);
+    setSuccessMsg("");
+
+    try {
+      const payload = {
+        combo_name: name.trim(),
+        description: desc.trim(),
+        serviceCatalogIds: selectedServiceIds,
+        is_active: isActive
+      };
+
+      let res;
+      if (initial) {
+        res = await fetchPrivate(
+          SERVICE_COMBOS_API_ENDPOINTS.UPDATE_SERVICE_COMBOS(initial.id),
+          "PUT",
+          payload
+        );
+      } else {
+        res = await fetchPrivate(
+          SERVICE_COMBOS_API_ENDPOINTS.CREATE_SERVICE_COMBOS,
+          "POST",
+          payload
+        );
+      }
+
+      setSuccessMsg(initial ? "Cập nhật gói dịch vụ thành công!" : "Tạo gói dịch vụ thành công!");
+      setTimeout(() => {
+        const computedCatId = selectedServiceIds.length > 0 ? services.find(s => s.id === selectedServiceIds[0])?.category_id || 0 : 0;
+        onSave({
+          id: res.data?.id || initial?.id || Date.now(),
+          combo_name: name.trim(),
+          category_id: computedCatId,
+          service_ids: selectedServiceIds,
+          discount_percentage: 0,
+          description: desc.trim(),
+          is_active: isActive,
+          createdAt: res.data?.createdAt || initial?.createdAt || new Date().toISOString()
+        });
+      }, 800);
+    } catch (err: any) {
+      console.error("Lỗi khi lưu combo:", err);
+      setErrorMsg(err.message || "Đã xảy ra lỗi khi lưu gói dịch vụ.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -125,7 +157,7 @@ export function ComboFormModal({ initial, services, categories, onClose, onSave 
               {initial ? "Chỉnh sửa gói Combo" : "Tạo gói Combo dịch vụ mới"}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Cấu hình các dịch vụ đi kèm và thiết lập chiết khấu ưu đãi.
+              Cấu hình các dịch vụ đi kèm.
             </p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded hover:bg-slate-100 text-slate-500 transition-colors">
@@ -149,17 +181,9 @@ export function ComboFormModal({ initial, services, categories, onClose, onSave 
             <div className="bg-white/80 backdrop-blur-xs p-4 rounded-xl border border-slate-200/40 text-xs space-y-3 flex-1">
               <span className="font-bold text-slate-700 uppercase block tracking-wider">Thông tin biểu phí</span>
               <div className="space-y-2 font-semibold">
-                <div className="flex justify-between text-slate-500">
-                  <span>Tổng giá trị gốc:</span>
-                  <span className="text-slate-800">{totalOriginal.toLocaleString("vi-VN")} đ</span>
-                </div>
-                <div className="flex justify-between text-slate-500">
-                  <span>Chiết khấu áp dụng:</span>
-                  <span className="text-emerald-600">-{discount}%</span>
-                </div>
-                <div className="border-t border-slate-200/60 pt-2 flex justify-between text-sm">
-                  <span className="text-[#00285E]">Giá bán Combo:</span>
-                  <span className="text-[#00285E] font-black">{discountedPrice.toLocaleString("vi-VN")} đ</span>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#00285E]">Tổng giá trị:</span>
+                  <span className="text-[#00285E] font-black">{totalOriginal.toLocaleString("vi-VN")} đ</span>
                 </div>
               </div>
             </div>
@@ -180,37 +204,16 @@ export function ComboFormModal({ initial, services, categories, onClose, onSave 
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                  Phân loại Combo *
-                </label>
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(Number(e.target.value))}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-                >
-                  <option value={0} disabled>-- Chọn danh mục --</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.category_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                  Chiết khấu (%) *
-                </label>
-                <input
-                  type="number"
-                  value={discount}
-                  onChange={(e) => setDiscount(Number(e.target.value))}
-                  min={0}
-                  max={100}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                Mô tả Combo
+              </label>
+              <textarea
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+                placeholder="Vd: Gói combo bảo dưỡng định kỳ tiết kiệm chi phí cho khách hàng..."
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all min-h-[80px]"
+              />
             </div>
 
             <div>
@@ -263,7 +266,7 @@ export function ComboFormModal({ initial, services, categories, onClose, onSave 
                 <span>{errorMsg}</span>
               </div>
             )}
-            
+
             {successMsg && (
               <div className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded px-3 py-2 flex items-center gap-1.5">
                 <CheckCircle2 size={14} />
@@ -277,8 +280,8 @@ export function ComboFormModal({ initial, services, categories, onClose, onSave 
           <button onClick={onClose} className="px-5 py-2.5 bg-white border border-slate-200 rounded text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">
             Hủy
           </button>
-          <button onClick={handleSave} className="px-6 py-2.5 bg-[#F9A11B] text-[#00285E] rounded text-sm font-bold shadow-md shadow-[#F9A11B]/20 hover:bg-[#E08F12] transition-all">
-            {initial ? "Lưu thay đổi" : "Tạo gói combo"}
+          <button onClick={handleSave} disabled={isSaving} className="px-6 py-2.5 bg-[#F9A11B] text-[#00285E] rounded text-sm font-bold shadow-md shadow-[#F9A11B]/20 hover:bg-[#E08F12] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+            {isSaving ? "Đang xử lý..." : initial ? "Lưu thay đổi" : "Tạo gói combo"}
           </button>
         </div>
       </motion.div>
