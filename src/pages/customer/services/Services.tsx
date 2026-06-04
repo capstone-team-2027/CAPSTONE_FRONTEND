@@ -9,16 +9,17 @@ import { COLORS } from '../../../components/share/Color';
 import { Button } from '../../../components/share/Button';
 import { useNavigate } from 'react-router-dom';
 import { useFetchClient } from '../../../hook/useFetchClient';
+import { SERVICE_API_ENDPOINTS } from '../../../constants/customer/serviceApiEndpoints';
 
 
 interface ServiceCombo {
-  id: number;
-  combo_name: string;
-  category_id: number;
-  service_ids: number[];
-  discount_percentage: number;
-  is_active: boolean;
-  createdAt: string;
+    id: number;
+    combo_name: string;
+    category_id: number;
+    service_ids: number[];
+    discount_percentage: number;
+    is_active: boolean;
+    createdAt: string;
 }
 
 interface ServiceItem {
@@ -73,13 +74,26 @@ export default function Services() {
         const loadDbData = async () => {
             setIsLoading(true);
             try {
-                const catRes = await fetchPublic(`${API_BASE_URL}/api/public/service-categories`);
-                const svcRes = await fetchPublic(`${API_BASE_URL}/api/public/service-catalog`);
+                const catRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_CATEGORIES);
+                const svcRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_SERVICES);
+                const comboRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_COMBOS);
                 if (catRes && catRes.data) {
                     setDbCategories(catRes.data);
                 }
                 if (svcRes && svcRes.data) {
                     setDbServices(svcRes.data);
+                }
+                if (comboRes && comboRes.data && comboRes.data.length > 0) {
+                    const mappedCombos = comboRes.data.map((c: any) => ({
+                        id: c.id,
+                        combo_name: c.combo_name,
+                        category_id: c.catalogs?.[0]?.category_id || 1,
+                        service_ids: c.catalogs?.map((cat: any) => cat.id) || [],
+                        discount_percentage: c.discount_percentage || 10,
+                        is_active: c.is_active,
+                        createdAt: c.createdAt,
+                    }));
+                    setCombos(mappedCombos);
                 }
             } catch (error) {
                 console.error("Lỗi khi tải dữ liệu dịch vụ từ backend:", error);
@@ -97,24 +111,24 @@ export default function Services() {
                 setCombos(JSON.parse(stored));
             } else {
                 const defaultCombos: ServiceCombo[] = [
-                  {
-                    id: 10001,
-                    combo_name: "Combo Bảo dưỡng Định kỳ Cơ bản",
-                    category_id: 1,
-                    service_ids: [1, 2, 3],
-                    discount_percentage: 10,
-                    is_active: true,
-                    createdAt: new Date().toISOString(),
-                  },
-                  {
-                    id: 10002,
-                    combo_name: "Combo Chăm sóc & Làm đẹp Toàn diện",
-                    category_id: 4,
-                    service_ids: [3, 4],
-                    discount_percentage: 15,
-                    is_active: true,
-                    createdAt: new Date().toISOString(),
-                  },
+                    {
+                        id: 10001,
+                        combo_name: "Combo Bảo dưỡng Định kỳ Cơ bản",
+                        category_id: 1,
+                        service_ids: [1, 2, 3],
+                        discount_percentage: 10,
+                        is_active: true,
+                        createdAt: new Date().toISOString(),
+                    },
+                    {
+                        id: 10002,
+                        combo_name: "Combo Chăm sóc & Làm đẹp Toàn diện",
+                        category_id: 4,
+                        service_ids: [3, 4],
+                        discount_percentage: 15,
+                        is_active: true,
+                        createdAt: new Date().toISOString(),
+                    },
                 ];
                 setCombos(defaultCombos);
             }
@@ -130,7 +144,7 @@ export default function Services() {
                 const prices = JSON.parse(storedPrices);
                 if (prices[id] !== undefined) return prices[id];
             }
-        } catch (e) {}
+        } catch (e) { }
 
         const priceMap: Record<number, number> = {
             1: 500000,
@@ -269,12 +283,12 @@ export default function Services() {
                 id: String(cat.id),
                 label: cat.category_name
             }))
-          ]
+        ]
         : [
             { id: 'all', label: t('common.all', 'Tất cả') },
             { id: 'maintenance', label: t('services.categories.maintenance', 'Bảo dưỡng') },
             { id: 'repair', label: t('services.categories.repair', 'Sửa chữa') },
-          ];
+        ];
 
     const services: ServiceItem[] = dbServices.length > 0
         ? dbServices.map((s: any) => {
@@ -297,7 +311,7 @@ export default function Services() {
                 duration: s.estimated_duration ? `${s.estimated_duration} phút` : undefined,
                 details: getServiceDetails(s.service_name),
             };
-          })
+        })
         : [
             {
                 id: 1,
@@ -418,7 +432,7 @@ export default function Services() {
                     t('services.list.rescue.details.4', 'Đội ngũ cứu hộ túc trực sẵn sàng 24 giờ mỗi ngày.')
                 ]
             }
-          ];
+        ];
 
     const filteredServices = services.filter(service => {
         const matchesCategory = activeTab === 'all' || service.category === activeTab;
@@ -536,11 +550,10 @@ export default function Services() {
                                 <button
                                     key={cat.id}
                                     onClick={() => setActiveTab(cat.id)}
-                                    className={`relative px-4 py-2.5 rounded-2xl font-bold text-xs md:text-sm transition-colors duration-300 flex items-center gap-2 z-10 shrink-0 select-none ${
-                                        isActive
+                                    className={`relative px-4 py-2.5 rounded-2xl font-bold text-xs md:text-sm transition-colors duration-300 flex items-center gap-2 z-10 shrink-0 select-none ${isActive
                                             ? 'text-white'
                                             : 'text-brand-blue/70 bg-white border border-gray-200/80 hover:border-brand-blue/30 hover:bg-brand-blue/5'
-                                    }`}
+                                        }`}
                                 >
                                     {getCategoryIcon(cat.label)}
                                     <span>{cat.label}</span>
@@ -672,11 +685,10 @@ export default function Services() {
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                                     disabled={currentPage === 1}
-                                    className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all ${
-                                        currentPage === 1
+                                    className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all ${currentPage === 1
                                             ? 'text-gray-300 bg-gray-50/50 border border-gray-100 cursor-not-allowed'
                                             : 'text-brand-blue bg-white border border-gray-200 hover:bg-gray-50'
-                                    }`}
+                                        }`}
                                 >
                                     {t('common.prev', 'Trước')}
                                 </button>
@@ -686,11 +698,10 @@ export default function Services() {
                                         <button
                                             key={pageNumber}
                                             onClick={() => setCurrentPage(pageNumber)}
-                                            className={`w-8 h-8 rounded-xl text-[11px] font-bold transition-all ${
-                                                currentPage === pageNumber
+                                            className={`w-8 h-8 rounded-xl text-[11px] font-bold transition-all ${currentPage === pageNumber
                                                     ? 'bg-brand-blue text-white shadow-md shadow-blue-900/10'
                                                     : 'bg-white text-brand-blue border border-gray-200 hover:bg-gray-50'
-                                            }`}
+                                                }`}
                                         >
                                             {pageNumber}
                                         </button>
@@ -699,11 +710,10 @@ export default function Services() {
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                                     disabled={currentPage === totalPages}
-                                    className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all ${
-                                        currentPage === totalPages
+                                    className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all ${currentPage === totalPages
                                             ? 'text-gray-300 bg-gray-50/50 border border-gray-100 cursor-not-allowed'
                                             : 'text-brand-blue bg-white border border-gray-200 hover:bg-gray-50'
-                                    }`}
+                                        }`}
                                 >
                                     {t('common.next', 'Sau')}
                                 </button>

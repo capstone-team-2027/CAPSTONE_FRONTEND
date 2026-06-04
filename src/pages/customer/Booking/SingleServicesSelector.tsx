@@ -1,30 +1,91 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Check, Star, Settings } from 'lucide-react';
 import type { ServiceItem } from './BookingPage';
 
 interface SingleServicesSelectorProps {
-    currentServices: ServiceItem[];
+    mappedServices: ServiceItem[];
+    activeCategories: any[];
     selectedServiceIds: number[];
     setSelectedServiceIds: React.Dispatch<React.SetStateAction<number[]>>;
-    servicePage: number;
-    setServicePage: React.Dispatch<React.SetStateAction<number>>;
-    totalServicePages: number;
     COLORS: { orange: string; navy: string;[key: string]: string };
     t: (key: string, defaultValue?: string) => string;
 }
 
 export default function SingleServicesSelector({
-    currentServices,
+    mappedServices,
+    activeCategories,
     selectedServiceIds,
     setSelectedServiceIds,
-    servicePage,
-    setServicePage,
-    totalServicePages,
     COLORS,
     t,
 }: SingleServicesSelectorProps) {
+    const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+    const [servicePage, setServicePage] = useState(1);
+    const servicesPerPage = 16;
+
+    // Filter services by category
+    const filteredServices = useMemo(() => {
+        if (selectedCategoryId === null) return mappedServices;
+        return mappedServices.filter(s => s.category_id === selectedCategoryId);
+    }, [mappedServices, selectedCategoryId]);
+
+    // Reset pagination to page 1 when category changes
+    const handleCategoryChange = (catId: number | null) => {
+        setSelectedCategoryId(catId);
+        setServicePage(1);
+    };
+
+    const totalServicePages = Math.ceil(filteredServices.length / servicesPerPage);
+    const currentServices = useMemo(() => {
+        const indexOfLast = servicePage * servicesPerPage;
+        const indexOfFirst = indexOfLast - servicesPerPage;
+        return filteredServices.slice(indexOfFirst, indexOfLast);
+    }, [filteredServices, servicePage, servicesPerPage]);
     return (
         <>
+            {/* Category tabs */}
+            <div className="flex gap-2 overflow-x-auto pb-3 mb-4 select-none scrollbar-thin">
+                <button
+                    type="button"
+                    onClick={() => handleCategoryChange(null)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+                        selectedCategoryId === null
+                            ? 'bg-[#00285E] text-white shadow-md'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                    }`}
+                >
+                    <span>Tất cả</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                        selectedCategoryId === null ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'
+                    }`}>
+                        {mappedServices.length}
+                    </span>
+                </button>
+                {activeCategories.map((cat) => {
+                    const count = mappedServices.filter(s => String(s.category_id) === String(cat.id)).length;
+                    if (count === 0) return null; // Hide empty categories
+                    const isActive = selectedCategoryId === cat.id;
+                    return (
+                        <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => handleCategoryChange(cat.id)}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+                                isActive
+                                    ? 'bg-[#00285E] text-white shadow-md'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                            }`}
+                        >
+                            <span>{cat.category_name}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                                isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'
+                            }`}>
+                                {count}
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
             {/* Multi-select count hint */}
             {selectedServiceIds.length > 0 && (
                 <div className="mb-3 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-100 flex items-center gap-2">

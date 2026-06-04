@@ -123,15 +123,6 @@ export default function UserProfile() {
     const [avatarPreview, setAvatarPreview] = useState<string>('');
     const avatarUrl: string = avatarPreview || user?.avatar || '';
 
-    // =====================================================
-    // APPOINTMENTS STATE
-    // =====================================================
-
-    const [selectedVehicle, setSelectedVehicle] = useState('porsche');
-    const [selectedService, setSelectedService] = useState('tongquat');
-    const [selectedDate, setSelectedDate] = useState(3);
-    const [selectedTimeSlot, setSelectedTimeSlot] = useState('10:30 AM');
-    const [isAccepted, setIsAccepted] = useState(false);
 
     // =====================================================
     // HELPER: Hiện toast
@@ -347,13 +338,6 @@ export default function UserProfile() {
         setSettingsOverrides((prev) => ({ ...prev, [field]: value }));
     };
 
-    const handleResetAppointment = () => {
-        setSelectedVehicle('porsche');
-        setSelectedService('tongquat');
-        setSelectedDate(3);
-        setSelectedTimeSlot('10:30 AM');
-        setIsAccepted(false);
-    };
 
     // =====================================================
     // RENDER TAB
@@ -383,22 +367,7 @@ export default function UserProfile() {
                 return <VehiclesTab />;
 
             case 'appointments':
-                return (
-                    <AppointmentsTab
-                        selectedVehicle={selectedVehicle}
-                        selectedService={selectedService}
-                        selectedDate={selectedDate}
-                        selectedTimeSlot={selectedTimeSlot}
-                        isAccepted={isAccepted}
-                        onSelectVehicle={setSelectedVehicle}
-                        onSelectService={setSelectedService}
-                        onSelectDate={setSelectedDate}
-                        onSelectTimeSlot={setSelectedTimeSlot}
-                        onAccept={() => setIsAccepted(true)}
-                        onReset={handleResetAppointment}
-                        onNavigateBack={() => setActiveTab('vehicles')}
-                    />
-                );
+                return <AppointmentsTab />;
 
             case 'history':
                 return <HistoryTab />;

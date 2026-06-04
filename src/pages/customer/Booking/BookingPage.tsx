@@ -1,17 +1,17 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
     Calendar, Car, User, Settings,
     Check, ChevronRight, Phone, Clock, Edit2, ArrowLeft,
-    Sparkles, Layers
+    Sparkles
 } from 'lucide-react';
 import { COLORS } from '../../../components/share/Color';
 import { useFetchClient } from '../../../hook/useFetchClient';
+import { SERVICE_API_ENDPOINTS } from '../../../constants/customer/serviceApiEndpoints';
 import SingleServicesSelector from './SingleServicesSelector';
 import ComboServicesSelector from './ComboServicesSelector';
-import CategoryServicesSelector from './CategoryServicesSelector';
 
 export interface ServiceCombo {
     id: number;
@@ -36,6 +36,7 @@ export interface ServiceItem {
     originalPrice?: string;
     discountPercentage?: number;
     promoText?: string;
+    category_id?: number;
 }
 
 // Fallbacks
@@ -64,13 +65,12 @@ export default function BookingPage() {
     const navigate = useNavigate();
     const { fetchPublic } = useFetchClient();
 
-    // Booking Type State: 'service' | 'combo' | 'category'
-    const [bookingType, setBookingType] = useState<'service' | 'combo' | 'category'>('service');
+    // Booking Type State: 'service' | 'combo'
+    const [bookingType, setBookingType] = useState<'service' | 'combo'>('service');
 
     // Form States
     const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([]);
     const [selectedComboId, setSelectedComboId] = useState<number | null>(null);
-    const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
     const [selectedSubItems, setSelectedSubItems] = useState<string[]>([]);
 
     const [bookingDate, setBookingDate] = useState('');
@@ -110,54 +110,28 @@ export default function BookingPage() {
         const loadDbData = async () => {
             setIsLoading(true);
             try {
-                const catRes = await fetchPublic(`${API_BASE_URL}/api/public/service-categories`);
-                const svcRes = await fetchPublic(`${API_BASE_URL}/api/public/service-catalog`);
+                // Fetch Categories
+                const catRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_CATEGORIES);
                 if (catRes && catRes.data) {
                     setDbCategories(catRes.data);
                 }
+            } catch (error) {
+                console.error("Lỗi khi tải dữ liệu categories từ backend:", error);
+            }
+
+            try {
+                // Fetch Services (Catalogs)
+                const svcRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_SERVICES);
                 if (svcRes && svcRes.data) {
                     setDbServices(svcRes.data);
                 }
             } catch (error) {
-                console.error("Lỗi khi tải dữ liệu dịch vụ từ backend:", error);
+                console.error("Lỗi khi tải dữ liệu services từ backend:", error);
             } finally {
                 setIsLoading(false);
             }
         };
         loadDbData();
-    }, []);
-
-    // Load combos from LocalStorage
-    useEffect(() => {
-        try {
-            const stored = localStorage.getItem("service_combos");
-            if (stored) {
-                setDbCombos(JSON.parse(stored));
-            } else {
-                setDbCombos([
-                    {
-                        id: 10001,
-                        combo_name: "Combo Bảo dưỡng Định kỳ Cơ bản",
-                        category_id: 1,
-                        service_ids: [1, 2, 3],
-                        discount_percentage: 10,
-                        is_active: true,
-                        createdAt: new Date().toISOString(),
-                    },
-                    {
-                        id: 10002,
-                        combo_name: "Combo Chăm sóc & Làm đẹp Toàn diện",
-                        category_id: 4,
-                        service_ids: [3, 4],
-                        discount_percentage: 15,
-                        is_active: true,
-                        createdAt: new Date().toISOString(),
-                    }
-                ]);
-            }
-        } catch (e) {
-            console.error(e);
-        }
     }, []);
 
     const getServicePriceValue = (id: number): number => {
@@ -271,8 +245,15 @@ export default function BookingPage() {
 
     // Active categories & services use module-level fallbacks if database data is not loaded yet
 
-    const activeCategories = dbCategories.length > 0 ? dbCategories : fallbackCategories;
-    const activeDbServices = dbServices.length > 0 ? dbServices : fallbackServices;
+    const activeCategories = useMemo(() => {
+        const raw = dbCategories.length > 0 ? dbCategories : fallbackCategories;
+        return raw.filter((c: any) => c.is_active !== false);
+    }, [dbCategories]);
+
+    const activeDbServices = useMemo(() => {
+        const raw = dbServices.length > 0 ? dbServices : fallbackServices;
+        return raw.filter((s: any) => s.is_active !== false);
+    }, [dbServices]);
 
     // Map dbServices to ServiceItem list
     const mappedServices: ServiceItem[] = useMemo(() => {
@@ -300,34 +281,27 @@ export default function BookingPage() {
                 rating: parseFloat(ratingVal.toFixed(1)),
                 reviewCount: reviewVal,
                 badge: s.service_name.toLowerCase().includes("cứu hộ") ? "Khẩn cấp" : undefined,
-                details: getServiceDetails(s.service_name)
+                details: getServiceDetails(s.service_name),
+                category_id: s.category_id
             };
         });
     }, [activeDbServices, activeCategories]);
 
-    // Pagination states for single services list in BookingPage
-    const [servicePage, setServicePage] = useState(1);
-    const servicesPerPage = 16;
 
-    const totalServicePages = Math.ceil(mappedServices.length / servicesPerPage);
-    const currentServices = useMemo(() => {
-        const indexOfLast = servicePage * servicesPerPage;
-        const indexOfFirst = indexOfLast - servicesPerPage;
-        return mappedServices.slice(indexOfFirst, indexOfLast);
-    }, [mappedServices, servicePage, servicesPerPage]);
+
+    const hasInitialized = useRef(false);
 
     // Parse params on URL
     useEffect(() => {
+        if (hasInitialized.current) return;
+        hasInitialized.current = true;
+
         const initialServiceId = searchParams.get('serviceId');
         const initialComboId = searchParams.get('comboId');
-        const initialCategoryId = searchParams.get('categoryId');
 
         if (initialComboId) {
             setBookingType('combo');
             setSelectedComboId(parseInt(initialComboId, 10));
-        } else if (initialCategoryId) {
-            setBookingType('category');
-            setSelectedCategoryId(parseInt(initialCategoryId, 10));
         } else if (initialServiceId) {
             setBookingType('service');
             setSelectedServiceIds([parseInt(initialServiceId, 10)]);
@@ -371,29 +345,9 @@ export default function BookingPage() {
                 promoText: `Tiết kiệm ${c.discount_percentage}% khi đặt theo gói combo`,
                 subItems: subNames,
             };
-        } else if (bookingType === 'category') {
-            const cat = activeCategories.find(x => String(x.id) === String(selectedCategoryId));
-            if (!cat) return null;
-            const catServices = mappedServices.filter(s => {
-                const rawService = activeDbServices.find(x => x.id === s.id);
-                return rawService && String(rawService.category_id) === String(cat.id);
-            });
-            const original = catServices.reduce((sum, s) => sum + s.numericPrice, 0);
-            const discountPercent = 10;
-            const discounted = Math.round(original * (1 - discountPercent / 100));
-            const subNames = catServices.map(s => s.title);
-            return {
-                title: `Trọn gói ${cat.category_name}`,
-                price: `Từ ${discounted.toLocaleString("vi-VN")}đ`,
-                numericPrice: discounted,
-                originalPrice: `Từ ${original.toLocaleString("vi-VN")}đ`,
-                discountPercentage: discountPercent,
-                promoText: "Ưu đãi đặt trọn gói danh mục - Tiết kiệm 10%",
-                subItems: subNames,
-            };
         }
         return null;
-    }, [bookingType, selectedServiceIds, selectedComboId, selectedCategoryId, mappedServices, dbCombos, activeCategories, activeDbServices, selectedSubItems]);
+    }, [bookingType, selectedServiceIds, selectedComboId, mappedServices, dbCombos, selectedSubItems]);
 
     // Handle subitems customize default fill — merge details of all selected services
     useEffect(() => {
@@ -427,7 +381,6 @@ export default function BookingPage() {
             case 1:
                 if (bookingType === 'service') return selectedServiceIds.length > 0;
                 if (bookingType === 'combo') return selectedComboId !== null;
-                if (bookingType === 'category') return selectedCategoryId !== null;
                 return false;
             case 2:
                 return bookingDate !== '' && bookingTime !== '';
@@ -649,26 +602,15 @@ export default function BookingPage() {
                                             <Sparkles size={14} />
                                             Gói Combo
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => { setBookingType('category'); setServicePage(1); }}
-                                            className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${bookingType === 'category' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'
-                                                }`}
-                                        >
-                                            <Layers size={14} />
-                                            Trọn gói danh mục
-                                        </button>
                                     </div>
 
                                     {/* List Display according to type */}
                                     {bookingType === 'service' && (
                                         <SingleServicesSelector
-                                            currentServices={currentServices}
+                                            mappedServices={mappedServices}
+                                            activeCategories={activeCategories}
                                             selectedServiceIds={selectedServiceIds}
                                             setSelectedServiceIds={setSelectedServiceIds}
-                                            servicePage={servicePage}
-                                            setServicePage={setServicePage}
-                                            totalServicePages={totalServicePages}
                                             COLORS={COLORS}
                                             t={t as any}
                                         />
@@ -677,21 +619,11 @@ export default function BookingPage() {
                                     {bookingType === 'combo' && (
                                         <ComboServicesSelector
                                             dbCombos={dbCombos}
+                                            setDbCombos={setDbCombos}
                                             selectedComboId={selectedComboId}
                                             setSelectedComboId={setSelectedComboId}
                                             mappedServices={mappedServices}
                                             getServicePriceValue={getServicePriceValue}
-                                            COLORS={COLORS}
-                                        />
-                                    )}
-
-                                    {bookingType === 'category' && (
-                                        <CategoryServicesSelector
-                                            activeCategories={activeCategories}
-                                            selectedCategoryId={selectedCategoryId}
-                                            setSelectedCategoryId={setSelectedCategoryId}
-                                            mappedServices={mappedServices}
-                                            activeDbServices={activeDbServices}
                                             COLORS={COLORS}
                                         />
                                     )}
@@ -971,11 +903,11 @@ export default function BookingPage() {
                                 {/* Selected Booking Entity */}
                                 <div className="flex gap-4">
                                     <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/5">
-                                        {bookingType === 'service' ? <Settings size={18} style={{ color: COLORS.orange }} /> : bookingType === 'combo' ? <Sparkles size={18} style={{ color: COLORS.orange }} /> : <Layers size={18} style={{ color: COLORS.orange }} />}
+                                        {bookingType === 'service' ? <Settings size={18} style={{ color: COLORS.orange }} /> : <Sparkles size={18} style={{ color: COLORS.orange }} />}
                                     </div>
                                     <div className="flex-grow">
                                         <div className="text-[9px] text-white/40 font-bold uppercase tracking-widest">
-                                            {bookingType === 'service' ? 'Dịch vụ lẻ' : bookingType === 'combo' ? 'Gói Combo' : 'Trọn gói danh mục'}
+                                            {bookingType === 'service' ? 'Dịch vụ lẻ' : 'Gói Combo'}
                                         </div>
                                         <div className="flex justify-between items-center mt-1">
                                             <span className="font-bold text-xs md:text-sm">

@@ -23,8 +23,8 @@ export default function CategoryServicesSelector({
             {activeCategories.map((cat) => {
                 const isSelected = selectedCategoryId === cat.id;
                 const catServices = mappedServices.filter(s => {
-                    const rawService = activeDbServices.find(x => x.id === s.id);
-                    return rawService && String(rawService.category_id) === String(cat.id);
+                    const categoryId = s.category_id !== undefined ? s.category_id : activeDbServices.find(x => x.id === s.id)?.category_id;
+                    return categoryId !== undefined && String(categoryId) === String(cat.id);
                 });
 
                 if (catServices.length === 0) return null;
