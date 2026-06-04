@@ -71,6 +71,8 @@ export default function BookingPage() {
     // Form States
     const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([]);
     const [selectedComboId, setSelectedComboId] = useState<number | null>(null);
+    const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+    const [servicePage, setServicePage] = useState(1);
     const [selectedSubItems, setSelectedSubItems] = useState<string[]>([]);
 
     const [bookingDate, setBookingDate] = useState('');
@@ -613,6 +615,10 @@ export default function BookingPage() {
                                             setSelectedServiceIds={setSelectedServiceIds}
                                             COLORS={COLORS}
                                             t={t as any}
+                                            selectedCategoryId={selectedCategoryId}
+                                            setSelectedCategoryId={setSelectedCategoryId}
+                                            servicePage={servicePage}
+                                            setServicePage={setServicePage}
                                         />
                                     )}
 

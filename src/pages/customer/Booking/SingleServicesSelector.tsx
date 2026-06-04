@@ -7,8 +7,12 @@ interface SingleServicesSelectorProps {
     activeCategories: any[];
     selectedServiceIds: number[];
     setSelectedServiceIds: React.Dispatch<React.SetStateAction<number[]>>;
-    COLORS: { orange: string; navy: string;[key: string]: string };
+    COLORS: { orange: string; navy: string; [key: string]: string };
     t: (key: string, defaultValue?: string) => string;
+    selectedCategoryId: number | null;
+    setSelectedCategoryId: React.Dispatch<React.SetStateAction<number | null>>;
+    servicePage: number;
+    setServicePage: React.Dispatch<React.SetStateAction<number>>;
 }
 
 export default function SingleServicesSelector({
@@ -18,9 +22,11 @@ export default function SingleServicesSelector({
     setSelectedServiceIds,
     COLORS,
     t,
+    selectedCategoryId,
+    setSelectedCategoryId,
+    servicePage,
+    setServicePage,
 }: SingleServicesSelectorProps) {
-    const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
-    const [servicePage, setServicePage] = useState(1);
     const servicesPerPage = 16;
 
     // Filter services by category
