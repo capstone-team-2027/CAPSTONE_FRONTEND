@@ -6,7 +6,6 @@ import {
   Boxes,
   Filter,
   Pencil,
-  Trash2,
   X,
   Wrench,
   Upload,
@@ -18,6 +17,7 @@ import { useOutletContext } from "react-router-dom";
 import { type Category, type ServiceCatalog } from "../../../model/dto/serviceCatalog.dto";
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { SERVICE_CATALOG_API_ENDPOINTS } from '../../../constants/admin/serviceCatalogApiEndPoint';
+
 const formatPrice = (price: number) => `${price.toLocaleString("vi-VN")}đ`;
 
 export default function AdminServiceManagement() {

@@ -3,9 +3,6 @@ import { useNavigate } from "react-router-dom";
 export const useFetchClient = () => {
   const navigate = useNavigate();
 
-  // ==========================================
-  // LOẠI 1: PUBLIC (Không Token - Dùng cho Login, Register)
-  // ==========================================
   const fetchPublic = async (
     url: string,
     method: string = "GET",
@@ -35,14 +32,10 @@ export const useFetchClient = () => {
     }
   };
 
-  // ==========================================
-  // LOẠI 2: PRIVATE JSON (Có Token + Bảo vệ)
-  // Dùng cho: Xem xe, Đặt lịch... (Nơi cần quyền, body là JSON)
-  // ==========================================
-  const fetchPrivate = async <T>(
+  const fetchPrivate = async <T, B = unknown>(
     url: string,
     method: string = "GET",
-    bodyData: any = null,
+    bodyData: B | null = null,
   ) => {
     const token = localStorage.getItem("token");
     const options: RequestInit = {
@@ -78,15 +71,6 @@ export const useFetchClient = () => {
     }
   };
 
-  // ==========================================
-  // LOẠI 3: PRIVATE FORM (Có Token + Body là FormData)
-  // Dùng cho: Upload avatar, cập nhật profile có file
-  //
-  // ⚠️ QUAN TRỌNG: KHÔNG set Content-Type thủ công.
-  // Khi body là FormData, trình duyệt tự set
-  // "multipart/form-data; boundary=----..." với đúng boundary.
-  // Nếu tự set Content-Type thì multer trên BE không parse được.
-  // ==========================================
   const fetchPrivateForm = async (
     url: string,
     method: string = "POST",
@@ -126,5 +110,47 @@ export const useFetchClient = () => {
     }
   };
 
-  return { fetchPublic, fetchPrivate, fetchPrivateForm };
+  const fetchPrivateFormGeneric = async <T = any>(
+    url: string,
+    method: string = "POST",
+    body: unknown,
+  ): Promise<T> => {
+    const token = localStorage.getItem("token");
+
+    const options: RequestInit = {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: token ? `Bearer ${token}` : "",
+      },
+      body: JSON.stringify(body),
+    };
+
+    try {
+      const response = await fetch(url, options);
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : {};
+
+      if (response.status === 401) {
+        console.warn("Lỗi 401: Token hết hạn. Đá về Login!");
+        localStorage.removeItem("token");
+        navigate("/login");
+        throw new Error("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.");
+      }
+      if (!response.ok) {
+        throw new Error(data.message || "Có lỗi xảy ra từ máy chủ");
+      }
+      return data as T;
+    } catch (error) {
+      console.error("Lỗi Private Form API:", error);
+      throw error;
+    }
+  };
+
+  return {
+    fetchPublic,
+    fetchPrivate,
+    fetchPrivateForm,
+    fetchPrivateFormGeneric,
+  };
 };

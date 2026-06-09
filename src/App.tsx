@@ -19,11 +19,17 @@ import AdminServicesCategories from "./pages/admin/services/AdminServicesCategor
 import AdminResources from "./pages/admin/resources/AdminResources";
 import AdminServiceCatalog from "./pages/admin/services/AdminServiceCatalog";
 import AdminStaffManagement from "./pages/admin/staff/AdminStaffManagement";
-import AdminSpareParts from "./pages/admin/parts/AdminSpareParts";
+import InventoryLayout from "./pages/inventory/InventoryLayout";
+import InventoryDashboard from "./pages/inventory/dashboard/InventoryDashboard";
+import InventoryParts from "./pages/inventory/parts/InventoryParts";
+import ImportHistory from "./pages/inventory/import/InventoryImportHistory";
+import PartCategories from "./pages/inventory/categories/InventoryPartCategories";
 
 function App() {
   const location = useLocation();
-  const isAdminPath = location.pathname.startsWith("/admin");
+  const isAdminPath =
+    location.pathname.startsWith("/admin") ||
+    location.pathname.startsWith("/inventory");
   return (
     <>
       <Routes>
@@ -42,12 +48,17 @@ function App() {
         </Route>
         <Route path="/admin" element={<AdminLayout />}>
           <Route path="" element={<AdminDashboard />} />
-          <Route path="spare-part" element={<AdminSpareParts />} />
           <Route path="services-category" element={<AdminServicesCategories />} />
           <Route path="resources" element={<AdminResources />} />
           <Route path="settings" element={<AdminSettings />} />
           <Route path="services" element={<AdminServiceCatalog />} />
           <Route path="staff" element={<AdminStaffManagement />} />
+        </Route>
+        <Route path="/inventory" element={<InventoryLayout />}>
+          <Route path="" element={<InventoryDashboard />} />
+          <Route path="parts" element={<InventoryParts />} />
+          <Route path="categories" element={<PartCategories />} />
+          <Route path="import" element={<ImportHistory />} />
         </Route>
       </Routes>
       {!isAdminPath && (
