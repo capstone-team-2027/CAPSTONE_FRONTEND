@@ -20,6 +20,8 @@ import AdminResources from "./pages/admin/resources/AdminResources";
 import AdminServiceCatalog from "./pages/admin/services/AdminServiceCatalog";
 import AdminStaffManagement from "./pages/admin/staff/AdminStaffManagement";
 import AdminSpareParts from "./pages/parts/AdminSpareParts";
+import InventoryLayout from "./pages/inventory/InventoryLayout";
+import PartCategories from "./pages/inventory/category/InventoryPartCategories";
 
 function App() {
   const location = useLocation();
@@ -49,6 +51,10 @@ function App() {
           <Route path="services" element={<AdminServiceCatalog />} />
           <Route path="staff" element={<AdminStaffManagement />} />
         </Route>
+        <Route path="/inventory" element={<InventoryLayout />}>
+          <Route path="categories" element={<PartCategories />} />
+        </Route>
+
       </Routes>
       {!isAdminPath && (
         <div className="hidden md:block">

@@ -125,6 +125,41 @@ export const useFetchClient = () => {
       throw error;
     }
   };
+   const fetchPrivateFormGeneric = async <T = any>(
+    url: string,
+    method: string = "POST",
+    body: unknown,
+  ): Promise<T> => {
+    const token = localStorage.getItem("token");
 
-  return { fetchPublic, fetchPrivate, fetchPrivateForm };
+    const options: RequestInit = {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: token ? `Bearer ${token}` : "",
+      },
+      body: JSON.stringify(body),
+    };
+
+    try {
+      const response = await fetch(url, options);
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : {};
+
+      if (response.status === 401) {
+        console.warn("Lỗi 401: Token hết hạn. Đá về Login!");
+        localStorage.removeItem("token");
+        navigate("/login");
+        throw new Error("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.");
+      }
+      if (!response.ok) {
+        throw new Error(data.message || "Có lỗi xảy ra từ máy chủ");
+      }
+      return data as T;
+    } catch (error) {
+      console.error("Lỗi Private Form API:", error);
+      throw error;
+    }
+  };
+  return { fetchPublic, fetchPrivate, fetchPrivateForm, fetchPrivateFormGeneric};
 };
