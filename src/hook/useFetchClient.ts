@@ -12,16 +12,13 @@ export const useFetchClient = () => {
       method: method,
       headers: { "Content-Type": "application/json" },
     };
-
     if (bodyData) {
       options.body = JSON.stringify(bodyData);
     }
-
     try {
       const response = await fetch(url, options);
       const text = await response.text();
       const data = text ? JSON.parse(text) : {};
-
       if (!response.ok) {
         throw new Error(data.message || "Có lỗi xảy ra từ máy chủ");
       }
@@ -45,25 +42,20 @@ export const useFetchClient = () => {
         Authorization: token ? `Bearer ${token}` : "",
       },
     };
-
     if (bodyData) options.body = JSON.stringify(bodyData);
-
     try {
       const response = await fetch(url, options);
       const text = await response.text();
       const data = text ? JSON.parse(text) : {};
-
       if (response.status === 401) {
         console.warn("Lỗi 401: Token hết hạn hoặc bay màu. Đá về Login!");
         localStorage.removeItem("token");
         navigate("/login");
         throw new Error("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.");
       }
-
       if (!response.ok) {
         throw new Error(data.message || "Có lỗi xảy ra từ máy chủ");
       }
-
       return data;
     } catch (error) {
       console.error("Lỗi Private API:", error);
@@ -77,46 +69,38 @@ export const useFetchClient = () => {
     formData: FormData,
   ) => {
     const token = localStorage.getItem("token");
-
     const options: RequestInit = {
       method: method,
       headers: {
-        // KHÔNG có Content-Type ở đây — để browser tự xử lý
         Authorization: token ? `Bearer ${token}` : "",
       },
       body: formData,
     };
-
     try {
       const response = await fetch(url, options);
       const text = await response.text();
       const data = text ? JSON.parse(text) : {};
-
       if (response.status === 401) {
         console.warn("Lỗi 401: Token hết hạn hoặc bay màu. Đá về Login!");
         localStorage.removeItem("token");
         navigate("/login");
         throw new Error("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.");
       }
-
       if (!response.ok) {
         throw new Error(data.message || "Có lỗi xảy ra từ máy chủ");
       }
-
       return data;
     } catch (error) {
       console.error("Lỗi Private Form API:", error);
       throw error;
     }
   };
-
   const fetchPrivateFormGeneric = async <T = any>(
     url: string,
     method: string = "POST",
     body: unknown,
   ): Promise<T> => {
     const token = localStorage.getItem("token");
-
     const options: RequestInit = {
       method,
       headers: {
@@ -125,7 +109,6 @@ export const useFetchClient = () => {
       },
       body: JSON.stringify(body),
     };
-
     try {
       const response = await fetch(url, options);
       const text = await response.text();
@@ -146,7 +129,6 @@ export const useFetchClient = () => {
       throw error;
     }
   };
-
   return {
     fetchPublic,
     fetchPrivate,
