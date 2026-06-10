@@ -1,0 +1,15 @@
+<USER_REQUEST>
+tiếp tục check code xem đã đúng theo yêu cầu sau chưa, liệt kê những màn hình chưa có:
+3.4 Customer Portal
+3.4.1 View Public Information / Services
+Function trigger: The user logs into the application and navigates to the "Dịch vụ" or “Linh kiện” section to view the list of available information and services. 
+Function description: 	
+Role: Customer
+Purpose: This function allows customers to view a list of information and services provided by the system, and to access the detailed content of each item for reference or further action. 
+Interface: 
+Search bar: Input field where the user enters keywords to search for specific information or services.
+Category filter: Dropdown or tab list that allows the user to filter information/services by category (e.g., administrative, healthcare, education, etc.).
+A simple button or link labeled "Xem chi tiết" that the user can click to view detail information/services
+Screen Layouts: 
+Function details: 
+<truncated 22135 bytes>

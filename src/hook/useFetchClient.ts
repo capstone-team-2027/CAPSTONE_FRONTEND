@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 export const useFetchClient = () => {
   const navigate = useNavigate();
 
-  const fetchPublic = async (
+  const fetchPublic = async <T = any>(
     url: string,
     method: string = "GET",
     bodyData: any = null,
@@ -29,11 +29,11 @@ export const useFetchClient = () => {
     }
   };
 
-  const fetchPrivate = async <T, B = unknown>(
+  const fetchPrivate = async <T = any>(
     url: string,
     method: string = "GET",
-    bodyData: B | null = null,
-  ) => {
+    bodyData: any = null,
+  ): Promise<any> => {
     const token = localStorage.getItem("token");
     const options: RequestInit = {
       method: method,
@@ -56,18 +56,18 @@ export const useFetchClient = () => {
       if (!response.ok) {
         throw new Error(data.message || "Có lỗi xảy ra từ máy chủ");
       }
-      return data;
+      return data as T;
     } catch (error) {
       console.error("Lỗi Private API:", error);
       throw error;
     }
   };
 
-  const fetchPrivateForm = async (
+  const fetchPrivateForm = async <T = any>(
     url: string,
     method: string = "POST",
     formData: FormData,
-  ) => {
+  ): Promise<any> => {
     const token = localStorage.getItem("token");
     const options: RequestInit = {
       method: method,
@@ -89,12 +89,13 @@ export const useFetchClient = () => {
       if (!response.ok) {
         throw new Error(data.message || "Có lỗi xảy ra từ máy chủ");
       }
-      return data;
+      return data as T;
     } catch (error) {
       console.error("Lỗi Private Form API:", error);
       throw error;
     }
   };
+
   const fetchPrivateFormGeneric = async <T = any>(
     url: string,
     method: string = "POST",
@@ -113,7 +114,6 @@ export const useFetchClient = () => {
       const response = await fetch(url, options);
       const text = await response.text();
       const data = text ? JSON.parse(text) : {};
-
       if (response.status === 401) {
         console.warn("Lỗi 401: Token hết hạn. Đá về Login!");
         localStorage.removeItem("token");

@@ -7,8 +7,6 @@ import {
   AlertCircle, 
   Wrench, 
   RefreshCw, 
-  CheckCircle2, 
-  AlertTriangle, 
   X, 
   Eye, 
   ToggleLeft, 
@@ -16,8 +14,7 @@ import {
   Database,
   Search,
   Activity,
-  Cpu,
-  Bookmark
+  Cpu
 } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { SERVICE_BAYS_API_ENDPOINTS } from '../../../constants/admin/serviceBayApiEndPoint';
@@ -71,7 +68,7 @@ export default function AdminResources() {
   const [filterBayStatus, setFilterBayStatus] = useState<string>('all');
 
   // Tools Mock Data (Interactive state to let user fully experience the UX)
-  const [workshopTools, setWorkshopTools] = useState<WorkshopTool[]>([
+  const [workshopTools] = useState<WorkshopTool[]>([
     {
       id: 1,
       tool_name: 'Máy chẩn đoán lỗi ô tô OBD2 Autel Maxisys',
@@ -754,10 +751,10 @@ export default function AdminResources() {
                   onChange={(e) => setBayStatus(e.target.value as any)}
                   className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E]"
                 >
-                  <option value="AVAILABLE">AVAILABLE (Sẵn sàng)</option>
-                  <option value="OCCUPIED">OCCUPIED (Đang làm việc)</option>
-                  <option value="MAINTENANCE">MAINTENANCE (Bảo trì)</option>
-                  <option value="OFFLINE">OFFLINE (Tạm tắt)</option>
+                  <option value="AVAILABLE">Sẵn sàng</option>
+                  <option value="OCCUPIED">Đang hoạt động</option>
+                  <option value="MAINTENANCE">Đang bảo trì</option>
+                  <option value="OFFLINE">Ngoại tuyến</option>
                 </select>
               </div>
 

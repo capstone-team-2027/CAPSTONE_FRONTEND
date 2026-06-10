@@ -34,11 +34,11 @@ export default function AdminSettings() {
   const [activeTab, setActiveTab] = useState<TabType>('general');
 
   const tabs: TabItem[] = [
-    { id: 'general', label: 'General', icon: Store },
+    { id: 'general', label: 'Cài đặt chung', icon: Store },
     { id: 'pricing', label: 'Quy tắc giá phụ tùng', icon: Coins },
-    { id: 'warranty', label: 'Warranty Policies', icon: ShieldCheck },
-    { id: 'commission', label: 'Commission Rules', icon: Calculator },
-    { id: 'notifications', label: 'Notifications', icon: BellRing }
+    { id: 'warranty', label: 'Chính sách bảo hành', icon: ShieldCheck },
+    { id: 'commission', label: 'Quy tắc hoa hồng', icon: Calculator },
+    { id: 'notifications', label: 'Cấu hình thông báo', icon: BellRing }
   ];
 
   return (

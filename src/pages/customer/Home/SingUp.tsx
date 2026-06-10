@@ -104,7 +104,7 @@ export default function Signup() {
                         transition={{ delay: 0.2 }}
                         className="text-white/50 text-sm leading-relaxed mb-10"
                     >
-                        Trải nghiệm thế hệ chăm sóc xe hơi tiếp theo. Chính xác, minh bạch và động lực trong tầm tay bạn.
+                        Trải nghiệm thế hệ chăm sóc xe hơi tiếp theo. Chính xác, minh bạch và kiểm soát trong tầm tay bạn.
                     </motion.p>
 
                     <div className="space-y-5">

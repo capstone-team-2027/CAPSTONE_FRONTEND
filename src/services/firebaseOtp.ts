@@ -3,10 +3,14 @@ import type { ConfirmationResult } from "firebase/auth";
 import { auth } from "../config/firebase";
 
 let recaptchaVerifier: RecaptchaVerifier | null = null;
-let recaptchaWidgetId: number | null = null;
 
 export const initRecaptcha = async (containerId = "recaptcha-container") => {
   if (recaptchaVerifier) return recaptchaVerifier;
+
+  const container = document.getElementById(containerId);
+  if (container) {
+    container.innerHTML = "";
+  }
 
   recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
     size: "invisible",
@@ -14,18 +18,20 @@ export const initRecaptcha = async (containerId = "recaptcha-container") => {
     "expired-callback": () => {
       recaptchaVerifier?.clear();
       recaptchaVerifier = null;
-      recaptchaWidgetId = null;
     },
   });
 
-  recaptchaWidgetId = await recaptchaVerifier.render();
+  try {
+    await recaptchaVerifier.render();
+  } catch (err) {
+    console.warn("reCAPTCHA render warning:", err);
+  }
   return recaptchaVerifier;
 };
 
 export const clearRecaptcha = () => {
   recaptchaVerifier?.clear();
   recaptchaVerifier = null;
-  recaptchaWidgetId = null;
 };
 
 export const sendOtp = async (phone: string): Promise<ConfirmationResult> => {

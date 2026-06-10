@@ -1,71 +1,69 @@
 import { motion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 import { Clock, Zap, Search, ShieldCheck, ArrowRight, Send } from 'lucide-react';
 import { COLORS } from '../../../components/share/Color';
 import { Button } from '../../../components/share/Button';
 
-
-
-// ── DATA ──────────────────────────────────────────────────────
-const LEADERS = [
-    {
-        name: 'Nguyễn Minh Tuấn',
-        role: 'Sáng lập & Giám đốc điều hành',
-        image: '/staff/leader.jpg',
-        bio: 'Với hơn 20 năm kinh nghiệm trong ngành công nghiệp ô tô, ông Tuấn đã xây dựng AGM dựa trên triết lý "Chính trực & Chính xác". Ông tin rằng sự minh bạch là chìa khóa để xây dựng niềm tin lâu dài với khách hàng.',
-    },
-    {
-        name: 'Trần Thu Hà',
-        role: 'Giám đốc Dịch vụ',
-        image: '/staff/leadernu.webp',
-        bio: 'Chuyên gia quản lý quy trình kỹ thuật đạt chuẩn quốc tế. Bà Hà đảm bảo mọi quy trình sửa chữa tại AGM Intelligent đều tuân thủ nghiêm ngặt các tiêu chuẩn an toàn và hiệu suất cao nhất.',
-    },
-];
-
-const TECHNICIANS = [
-    {
-        name: 'Lê Hoàng Nam',
-        specialty: 'CHUYÊN GIA ĐỘNG CƠ',
-        image: '/staff/Staff2.jpeg',
-        badge: '15 Năm Kinh Nghiệm',
-        badgeIcon: <Clock size={13} />,
-        badgeColor: '#10B981',
-        desc: 'Chuyên gia hàng đầu về động cơ ô tô, tối ưu hóa hiệu suất cho các dòng xe châu Âu.',
-    },
-    {
-        name: 'Phạm Anh Đức',
-        specialty: 'CHUYÊN GIA HYBRID/EV',
-        image: '/staff/Staff3.jpeg',
-        badge: 'Tesla Certified',
-        badgeIcon: <Zap size={13} />,
-        badgeColor: '#F9A11B',
-        desc: 'Dẫn đầu công nghệ xe điện và hệ thống điện cao áp, đảm bảo an toàn tuyệt đối cho xe của bạn.',
-    },
-    {
-        name: 'Nguyễn Văn Hùng',
-        specialty: 'CHUYÊN GIA CHẨN ĐOÁN',
-        image: '/staff/Staff4.png',
-        badge: 'Master Diagnostic',
-        badgeIcon: <Search size={13} />,
-        badgeColor: '#3B82F6',
-        desc: 'Bậc thầy phát hiện lỗi hệ thống bằng công nghệ máy tính, xử lý mọi vấn đề hóc búa nhất.',
-    },
-    {
-        name: 'Đặng Quốc Việt',
-        specialty: 'HỆ THỐNG GẦM & PHANH',
-        image: '/staff/staff6.jpeg',
-        badge: 'Chuyên gia An Toàn',
-        badgeIcon: <ShieldCheck size={13} />,
-        badgeColor: '#EF4444',
-        desc: 'Chẩn chứt từng millimeter hệ thống phanh và treo, mang lại sự êm ái và an toàn trên mọi địa hình.',
-    },
-];
-
-
-
 // ── MAIN COMPONENT ────────────────────────────────────────────
 export default function Team() {
+    const { t } = useTranslation();
+
+    const LEADERS = [
+        {
+            name: 'Nguyễn Minh Tuấn',
+            role: t('team.leaders.tuan.role', 'Sáng lập & Giám đốc điều hành'),
+            image: '/staff/leader.jpg',
+            bio: t('team.leaders.tuan.bio', 'Với hơn 20 năm kinh nghiệm trong ngành công nghiệp ô tô, ông Tuấn đã xây dựng AGM dựa trên triết lý "Chính trực & Chính xác". Ông tin rằng sự minh bạch là chìa khóa để xây dựng niềm tin lâu dài với khách hàng.'),
+        },
+        {
+            name: 'Trần Thu Hà',
+            role: t('team.leaders.ha.role', 'Giám đốc Dịch vụ'),
+            image: '/staff/leadernu.webp',
+            bio: t('team.leaders.ha.bio', 'Chuyên gia quản lý quy trình kỹ thuật đạt chuẩn quốc tế. Bà Hà đảm bảo mọi quy trình sửa chữa tại AGM Intelligent đều tuân thủ nghiêm ngặt các tiêu chuẩn an toàn và hiệu suất cao nhất.'),
+        },
+    ];
+
+    const TECHNICIANS = [
+        {
+            name: 'Lê Hoàng Nam',
+            specialty: t('team.specialties.engine', 'Chuyên gia động cơ'),
+            image: '/staff/Staff2.jpeg',
+            badge: t('team.badges.experience15', '15 năm kinh nghiệm'),
+            badgeIcon: <Clock size={13} />,
+            badgeColor: '#10B981',
+            desc: t('team.techs.nam.desc', 'Chuyên gia hàng đầu về động cơ ô tô, tối ưu hóa hiệu suất cho các dòng xe châu Âu.'),
+        },
+        {
+            name: 'Phạm Anh Đức',
+            specialty: t('team.specialties.hybridEv', 'Chuyên gia Hybrid/EV'),
+            image: '/staff/Staff3.jpeg',
+            badge: t('team.badges.teslaCertified', 'Tesla Certified'),
+            badgeIcon: <Zap size={13} />,
+            badgeColor: '#F9A11B',
+            desc: t('team.techs.duc.desc', 'Dẫn đầu công nghệ xe điện và hệ thống điện cao áp, đảm bảo an toàn tuyệt đối cho xe của bạn.'),
+        },
+        {
+            name: 'Nguyễn Văn Hùng',
+            specialty: t('team.specialties.diagnostic', 'Chuyên gia chẩn đoán'),
+            image: '/staff/Staff4.png',
+            badge: t('team.badges.masterDiagnostic', 'Master Diagnostic'),
+            badgeIcon: <Search size={13} />,
+            badgeColor: '#3B82F6',
+            desc: t('team.techs.hung.desc', 'Bậc thầy phát hiện lỗi hệ thống bằng công nghệ máy tính, xử lý mọi vấn đề hóc búa nhất.'),
+        },
+        {
+            name: 'Đặng Quốc Việt',
+            specialty: t('team.specialties.chassisBrakes', 'Hệ thống gầm & phanh'),
+            image: '/staff/staff6.jpeg',
+            badge: t('team.badges.safetyExpert', 'Chuyên gia an toàn'),
+            badgeIcon: <ShieldCheck size={13} />,
+            badgeColor: '#EF4444',
+            desc: t('team.techs.viet.desc', 'Chăm chút từng milimét hệ thống phanh và treo, mang lại sự êm ái và an toàn trên mọi địa hình.'),
+        },
+    ];
+
     return (
-        <div className="overflow-hidden">
+        <div className="overflow-hidden text-left">
 
             {/* ── HERO ─────────────────────────────────────────── */}
             <section className="relative min-h-[380px] flex items-end pb-16 overflow-hidden"
@@ -86,11 +84,10 @@ export default function Team() {
                         transition={{ duration: 0.7 }}
                     >
                         <h1 className="text-5xl md:text-6xl font-display text-white mb-5 leading-tight">
-                            Đội Ngũ Chuyên Gia
+                            {t('team.heroTitle', 'Đội ngũ chuyên gia')}
                         </h1>
                         <p className="text-white/60 max-w-xl text-base leading-relaxed">
-                            Những kỹ thuật viên tay nghề cao và tận tâm nhất, cam kết mang lại sự an toàn
-                            tuyệt đối cho hành trình của bạn.
+                            {t('team.heroDesc', 'Những kỹ thuật viên tay nghề cao và tận tâm nhất, cam kết mang lại sự an toàn tuyệt đối cho hành trình của bạn.')}
                         </p>
                     </motion.div>
                 </div>
@@ -102,10 +99,10 @@ export default function Team() {
                     <div className="mb-12">
                         <span className="font-bold text-[10px] tracking-[0.2em] uppercase mb-3 block"
                             style={{ color: COLORS.orange }}>
-                            LÃNH ĐẠO
+                            {t('team.leadersLabel', 'LÃNH ĐẠO')}
                         </span>
                         <h2 className="text-4xl font-display" style={{ color: COLORS.navy }}>
-                            Ban Điều Hành
+                            {t('team.leadersTitle', 'Ban điều hành')}
                         </h2>
                     </div>
 
@@ -153,14 +150,14 @@ export default function Team() {
                     <div className="text-center mb-14">
                         <span className="font-bold text-[10px] tracking-[0.2em] uppercase mb-3 block"
                             style={{ color: COLORS.orange }}>
-                            ĐỘI NGŨ KỸ THUẬT
+                            {t('team.techsLabel', 'ĐỘI NGŨ KỸ THUẬT')}
                         </span>
                         <h2 className="text-4xl font-display mb-4" style={{ color: COLORS.navy }}>
-                            Chuyên Gia Kỹ Thuật
+                            {t('team.techsTitle', 'Chuyên gia kỹ thuật')}
                         </h2>
                         <p className="text-sm max-w-xl mx-auto leading-relaxed"
                             style={{ color: `${COLORS.navy}80` }}>
-                            Tập hợp những đôi bàn tay vàng về trí tuệ công nghệ hàng đầu trong lĩnh vực bảo trì ô tô.
+                            {t('team.techsDesc', 'Tập hợp những đôi bàn tay vàng về trí tuệ công nghệ hàng đầu trong lĩnh vực bảo trì ô tô.')}
                         </p>
                     </div>
 
@@ -218,11 +215,10 @@ export default function Team() {
                     <div className="flex flex-col md:flex-row items-center justify-between gap-10">
                         <div className="max-w-xl">
                             <h2 className="text-4xl font-display text-white mb-4 leading-tight">
-                                Gia Nhập Đội Ngũ Của Chúng Tôi
+                                {t('team.ctaTitle', 'Gia nhập đội ngũ của chúng tôi')}
                             </h2>
                             <p className="text-sm leading-relaxed" style={{ color: `${COLORS.white}60` }}>
-                                Bạn có đam mê với ô tô và mong muốn làm việc trong môi trường chuyên nghiệp, hiện đại?
-                                Chúng tôi luôn chào đón những tài năng mới.
+                                {t('team.ctaDesc', 'Bạn có đam mê với ô tô và mong muốn làm việc trong môi trường chuyên nghiệp, hiện đại? Chúng tôi luôn chào đón những tài năng mới.')}
                             </p>
                         </div>
 
@@ -234,7 +230,7 @@ export default function Team() {
                                 icon={<ArrowRight size={18} />}
                                 style={{ boxShadow: '0 8px 24px rgba(249,161,27,0.3)' }}
                             >
-                                Xem Vị Trí Tuyển Dụng
+                                {t('team.viewJobs', 'Xem vị trí tuyển dụng')}
                             </Button>
 
                             <Button
@@ -244,7 +240,7 @@ export default function Team() {
                                 icon={<Send size={18} />}
                                 style={{ border: `1px solid rgba(255,255,255,0.25)` }}
                             >
-                                Gửi Hồ Sơ
+                                {t('team.sendResume', 'Gửi hồ sơ')}
                             </Button>
                         </div>
                     </div>

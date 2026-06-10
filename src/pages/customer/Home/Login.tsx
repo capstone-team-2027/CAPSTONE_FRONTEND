@@ -11,6 +11,7 @@ import { validateLoginField, validateLoginForm, type LoginFormData } from '../..
 import { AUTH_API_ENDPOINTS } from '../../../constants/customer/authApiEndpoints';
 import { useDispatch } from 'react-redux';
 import { loginSuccess } from '../../../store/slices/userSlice';
+import { useTranslation } from 'react-i18next';
 
 // ── resolve PhoneInput default export ─────────────────────────
 type Mod = { default?: unknown };
@@ -122,6 +123,8 @@ export default function Login() {
     const navigate = useNavigate();
     const { fetchPublic } = useFetchClient();
     const dispatch = useDispatch()
+    const { i18n } = useTranslation();
+    const isVi = i18n.language === 'vi';
 
     const [phone, setPhone] = useState('');
     const [password, setPassword] = useState('');
@@ -215,10 +218,10 @@ export default function Login() {
                 navigate('/');
             }
             if (userData.role === "ADMIN") {
-                navigate('/admin');
+                navigate('/admin/statistics');
             }
         } catch (err: any) {
-            setApiError(err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');
+            setApiError(err.message || (isVi ? 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.' : 'Login failed. Please check your credentials.'));
         } finally {
             setIsLoading(false);
         }
@@ -258,8 +261,8 @@ export default function Login() {
                         transition={{ delay: 0.1 }}
                         className="text-6xl font-display leading-[1.1] mb-8"
                     >
-                        Dịch vụ chăm sóc <br />
-                        <span style={{ color: COLORS.orange }}>chuyên nghiệp</span> cho xe của bạn.
+                        {isVi ? 'Dịch vụ chăm sóc' : 'Professional care'} <br />
+                        <span style={{ color: COLORS.orange }}>{isVi ? 'chuyên nghiệp' : 'services'}</span> {isVi ? 'cho xe của bạn.' : 'for your vehicle.'}
                     </motion.h1>
 
                     <motion.p
@@ -267,8 +270,9 @@ export default function Login() {
                         transition={{ delay: 0.2 }}
                         className="text-white/60 text-lg leading-relaxed mb-12"
                     >
-                        Truy cập bảng điều khiển cá nhân của bạn để quản lý các dịch vụ,
-                        theo dõi lịch sử bảo trì và đặt lịch hẹn tiếp theo một cách chính xác.
+                        {isVi 
+                            ? 'Truy cập bảng điều khiển cá nhân của bạn để quản lý các dịch vụ, theo dõi lịch sử bảo trì và đặt lịch hẹn tiếp theo một cách chính xác.'
+                            : 'Access your personal dashboard to manage services, track maintenance history, and schedule your next appointment precisely.'}
                     </motion.p>
 
                     <motion.div
@@ -285,7 +289,7 @@ export default function Login() {
                                     </div>
                                 ))}
                             </div>
-                            <div className="text-xs text-white/40">Được hơn 50.000 chủ xe tin dùng.</div>
+                            <div className="text-xs text-white/40">{isVi ? 'Được hơn 50.000 chủ xe tin dùng.' : 'Trusted by over 50,000 car owners.'}</div>
                         </div>
                         <div className="flex gap-1" style={{ color: COLORS.orange }}>
                             {[1, 2, 3, 4, 5].map(i => <ShieldCheck key={i} size={14} fill="currentColor" />)}
@@ -302,10 +306,10 @@ export default function Login() {
                 <div className="w-full max-w-md">
                     <div className="mb-12 text-center lg:text-left">
                         <h2 className="text-4xl font-display mb-4" style={{ color: COLORS.navy }}>
-                            Chào mừng trở lại!
+                            {isVi ? 'Chào mừng trở lại!' : 'Welcome back!'}
                         </h2>
                         <p style={{ color: `${COLORS.navy}80` }}>
-                            Vui lòng nhập thông tin của bạn để đăng nhập.
+                            {isVi ? 'Vui lòng nhập thông tin của bạn để đăng nhập.' : 'Please enter your details to sign in.'}
                         </p>
                     </div>
 
@@ -328,7 +332,7 @@ export default function Login() {
                                 className="block text-[11px] font-bold uppercase tracking-widest mb-2 px-1"
                                 style={{ color: `${COLORS.navy}66` }}
                             >
-                                Số Điện Thoại
+                                {isVi ? 'Số Điện Thoại' : 'Phone Number'}
                             </label>
                             <div className={`login-phone ${errors.phone ? 'phone-error' : ''}`}>
                                 <PhoneInput
@@ -340,7 +344,7 @@ export default function Login() {
                                     }}
                                     onBlur={handlePhoneBlur}
                                     enableSearch
-                                    searchPlaceholder="Tìm quốc gia..."
+                                    searchPlaceholder={isVi ? 'Tìm quốc gia...' : 'Search country...'}
                                     inputProps={{ name: 'phone' }}
                                 />
                             </div>
@@ -356,14 +360,14 @@ export default function Login() {
                                     className="block text-[11px] font-bold uppercase tracking-widest"
                                     style={{ color: `${COLORS.navy}66` }}
                                 >
-                                    Mật Khẩu
+                                    {isVi ? 'Mật Khẩu' : 'Password'}
                                 </label>
                                 <Link
                                     to="/forgot-password"
                                     className="text-xs font-bold transition-colors hover:opacity-70"
                                     style={{ color: `${COLORS.navy}99` }}
                                 >
-                                    Quên mật khẩu?
+                                    {isVi ? 'Quên mật khẩu?' : 'Forgot password?'}
                                 </Link>
                             </div>
                             <div className="relative">
@@ -407,7 +411,7 @@ export default function Login() {
                                 className="w-4 h-4 rounded border-blue-100 accent-orange-400"
                             />
                             <label htmlFor="rememberMe" className="text-sm cursor-pointer" style={{ color: `${COLORS.navy}99` }}>
-                                Ghi nhớ tôi trên thiết bị này
+                                {isVi ? 'Ghi nhớ tôi trên thiết bị này' : 'Remember me on this device'}
                             </label>
                         </div>
 
@@ -427,9 +431,9 @@ export default function Login() {
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                                     </svg>
-                                    Đang đăng nhập...
+                                    {isVi ? 'Đang đăng nhập...' : 'Logging in...'}
                                 </span>
-                            ) : 'Đăng nhập'}
+                            ) : (isVi ? 'Đăng nhập' : 'Log In')}
                         </Button>
                     </form>
 
@@ -443,7 +447,7 @@ export default function Login() {
                                 className="relative z-10 bg-[#F8FAFC] px-4 text-[10px] font-bold uppercase tracking-widest"
                                 style={{ color: `${COLORS.navy}4D` }}
                             >
-                                OR CONTINUE WITH
+                                {isVi ? 'HOẶC TIẾP TỤC VỚI' : 'OR CONTINUE WITH'}
                             </span>
                         </div>
 
@@ -469,13 +473,13 @@ export default function Login() {
                     </div>
 
                     <p className="mt-12 text-center text-sm" style={{ color: `${COLORS.navy}80` }}>
-                        Bạn chưa có tài khoản?{' '}
+                        {isVi ? 'Bạn chưa có tài khoản?' : "Don't have an account?"}{' '}
                         <Link
                             to="/verify-phone"
                             className="font-bold transition-colors hover:opacity-70"
                             style={{ color: COLORS.navy }}
                         >
-                            Tạo tài khoản
+                            {isVi ? 'Tạo tài khoản' : 'Sign up'}
                         </Link>
                     </p>
                 </div>

@@ -11,8 +11,7 @@ export const loginSchema = z.object({
 
     password: z
         .string()
-        .min(1, 'Mật khẩu không được để trống')
-        .min(3, 'Mật khẩu phải ít nhất 6 ký tự'),
+        .min(1, 'Mật khẩu không được để trống'),
 });
 
 export type LoginFormData = z.infer<typeof loginSchema>;

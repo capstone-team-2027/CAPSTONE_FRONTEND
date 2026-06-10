@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  LayoutDashboard,
   Boxes,
   Users,
   UserCog,
@@ -17,7 +16,8 @@ import {
   CheckCircle,
   Info,
   AlertTriangle,
-  Package
+  Package,
+  ShieldCheck
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -34,7 +34,6 @@ export default function AdminLayout() {
   const { fetchPrivate } = useFetchClient();
 
   const user = useSelector((state: RootState) => state.user.user as UserModel | null);
-  const isAuthenticated = !!localStorage.getItem('token');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -73,35 +72,32 @@ export default function AdminLayout() {
 
   const avatarUrl = user?.avatar?.trim() || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=256&auto=format&fit=crop';
   const displayName = user?.fullName || 'Nguyễn Văn Admin';
-  const displayRole = user?.role === 'admin' ? 'Quản trị viên' : (user?.role || 'Quản trị viên');
+  const displayRole = user?.role?.toUpperCase() === 'ADMIN' ? 'Quản trị viên' : (user?.role || 'Quản trị viên');
 
   // Menu items for the sidebar with corresponding route paths
   const menuItems = [
-    { name: 'Tổng quan', icon: LayoutDashboard, path: '/admin' },
+    { name: 'Thống kê', icon: BarChart3, path: '/admin/statistics' },
     { name: 'Kho phụ tùng', icon: Boxes, path: '/admin/spare-part' },
     { name: 'Khách Hàng', icon: Users, path: '/admin/customers' },
     { name: 'Nhân sự', icon: UserCog, path: '/admin/staff' },
-    { name: 'Phân loại dịch vụ', icon: Wrench, path: '/admin/services-category' },
     { name: 'Dịch vụ', icon: Wrench, path: '/admin/services' },
     { name: 'Tài nguyên', icon: Package, path: '/admin/resources' },
-    { name: 'Báo cáo tài chính', icon: BarChart3, path: '/admin/finance' },
-
+    { name: 'Chính sách bảo hành', icon: ShieldCheck, path: '/admin/warranty' },
     { name: 'Cài đặt', icon: Settings, path: '/admin/settings' },
   ];
 
   // Dynamic active menu item based on current URL path
   const activeMenu = useMemo(() => {
     const path = location.pathname;
-    if (path === '/admin' || path === '/admin/') return 'Tổng quan';
+    if (path === '/admin' || path === '/admin/' || path.includes('/statistics')) return 'Thống kê';
     if (path.includes('/spare-part')) return 'Kho phụ tùng';
     if (path.includes('/customers')) return 'Khách Hàng';
     if (path.includes('/staff')) return 'Nhân sự';
-    if (path.includes('/services-category')) return 'Phân loại dịch vụ';
     if (path.includes('/services')) return 'Dịch vụ';
     if (path.includes('/resources')) return 'Tài nguyên';
-    if (path.includes('/finance')) return 'Báo cáo tài chính';
+    if (path.includes('/warranty')) return 'Chính sách bảo hành';
     if (path.includes('/settings')) return 'Cài đặt';
-    return 'Tổng quan';
+    return 'Thống kê';
   }, [location.pathname]);
 
   return (

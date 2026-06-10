@@ -1,19 +1,22 @@
 import { motion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 import { Plus, Wrench, History } from 'lucide-react';
 
 export default function VehiclesTab() {
+  const { t } = useTranslation();
+
   const vehicleStats = [
-    { label: 'Mức dầu', value: '85%', width: 'w-[85%]', color: 'bg-brand-blue' },
-    { label: 'Áp suất lốp', value: '32 PSI', width: 'w-[90%]', color: 'bg-brand-orange' },
-    { label: 'Má phanh', value: '60%', width: 'w-[60%]', color: 'bg-brand-blue' },
-    { label: 'Tình trạng ắc quy', value: 'Tốt', width: 'w-full', color: 'bg-brand-blue' },
+    { label: t('vehicles.oilLevel', 'Mức dầu'), value: '85%', width: 'w-[85%]', color: 'bg-brand-blue' },
+    { label: t('vehicles.tirePressure', 'Áp suất lốp'), value: '32 PSI', width: 'w-[90%]', color: 'bg-brand-orange' },
+    { label: t('vehicles.brakePads', 'Má phanh'), value: '60%', width: 'w-[60%]', color: 'bg-brand-blue' },
+    { label: t('vehicles.batteryStatus', 'Tình trạng ắc quy'), value: t('profile.good', 'Tốt'), width: 'w-full', color: 'bg-brand-blue' },
   ];
 
   const bmwStats = [
-    { label: 'Mức dầu', value: '15%', width: 'w-[15%]', color: 'bg-red-600', valueClass: 'text-red-600' },
-    { label: 'Áp suất lốp', value: '30 PSI', width: 'w-[85%]', color: 'bg-brand-orange' },
-    { label: 'Má phanh', value: '45%', width: 'w-[45%]', color: 'bg-brand-blue' },
-    { label: 'Tình trạng ắc quy', value: 'Trung bình', width: 'w-[60%]', color: 'bg-brand-orange' },
+    { label: t('vehicles.oilLevel', 'Mức dầu'), value: '15%', width: 'w-[15%]', color: 'bg-red-600', valueClass: 'text-red-600' },
+    { label: t('vehicles.tirePressure', 'Áp suất lốp'), value: '30 PSI', width: 'w-[85%]', color: 'bg-brand-orange' },
+    { label: t('vehicles.brakePads', 'Má phanh'), value: '45%', width: 'w-[45%]', color: 'bg-brand-blue' },
+    { label: t('vehicles.batteryStatus', 'Tình trạng ắc quy'), value: t('vehicles.fair', 'Trung bình'), width: 'w-[60%]', color: 'bg-brand-orange' },
   ];
 
   const renderStatBar = (
@@ -47,16 +50,18 @@ export default function VehiclesTab() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#F8FAFC] pb-2">
         <div>
-          <h2 className="text-2xl font-display font-bold text-brand-blue tracking-tight">Xe sở hữu</h2>
+          <h2 className="text-2xl font-display font-bold text-brand-blue tracking-tight">
+            {t('profile.myCar', 'Xe sở hữu')}
+          </h2>
           <p className="text-xs text-gray-500 mt-1">
-            Quản lý đội xe và theo dõi tình trạng bảo trì của bạn.
+            {t('vehicles.desc', 'Quản lý đội xe và theo dõi tình trạng bảo trì của bạn.')}
           </p>
         </div>
         <button
-          onClick={() => alert('Tính năng thêm xe mới đang được khởi tạo...')}
+          onClick={() => alert(t('vehicles.initAddVehicle', 'Tính năng thêm xe mới đang được khởi tạo...'))}
           className="inline-flex items-center gap-2 bg-brand-orange text-brand-blue font-bold px-4 py-2.5 rounded-xl text-xs shadow-sm hover:bg-brand-orange-hover transition-all"
         >
-          <Plus className="w-4 h-4 stroke-[2.5]" /> Thêm xe mới
+          <Plus className="w-4 h-4 stroke-[2.5]" /> {t('vehicles.addNew', 'Thêm xe mới')}
         </button>
       </div>
 
@@ -69,7 +74,7 @@ export default function VehiclesTab() {
         >
           <div className="w-full relative shrink-0 aspect-[16/10] bg-[#050B18]">
             <img
-              src="public/images/Porsche911.png"
+              src="/images/Porsche911.png"
               alt="Porsche 911 Carrera"
               className="w-full h-full object-cover mix-blend-lighten absolute inset-0"
             />
@@ -83,30 +88,32 @@ export default function VehiclesTab() {
               <div className="flex justify-between items-center gap-2 mb-1">
                 <h3 className="text-lg font-display font-bold text-brand-blue truncate">Porsche 911 Carrera</h3>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-bold text-[10px] border border-emerald-100 shrink-0">
-                  Hoạt động tốt
+                  {t('vehicles.statusGood', 'Hoạt động tốt')}
                 </span>
               </div>
-              <p className="text-[10px] text-gray-500 font-medium mb-3">Đời xe: 2023 • Màu: Bạc GT Silver</p>
+              <p className="text-[10px] text-gray-500 font-medium mb-3">
+                {t('vehicles.detailsPorsche', 'Đời xe: 2023 • Màu: Bạc GT Silver')}
+              </p>
               <div className="border-t border-gray-100 my-3" />
               <div className="flex items-center gap-1.5 text-brand-blue font-bold text-xs mb-2">
                 <Wrench className="w-3.5 h-3.5 text-brand-blue" />
-                <span>Tình trạng linh kiện</span>
+                <span>{t('vehicles.partsStatus', 'Tình trạng linh kiện')}</span>
               </div>
               {renderStatBar(vehicleStats)}
             </div>
 
             <div className="flex items-center gap-2 mt-5 pt-3 border-t border-gray-100/80">
               <button
-                onClick={(e) => { e.stopPropagation(); alert('Đang tải dữ liệu toàn bộ lịch sử bảo trì...'); }}
+                onClick={(e) => { e.stopPropagation(); alert(t('vehicles.loadingHistory', 'Đang tải dữ liệu toàn bộ lịch sử bảo trì...')); }}
                 className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-2 bg-blue-50 text-brand-blue hover:bg-blue-100 font-bold text-[10px] rounded-xl transition-all"
               >
-                <History className="w-3 h-3" /> Lịch sử
+                <History className="w-3 h-3" /> {t('profile.tabs.history', 'Lịch sử')}
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); alert('Hiển thị trang thông số kỹ thuật chi tiết của xe...'); }}
+                onClick={(e) => { e.stopPropagation(); alert(t('vehicles.loadingDetails', 'Hiển thị trang thông số kỹ thuật chi tiết của xe...')); }}
                 className="flex-1 py-2 border border-gray-200 text-gray-700 hover:bg-gray-50 font-bold text-[10px] rounded-xl transition-all text-center"
               >
-                Chi tiết
+                {t('common.details', 'Chi tiết')}
               </button>
             </div>
           </div>
@@ -120,7 +127,7 @@ export default function VehiclesTab() {
         >
           <div className="w-full relative shrink-0 aspect-[16/10] bg-[#050B18]">
             <img
-              src="public/images/BMWM4.png"
+              src="/images/BMWM4.png"
               alt="BMW M4"
               className="w-full h-full object-cover mix-blend-lighten absolute inset-0"
             />
@@ -134,30 +141,32 @@ export default function VehiclesTab() {
               <div className="flex justify-between items-center gap-2 mb-1">
                 <h3 className="text-lg font-display font-bold text-brand-blue truncate">BMW M4</h3>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-[#D97706] font-bold text-[10px] border border-amber-100 shrink-0">
-                  Cần bảo trì sớm
+                  {t('vehicles.statusPending', 'Cần bảo trì sớm')}
                 </span>
               </div>
-              <p className="text-[10px] text-gray-500 font-medium mb-3">Đời xe: 2022 • Màu: Xanh Portimao Blue</p>
+              <p className="text-[10px] text-gray-500 font-medium mb-3">
+                {t('vehicles.detailsBMW', 'Đời xe: 2022 • Màu: Xanh Portimao Blue')}
+              </p>
               <div className="border-t border-gray-100 my-3" />
               <div className="flex items-center gap-1.5 text-brand-blue font-bold text-xs mb-2">
                 <Wrench className="w-3.5 h-3.5 text-brand-blue" />
-                <span>Tình trạng linh kiện</span>
+                <span>{t('vehicles.partsStatus', 'Tình trạng linh kiện')}</span>
               </div>
               {renderStatBar(bmwStats)}
             </div>
 
             <div className="flex items-center gap-2 mt-5 pt-3 border-t border-gray-100/80">
               <button
-                onClick={(e) => { e.stopPropagation(); alert('Đang tải dữ liệu toàn bộ lịch sử bảo trì...'); }}
+                onClick={(e) => { e.stopPropagation(); alert(t('vehicles.loadingHistory', 'Đang tải dữ liệu toàn bộ lịch sử bảo trì...')); }}
                 className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-2 bg-blue-50 text-brand-blue hover:bg-blue-100 font-bold text-[10px] rounded-xl transition-all"
               >
-                <History className="w-3 h-3" /> Lịch sử
+                <History className="w-3 h-3" /> {t('profile.tabs.history', 'Lịch sử')}
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); alert('Hệ thống chuyển sang quy trình đặt lịch trực tuyến nhanh...'); }}
+                onClick={(e) => { e.stopPropagation(); alert(t('vehicles.bookingRedirect', 'Hệ thống chuyển sang quy trình đặt lịch trực tuyến nhanh...')); }}
                 className="flex-1 py-2 bg-brand-blue text-white hover:bg-brand-blue/90 font-bold text-[10px] rounded-xl transition-all shadow-sm text-center"
               >
-                Đặt lịch
+                {t('nav.booking', 'Đặt lịch')}
               </button>
             </div>
           </div>

@@ -6,6 +6,7 @@ import {
   ChevronRight,
   KeyRound,
   ShieldCheck,
+  Loader2,
 } from "lucide-react";
 
 import Logo from "../../../components/share/Logo";
@@ -263,7 +264,7 @@ export default function OtpVerification() {
             className="text-5xl font-display leading-[1.1] mb-6"
           >
             <span className="inline-flex items-baseline gap-3 whitespace-nowrap">
-              <span>Verify</span>
+              <span>Xác Thực</span>
               <span style={{ color: COLORS.orange }}>OTP</span>
             </span>
           </motion.h1>
@@ -317,7 +318,7 @@ export default function OtpVerification() {
               className="text-xs font-bold uppercase tracking-[0.2em] mb-3"
               style={{ color: COLORS.orange }}
             >
-              AMG INTELLIGENT — PORTAL
+              AGM INTELLIGENT — PORTAL
             </p>
 
             <h2
@@ -341,6 +342,11 @@ export default function OtpVerification() {
 
           <div className="bg-white rounded-3xl p-10 shadow-xl shadow-blue-900/8 border border-blue-50/80">
             <form className="space-y-7" onSubmit={handleVerifyOtp}>
+              {errorMsg && (
+                <div className="p-4 rounded-2xl bg-red-50 border border-red-100 text-red-600 text-xs font-bold text-left">
+                  {errorMsg}
+                </div>
+              )}
               <div className="flex items-start gap-4 p-4 rounded-2xl border border-blue-50 bg-blue-50/40">
                 <div
                   className="p-2 rounded-xl"
@@ -418,21 +424,21 @@ export default function OtpVerification() {
               </div>
 
               <div className="space-y-3">
-                <Button
+                 <Button
                   size="md"
-                  bg={isOtpComplete ? COLORS.orange : "rgba(249,161,27,0.35)"}
+                  bg={isOtpComplete && !isLoading ? COLORS.orange : "rgba(249,161,27,0.35)"}
                   color={COLORS.navyMid}
-                  icon={<ChevronRight size={18} />}
+                  icon={isLoading ? <Loader2 className="animate-spin" size={18} /> : <ChevronRight size={18} />}
                   className={`w-full justify-center rounded-2xl ${
-                    isOtpComplete ? "" : "pointer-events-none"
+                    isOtpComplete && !isLoading ? "" : "pointer-events-none"
                   }`}
                   style={{
-                    boxShadow: isOtpComplete
+                    boxShadow: isOtpComplete && !isLoading
                       ? `0 8px 28px ${COLORS.orange}35`
                       : "none",
                   }}
                 >
-                  Xác Nhận
+                  {isLoading ? "Đang xử lý..." : "Xác Nhận"}
                 </Button>
 
                 {!isOtpComplete && (

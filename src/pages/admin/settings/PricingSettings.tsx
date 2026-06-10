@@ -601,8 +601,8 @@ export default function PricingSettings({ showToast }: PricingSettingsProps) {
                 <thead>
                   <tr className="border-b border-slate-100 text-xs font-bold uppercase tracking-wider text-slate-400">
                     <th className="py-4 px-4">Nhóm phụ tùng</th>
-                    <th className="py-4 px-4 text-center">Markup Rate</th>
-                    <th className="py-4 px-4 text-center">Discount Rate</th>
+                    <th className="py-4 px-4 text-center">Tỷ lệ Markup</th>
+                    <th className="py-4 px-4 text-center">Tỷ lệ chiết khấu</th>
                     <th className="py-4 px-4">Ngày áp dụng</th>
                     <th className="py-4 px-4">Trạng thái</th>
                     <th className="py-4 px-4 text-right">Hành động</th>
@@ -629,7 +629,7 @@ export default function PricingSettings({ showToast }: PricingSettingsProps) {
                         <td className="py-4 px-4 text-xs font-semibold text-slate-500">
                           {policy.startDate || policy.endDate ? (
                             <>
-                              {policy.startDate ? policy.startDate : 'Bất đầu'}
+                              {policy.startDate ? policy.startDate : 'Bắt đầu'}
                               <span className="mx-1">→</span>
                               {policy.endDate ? policy.endDate : 'Vô hạn'}
                             </>

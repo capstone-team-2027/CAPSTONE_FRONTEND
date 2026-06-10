@@ -4,8 +4,8 @@
 
 @layer base {
   :root {
-    --font-body: 'Oswald', sans-serif;
-    --font-heading: 'Orbitron', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-heading: 'Plus Jakarta Sans', sans-serif;
   }
 
   /* Body: Barlow cho toàn bộ nội dung */

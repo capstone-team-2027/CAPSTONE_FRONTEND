@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, Shield, Bell, Sliders, Info, Edit3, Loader2, Key, Lock, Check, X } from 'lucide-react';
+import { User, Shield, Bell, Sliders, Info, Loader2, Key, Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { validateChangePasswordForm } from '../../../validate/ChangePasswordSchema';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { PROFILE_API_ENDPOINTS } from '../../../constants/customer/profileApiEndpoint';
@@ -23,7 +24,7 @@ interface SettingsTabProps {
   settingsData: SettingsData;
   avatarUrl: string;
   isSubmitting: boolean;       // ✅ thêm prop còn thiếu
-  onAvatarUpdate: () => void;
+  onAvatarUpdate?: () => void;
   onSettingChange: (field: string, value: any) => void;
   onSave: () => void;          // ✅ thêm prop còn thiếu
   onChangePassword?: (data: any) => Promise<void>;
@@ -55,11 +56,12 @@ export default function SettingsTab({
   settingsData,
   avatarUrl,
   isSubmitting,
-  onAvatarUpdate,
+  onAvatarUpdate: _onAvatarUpdate,
   onSettingChange,
   onSave,   // ✅ nhận prop thay vì dùng handleSave nội bộ
-  onChangePassword,
+  onChangePassword: _onChangePassword,
 }: SettingsTabProps) {
+  const { t } = useTranslation();
   const { fetchPrivate } = useFetchClient();
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordFields, setPasswordFields] = useState({
@@ -85,15 +87,16 @@ export default function SettingsTab({
         'PUT',
         passwordFields
       );
-      alert('Đổi mật khẩu thành công!');
+      alert(t('settings.changePasswordSuccess', 'Đổi mật khẩu thành công!'));
       setIsChangingPassword(false);
       setPasswordFields({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
     } catch (err: any) {
-      setPasswordErrors({ currentPassword: err.message || 'Thay đổi mật khẩu thất bại. Vui lòng kiểm tra lại.' });
+      setPasswordErrors({ currentPassword: err.message || t('settings.changePasswordFail', 'Thay đổi mật khẩu thất bại. Vui lòng kiểm tra lại.') });
     } finally {
       setIsPasswordSubmitting(false);
     }
   };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -103,7 +106,7 @@ export default function SettingsTab({
     >
       <div className="border-b border-gray-100 pb-4">
         <h2 className="text-xl font-display font-bold text-brand-blue tracking-tight">
-          Cài đặt hệ thống
+          {t('settings.title', 'Cài đặt hệ thống')}
         </h2>
       </div>
 
@@ -116,7 +119,7 @@ export default function SettingsTab({
               <div className="w-9 h-9 rounded-xl bg-blue-50 text-brand-blue flex items-center justify-center">
                 <User className="w-4 h-4" />
               </div>
-              <h3 className="text-sm font-bold text-brand-blue">Hồ sơ cá nhân</h3>
+              <h3 className="text-sm font-bold text-brand-blue">{t('settings.profileCard', 'Hồ sơ cá nhân')}</h3>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-6 items-start">
@@ -128,13 +131,13 @@ export default function SettingsTab({
                     <div className="w-full h-full bg-gray-200 animate-pulse" />
                   )}
                 </div>
-                <span className="text-[11px] font-bold text-gray-400">Ảnh đại diện</span>
+                <span className="text-[11px] font-bold text-gray-400">{t('settings.avatar', 'Ảnh đại diện')}</span>
               </div>
 
               <div className="flex-1 w-full">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-400 mb-1">Họ và tên</label>
+                    <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('settings.fullNameLabel', 'Họ và tên')}</label>
                     <input
                       type="text"
                       value={settingsData.fullName}
@@ -145,7 +148,7 @@ export default function SettingsTab({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-400 mb-1">Số điện thoại</label>
+                    <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('settings.phoneLabel', 'Số điện thoại')}</label>
                     <input
                       type="text"
                       value={settingsData.phone}
@@ -165,7 +168,7 @@ export default function SettingsTab({
               <div className="w-9 h-9 rounded-xl bg-blue-50 text-brand-blue flex items-center justify-center">
                 <Shield className="w-4 h-4" />
               </div>
-              <h3 className="text-sm font-bold text-brand-blue">Bảo mật</h3>
+              <h3 className="text-sm font-bold text-brand-blue">{t('settings.security', 'Bảo mật')}</h3>
             </div>
 
             <AnimatePresence mode="wait">
@@ -179,9 +182,9 @@ export default function SettingsTab({
                   className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-50/50 border border-slate-100"
                 >
                   <div className="flex flex-col gap-1 text-left">
-                    <span className="font-bold text-xs text-brand-blue">Đổi mật khẩu tài khoản</span>
+                    <span className="font-bold text-xs text-brand-blue">{t('settings.changePasswordTitle', 'Đổi mật khẩu tài khoản')}</span>
                     <span className="text-[11px] text-gray-500 font-medium">
-                      Thay đổi mật khẩu thường xuyên giúp tăng cường độ bảo mật cho thông tin cá nhân của bạn.
+                      {t('settings.changePasswordDesc', 'Thay đổi mật khẩu thường xuyên giúp tăng cường độ bảo mật cho thông tin cá nhân của bạn.')}
                     </span>
                   </div>
                   <button
@@ -193,7 +196,7 @@ export default function SettingsTab({
                     className="px-4 py-2 bg-brand-blue hover:bg-brand-blue/90 text-white font-bold text-xs rounded-xl transition-all shadow-xs shrink-0 flex items-center gap-1.5 cursor-pointer"
                   >
                     <Key className="w-3.5 h-3.5" />
-                    Đổi mật khẩu
+                    {t('settings.changePasswordBtn', 'Đổi mật khẩu')}
                   </button>
                 </motion.div>
               ) : (
@@ -207,7 +210,7 @@ export default function SettingsTab({
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-400 mb-1">Mật khẩu hiện tại</label>
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('settings.currentPasswordLabel', 'Mật khẩu hiện tại')}</label>
                       <div className="relative">
                         <input
                           type="password"
@@ -225,7 +228,7 @@ export default function SettingsTab({
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-400 mb-1">Mật khẩu mới</label>
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('settings.newPasswordLabel', 'Mật khẩu mới')}</label>
                       <div className="relative">
                         <input
                           type="password"
@@ -243,7 +246,7 @@ export default function SettingsTab({
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-400 mb-1">Xác nhận mật khẩu mới</label>
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('settings.confirmPasswordLabel', 'Xác nhận mật khẩu mới')}</label>
                       <div className="relative">
                         <input
                           type="password"
@@ -272,7 +275,7 @@ export default function SettingsTab({
                       }}
                       className="px-4 py-2 font-bold text-xs text-gray-500 hover:bg-slate-50 rounded-xl transition-all cursor-pointer disabled:opacity-50"
                     >
-                      Hủy
+                      {t('common.cancel', 'Hủy')}
                     </button>
                     <button
                       type="button"
@@ -283,12 +286,12 @@ export default function SettingsTab({
                       {isPasswordSubmitting ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          Đang xử lý...
+                          {t('common.processing', 'Đang xử lý...')}
                         </>
                       ) : (
                         <>
                           <Check className="w-3.5 h-3.5" />
-                          Đổi mật khẩu
+                          {t('settings.changePasswordBtn', 'Đổi mật khẩu')}
                         </>
                       )}
                     </button>
@@ -307,15 +310,15 @@ export default function SettingsTab({
               <div className="w-9 h-9 rounded-xl bg-blue-50 text-brand-blue flex items-center justify-center">
                 <Bell className="w-4 h-4" />
               </div>
-              <h3 className="text-sm font-bold text-brand-blue">Thông báo</h3>
+              <h3 className="text-sm font-bold text-brand-blue">{t('settings.notifications', 'Thông báo')}</h3>
             </div>
             <p className="text-xs text-gray-500 leading-relaxed">
-              Quản lý cách bạn nhận lời nhắc bảo trì và cập nhật lịch hẹn.
+              {t('settings.notificationsDesc', 'Quản lý cách bạn nhận lời nhắc bảo trì và cập nhật lịch hẹn.')}
             </p>
             <div className="flex flex-col gap-4 pt-1">
               {[
                 { label: 'SMS', field: 'notifySMS', value: settingsData.notifySMS },
-                { label: 'Push Notification', field: 'notifyPush', value: settingsData.notifyPush },
+                { label: t('settings.notifyPush', 'Thông báo đẩy'), field: 'notifyPush', value: settingsData.notifyPush },
               ].map((item) => (
                 <div key={item.field} className="flex items-center justify-between">
                   <span className="font-bold text-xs text-brand-blue">{item.label}</span>
@@ -334,11 +337,11 @@ export default function SettingsTab({
               <div className="w-9 h-9 rounded-xl bg-blue-50 text-brand-blue flex items-center justify-center">
                 <Sliders className="w-4 h-4" />
               </div>
-              <h3 className="text-sm font-bold text-brand-blue">Tùy chỉnh</h3>
+              <h3 className="text-sm font-bold text-brand-blue">{t('settings.customization', 'Tùy chỉnh')}</h3>
             </div>
             <div className="flex flex-col gap-4 pt-1">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-xs text-brand-blue">Chế độ tối</span>
+                <span className="font-bold text-xs text-brand-blue">{t('settings.darkMode', 'Chế độ tối')}</span>
                 <ToggleSwitch
                   active={settingsData.darkMode}
                   onToggle={() => onSettingChange('darkMode', !settingsData.darkMode)}
@@ -351,29 +354,29 @@ export default function SettingsTab({
           <div className="bg-blue-50/60 rounded-2xl border border-blue-100 p-5 flex flex-col gap-3">
             <div className="flex items-center gap-2 text-brand-blue">
               <Info className="w-4 h-4 text-brand-blue" />
-              <h4 className="font-bold text-xs">Thông tin ứng dụng</h4>
+              <h4 className="font-bold text-xs">{t('settings.appInfo', 'Thông tin ứng dụng')}</h4>
             </div>
-            <span className="text-[11px] text-gray-600 font-medium">Phiên bản: 2.4.0 (Build 108)</span>
+            <span className="text-[11px] text-gray-600 font-medium">{t('settings.appVersion', 'Phiên bản: 2.4.0 (Build 108)')}</span>
             <div className="flex items-center gap-4 pt-1">
               <a
                 href="#terms"
                 onClick={(e) => {
                   e.preventDefault();
-                  alert('Điều khoản sử dụng dịch vụ AGM Intelligent.');
+                  alert(t('settings.termsAlert', 'Điều khoản sử dụng dịch vụ AGM Intelligent.'));
                 }}
                 className="font-bold text-[11px] text-brand-blue hover:underline"
               >
-                Điều khoản
+                {t('settings.terms', 'Điều khoản')}
               </a>
               <a
                 href="#privacy"
                 onClick={(e) => {
                   e.preventDefault();
-                  alert('Chính sách bảo mật dữ liệu.');
+                  alert(t('settings.privacyAlert', 'Chính sách bảo mật dữ liệu.'));
                 }}
                 className="font-bold text-[11px] text-brand-blue hover:underline"
               >
-                Quyền riêng tư
+                {t('settings.privacy', 'Quyền riêng tư')}
               </a>
             </div>
           </div>
@@ -385,10 +388,10 @@ export default function SettingsTab({
         <button
           type="button"
           disabled={isSubmitting}
-          onClick={() => alert('Đã hủy bỏ các thay đổi cài đặt chưa lưu.')}
+          onClick={() => alert(t('settings.cancelAlert', 'Đã hủy bỏ các thay đổi cài đặt chưa lưu.'))}
           className="px-6 py-2.5 font-bold text-xs text-brand-blue hover:bg-gray-50 rounded-xl transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Hủy
+          {t('common.cancel', 'Hủy')}
         </button>
         <button
           type="button"
@@ -399,10 +402,10 @@ export default function SettingsTab({
           {isSubmitting ? (
             <>
               <Loader2 className="w-3.5 h-3.5 animate-spin" />  {/* ✅ Loader2 đã import */}
-              Đang lưu...
+              {t('settings.saving', 'Đang lưu...')}
             </>
           ) : (
-            'Lưu thay đổi'
+            t('settings.saveChanges', 'Lưu thay đổi')
           )}
         </button>
       </div>

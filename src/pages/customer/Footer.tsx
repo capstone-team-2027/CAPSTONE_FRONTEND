@@ -1,9 +1,28 @@
-import { Car, Mail, Phone, MapPin, ArrowRight, Camera, Play, Briefcase } from 'lucide-react';
+import { Mail, Phone, MapPin, ArrowRight, Camera, Play, Briefcase } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../components/share/Color';
 import { Button } from '../../components/share/Button';
 
 export default function Footer() {
+    const { t } = useTranslation();
+
+    const services = [
+        { label: t('footer.maintenance', 'Bảo dưỡng'), path: '/services' },
+        { label: t('footer.repair', 'Sửa chữa'), path: '/services' },
+        { label: t('footer.diagnostics', 'Chẩn đoán'), path: '/services' },
+        { label: t('footer.detailing', 'Chăm sóc xe'), path: '/services' },
+        { label: t('footer.performance', 'Tối ưu hiệu suất'), path: '/services' }
+    ];
+
+    const company = [
+        { label: t('footer.aboutUs', 'Về chúng tôi'), href: '#' },
+        { label: t('footer.team', 'Đội ngũ'), href: '#' },
+        { label: t('footer.careers', 'Tuyển dụng'), href: '#' },
+        { label: t('footer.news', 'Tin tức'), href: '#' },
+        { label: t('footer.contact', 'Liên hệ'), href: '#' }
+    ];
+
     return (
         <footer className="py-12 md:py-24" style={{ backgroundColor: '#F8FAFC' }}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -13,8 +32,8 @@ export default function Footer() {
                         {/* Brand */}
                         <div className="lg:col-span-5">
                             <Link to="/" className="flex items-center gap-3 mb-8">
-                                <div className="p-2.5 rounded-xl" style={{ backgroundColor: COLORS.navy }}>
-                                    <Car className="w-6 h-6" style={{ color: COLORS.white }} />
+                                <div className="w-11 h-11 p-2 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: COLORS.navy }}>
+                                    <img src="/images/logo.png" alt="Logo" className="w-full h-full object-contain" />
                                 </div>
                                 <span className="text-2xl font-bold font-display tracking-tighter uppercase"
                                     style={{ color: COLORS.navy }}>
@@ -24,9 +43,7 @@ export default function Footer() {
 
                             <p className="text-sm leading-relaxed mb-10 max-w-sm font-medium"
                                 style={{ color: `${COLORS.navy}80` }}>
-                                Dịch vụ ô tô chính xác dành cho những chiếc xe đòi hỏi sự hoàn hảo.
-                                Kỹ thuật viên được chứng nhận từ nhà máy, chẩn đoán đạt chuẩn đại lý
-                                và dịch vụ chăm sóc khách hàng cao cấp từ năm 2008.
+                                {t('footer.certified', 'Kỹ thuật viên được chứng nhận từ nhà máy, chẩn đoán đạt chuẩn đại lý và dịch vụ chăm sóc khách hàng cao cấp từ năm 2008.')}
                             </p>
 
                             <div className="flex gap-3">
@@ -61,17 +78,17 @@ export default function Footer() {
                         <div className="lg:col-span-2">
                             <h4 className="font-bold text-sm mb-8 uppercase tracking-[0.1em]"
                                 style={{ color: COLORS.navy }}>
-                                DỊCH VỤ
+                                {t('footer.servicesHeader', 'Dịch vụ')}
                             </h4>
                             <ul className="space-y-4 text-sm font-medium">
-                                {['Maintenance', 'Repair', 'Diagnostics', 'Detailing', 'Tuning'].map((item) => (
-                                    <li key={item}>
-                                        <Link to="/services"
+                                {services.map((item, idx) => (
+                                    <li key={idx}>
+                                        <Link to={item.path}
                                             style={{ color: `${COLORS.navy}66` }}
                                             onMouseEnter={e => (e.currentTarget.style.color = COLORS.orange)}
                                             onMouseLeave={e => (e.currentTarget.style.color = `${COLORS.navy}66`)}
                                         >
-                                            {item}
+                                            {item.label}
                                         </Link>
                                     </li>
                                 ))}
@@ -82,17 +99,17 @@ export default function Footer() {
                         <div className="lg:col-span-2">
                             <h4 className="font-bold text-sm mb-8 uppercase tracking-[0.1em]"
                                 style={{ color: COLORS.navy }}>
-                                CÔNG TY
+                                {t('footer.companyHeader', 'Công ty')}
                             </h4>
                             <ul className="space-y-4 text-sm font-medium">
-                                {['About Us', 'Our Team', 'Careers', 'Press', 'Contact'].map((item) => (
-                                    <li key={item}>
-                                        <a href="#"
+                                {company.map((item, idx) => (
+                                    <li key={idx}>
+                                        <a href={item.href}
                                             style={{ color: `${COLORS.navy}66` }}
                                             onMouseEnter={e => (e.currentTarget.style.color = COLORS.orange)}
                                             onMouseLeave={e => (e.currentTarget.style.color = `${COLORS.navy}66`)}
                                         >
-                                            {item}
+                                            {item.label}
                                         </a>
                                     </li>
                                 ))}
@@ -103,7 +120,7 @@ export default function Footer() {
                         <div className="lg:col-span-3">
                             <h4 className="font-bold text-sm mb-8 uppercase tracking-[0.1em]"
                                 style={{ color: COLORS.navy }}>
-                                LIÊN HỆ
+                                {t('footer.contactHeader', 'Liên hệ')}
                             </h4>
                             <ul className="space-y-6 text-sm font-medium">
                                 <li className="flex items-start gap-4">
@@ -124,14 +141,14 @@ export default function Footer() {
 
                             <div className="mt-10">
                                 <Button
-                                    to="/booking"
+                                    to="/phone-service"
                                     size="sm"
                                     bg={COLORS.orange}
                                     color={COLORS.navy}
                                     icon={<ArrowRight size={16} />}
                                     style={{ boxShadow: `0 6px 20px ${COLORS.orange}30` }}
                                 >
-                                    Đặt Lịch Ngay
+                                    {t('nav.booking', 'Đặt lịch ngay')}
                                 </Button>
                             </div>
                         </div>
@@ -142,18 +159,22 @@ export default function Footer() {
                         style={{ borderColor: '#EFF6FF' }}>
                         <p className="text-[11px] font-bold uppercase tracking-[0.1em]"
                             style={{ color: `${COLORS.navy}40` }}>
-                            © 2026 AGM Intelligent Service. All rights reserved.
+                            {t('footer.rights', '© 2026 AGM Intelligent Service. All rights reserved.')}
                         </p>
                         <div className="flex divide-x" style={{ borderColor: '#DBEAFE' }}>
-                            {['Điều khoản', 'Điều khoản dịch vụ', 'Cài đặt cookie'].map((item, i) => (
+                            {[
+                                { label: t('settings.terms', 'Điều khoản'), href: '#' },
+                                { label: t('footer.termsOfService', 'Điều khoản dịch vụ'), href: '#' },
+                                { label: t('footer.cookieSettings', 'Cài đặt cookie'), href: '#' }
+                            ].map((item, i) => (
                                 <a key={i}
-                                    href="#"
+                                    href={item.href}
                                     className="px-5 text-[11px] font-bold uppercase tracking-[0.1em] transition-colors"
                                     style={{ color: `${COLORS.navy}40` }}
                                     onMouseEnter={e => (e.currentTarget.style.color = COLORS.navy)}
                                     onMouseLeave={e => (e.currentTarget.style.color = `${COLORS.navy}40`)}
                                 >
-                                    {item}
+                                    {item.label}
                                 </a>
                             ))}
                         </div>

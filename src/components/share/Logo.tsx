@@ -1,4 +1,3 @@
-import { Car } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { COLORS } from './Color';
@@ -10,10 +9,10 @@ interface LogoProps {
     className?: string;
 }
 
-const SIZE_MAP: Record<LogoSize, { box: string; iconSize: number; text: string }> = {
-    sm: { box: 'w-9  h-9  p-2', iconSize: 18, text: 'text-lg' },
-    md: { box: 'w-12 h-12 p-2.5', iconSize: 24, text: 'text-2xl' },
-    lg: { box: 'w-16 h-16 p-3.5', iconSize: 32, text: 'text-4xl' },
+const SIZE_MAP: Record<LogoSize, { box: string; text: string }> = {
+    sm: { box: 'w-9  h-9  p-2', text: 'text-lg' },
+    md: { box: 'w-12 h-12 p-2.5', text: 'text-2xl' },
+    lg: { box: 'w-16 h-16 p-3.5', text: 'text-4xl' },
 };
 
 export default function Logo({ size = 'md', className = '' }: LogoProps) {
@@ -33,7 +32,11 @@ export default function Logo({ size = 'md', className = '' }: LogoProps) {
                     boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
                 }}
             >
-                <Car size={s.iconSize} color={COLORS.white} />
+                <img 
+                    src="/images/logo.png" 
+                    alt="Logo" 
+                    className="w-full h-full object-contain" 
+                />
             </div>
 
             {/* Text — màu trắng */}

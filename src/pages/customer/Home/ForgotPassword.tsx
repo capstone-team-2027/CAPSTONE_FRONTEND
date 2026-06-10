@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
-import { ShieldAlert, ChevronLeft, Send, KeyRound, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { ShieldAlert, ChevronLeft, Send, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import 'react-phone-input-2/lib/style.css';
 import * as PhoneInputLib from 'react-phone-input-2';
@@ -261,6 +262,8 @@ type Step = 'input_phone' | 'input_otp' | 'reset_password' | 'success';
 
 // ── MAIN COMPONENT ────────────────────────────────────────────
 export default function ForgotPassword() {
+    const { i18n } = useTranslation();
+    const isVi = i18n.language === 'vi';
     const [step, setStep] = useState<Step>('input_phone');
     const [phone, setPhone] = useState('');
     const [otpValue, setOtpValue] = useState('');
@@ -302,9 +305,9 @@ export default function ForgotPassword() {
     const handlePhoneBlur = () => {
         const digits = normalizePhone(phone);
         if (!digits) {
-            setErrors((prev) => ({ ...prev, phone: 'Vui lòng nhập số điện thoại.' }));
+            setErrors((prev) => ({ ...prev, phone: isVi ? 'Vui lòng nhập số điện thoại.' : 'Please enter your phone number.' }));
         } else if (digits.length < 9 || digits.length > 13) {
-            setErrors((prev) => ({ ...prev, phone: 'Số điện thoại không hợp lệ.' }));
+            setErrors((prev) => ({ ...prev, phone: isVi ? 'Số điện thoại không hợp lệ.' : 'Invalid phone number.' }));
         } else {
             setErrors((prev) => ({ ...prev, phone: undefined }));
         }
@@ -314,17 +317,35 @@ export default function ForgotPassword() {
         e.preventDefault();
         const digits = normalizePhone(phone);
         if (!digits) {
-            setErrors((prev) => ({ ...prev, phone: 'Vui lòng nhập số điện thoại.' }));
+            setErrors((prev) => ({ ...prev, phone: isVi ? 'Vui lòng nhập số điện thoại.' : 'Please enter your phone number.' }));
             return;
         }
         if (digits.length < 9 || digits.length > 13) {
-            setErrors((prev) => ({ ...prev, phone: 'Số điện thoại không hợp lệ.' }));
+            setErrors((prev) => ({ ...prev, phone: isVi ? 'Số điện thoại không hợp lệ.' : 'Invalid phone number.' }));
             return;
         }
 
         setIsLoading(true);
         setErrorMsg('');
         try {
+            // Kiểm tra số điện thoại tồn tại trên hệ thống
+            try {
+                await fetchPublic(AUTH_API_ENDPOINTS.CHECK_PHONE, 'POST', { phone: digits });
+                // Nếu CHECK_PHONE thành công thì có nghĩa là số điện thoại chưa tồn tại trong hệ thống (vì CHECK_PHONE trả 200 nếu chưa đăng ký)
+                setErrors((prev) => ({ ...prev, phone: isVi ? 'Số điện thoại này chưa được đăng ký trong hệ thống.' : 'This phone number is not registered in our system.' }));
+                setIsLoading(false);
+                return;
+            } catch (err: any) {
+                // Nếu lỗi trả về là "Người dùng đã tồn tại, vui lòng đăng nhập" nghĩa là số điện thoại ĐÃ đăng ký trong hệ thống (Hợp lệ cho reset password)
+                if (err.message === 'Người dùng đã tồn tại, vui lòng đăng nhập') {
+                    // Số điện thoại hợp lệ, tiếp tục gửi OTP
+                } else {
+                    setErrorMsg(err.message || (isVi ? 'Có lỗi xảy ra trong quá trình xác thực.' : 'An error occurred during authentication.'));
+                    setIsLoading(false);
+                    return;
+                }
+            }
+
             let formattedPhone = phone;
             if (!formattedPhone.startsWith('+')) {
                 if (formattedPhone.startsWith('84')) {
@@ -340,7 +361,7 @@ export default function ForgotPassword() {
             setOtpValue('');
             setStep('input_otp');
         } catch (err: any) {
-            setErrorMsg(err.message || 'Gửi OTP thất bại, vui lòng thử lại.');
+            setErrorMsg(err.message || (isVi ? 'Gửi OTP thất bại, vui lòng thử lại.' : 'Failed to send OTP, please try again.'));
         } finally {
             setIsLoading(false);
         }
@@ -363,7 +384,7 @@ export default function ForgotPassword() {
             setTimeLeft(60);
             setOtpValue('');
         } catch (err: any) {
-            setErrorMsg(err.message || 'Gửi lại OTP thất bại.');
+            setErrorMsg(err.message || (isVi ? 'Gửi lại OTP thất bại.' : 'Failed to resend OTP.'));
         } finally {
             setIsLoading(false);
         }
@@ -374,7 +395,7 @@ export default function ForgotPassword() {
         if (!isOtpComplete) return;
         const confirmation = getConfirmation();
         if (!confirmation) {
-            setErrorMsg('Phiên xác thực hết hạn, vui lòng nhập lại số điện thoại.');
+            setErrorMsg(isVi ? 'Phiên xác thực hết hạn, vui lòng nhập lại số điện thoại.' : 'Session expired, please enter your phone number again.');
             return;
         }
         setIsLoading(true);
@@ -386,8 +407,8 @@ export default function ForgotPassword() {
         } catch (err: any) {
             setErrorMsg(
                 err?.code === 'auth/invalid-verification-code'
-                    ? 'Mã OTP không đúng, vui lòng thử lại.'
-                    : err?.message || 'Xác thực thất bại.'
+                    ? (isVi ? 'Mã OTP không đúng, vui lòng thử lại.' : 'Incorrect OTP, please try again.')
+                    : err?.message || (isVi ? 'Xác thực thất bại.' : 'Verification failed.')
             );
         } finally {
             setIsLoading(false);
@@ -399,14 +420,14 @@ export default function ForgotPassword() {
 
         let hasError = false;
         if (!newPassword || newPassword.length < 6) {
-            setErrors(prev => ({ ...prev, newPassword: 'Mật khẩu phải từ 6 ký tự trở lên.' }));
+            setErrors(prev => ({ ...prev, newPassword: isVi ? 'Mật khẩu phải từ 6 ký tự trở lên.' : 'Password must be at least 6 characters.' }));
             hasError = true;
         } else {
             setErrors(prev => ({ ...prev, newPassword: undefined }));
         }
 
         if (newPassword !== confirmPassword) {
-            setErrors(prev => ({ ...prev, confirmPassword: 'Mật khẩu xác nhận không trùng khớp.' }));
+            setErrors(prev => ({ ...prev, confirmPassword: isVi ? 'Mật khẩu xác nhận không trùng khớp.' : 'Confirm password does not match.' }));
             hasError = true;
         } else {
             setErrors(prev => ({ ...prev, confirmPassword: undefined }));
@@ -424,7 +445,7 @@ export default function ForgotPassword() {
             );
             setStep('success');
         } catch (err: any) {
-            setErrorMsg(err.message || 'Cập nhật mật khẩu thất bại.');
+            setErrorMsg(err.message || (isVi ? 'Cập nhật mật khẩu thất bại.' : 'Failed to reset password.'));
         } finally {
             setIsLoading(false);
         }
@@ -457,8 +478,8 @@ export default function ForgotPassword() {
                         transition={{ delay: 0.1 }}
                         className="text-6xl font-display leading-[1.1] mb-8"
                     >
-                        An ninh là <br />
-                        <span style={{ color: COLORS.orange }}>trên hết.</span>
+                        {isVi ? 'An ninh là' : 'Security is'} <br />
+                        <span style={{ color: COLORS.orange }}>{isVi ? 'trên hết.' : 'our priority.'}</span>
                     </motion.h1>
 
                     <motion.p
@@ -466,8 +487,9 @@ export default function ForgotPassword() {
                         transition={{ delay: 0.2 }}
                         className="text-white/60 text-lg leading-relaxed mb-12"
                     >
-                        Bảo vệ dữ liệu xe và tính toàn vẹn tài khoản của bạn là ưu tiên hàng đầu của chúng tôi.
-                        Đặt lại mật khẩu thông qua quy trình xác minh an toàn của chúng tôi.
+                        {isVi 
+                            ? 'Bảo vệ dữ liệu xe và tính toàn vẹn tài khoản của bạn là ưu tiên hàng đầu của chúng tôi. Đặt lại mật khẩu thông qua quy trình xác minh an toàn của chúng tôi.'
+                            : 'Protecting your vehicle data and account integrity is our top priority. Reset your password through our secure verification process.'}
                     </motion.p>
 
                     <motion.div
@@ -480,7 +502,7 @@ export default function ForgotPassword() {
                                 style={{ backgroundColor: `${COLORS.orange}20`, color: COLORS.orange }}>
                                 <ShieldAlert size={20} />
                             </div>
-                            <div className="text-xs text-white/40">Được hơn 50.000 chủ xe tin dùng.</div>
+                            <div className="text-xs text-white/40">{isVi ? 'Được hơn 50.000 chủ xe tin dùng.' : 'Trusted by over 50,000 car owners.'}</div>
                         </div>
                     </motion.div>
                 </div>
@@ -495,11 +517,12 @@ export default function ForgotPassword() {
                         <>
                             <div className="mb-12 text-center lg:text-left">
                                 <h2 className="text-4xl font-display mb-4" style={{ color: COLORS.navy }}>
-                                    Quên Mật Khẩu
+                                    {isVi ? 'Quên Mật Khẩu' : 'Forgot Password'}
                                 </h2>
                                 <p style={{ color: `${COLORS.navy}80` }}>
-                                    Nhập số điện thoại liên kết với tài khoản AGM Intelligent của bạn.
-                                    Chúng tôi sẽ gửi mã OTP bảo mật để đặt lại mật khẩu.
+                                    {isVi 
+                                        ? 'Nhập số điện thoại liên kết với tài khoản AGM Intelligent của bạn. Chúng tôi sẽ gửi mã OTP bảo mật để đặt lại mật khẩu.'
+                                        : 'Enter the phone number associated with your AGM Intelligent account. We will send a secure OTP code to reset your password.'}
                                 </p>
                             </div>
 
@@ -518,7 +541,7 @@ export default function ForgotPassword() {
                                 <div>
                                     <label className="block text-[11px] font-bold uppercase tracking-widest mb-2 px-1"
                                         style={{ color: `${COLORS.navy}66` }}>
-                                        Số Điện Thoại
+                                        {isVi ? 'Số Điện Thoại' : 'Phone Number'}
                                     </label>
                                     <div className={`login-phone ${errors.phone ? 'phone-error' : ''}`}>
                                         <PhoneInput
@@ -530,7 +553,7 @@ export default function ForgotPassword() {
                                             }}
                                             onBlur={handlePhoneBlur}
                                             enableSearch
-                                            searchPlaceholder="Tìm quốc gia..."
+                                            searchPlaceholder={isVi ? 'Tìm quốc gia...' : 'Search country...'}
                                             inputProps={{ name: 'phone' }}
                                         />
                                     </div>
@@ -556,9 +579,9 @@ export default function ForgotPassword() {
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                                             </svg>
-                                            Đang gửi...
+                                            {isVi ? 'Đang gửi...' : 'Sending...'}
                                         </span>
-                                    ) : 'Gửi mã OTP'}
+                                    ) : (isVi ? 'Gửi mã OTP' : 'Send OTP')}
                                 </Button>
                             </form>
 
@@ -568,13 +591,13 @@ export default function ForgotPassword() {
                                     className="flex items-center gap-2 text-sm font-bold transition-colors hover:opacity-70"
                                     style={{ color: `${COLORS.navy}99` }}
                                 >
-                                    <ChevronLeft size={18} /> Trở về trang Đăng Nhập
+                                    <ChevronLeft size={18} /> {isVi ? 'Trở về trang Đăng Nhập' : 'Back to Login'}
                                 </Link>
                                 <p className="text-xs text-center" style={{ color: `${COLORS.navy}4D` }}>
-                                    Cần trợ giúp?{' '}
+                                    {isVi ? 'Cần trợ giúp?' : 'Need help?'}{' '}
                                     <a href="#" className="font-bold transition-colors hover:opacity-70"
                                         style={{ color: COLORS.navy }}>
-                                        Liên hệ đội ngũ hỗ trợ
+                                        {isVi ? 'Liên hệ đội ngũ hỗ trợ' : 'Contact Support'}
                                     </a>
                                 </p>
                             </div>
@@ -586,10 +609,10 @@ export default function ForgotPassword() {
                         <>
                             <div className="mb-12 text-center lg:text-left">
                                 <h2 className="text-4xl font-display mb-4" style={{ color: COLORS.navy }}>
-                                    Xác Thực OTP
+                                    {isVi ? 'Xác Thực OTP' : 'OTP Verification'}
                                 </h2>
                                 <p style={{ color: `${COLORS.navy}80` }}>
-                                    Vui lòng nhập mã gồm <span className="font-bold" style={{ color: COLORS.navy }}>6 chữ số</span> đã được gửi đến số điện thoại của bạn.
+                                    {isVi ? 'Vui lòng nhập mã gồm ' : 'Please enter the '}<span className="font-bold" style={{ color: COLORS.navy }}>{isVi ? '6 chữ số' : '6-digit code'}</span>{isVi ? ' đã được gửi đến số điện thoại của bạn.' : ' sent to your phone number.'}
                                 </p>
                             </div>
 
@@ -607,7 +630,7 @@ export default function ForgotPassword() {
                                 <div className="space-y-3">
                                     <label className="block text-[11px] font-bold uppercase tracking-widest"
                                         style={{ color: `${COLORS.navy}66` }}>
-                                        Nhập Mã OTP
+                                        {isVi ? 'Nhập Mã OTP' : 'Enter OTP Code'}
                                     </label>
 
                                     <OtpInput length={6} value={otpValue} onChange={setOtpValue} />
@@ -616,21 +639,21 @@ export default function ForgotPassword() {
                                         <p className="text-xs" style={{ color: `${COLORS.navy}80` }}>
                                             {timeLeft > 0 ? (
                                                 <>
-                                                    Gửi lại sau{' '}
+                                                    {isVi ? 'Gửi lại sau' : 'Resend in'}{' '}
                                                     <span className="font-bold" style={{ color: COLORS.navy }}>
                                                         {timeLeft}s
                                                     </span>
                                                 </>
                                             ) : (
                                                 <>
-                                                    Không nhận được mã?{' '}
+                                                    {isVi ? 'Không nhận được mã?' : "Didn't receive the code?"}{' '}
                                                     <button
                                                         type="button"
                                                         onClick={handleResendOtp}
                                                         className="font-bold hover:opacity-70 transition-opacity"
                                                         style={{ color: COLORS.navy }}
                                                     >
-                                                        Gửi lại OTP
+                                                        {isVi ? 'Gửi lại OTP' : 'Resend OTP'}
                                                     </button>
                                                 </>
                                             )}
@@ -642,7 +665,7 @@ export default function ForgotPassword() {
                                             className="text-xs font-bold hover:opacity-70 transition-opacity"
                                             style={{ color: `${COLORS.navy}66` }}
                                         >
-                                            Xóa
+                                            {isVi ? 'Xóa' : 'Clear'}
                                         </button>
                                     </div>
                                 </div>
@@ -666,9 +689,9 @@ export default function ForgotPassword() {
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                                             </svg>
-                                            Đang xác nhận...
+                                            {isVi ? 'Đang xác nhận...' : 'Verifying...'}
                                         </span>
-                                    ) : 'Xác Nhận'}
+                                    ) : (isVi ? 'Xác Nhận' : 'Verify')}
                                 </Button>
                             </form>
 
@@ -678,7 +701,7 @@ export default function ForgotPassword() {
                                     className="flex items-center gap-2 text-sm font-bold transition-colors hover:opacity-70"
                                     style={{ color: `${COLORS.navy}99` }}
                                 >
-                                    <ChevronLeft size={18} /> Thay đổi Số điện thoại
+                                    <ChevronLeft size={18} /> {isVi ? 'Thay đổi Số điện thoại' : 'Change Phone Number'}
                                 </button>
                             </div>
                         </>
@@ -689,10 +712,10 @@ export default function ForgotPassword() {
                         <>
                             <div className="mb-12 text-center lg:text-left">
                                 <h2 className="text-4xl font-display mb-4" style={{ color: COLORS.navy }}>
-                                    Đặt Lại Mật Khẩu
+                                    {isVi ? 'Đặt Lại Mật Khẩu' : 'Reset Password'}
                                 </h2>
                                 <p style={{ color: `${COLORS.navy}80` }}>
-                                    Nhập mật khẩu mới cho tài khoản của bạn.
+                                    {isVi ? 'Nhập mật khẩu mới cho tài khoản của bạn.' : 'Enter a new password for your account.'}
                                 </p>
                             </div>
 
@@ -711,7 +734,7 @@ export default function ForgotPassword() {
                                 <div>
                                     <label className="block text-[11px] font-bold uppercase tracking-widest mb-2 px-1"
                                         style={{ color: `${COLORS.navy}66` }}>
-                                        Mật Khẩu Mới
+                                        {isVi ? 'Mật Khẩu Mới' : 'New Password'}
                                     </label>
                                     <input
                                         type="password"
@@ -732,7 +755,7 @@ export default function ForgotPassword() {
                                 <div>
                                     <label className="block text-[11px] font-bold uppercase tracking-widest mb-2 px-1"
                                         style={{ color: `${COLORS.navy}66` }}>
-                                        Xác Nhận Mật Khẩu Mới
+                                        {isVi ? 'Xác Nhận Mật Khẩu Mới' : 'Confirm New Password'}
                                     </label>
                                     <input
                                         type="password"
@@ -768,9 +791,9 @@ export default function ForgotPassword() {
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                                             </svg>
-                                            Đang cập nhật...
+                                            {isVi ? 'Đang cập nhật...' : 'Updating...'}
                                         </span>
-                                    ) : 'Cập Nhật Mật Khẩu'}
+                                    ) : (isVi ? 'Cập Nhật Mật Khẩu' : 'Update Password')}
                                 </Button>
                             </form>
                         </>
@@ -788,11 +811,13 @@ export default function ForgotPassword() {
                             </motion.div>
 
                             <h2 className="text-3xl font-display mb-4" style={{ color: COLORS.navy }}>
-                                Thành Công!
+                                {isVi ? 'Thành Công!' : 'Success!'}
                             </h2>
 
                             <p className="mb-8" style={{ color: `${COLORS.navy}80` }}>
-                                Mật khẩu của bạn đã được cập nhật thành công. Vui lòng đăng nhập lại bằng thông tin mới.
+                                {isVi 
+                                    ? 'Mật khẩu của bạn đã được cập nhật thành công. Vui lòng đăng nhập lại bằng thông tin mới.'
+                                    : 'Your password has been successfully updated. Please log in again with your new credentials.'}
                             </p>
 
                             <Button
@@ -803,7 +828,7 @@ export default function ForgotPassword() {
                                 className="w-full justify-center rounded-2xl"
                                 onClick={() => navigate('/login')}
                             >
-                                Đăng Nhập Ngay
+                                {isVi ? 'Đăng Nhập Ngay' : 'Log In Now'}
                             </Button>
                         </div>
                     )}

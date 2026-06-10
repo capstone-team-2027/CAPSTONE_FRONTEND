@@ -9,8 +9,7 @@ import {
   AlertTriangle,
   FolderOpen,
   Filter,
-  Pencil,
-  X
+  Pencil
 } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { SERVICE_CATEGORY_API_ENDPOINTS } from '../../../constants/admin/serviceCategoriesApiEndPoint';

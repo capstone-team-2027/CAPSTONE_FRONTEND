@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { CheckCircle2, ChevronRight, Phone, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ChevronRight, Phone, ShieldCheck, Loader2 } from "lucide-react";
 
 import Logo from "../../../components/share/Logo";
 import { Button } from "../../../components/share/Button";
@@ -119,8 +119,8 @@ export default function VerifyPhone() {
             className="text-5xl font-display leading-[1.1] mb-6"
           >
             <span className="inline-flex items-baseline gap-3 whitespace-nowrap">
-              <span>Verify</span>
-              <span style={{ color: COLORS.orange }}>Phone</span>
+              <span>Xác Minh</span>
+              <span style={{ color: COLORS.orange }}>SĐT</span>
             </span>
           </motion.h1>
 
@@ -170,7 +170,7 @@ export default function VerifyPhone() {
               className="text-xs font-bold uppercase tracking-[0.2em] mb-3"
               style={{ color: COLORS.orange }}
             >
-              AMG INTELLIGENT — PORTAL
+              AGM INTELLIGENT — PORTAL
             </p>
 
             <h2
@@ -248,14 +248,14 @@ export default function VerifyPhone() {
                 <Button
                   type="submit"
                   size="md"
-                  bg={isPhoneValid ? COLORS.orange : "rgba(249,161,27,0.35)"}
+                  bg={isPhoneValid && !isLoading ? COLORS.orange : "rgba(249,161,27,0.35)"}
                   color={COLORS.navyMid}
-                  icon={<ChevronRight size={18} />}
+                  icon={isLoading ? <Loader2 className="animate-spin" size={18} /> : <ChevronRight size={18} />}
                   className={`w-full justify-center rounded-2xl ${
-                    isPhoneValid ? "" : "pointer-events-none"
+                    isPhoneValid && !isLoading ? "" : "pointer-events-none"
                   }`}
                 >
-                  Tiếp tục
+                  {isLoading ? "Đang xử lý..." : "Tiếp tục"}
                 </Button>
                 {errorMsg && (
                   <p
