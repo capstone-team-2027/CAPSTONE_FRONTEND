@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   CalendarCheck,
   Search,
@@ -16,156 +16,8 @@ import {
 } from 'lucide-react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import type { AppointmentModel } from '../../../model/Appointment';
-
-// ========== MOCK DATA ==========
-const MOCK_APPOINTMENTS: AppointmentModel[] = [
-  {
-    id: 'APT-001',
-    customerId: 'C001',
-    customerName: 'Nguyễn Văn An',
-    customerPhone: '0901 234 567',
-    customerEmail: 'an.nguyen@email.com',
-    vehicleId: 'V001',
-    vehiclePlate: '51A-123.45',
-    vehicleModel: 'Toyota Camry 2.5Q',
-    vehicleYear: 2020,
-    vehicleMileage: 45000,
-    services: ['Bảo dưỡng định kỳ cấp 1', 'Thay dầu động cơ'],
-    appointmentDate: '2026-06-02',
-    appointmentTime: '09:00',
-    status: 'pending',
-    notes: 'Xe có tiếng kêu lạ ở bánh trước bên trái',
-    createdAt: '2026-06-01T10:30:00',
-  },
-  {
-    id: 'APT-002',
-    customerId: 'C002',
-    customerName: 'Trần Thị Bình',
-    customerPhone: '0912 345 678',
-    vehicleId: 'V002',
-    vehiclePlate: '30H-456.78',
-    vehicleModel: 'Honda City RS',
-    vehicleYear: 2022,
-    vehicleMileage: 22000,
-    services: ['Thay dầu động cơ Castrol'],
-    appointmentDate: '2026-06-02',
-    appointmentTime: '10:30',
-    status: 'confirmed',
-    createdAt: '2026-06-01T08:15:00',
-  },
-  {
-    id: 'APT-003',
-    customerId: 'C003',
-    customerName: 'Lê Hoàng Minh',
-    customerPhone: '0933 456 789',
-    vehicleId: 'V003',
-    vehiclePlate: '51G-789.01',
-    vehicleModel: 'Mazda CX-5 2.0L',
-    vehicleYear: 2021,
-    vehicleMileage: 38000,
-    services: ['Cân chỉnh thước lái 3D', 'Kiểm tra phanh'],
-    appointmentDate: '2026-06-02',
-    appointmentTime: '14:00',
-    status: 'confirmed',
-    createdAt: '2026-05-31T16:00:00',
-  },
-  {
-    id: 'APT-004',
-    customerId: 'C004',
-    customerName: 'Phạm Quỳnh Anh',
-    customerPhone: '0944 567 890',
-    vehicleId: 'V004',
-    vehiclePlate: '59C-234.56',
-    vehicleModel: 'Hyundai Accent 1.4MT',
-    vehicleYear: 2019,
-    vehicleMileage: 62000,
-    services: ['Vệ sinh kim phun điện tử'],
-    appointmentDate: '2026-06-03',
-    appointmentTime: '08:30',
-    status: 'pending',
-    createdAt: '2026-06-01T12:00:00',
-  },
-  {
-    id: 'APT-005',
-    customerId: 'C005',
-    customerName: 'Đỗ Thanh Tùng',
-    customerPhone: '0955 678 901',
-    vehicleId: 'V005',
-    vehiclePlate: '51F-567.89',
-    vehicleModel: 'Kia Seltos 1.4 Turbo',
-    vehicleYear: 2023,
-    vehicleMileage: 12000,
-    services: ['Bảo dưỡng định kỳ cấp 1'],
-    appointmentDate: '2026-06-01',
-    appointmentTime: '15:00',
-    status: 'completed',
-    createdAt: '2026-05-30T09:00:00',
-  },
-  {
-    id: 'APT-006',
-    customerId: 'C006',
-    customerName: 'Vũ Minh Khoa',
-    customerPhone: '0966 789 012',
-    vehicleId: 'V006',
-    vehiclePlate: '30A-890.12',
-    vehicleModel: 'Ford Ranger Wildtrak',
-    vehicleYear: 2021,
-    vehicleMileage: 55000,
-    services: ['Thay dầu động cơ', 'Thay lọc gió'],
-    appointmentDate: '2026-06-03',
-    appointmentTime: '09:30',
-    status: 'in_progress',
-    createdAt: '2026-06-01T14:30:00',
-  },
-  {
-    id: 'APT-007',
-    customerId: 'C007',
-    customerName: 'Hoàng Thu Hà',
-    customerPhone: '0977 890 123',
-    vehicleId: 'V007',
-    vehiclePlate: '51D-345.67',
-    vehicleModel: 'VinFast VF 8',
-    vehicleYear: 2024,
-    vehicleMileage: 8000,
-    services: ['Kiểm tra tổng quát'],
-    appointmentDate: '2026-05-30',
-    appointmentTime: '11:00',
-    status: 'cancelled',
-    createdAt: '2026-05-28T10:00:00',
-  },
-  {
-    id: 'APT-008',
-    customerId: 'C008',
-    customerName: 'Bùi Đức Huy',
-    customerPhone: '0988 901 234',
-    vehicleId: 'V008',
-    vehiclePlate: '51A-678.90',
-    vehicleModel: 'Toyota Fortuner 2.7AT',
-    vehicleYear: 2018,
-    vehicleMileage: 95000,
-    services: ['Bảo dưỡng định kỳ cấp 2', 'Thay má phanh'],
-    appointmentDate: '2026-06-04',
-    appointmentTime: '08:00',
-    status: 'pending',
-    createdAt: '2026-06-02T07:00:00',
-  },
-  {
-    id: 'APT-009',
-    customerId: 'C009',
-    customerName: 'Nguyễn Đức Cường (Spam Check)',
-    customerPhone: '0999 777 666',
-    vehicleId: 'V009',
-    vehiclePlate: '51G-999.99',
-    vehicleModel: 'Ford Everest',
-    vehicleYear: 2020,
-    vehicleMileage: 70000,
-    services: ['Thay dầu động cơ Castrol'],
-    appointmentDate: '2026-06-01',
-    appointmentTime: '09:00',
-    status: 'no_show',
-    createdAt: '2026-05-30T10:00:00',
-  },
-];
+import { useFetchClient } from '../../../hook/useFetchClient';
+import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   pending: { label: 'Chờ xác nhận', color: '#D97706', bg: '#FEF3C7', icon: Clock },
@@ -184,25 +36,120 @@ export default function AppointmentList() {
     showToast: (text: string, type?: 'success' | 'info' | 'warning') => void;
   }>();
 
+  const { fetchPrivate } = useFetchClient();
+  const [appointments, setAppointments] = useState<AppointmentModel[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
 
+  const loadAppointments = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.GET_APPOINTMENTS);
+      if (response.success && Array.isArray(response.data)) {
+        const mapped: AppointmentModel[] = response.data.map((appt: any) => {
+          const services: string[] = [];
+          if (Array.isArray(appt.appointmentDetails)) {
+            appt.appointmentDetails.forEach((detail: any) => {
+              if (detail.catalog?.service_name) {
+                services.push(detail.catalog.service_name);
+              }
+              if (detail.combo?.combo_name) {
+                services.push(detail.combo.combo_name);
+              }
+            });
+          }
+
+          let appointmentDate = '';
+          let appointmentTime = '';
+          if (appt.scheduled_time) {
+            const dateObj = new Date(appt.scheduled_time);
+            appointmentDate = dateObj.getFullYear() + '-' + String(dateObj.getMonth() + 1).padStart(2, '0') + '-' + String(dateObj.getDate()).padStart(2, '0');
+            appointmentTime = String(dateObj.getHours()).padStart(2, '0') + ':' + String(dateObj.getMinutes()).padStart(2, '0');
+          }
+
+          const status = (appt.status || 'pending').toLowerCase() as any;
+
+          return {
+            id: String(appt.id),
+            customerId: appt.customer?.id ? String(appt.customer.id) : '',
+            customerName: appt.customer?.user?.fullName || 'Khách vãng lai',
+            customerPhone: appt.customer?.user?.phoneNumber || appt.customer?.phone || '',
+            customerEmail: appt.customer?.user?.email || undefined,
+            vehicleId: appt.vehicle?.id ? String(appt.vehicle.id) : '',
+            vehiclePlate: appt.vehicle?.license_plate || 'Chưa cập nhật',
+            vehicleModel: appt.vehicle?.model
+              ? `${appt.vehicle.model.make?.make_name || ''} ${appt.vehicle.model.model_name || ''}`.trim()
+              : 'Chưa cập nhật',
+            vehicleYear: appt.vehicle?.year || undefined,
+            services,
+            appointmentDate,
+            appointmentTime,
+            notes: appt.notes || '',
+            status,
+            createdAt: appt.createdAt || appt.created_at || '',
+          };
+        });
+        setAppointments(mapped);
+      } else {
+        throw new Error(response.message || 'Lỗi tải danh sách lịch hẹn');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Lỗi kết nối máy chủ');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleReceiveAppointment = async (apptId: string) => {
+    try {
+      const response = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.RECEIVE_APPOINTMENT(apptId), 'PUT');
+      if (response.success) {
+        showToast(`Tiếp nhận xe cho lịch hẹn APT-${apptId.padStart(3, '0')} thành công!`, 'success');
+        loadAppointments();
+        navigate(`/reception/service-orders/create?appointmentId=${apptId}`);
+      } else {
+        throw new Error(response.message || 'Lỗi tiếp nhận lịch hẹn');
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message || 'Lỗi tiếp nhận lịch hẹn', 'warning');
+    }
+  };
+
+  useEffect(() => {
+    loadAppointments();
+  }, []);
+
   // Filtered data
   const filteredAppointments = useMemo(() => {
-    return MOCK_APPOINTMENTS.filter((apt) => {
+    return appointments.filter((apt) => {
+      const formattedId = `APT-${apt.id.padStart(3, '0')}`;
       const matchSearch =
         searchTerm === '' ||
         apt.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         apt.customerPhone.includes(searchTerm) ||
         apt.vehiclePlate.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        apt.id.toLowerCase().includes(searchTerm.toLowerCase());
+        apt.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        formattedId.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchStatus = statusFilter === 'all' || apt.status === statusFilter;
+      let matchStatus = false;
+      if (statusFilter === 'all') {
+        matchStatus = true;
+      } else if (statusFilter === 'received') {
+        matchStatus = apt.status === 'in_progress' || apt.status === 'completed';
+      } else {
+        matchStatus = apt.status === statusFilter;
+      }
 
       return matchSearch && matchStatus;
     });
-  }, [searchTerm, statusFilter]);
+  }, [appointments, searchTerm, statusFilter]);
 
   // Pagination
   const totalPages = Math.ceil(filteredAppointments.length / ITEMS_PER_PAGE);
@@ -213,11 +160,11 @@ export default function AppointmentList() {
 
   // KPI counts
   const kpiCounts = useMemo(() => ({
-    total: MOCK_APPOINTMENTS.length,
-    pending: MOCK_APPOINTMENTS.filter((a) => a.status === 'pending').length,
-    confirmed: MOCK_APPOINTMENTS.filter((a) => a.status === 'confirmed').length,
-    completed: MOCK_APPOINTMENTS.filter((a) => a.status === 'completed').length,
-  }), []);
+    total: appointments.length,
+    pending: appointments.filter((a) => a.status === 'pending').length,
+    confirmed: appointments.filter((a) => a.status === 'confirmed').length,
+    completed: appointments.filter((a) => a.status === 'completed').length,
+  }), [appointments]);
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -263,9 +210,9 @@ export default function AppointmentList() {
 
       {/* SEARCH & FILTER */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
+        <div className="flex flex-col gap-4">
           {/* Search */}
-          <div className="relative flex-1">
+          <div className="relative">
             <Search size={16} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
             <input
               type="text"
@@ -276,28 +223,56 @@ export default function AppointmentList() {
             />
           </div>
 
-          {/* Status Filter */}
-          <div className="flex items-center gap-2">
-            <Filter size={16} className="text-slate-400" />
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-              className="bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-            >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="pending">Chờ xác nhận</option>
-              <option value="confirmed">Đã xác nhận</option>
-              <option value="in_progress">Đang xử lý</option>
-              <option value="completed">Hoàn thành</option>
-              <option value="cancelled">Đã hủy</option>
-            </select>
+          {/* Status Pills */}
+          <div className="flex flex-wrap gap-2 pt-1 items-center">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-2 flex items-center gap-1.5">
+              <Filter size={13} className="text-slate-400" />
+              Trạng thái:
+            </span>
+            {[
+              { id: 'all', label: 'Tất cả' },
+              { id: 'received', label: 'Đã tiếp nhận' },
+              { id: 'cancelled', label: 'Đã hủy' }
+            ].map((tab) => {
+              const isActive = statusFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => { setStatusFilter(tab.id); setCurrentPage(1); }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${isActive
+                      ? 'bg-[#00285E] text-white border-[#00285E] shadow-sm'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
       {/* APPOINTMENT TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
-        {paginatedData.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-[#00285E]">
+            <Loader2 className="animate-spin mb-4" size={48} />
+            <p className="text-sm font-semibold">Đang tải danh sách lịch hẹn...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-20 text-rose-500">
+            <AlertCircle size={48} className="mb-4" />
+            <p className="text-lg font-semibold mb-1">Đã xảy ra lỗi</p>
+            <p className="text-sm mb-4">{error}</p>
+            <button
+              onClick={loadAppointments}
+              className="px-4 py-2 bg-[#00285E] text-white rounded-xl text-xs font-bold hover:bg-[#001a3f] transition-all"
+            >
+              Thử lại
+            </button>
+          </div>
+        ) : paginatedData.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400">
             <AlertCircle size={48} className="mb-4 text-slate-300" />
             <p className="text-lg font-semibold mb-1">Không tìm thấy lịch hẹn</p>
@@ -324,7 +299,7 @@ export default function AppointmentList() {
                   return (
                     <tr key={apt.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors">
                       <td className="py-4 px-4">
-                        <span className="font-bold text-[#00285E] text-xs">{apt.id}</span>
+                        <span className="font-bold text-[#00285E] text-xs">APT-{apt.id.padStart(3, '0')}</span>
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-3">
@@ -388,10 +363,7 @@ export default function AppointmentList() {
                           </button>
                           {(apt.status === 'confirmed' || apt.status === 'pending') && (
                             <button
-                              onClick={() => {
-                                navigate(`/reception/service-orders/create?appointmentId=${apt.id}`);
-                                showToast(`Tiếp nhận xe cho lịch hẹn ${apt.id}`, 'info');
-                              }}
+                              onClick={() => handleReceiveAppointment(apt.id)}
                               className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:bg-[#001a3f] transition-colors"
                             >
                               <CarFront size={13} />
@@ -426,11 +398,10 @@ export default function AppointmentList() {
                 <button
                   key={page}
                   onClick={() => setCurrentPage(page)}
-                  className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
-                    page === currentPage
+                  className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${page === currentPage
                       ? 'bg-[#00285E] text-white shadow-md'
                       : 'text-slate-500 hover:bg-slate-100'
-                  }`}
+                    }`}
                 >
                   {page}
                 </button>

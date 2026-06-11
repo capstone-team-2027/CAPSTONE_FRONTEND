@@ -58,7 +58,7 @@ export default function AdminLayout() {
             fullName: userData.fullName,
             phoneNumber: userData.phoneNumber,
             avatar: userData.avatar,
-            role: userData.role,
+            role: typeof userData.role === 'object' ? userData.role?.roleCode : userData.role,
           })
         );
       } catch (error) {

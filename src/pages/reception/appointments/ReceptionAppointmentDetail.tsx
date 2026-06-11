@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   Calendar,
@@ -20,68 +20,9 @@ import {
 } from 'lucide-react';
 import { useNavigate, useParams, useOutletContext } from 'react-router-dom';
 import type { AppointmentModel } from '../../../model/Appointment';
+import { useFetchClient } from '../../../hook/useFetchClient';
+import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
 
-// ========== MOCK DATA (sẽ thay bằng API call) ==========
-const MOCK_APPOINTMENTS: Record<string, AppointmentModel> = {
-  'APT-001': {
-    id: 'APT-001',
-    customerId: 'C001',
-    customerName: 'Nguyễn Văn An',
-    customerPhone: '0901 234 567',
-    customerEmail: 'an.nguyen@email.com',
-    vehicleId: 'V001',
-    vehiclePlate: '51A-123.45',
-    vehicleModel: 'Toyota Camry 2.5Q',
-    vehicleYear: 2020,
-    vehicleMileage: 45000,
-    services: ['Bảo dưỡng định kỳ cấp 1', 'Thay dầu động cơ', 'Kiểm tra phanh'],
-    appointmentDate: '2026-06-02',
-    appointmentTime: '09:00',
-    serviceBay: 'Khoang #3',
-    assignedStaff: 'Trần Văn Hùng',
-    notes: 'Xe có tiếng kêu lạ ở bánh trước bên trái. Khách hàng yêu cầu kiểm tra thêm hệ thống treo.',
-    status: 'pending',
-    createdAt: '2026-06-01T10:30:00',
-  },
-  'APT-002': {
-    id: 'APT-002',
-    customerId: 'C002',
-    customerName: 'Trần Thị Bình',
-    customerPhone: '0912 345 678',
-    customerEmail: 'binh.tran@email.com',
-    vehicleId: 'V002',
-    vehiclePlate: '30H-456.78',
-    vehicleModel: 'Honda City RS',
-    vehicleYear: 2022,
-    vehicleMileage: 22000,
-    services: ['Thay dầu động cơ Castrol'],
-    appointmentDate: '2026-06-02',
-    appointmentTime: '10:30',
-    serviceBay: 'Khoang #1',
-    assignedStaff: 'Lê Minh Tuấn',
-    status: 'confirmed',
-    createdAt: '2026-06-01T08:15:00',
-  },
-  'APT-003': {
-    id: 'APT-003',
-    customerId: 'C003',
-    customerName: 'Lê Hoàng Minh',
-    customerPhone: '0933 456 789',
-    customerEmail: 'minh.le@email.com',
-    vehicleId: 'V003',
-    vehiclePlate: '51G-789.01',
-    vehicleModel: 'Mazda CX-5 2.0L',
-    vehicleYear: 2021,
-    vehicleMileage: 38000,
-    services: ['Cân chỉnh thước lái 3D', 'Kiểm tra phanh'],
-    appointmentDate: '2026-06-02',
-    appointmentTime: '14:00',
-    serviceBay: 'Khoang #2',
-    assignedStaff: 'Nguyễn Nam Khánh',
-    status: 'confirmed',
-    createdAt: '2026-05-31T16:00:00',
-  },
-};
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   pending: { label: 'Chờ xác nhận', color: '#D97706', bg: '#FEF3C7', icon: Clock },
@@ -108,29 +49,116 @@ export default function ReceptionAppointmentDetail() {
     showToast: (text: string, type?: 'success' | 'info' | 'warning') => void;
   }>();
 
-  // Make appointment stateful so changes render instantly
-  const [appointment, setAppointment] = useState<AppointmentModel | null>(id ? MOCK_APPOINTMENTS[id] : null);
+  const { fetchPrivate } = useFetchClient();
+  const [appointment, setAppointment] = useState<AppointmentModel | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
 
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
-  const [rescheduleDate, setRescheduleDate] = useState(appointment?.appointmentDate || '2026-06-03');
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState(appointment?.appointmentTime || '08:00');
+  const [rescheduleDate, setRescheduleDate] = useState('2026-06-03');
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState('08:00');
 
-  if (!appointment) {
+  const loadAppointmentDetail = async () => {
+    if (!id) return;
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.GET_APPOINTMENT_DETAIL(id));
+      if (response.success && response.data) {
+        const appt = response.data;
+        const services: string[] = [];
+        if (Array.isArray(appt.appointmentDetails)) {
+          appt.appointmentDetails.forEach((detail: any) => {
+            if (detail.catalog?.service_name) {
+              services.push(detail.catalog.service_name);
+            }
+            if (detail.combo?.combo_name) {
+              services.push(detail.combo.combo_name);
+            }
+          });
+        }
+
+        let appointmentDate = '';
+        let appointmentTime = '';
+        if (appt.scheduled_time) {
+          const dateObj = new Date(appt.scheduled_time);
+          appointmentDate = dateObj.getFullYear() + '-' + String(dateObj.getMonth() + 1).padStart(2, '0') + '-' + String(dateObj.getDate()).padStart(2, '0');
+          appointmentTime = String(dateObj.getHours()).padStart(2, '0') + ':' + String(dateObj.getMinutes()).padStart(2, '0');
+        }
+
+        const status = (appt.status || 'pending').toLowerCase() as any;
+
+        const mapped: AppointmentModel = {
+          id: String(appt.id),
+          customerId: appt.customer?.id ? String(appt.customer.id) : '',
+          customerName: appt.customer?.user?.fullName || 'Khách vãng lai',
+          customerPhone: appt.customer?.user?.phoneNumber || appt.customer?.phone || '',
+          customerEmail: appt.customer?.user?.email || undefined,
+          vehicleId: appt.vehicle?.id ? String(appt.vehicle.id) : '',
+          vehiclePlate: appt.vehicle?.license_plate || 'Chưa cập nhật',
+          vehicleModel: appt.vehicle?.model
+            ? `${appt.vehicle.model.make?.make_name || ''} ${appt.vehicle.model.model_name || ''}`.trim()
+            : 'Chưa cập nhật',
+          vehicleYear: appt.vehicle?.year || undefined,
+          services,
+          appointmentDate,
+          appointmentTime,
+          notes: appt.notes || '',
+          status,
+          createdAt: appt.createdAt || appt.created_at || '',
+        };
+
+        setAppointment(mapped);
+        setRescheduleDate(appointmentDate);
+        setSelectedTimeSlot(appointmentTime);
+      } else {
+        throw new Error(response.message || 'Không tìm thấy lịch hẹn');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Lỗi tải chi tiết lịch hẹn');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAppointmentDetail();
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 p-8 flex flex-col items-center justify-center text-[#00285E]">
+        <Loader2 className="animate-spin mb-4" size={48} />
+        <p className="text-sm font-semibold">Đang tải chi tiết lịch hẹn...</p>
+      </div>
+    );
+  }
+
+  if (error || !appointment) {
     return (
       <div className="flex-1 p-8 flex flex-col items-center justify-center text-slate-400">
-        <AlertTriangle size={48} className="mb-4 text-amber-400" />
+        <AlertTriangle size={48} className="mb-4 text-amber-500" />
         <p className="text-lg font-semibold mb-1">Không tìm thấy lịch hẹn</p>
-        <p className="text-sm mb-4">Mã lịch hẹn "{id}" không tồn tại trong hệ thống.</p>
-        <button
-          onClick={() => navigate('/reception/appointments')}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[#00285E] text-white rounded-xl text-sm font-bold"
-        >
-          <ArrowLeft size={16} />
-          Quay lại danh sách
-        </button>
+        <p className="text-sm mb-4">{error || `Mã lịch hẹn "${id}" không tồn tại trong hệ thống.`}</p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => navigate('/reception/appointments')}
+            className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-all"
+          >
+            <ArrowLeft size={16} />
+            Quay lại danh sách
+          </button>
+          <button
+            onClick={loadAppointmentDetail}
+            className="px-5 py-2.5 bg-[#00285E] text-white rounded-xl text-sm font-bold hover:bg-[#001a3f] transition-all"
+          >
+            Thử lại
+          </button>
+        </div>
       </div>
     );
   }
@@ -159,7 +187,7 @@ export default function ReceptionAppointmentDetail() {
         status: 'cancelled',
       });
     }
-    showToast(`Đã hủy lịch hẹn ${appointment?.id} thành công.`, 'success');
+    showToast(`Đã hủy lịch hẹn APT-${appointment?.id.padStart(3, '0')} thành công.`, 'success');
     setShowCancelModal(false);
     setCancelReason('');
   };
@@ -179,7 +207,7 @@ export default function ReceptionAppointmentDetail() {
       });
     }
 
-    showToast(`Cập nhật lịch hẹn ${appointment?.id} sang ${formatDate(rescheduleDate)} ${selectedTimeSlot} thành công!`, 'success');
+    showToast(`Cập nhật lịch hẹn APT-${appointment?.id.padStart(3, '0')} sang ${formatDate(rescheduleDate)} ${selectedTimeSlot} thành công!`, 'success');
     setShowRescheduleModal(false);
   };
 
@@ -199,7 +227,7 @@ export default function ReceptionAppointmentDetail() {
               Chi tiết Lịch hẹn
             </h1>
             <div className="flex items-center gap-3">
-              <span className="text-sm font-bold text-slate-500">{appointment.id}</span>
+              <span className="text-sm font-bold text-slate-500">APT-{appointment.id.padStart(3, '0')}</span>
               <span
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold"
                 style={{ backgroundColor: statusCfg.bg, color: statusCfg.color }}
@@ -246,7 +274,7 @@ export default function ReceptionAppointmentDetail() {
             Thông tin Lịch hẹn
           </h2>
           <div className="space-y-3">
-            <InfoRow label="Mã lịch hẹn" value={appointment.id} />
+            <InfoRow label="Mã lịch hẹn" value={`APT-${appointment.id.padStart(3, '0')}`} />
             <InfoRow label="Ngày hẹn" value={formatDate(appointment.appointmentDate)} />
             <InfoRow label="Giờ hẹn" value={appointment.appointmentTime} />
             <InfoRow label="Ngày tạo" value={formatDateTime(appointment.createdAt)} />

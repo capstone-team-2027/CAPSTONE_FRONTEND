@@ -25,7 +25,7 @@ import type { RootState } from '../../store/store';
 import type { UserModel } from '../../model/User';
 import { useFetchClient } from '../../hook/useFetchClient';
 import { loginSuccess, logout } from '../../store/slices/userSlice';
-import { PROFILE_API_ENDPOINTS } from '../../constants/customer/profileApiEndpoint';
+import { PROFILE_API_ENDPOINTS } from '../../constants/common/profileEndpoints';
 
 export default function ReceptionLayout() {
   const navigate = useNavigate();
@@ -58,7 +58,7 @@ export default function ReceptionLayout() {
             fullName: userData.fullName,
             phoneNumber: userData.phoneNumber,
             avatar: userData.avatar,
-            role: userData.role,
+            role: typeof userData.role === 'object' ? userData.role?.roleCode : userData.role,
           })
         );
       } catch (error) {
@@ -72,7 +72,7 @@ export default function ReceptionLayout() {
 
   const avatarUrl = user?.avatar?.trim() || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=256&auto=format&fit=crop';
   const displayName = user?.fullName || 'Lễ tân viên';
-  const displayRole = 'Lễ tân';
+  const displayRole = user?.role?.toUpperCase() === 'RECEPTIONIST' ? 'Lễ tân' : (user?.role || 'Lễ tân');
 
   // Menu items for the sidebar
   const menuItems = [

@@ -220,6 +220,12 @@ export default function Login() {
             if (userData.role === "ADMIN") {
                 navigate('/admin/statistics');
             }
+            if (userData.role === "RECEPTIONIST") {
+                navigate('/reception');
+            }
+            if (userData.role === "TECHNICIAN") {
+                navigate('/technician');
+            }
         } catch (err: any) {
             setApiError(err.message || (isVi ? 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.' : 'Login failed. Please check your credentials.'));
         } finally {
@@ -270,7 +276,7 @@ export default function Login() {
                         transition={{ delay: 0.2 }}
                         className="text-white/60 text-lg leading-relaxed mb-12"
                     >
-                        {isVi 
+                        {isVi
                             ? 'Truy cập bảng điều khiển cá nhân của bạn để quản lý các dịch vụ, theo dõi lịch sử bảo trì và đặt lịch hẹn tiếp theo một cách chính xác.'
                             : 'Access your personal dashboard to manage services, track maintenance history, and schedule your next appointment precisely.'}
                     </motion.p>
