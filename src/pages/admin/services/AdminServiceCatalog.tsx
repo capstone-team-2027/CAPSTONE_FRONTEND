@@ -302,7 +302,7 @@ export default function AdminServiceManagement() {
         if (res.success) {
           showToast(`Đã xóa danh mục "${name}" thành công`, 'success');
           loadCategories();
-          handleGetCategory(); // Refresh options for dropdown
+          handleGetCategory(); 
         } else {
           showToast(res.message || 'Lỗi khi xóa danh mục dịch vụ', 'warning');
         }

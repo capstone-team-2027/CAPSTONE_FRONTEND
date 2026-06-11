@@ -1,7 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Route, Routes, useLocation, Navigate } from "react-router-dom";
 
-// Lazy-loaded components
 const Header = lazy(() => import("./pages/customer/Header"));
 const Home = lazy(() => import("./pages/customer/home/Home"));
 const Services = lazy(() => import("./pages/customer/services/Services"));
@@ -16,24 +15,21 @@ const Team = lazy(() => import("./pages/customer/team/Team"));
 const OtpVerification = lazy(() => import("./pages/customer/home/verify-otp"));
 const VerifyPhone = lazy(() => import("./pages/customer/home/verify-phone"));
 
+
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminSettings = lazy(() => import("./pages/admin/settings/AdminSettings"));
 const AdminServicesCategories = lazy(() => import("./pages/admin/services/AdminServicesCategories"));
 const AdminResources = lazy(() => import("./pages/admin/resources/AdminResources"));
 const AdminServiceCatalog = lazy(() => import("./pages/admin/services/AdminServiceCatalog"));
 const AdminStaffManagement = lazy(() => import("./pages/admin/staff/AdminStaffManagement"));
-const AdminSpareParts = lazy(() => import("./pages/admin/parts/AdminSpareParts"));
 const AdminWarrantyPolicies = lazy(() => import("./pages/admin/warranty/AdminWarrantyPolicies"));
 const AdminStatistics = lazy(() => import("./pages/admin/dashboard/AdminStatistics"));
 const AdminCustomerManagement = lazy(() => import("./pages/admin/customer/AdminCustomerManagement"));
-
-// Technician Page Imports
-const TechnicianLayout = lazy(() => import("./pages/technician/TechnicianLayout"));
-const TechnicianServiceOrderList = lazy(() => import("./pages/technician/service-orders/TechnicianServiceOrderList"));
-const TechnicianServiceOrderDetail = lazy(() => import("./pages/technician/service-orders/TechnicianServiceOrderDetail"));
-const TechnicianAssignments = lazy(() => import("./pages/technician/assignments/TechnicianAssignments"));
-const TechnicianRequestParts = lazy(() => import("./pages/technician/parts-request/TechnicianRequestParts"));
-const TechnicianUpdateProgress = lazy(() => import("./pages/technician/progress/TechnicianUpdateProgress"));
+const InventoryLayout = lazy(() => import("./pages/inventory/InventoryLayout"));
+const InventoryDashboard = lazy(() => import("./pages/inventory/dashboard/InventoryDashboard"));
+const InventoryParts = lazy(() => import("./pages/inventory/parts/InventoryParts"));
+const ImportHistory = lazy(() => import("./pages/inventory/import/InventoryImportHistory"));
+const PartCategories = lazy(() => import("./pages/inventory/categories/InventoryPartCategories"));
 
 // Reception Page Imports
 const ReceptionLayout = lazy(() => import("./pages/reception/ReceptionLayout"));
@@ -48,13 +44,17 @@ const ReceptionProcessPayment = lazy(() => import("./pages/reception/payments/Re
 const ReceptionQuoteList = lazy(() => import("./pages/reception/quotes/ReceptionQuoteList"));
 const ReceptionQuoteDetail = lazy(() => import("./pages/reception/quotes/ReceptionQuoteDetail"));
 
-// Premium loading fallback styled to match AGM Intelligent branding
+// Technician Page Imports
+const TechnicianLayout = lazy(() => import("./pages/technician/TechnicianLayout"));
+const TechnicianServiceOrderList = lazy(() => import("./pages/technician/service-orders/TechnicianServiceOrderList"));
+const TechnicianServiceOrderDetail = lazy(() => import("./pages/technician/service-orders/TechnicianServiceOrderDetail"));
+const TechnicianAssignments = lazy(() => import("./pages/technician/assignments/TechnicianAssignments"));
+const TechnicianRequestParts = lazy(() => import("./pages/technician/parts-request/TechnicianRequestParts"));
+const TechnicianUpdateProgress = lazy(() => import("./pages/technician/progress/TechnicianUpdateProgress"));
 const LoadingScreen = () => (
   <div className="fixed inset-0 bg-slate-50/50 backdrop-blur-xs flex flex-col items-center justify-center z-50">
     <div className="relative w-16 h-16">
-      {/* Outer spinning ring */}
       <div className="absolute inset-0 rounded-full border-4 border-[#00285E]/10 border-t-[#00285E] animate-spin"></div>
-      {/* Inner pulsing circle */}
       <div className="absolute inset-3 rounded-full bg-[#F9A11B]/80 animate-pulse"></div>
     </div>
     <span className="mt-4 text-xs font-bold text-[#00285E] tracking-widest uppercase animate-pulse">
@@ -65,7 +65,9 @@ const LoadingScreen = () => (
 
 function App() {
   const location = useLocation();
-  const isDashboardPath = location.pathname.startsWith("/admin") || location.pathname.startsWith("/reception") || location.pathname.startsWith("/technician");
+  const isAdminPath =
+    location.pathname.startsWith("/admin") ||
+    location.pathname.startsWith("/inventory");
   return (
     <Suspense fallback={<LoadingScreen />}>
       <Routes>
@@ -85,8 +87,7 @@ function App() {
 
         {/* Admin Dashboard */}
         <Route path="/admin" element={<AdminLayout />}>
-          <Route path="" element={<Navigate to="statistics" replace />} />
-          <Route path="spare-part" element={<AdminSpareParts />} />
+          <Route path="" element={<AdminStatistics />} />
           <Route path="services-category" element={<AdminServicesCategories />} />
           <Route path="resources" element={<AdminResources />} />
           <Route path="settings" element={<AdminSettings />} />
@@ -96,8 +97,13 @@ function App() {
           <Route path="statistics" element={<AdminStatistics />} />
           <Route path="customers" element={<AdminCustomerManagement />} />
         </Route>
+        <Route path="/inventory" element={<InventoryLayout />}>
+          <Route path="" element={<InventoryDashboard />} />
+          <Route path="parts" element={<InventoryParts />} />
+          <Route path="categories" element={<PartCategories />} />
+          <Route path="import" element={<ImportHistory />} />
+        </Route>
 
-        {/* Technician Dashboard */}
         <Route path="/technician" element={<TechnicianLayout />}>
           <Route path="" element={<Navigate to="service-orders" replace />} />
           <Route path="service-orders" element={<TechnicianServiceOrderList />} />
@@ -124,7 +130,7 @@ function App() {
           <Route path="quotes/:id" element={<ReceptionQuoteDetail />} />
         </Route>
       </Routes>
-      {!isDashboardPath && (
+      {!isAdminPath && (
         <div className="hidden md:block">
           <Footer />
         </div>
@@ -132,5 +138,4 @@ function App() {
     </Suspense>
   );
 }
-
 export default App;
