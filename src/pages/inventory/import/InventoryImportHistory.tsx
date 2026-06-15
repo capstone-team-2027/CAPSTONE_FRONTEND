@@ -1,112 +1,65 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowDownToLine,
   Search,
-  ChevronDown,
   Calendar,
-  Download,
+  Plus,
+  Trash2,
+  AlertTriangle,
   X,
-  Truck,
   Package,
   Eye,
 } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
-
-interface ReceiptItem {
-  name: string;
-  code: string;
-  quantity: number;
-  unit: string;
-  price: number;
-}
-
-interface Receipt {
-  id: string;
-  code: string;
-  supplier: string;
-  date: string; // yyyy-mm-dd
-  status: 'completed' | 'pending';
-  note?: string;
-  items: ReceiptItem[];
-}
+import {
+  type ImportResponse,
+  type Suppliers,
+  type Parts,
+} from '../../../model/dto/importManagement.dto';
+import { type GetPartCategory } from '../../../model/dto/sparePartCategory.dto';
+import { useFetchClient } from "../../../hook/useFetchClient";
+import { INVENTORY_LOG_API_ENDPOINTS } from '../../../constants/inventory/importManagement';
 
 const formatPrice = (v: number) => v.toLocaleString('vi-VN') + 'đ';
 
 const formatDate = (d: string) => {
-  const [y, m, day] = d.split('-');
-  return `${day}/${m}/${y}`;
+  const date = new Date(d);
+  return date.toLocaleDateString('vi-VN');
 };
 
-const RECEIPTS: Receipt[] = [
-  {
-    id: 'r1',
-    code: 'PN-2026-0512',
-    supplier: 'Castrol Việt Nam',
-    date: '2026-06-04',
-    status: 'completed',
-    note: 'Nhập bổ sung dầu nhớt đầu tháng',
-    items: [
-      { name: 'Dầu nhớt Castrol 5W-30', code: 'OIL-C530', quantity: 120, unit: 'bình', price: 300000 },
-      { name: 'Dầu Shell Helix 5W-30', code: 'OIL-SHL-30', quantity: 60, unit: 'bình', price: 330000 },
-    ],
-  },
-  {
-    id: 'r2',
-    code: 'PN-2026-0513',
-    supplier: 'Michelin VN',
-    date: '2026-06-03',
-    status: 'completed',
-    items: [
-      { name: 'Lốp Michelin 205/55R16', code: 'TIR-MIC-16', quantity: 40, unit: 'lốp', price: 1750000 },
-    ],
-  },
-  {
-    id: 'r3',
-    code: 'PN-2026-0514',
-    supplier: 'Bosch Auto Parts',
-    date: '2026-06-02',
-    status: 'pending',
-    note: 'Chờ kiểm tra chất lượng',
-    items: [
-      { name: 'Lọc dầu Bosch', code: 'FLT-OIL-BS', quantity: 200, unit: 'cái', price: 88000 },
-      { name: 'Má phanh sau Honda', code: 'BRK-HON-R', quantity: 30, unit: 'bộ', price: 680000 },
-    ],
-  },
-  {
-    id: 'r4',
-    code: 'PN-2026-0510',
-    supplier: 'Denso Phụ Tùng',
-    date: '2026-05-29',
-    status: 'completed',
-    items: [
-      { name: 'Lọc gió điều hòa Denso', code: 'FLT-AC-DS', quantity: 80, unit: 'cái', price: 130000 },
-    ],
-  },
-  {
-    id: 'r5',
-    code: 'PN-2026-0508',
-    supplier: 'NGK Spark Plug',
-    date: '2026-05-25',
-    status: 'completed',
-    items: [
-      { name: 'Bugi NGK Iridium', code: 'SPK-NGK-IR', quantity: 150, unit: 'cái', price: 195000 },
-    ],
-  },
-  {
-    id: 'r6',
-    code: 'PN-2026-0505',
-    supplier: 'Castrol Việt Nam',
-    date: '2026-05-20',
-    status: 'completed',
-    items: [
-      { name: 'Dầu Mobil 1 5W-40', code: 'OIL-MOB-40', quantity: 90, unit: 'bình', price: 380000 },
-    ],
-  },
-];
+const lineTotal = (r: ImportResponse) => r.quantity * r.unit_price;
 
-const receiptTotal = (r: Receipt) => r.items.reduce((s, it) => s + it.quantity * it.price, 0);
-const receiptQty = (r: Receipt) => r.items.reduce((s, it) => s + it.quantity, 0);
+// Một dòng nhập trong form tạo phiếu - khớp với param `items` của importSparePart
+interface ImportLineForm {
+  mode: 'existing' | 'new';
+  part_id: number | null;
+  name: string;
+  brand: string;
+  category_id: number | null;
+  warranty_period_months: number | null;
+  warranty_km_limit: number | null;
+  quantity: number;
+  unit_price: number;
+  // Gợi ý sản phẩm trùng/gần giống khi BE trả lỗi 409
+  conflict?: {
+    message: string;
+    candidates: { id: number; sku: string; name: string; brand?: string }[];
+  } | null;
+}
+
+const emptyLine = (): ImportLineForm => ({
+  mode: 'existing',
+  part_id: null,
+  name: '',
+  brand: '',
+  category_id: null,
+  warranty_period_months: null,
+  warranty_km_limit: null,
+  quantity: 1,
+  unit_price: 0,
+  conflict: null,
+});
 
 export default function ImportHistory() {
   const { searchQuery, showToast } = useOutletContext<{
@@ -115,30 +68,74 @@ export default function ImportHistory() {
   }>();
 
   const [localSearch, setLocalSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'pending'>('all');
-  const [isStatusOpen, setIsStatusOpen] = useState(false);
-  const [selected, setSelected] = useState<Receipt | null>(null);
-
+  const [createOpen, setCreateOpen] = useState(false);
+  const [selected, setSelected] = useState<ImportResponse | null>(null);
   const effectiveSearch = (searchQuery || localSearch).toLowerCase();
+  const [inventoryLog, setInventoryLog] = useState<ImportResponse[]>([]);
+  const { fetchPrivate } = useFetchClient();
+
+  // ── Form tạo phiếu nhập ──
+  const [supplierId, setSupplierId] = useState<number | null>(null);
+  const [suppliers, setSuppliers] = useState<Suppliers[]>([]);
+  const [parts, setParts] = useState<Parts[]>([]);
+  const [categories, setCategories] = useState<GetPartCategory[]>([]);
+  const [lines, setLines] = useState<ImportLineForm[]>([emptyLine()]);
+
+  const resetCreateForm = () => {
+    setSupplierId(null);
+    setLines([emptyLine()]);
+  };
+
+  const updateLine = (index: number, patch: Partial<ImportLineForm>) => {
+    setLines((prev) => prev.map((line, i) => (i === index ? { ...line, ...patch } : line)));
+  };
+
+  const addLine = () => setLines((prev) => [...prev, emptyLine()]);
+
+  const removeLine = (index: number) => {
+    setLines((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== index)));
+  };
+
+  const formTotal = useMemo(
+    () => lines.reduce((sum, line) => sum + line.quantity * line.unit_price, 0),
+    [lines]
+  );
+
+  const handleCreateImport = async () => {
+    // TODO: gọi API importSparePart(manager_id, supplier_id, items)
+  };
+
+  useEffect(() => {
+    handleGetInventoryLog();
+  }, [])
+
+  const handleGetInventoryLog = async () => {
+    try {
+      const result = await fetchPrivate<ImportResponse[]>(
+        INVENTORY_LOG_API_ENDPOINTS.INVENTORY_LOG,
+        "GET"
+      );
+      console.log("result:" , result.data)
+      setInventoryLog(result.data);
+    } catch (error) {
+      console.error("Lỗi lấy danh sách danh mục", error);
+    }
+  }
 
   const filtered = useMemo(() => {
-    return RECEIPTS.filter((r) => {
-      const matchSearch =
-        r.code.toLowerCase().includes(effectiveSearch) ||
-        r.supplier.toLowerCase().includes(effectiveSearch) ||
-        r.items.some((it) => it.name.toLowerCase().includes(effectiveSearch));
-      const matchStatus = statusFilter === 'all' || r.status === statusFilter;
-      return matchSearch && matchStatus;
-    });
-  }, [effectiveSearch, statusFilter]);
+    return inventoryLog.filter((r) =>
+      (r.receipt_code ?? '').toLowerCase().includes(effectiveSearch) ||
+      (r.supplier?.name ?? '').toLowerCase().includes(effectiveSearch) ||
+      (r.part?.name ?? '').toLowerCase().includes(effectiveSearch)
+    );
+  }, [inventoryLog, effectiveSearch]);
 
   // Summary stats
   const stats = useMemo(() => {
-    const totalReceipts = RECEIPTS.length;
-    const totalValue = RECEIPTS.reduce((s, r) => s + receiptTotal(r), 0);
-    const pending = RECEIPTS.filter((r) => r.status === 'pending').length;
-    return { totalReceipts, totalValue, pending };
-  }, []);
+    const totalReceipts = inventoryLog.length;
+    const totalValue = inventoryLog.reduce((s, r) => s + lineTotal(r), 0);
+    return { totalReceipts, totalValue };
+  }, [inventoryLog]);
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
@@ -152,23 +149,23 @@ export default function ImportHistory() {
           <p className="text-slate-500 text-sm">Danh sách các phiếu nhập kho đã thực hiện.</p>
         </div>
         <button
-          onClick={() => showToast('Đang xuất lịch sử nhập kho...', 'info')}
-          className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 shadow-xs hover:bg-slate-50 transition-colors self-start"
+          onClick={() => setCreateOpen(true)}
+          className="flex items-center gap-2 px-5 py-2.5 bg-[#00285E] text-white rounded-xl text-sm font-semibold shadow-md shadow-[#00285E]/10 hover:bg-[#082245] transition-all transform hover:translate-y-[-1px] active:translate-y-0 self-start"
         >
-          <Download size={16} className="text-slate-500" />
-          <span>Xuất Excel</span>
+          <Plus size={16} />
+          <span>Tạo phiếu nhập</span>
         </button>
       </div>
 
       {/* SUMMARY CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-[#EDF3FF] text-[#00285E]">
             <ArrowDownToLine size={20} />
           </div>
           <div>
             <div className="text-2xl font-bold text-slate-900 tracking-tight">{stats.totalReceipts}</div>
-            <p className="text-xs text-slate-400 font-medium mt-0.5">Tổng phiếu nhập</p>
+            <p className="text-xs text-slate-400 font-medium mt-0.5">Tổng dòng nhập</p>
           </div>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs flex items-center gap-4">
@@ -180,15 +177,6 @@ export default function ImportHistory() {
             <p className="text-xs text-slate-400 font-medium mt-0.5">Tổng giá trị nhập</p>
           </div>
         </div>
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-amber-50 text-[#F9A11B]">
-            <Truck size={20} />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-slate-900 tracking-tight">{stats.pending}</div>
-            <p className="text-xs text-slate-400 font-medium mt-0.5">Phiếu chờ xử lý</p>
-          </div>
-        </div>
       </div>
 
       {/* TABLE */}
@@ -198,44 +186,19 @@ export default function ImportHistory() {
           <div className="flex items-center gap-2.5">
             <h2 className="text-lg font-bold text-slate-800 tracking-tight">Danh sách phiếu nhập</h2>
             <span className="bg-[#EDF3FF] text-[#00285E] px-2.5 py-0.5 rounded-full text-xs font-bold">
-              {filtered.length} phiếu
+              {filtered.length} dòng
             </span>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <div className="relative">
-              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Tìm mã phiếu, nhà cung cấp..."
-                value={localSearch}
-                onChange={(e) => setLocalSearch(e.target.value)}
-                className="w-full sm:w-64 bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-              />
-            </div>
-
-            <div className="relative">
-              <button
-                onClick={() => setIsStatusOpen(!isStatusOpen)}
-                className="flex items-center justify-between gap-2 w-full sm:w-40 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-              >
-                <span>{statusFilter === 'all' ? 'Tất cả trạng thái' : statusFilter === 'completed' ? 'Hoàn thành' : 'Chờ xử lý'}</span>
-                <ChevronDown size={14} className="text-slate-400 shrink-0" />
-              </button>
-              {isStatusOpen && (
-                <div className="absolute right-0 mt-2 bg-white border border-slate-100 rounded-xl shadow-xl py-2 w-44 z-20">
-                  {([['all', 'Tất cả trạng thái'], ['completed', 'Hoàn thành'], ['pending', 'Chờ xử lý']] as const).map(([val, label]) => (
-                    <button
-                      key={val}
-                      onClick={() => { setStatusFilter(val); setIsStatusOpen(false); }}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors ${statusFilter === val ? 'text-[#00285E] font-bold' : 'text-slate-700'}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+          <div className="relative">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Tìm mã phiếu, nhà cung cấp..."
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
+              className="w-full sm:w-64 bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+            />
           </div>
         </div>
 
@@ -246,10 +209,10 @@ export default function ImportHistory() {
               <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
                 <th className="py-4 px-6">Mã phiếu</th>
                 <th className="py-4 px-4">Nhà cung cấp</th>
+                <th className="py-4 px-4">Phụ tùng</th>
                 <th className="py-4 px-4">Ngày nhập</th>
-                <th className="py-4 px-4">Số mặt hàng</th>
+                <th className="py-4 px-4">Số lượng</th>
                 <th className="py-4 px-4">Tổng giá trị</th>
-                <th className="py-4 px-4">Trạng thái</th>
                 <th className="py-4 px-6 text-right">Thao tác</th>
               </tr>
             </thead>
@@ -259,34 +222,32 @@ export default function ImportHistory() {
                   <td colSpan={7} className="py-14 text-center text-slate-400 text-sm">Không tìm thấy phiếu nhập phù hợp...</td>
                 </tr>
               ) : (
-                filtered.map((r) => (
+                filtered.map((i) => (
                   <tr
-                    key={r.id}
-                    onClick={() => setSelected(r)}
+                    key={i.id}
+                    onClick={() => setSelected(i)}
                     className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors cursor-pointer group"
                   >
                     <td className="py-4 px-6">
-                      <span className="font-bold text-slate-800 text-sm group-hover:text-[#00285E] transition-colors">{r.code}</span>
+                      <span className="font-bold text-slate-800 text-sm group-hover:text-[#00285E] transition-colors">{i.receipt_code}</span>
                     </td>
-                    <td className="py-4 px-4 text-sm font-semibold text-slate-700">{r.supplier}</td>
+                    <td className="py-4 px-4 text-sm font-semibold text-slate-700">{i.supplier.name}</td>
+                    <td className="py-4 px-4">
+                      <span className="text-sm font-bold text-slate-700 block">{i.part.name}</span>
+                      <span className="text-xs font-semibold text-slate-400">{i.part.sku}</span>
+                    </td>
                     <td className="py-4 px-4">
                       <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500">
                         <Calendar size={13} className="text-slate-400" />
-                        {formatDate(r.date)}
+                        {formatDate(i.createdAt)}
                       </span>
                     </td>
-                    <td className="py-4 px-4 text-sm font-semibold text-slate-600">{r.items.length} loại · {receiptQty(r)}</td>
-                    <td className="py-4 px-4 text-sm font-bold text-slate-800">{formatPrice(receiptTotal(r))}</td>
-                    <td className="py-4 px-4">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${r.status === 'completed' ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
-                        <span className="text-sm font-bold text-slate-600">{r.status === 'completed' ? 'Hoàn thành' : 'Chờ xử lý'}</span>
-                      </div>
-                    </td>
+                    <td className="py-4 px-4 text-sm font-semibold text-slate-600">{i.quantity}</td>
+                    <td className="py-4 px-4 text-sm font-bold text-slate-800">{formatPrice(lineTotal(i))}</td>
                     <td className="py-4 px-6">
                       <div className="flex justify-end">
                         <button
-                          onClick={(e) => { e.stopPropagation(); setSelected(r); }}
+                          onClick={(e) => { e.stopPropagation(); setSelected(i); }}
                           title="Xem chi tiết"
                           className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
                         >
@@ -307,74 +268,290 @@ export default function ImportHistory() {
         {selected && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelected(null)} className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.96, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 10 }} className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <motion.div initial={{ opacity: 0, scale: 0.96, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 10 }} className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white z-10">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-[#EDF3FF] text-[#00285E] flex items-center justify-center"><ArrowDownToLine size={18} /></div>
                   <div>
-                    <h3 className="text-lg font-bold text-slate-800 leading-tight">{selected.code}</h3>
-                    <span className={`text-xs font-bold ${selected.status === 'completed' ? 'text-emerald-600' : 'text-[#C27803]'}`}>
-                      {selected.status === 'completed' ? 'Hoàn thành' : 'Chờ xử lý'}
-                    </span>
+                    <h3 className="text-lg font-bold text-slate-800 leading-tight">{selected.receipt_code}</h3>
+                    <span className="text-xs font-bold text-slate-400">{selected.type}</span>
                   </div>
                 </div>
                 <button onClick={() => setSelected(null)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"><X size={18} /></button>
               </div>
 
               <div className="p-5 space-y-5">
-                {/* Header info */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Nhà cung cấp</span>
-                    <span className="text-sm font-bold text-slate-800">{selected.supplier}</span>
+                    <span className="text-sm font-bold text-slate-800">{selected.supplier.name}</span>
                   </div>
                   <div>
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Ngày nhập</span>
-                    <span className="text-sm font-bold text-slate-800">{formatDate(selected.date)}</span>
+                    <span className="text-sm font-bold text-slate-800">{formatDate(selected.createdAt)}</span>
                   </div>
-                </div>
-
-                {/* Items table */}
-                <div>
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Chi tiết hàng nhập</span>
-                  <div className="border border-slate-100 rounded-xl overflow-hidden">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="bg-slate-50/70 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                          <th className="py-2.5 px-3">Sản phẩm</th>
-                          <th className="py-2.5 px-3 text-center">SL</th>
-                          <th className="py-2.5 px-3 text-right">Đơn giá</th>
-                          <th className="py-2.5 px-3 text-right">Thành tiền</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selected.items.map((it, i) => (
-                          <tr key={i} className="border-t border-slate-100">
-                            <td className="py-2.5 px-3">
-                              <span className="text-sm font-bold text-slate-700 block">{it.name}</span>
-                              <span className="text-xs font-semibold text-slate-400">{it.code}</span>
-                            </td>
-                            <td className="py-2.5 px-3 text-center text-sm font-semibold text-slate-600">{it.quantity} {it.unit}</td>
-                            <td className="py-2.5 px-3 text-right text-sm font-semibold text-slate-600">{formatPrice(it.price)}</td>
-                            <td className="py-2.5 px-3 text-right text-sm font-bold text-slate-800">{formatPrice(it.quantity * it.price)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {selected.note && (
                   <div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Ghi chú</span>
-                    <p className="text-sm text-slate-600">{selected.note}</p>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Phụ tùng</span>
+                    <span className="text-sm font-bold text-slate-800 block">{selected.part.name}</span>
+                    <span className="text-xs font-semibold text-slate-400">{selected.part.sku}</span>
                   </div>
-                )}
+                  <div>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Người tạo</span>
+                    <span className="text-sm font-bold text-slate-800">{selected.manager.fullName}</span>
+                  </div>
+                </div>
+
+                <div className="border border-slate-100 rounded-xl overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-slate-50/70 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        <th className="py-2.5 px-3 text-center">SL</th>
+                        <th className="py-2.5 px-3 text-right">Đơn giá</th>
+                        <th className="py-2.5 px-3 text-right">Thành tiền</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-t border-slate-100">
+                        <td className="py-2.5 px-3 text-center text-sm font-semibold text-slate-600">{selected.quantity}</td>
+                        <td className="py-2.5 px-3 text-right text-sm font-semibold text-slate-600">{formatPrice(selected.unit_price)}</td>
+                        <td className="py-2.5 px-3 text-right text-sm font-bold text-slate-800">{formatPrice(lineTotal(selected))}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="bg-slate-50 rounded-xl p-4 flex items-center justify-between">
+                  <span className="text-sm font-semibold text-slate-500">Tổng giá trị</span>
+                  <span className="text-xl font-bold text-[#00285E]">{formatPrice(lineTotal(selected))}</span>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── CREATE IMPORT MODAL ── */}
+      <AnimatePresence>
+        {createOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setCreateOpen(false)} className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.96, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 10 }} className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-white z-10 shrink-0">
+                <h3 className="text-lg font-bold text-slate-800">Tạo phiếu nhập</h3>
+                <button onClick={() => setCreateOpen(false)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"><X size={18} /></button>
+              </div>
+
+              <div className="p-6 space-y-5 overflow-y-auto flex-1">
+                {/* Nhà cung cấp */}
+                <label className="block">
+                  <span className="text-xs font-bold text-slate-500 mb-1.5 block">Nhà cung cấp</span>
+                  <select
+                    value={supplierId ?? ''}
+                    onChange={(e) => setSupplierId(e.target.value ? Number(e.target.value) : null)}
+                    className={createInputCls}
+                  >
+                    <option value="">-- Chọn nhà cung cấp --</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </label>
+
+                {/* Danh sách dòng nhập */}
+                <div className="space-y-3">
+                  {lines.map((line, index) => (
+                    <div key={index} className="border border-slate-200 rounded-xl p-4 space-y-3 relative">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                          <button
+                            type="button"
+                            onClick={() => updateLine(index, { mode: 'existing' })}
+                            className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${line.mode === 'existing' ? 'bg-white text-[#00285E] shadow-sm' : 'text-slate-500'}`}
+                          >
+                            Phụ tùng có sẵn
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateLine(index, { mode: 'new' })}
+                            className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${line.mode === 'new' ? 'bg-white text-[#00285E] shadow-sm' : 'text-slate-500'}`}
+                          >
+                            Phụ tùng mới
+                          </button>
+                        </div>
+                        {lines.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeLine(index)}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center bg-rose-50 text-rose-500 hover:bg-rose-100 transition-colors"
+                            title="Xóa dòng"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </div>
+
+                      {line.mode === 'existing' ? (
+                        <label className="block">
+                          <span className="text-xs font-bold text-slate-500 mb-1.5 block">Phụ tùng</span>
+                          <select
+                            value={line.part_id ?? ''}
+                            onChange={(e) => updateLine(index, { part_id: e.target.value ? Number(e.target.value) : null })}
+                            className={createInputCls}
+                          >
+                            <option value="">-- Chọn phụ tùng --</option>
+                            {parts.map((p) => (
+                              <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3">
+                          <label className="block col-span-2">
+                            <span className="text-xs font-bold text-slate-500 mb-1.5 block">Tên phụ tùng</span>
+                            <input
+                              value={line.name}
+                              onChange={(e) => updateLine(index, { name: e.target.value })}
+                              className={createInputCls}
+                              placeholder="VD: Lọc nhớt Honda"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-xs font-bold text-slate-500 mb-1.5 block">Thương hiệu</span>
+                            <input
+                              value={line.brand}
+                              onChange={(e) => updateLine(index, { brand: e.target.value })}
+                              className={createInputCls}
+                              placeholder="VD: Honda"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-xs font-bold text-slate-500 mb-1.5 block">Danh mục</span>
+                            <select
+                              value={line.category_id ?? ''}
+                              onChange={(e) => updateLine(index, { category_id: e.target.value ? Number(e.target.value) : null })}
+                              className={createInputCls}
+                            >
+                              <option value="">-- Chọn danh mục --</option>
+                              {categories.map((c) => (
+                                <option key={c.id} value={c.id}>{c.category_name}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="block">
+                            <span className="text-xs font-bold text-slate-500 mb-1.5 block">Bảo hành (tháng)</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={line.warranty_period_months ?? ''}
+                              onChange={(e) => updateLine(index, { warranty_period_months: e.target.value ? Number(e.target.value) : null })}
+                              className={createInputCls}
+                              placeholder="VD: 6"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-xs font-bold text-slate-500 mb-1.5 block">Bảo hành (km)</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={line.warranty_km_limit ?? ''}
+                              onChange={(e) => updateLine(index, { warranty_km_limit: e.target.value ? Number(e.target.value) : null })}
+                              className={createInputCls}
+                              placeholder="VD: 5000"
+                            />
+                          </label>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="block">
+                          <span className="text-xs font-bold text-slate-500 mb-1.5 block">Số lượng</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={line.quantity}
+                            onChange={(e) => updateLine(index, { quantity: Number(e.target.value) })}
+                            className={createInputCls}
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs font-bold text-slate-500 mb-1.5 block">Đơn giá nhập</span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={line.unit_price}
+                            onChange={(e) => updateLine(index, { unit_price: Number(e.target.value) })}
+                            className={createInputCls}
+                          />
+                        </label>
+                      </div>
+
+                      <div className="text-right text-xs font-bold text-slate-400">
+                        Thành tiền: <span className="text-[#00285E]">{formatPrice(line.quantity * line.unit_price)}</span>
+                      </div>
+
+                      {/* Gợi ý khi BE trả 409 - trùng/giống phụ tùng đã có */}
+                      {line.conflict && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle size={16} className="text-amber-500 mt-0.5 shrink-0" />
+                            <p className="text-xs font-semibold text-amber-700">{line.conflict.message}</p>
+                          </div>
+                          {line.conflict.candidates.length > 0 && (
+                            <div className="space-y-1.5">
+                              {line.conflict.candidates.map((c) => (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => updateLine(index, { mode: 'existing', part_id: c.id, conflict: null })}
+                                  className="w-full flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2 text-left hover:bg-amber-100/60 transition-colors border border-amber-100"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Package size={14} className="text-amber-500 shrink-0" />
+                                    <span className="text-xs font-bold text-slate-700">{c.name}</span>
+                                    {c.brand && <span className="text-xs text-slate-400">({c.brand})</span>}
+                                  </div>
+                                  <span className="text-xs font-semibold text-slate-400">{c.sku}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addLine}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-slate-300 text-sm font-bold text-slate-500 hover:border-[#00285E] hover:text-[#00285E] transition-colors"
+                >
+                  <Plus size={16} />
+                  Thêm dòng
+                </button>
 
                 <div className="bg-slate-50 rounded-xl p-4 flex items-center justify-between">
                   <span className="text-sm font-semibold text-slate-500">Tổng giá trị phiếu</span>
-                  <span className="text-xl font-bold text-[#00285E]">{formatPrice(receiptTotal(selected))}</span>
+                  <span className="text-xl font-bold text-[#00285E]">{formatPrice(formTotal)}</span>
                 </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 p-6 border-t border-slate-100 bg-white shrink-0">
+                <button
+                  onClick={() => {
+                    resetCreateForm();
+                    setCreateOpen(false);
+                  }}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleCreateImport}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-[#00285E] text-white hover:bg-[#082245] transition-colors shadow-md shadow-[#00285E]/10"
+                >
+                  Tạo phiếu nhập
+                </button>
               </div>
             </motion.div>
           </div>
@@ -383,3 +560,6 @@ export default function ImportHistory() {
     </div>
   );
 }
+
+const createInputCls =
+  'w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all';
