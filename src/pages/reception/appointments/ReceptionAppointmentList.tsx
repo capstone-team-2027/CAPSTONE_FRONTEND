@@ -77,7 +77,7 @@ export default function AppointmentList() {
           return {
             id: String(appt.id),
             customerId: appt.customer?.id ? String(appt.customer.id) : '',
-            customerName: appt.customer?.user?.fullName || 'Khách vãng lai',
+            customerName: appt.customer?.user?.fullName || appt.customer?.name || 'Khách vãng lai',
             customerPhone: appt.customer?.user?.phoneNumber || appt.customer?.phone || '',
             customerEmail: appt.customer?.user?.email || undefined,
             vehicleId: appt.vehicle?.id ? String(appt.vehicle.id) : '',
@@ -116,11 +116,35 @@ export default function AppointmentList() {
   const [odoNumber, setOdoNumber] = useState('');
   const [isSubmittingVin, setIsSubmittingVin] = useState(false);
 
-  const onOpenVinModal = (apptId: string, serviceOrderId?: string) => {
+  const handleReceiveClick = async (apptId: string, currentStatus: string, serviceOrderId?: string) => {
     setSelectedApptId(apptId);
     setSelectedServiceOrderId(serviceOrderId || null);
     setVinNumber('');
     setOdoNumber('');
+
+    try {
+      const res = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.CHECK_VEHICLE_INFO(apptId));
+      if (res.success && res.data) {
+        const { has_vin, vin_number, has_odo, last_odo } = res.data;
+        
+        // Nếu đã có đủ VIN và ODO, tự động tiếp nhận luôn
+        if (has_vin && has_odo) {
+          if (currentStatus !== 'in_progress') {
+            const receiveRes = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.RECEIVE_APPOINTMENT(apptId), 'PUT');
+            if (!receiveRes.success) throw new Error(receiveRes.message || 'Lỗi tiếp nhận');
+          }
+          showToast('Tiếp nhận thành công (Đã có sẵn VIN và ODO)', 'success');
+          navigate(`/reception/service-orders/create?appointmentId=${apptId}&odo=${last_odo}`);
+          return;
+        }
+
+        if (has_vin) setVinNumber(vin_number);
+        if (has_odo) setOdoNumber(last_odo.toString());
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    
     setIsVinModalOpen(true);
   };
 
@@ -153,20 +177,25 @@ export default function AppointmentList() {
         if (!odoResponse.success) throw new Error(odoResponse.message || 'Lỗi cập nhật ODO');
       }
 
-      // Receive appointment
-      const receiveResponse = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.RECEIVE_APPOINTMENT(selectedApptId), 'PUT');
-      if (receiveResponse.success) {
-        showToast(`Tiếp nhận xe cho lịch hẹn APT-${selectedApptId.padStart(3, '0')} thành công!`, 'success');
-        setIsVinModalOpen(false);
-        loadAppointments();
+      // Receive appointment if not already received
+      const appt = appointments.find(a => a.id === selectedApptId);
+      const isAlreadyReceived = appt?.status === 'in_progress';
 
-        if (selectedServiceOrderId) {
-          navigate(`/reception/service-orders/${selectedServiceOrderId}`);
-        } else {
-          navigate(`/reception/service-orders/create?appointmentId=${selectedApptId}&odo=${odoNumber}`);
+      if (!isAlreadyReceived) {
+        const receiveResponse = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.RECEIVE_APPOINTMENT(selectedApptId), 'PUT');
+        if (!receiveResponse.success) {
+          throw new Error(receiveResponse.message || 'Lỗi tiếp nhận lịch hẹn');
         }
+      }
+
+      showToast(`Cập nhật thông tin cho lịch hẹn APT-${selectedApptId.padStart(3, '0')} thành công!`, 'success');
+      setIsVinModalOpen(false);
+      loadAppointments();
+
+      if (selectedServiceOrderId) {
+        navigate(`/reception/service-orders/${selectedServiceOrderId}`);
       } else {
-        throw new Error(receiveResponse.message || 'Lỗi tiếp nhận lịch hẹn');
+        navigate(`/reception/service-orders/create?appointmentId=${selectedApptId}&odo=${odoNumber}`);
       }
     } catch (err: any) {
       console.error(err);
@@ -417,44 +446,22 @@ export default function AppointmentList() {
                           </button>
                           {(apt.status === 'confirmed' || apt.status === 'pending' || apt.status === 'in_progress') && (
                             <>
-                              {apt.hasServiceOrder ? (
+                              {(apt.hasServiceOrder && apt.vinNumber) ? (
                                 <button
-                                  onClick={() => onOpenVinModal(apt.id, apt.serviceOrderId)}
-                                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
+                                  onClick={() => navigate(`/reception/service-orders/${apt.serviceOrderId}`)}
+                                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 transition-colors"
+                                >
+                                  <CarFront size={13} />
+                                  Xem Lệnh S/C
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleReceiveClick(apt.id, apt.status, apt.serviceOrderId)}
+                                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:bg-[#001a3f] transition-colors"
                                 >
                                   <CarFront size={13} />
                                   Tiếp nhận xe
                                 </button>
-                              ) : (
-                                <>
-                                  {apt.vinNumber ? (
-                                    <button
-                                      onClick={async () => {
-                                        try {
-                                          if (apt.status !== 'in_progress') {
-                                            const res = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.RECEIVE_APPOINTMENT(apt.id), 'PUT');
-                                            if (!res.success) throw new Error(res.message || 'Lỗi tiếp nhận');
-                                          }
-                                          navigate(`/reception/service-orders/create?appointmentId=${apt.id}`);
-                                        } catch (err: any) {
-                                          showToast(err.message || 'Lỗi xử lý', 'warning');
-                                        }
-                                      }}
-                                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
-                                    >
-                                      <CarFront size={13} />
-                                      Tạo HĐ Dịch vụ
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={() => onOpenVinModal(apt.id)}
-                                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:bg-[#001a3f] transition-colors"
-                                    >
-                                      <CarFront size={13} />
-                                      Tiếp nhận
-                                    </button>
-                                  )}
-                                </>
                               )}
                             </>
                           )}

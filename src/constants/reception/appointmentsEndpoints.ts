@@ -5,6 +5,7 @@ export const APPOINTMENT_API_ENDPOINTS = {
     GET_APPOINTMENT_DETAIL: (key: string) => `${API_BASE_URL}/api/receptionist/appointment/${key}`,
     RECEIVE_APPOINTMENT: (key: string) => `${API_BASE_URL}/api/receptionist/appointment/${key}/receive`,
     UPDATE_VIN: (key: string) => `${API_BASE_URL}/api/receptionist/appointment/${key}/vin`,
+    CHECK_VEHICLE_INFO: (key: string) => `${API_BASE_URL}/api/receptionist/appointment/${key}/vehicle-info`,
 };
 
 export const SERVICE_ORDER_API_ENDPOINTS = {

@@ -63,7 +63,7 @@ export default function ReceptionServiceOrderList() {
   // Filtered data
   const filteredOrders = useMemo(() => {
     return serviceOrders.filter((so) => {
-      const customerName = so.vehicle?.customer?.user?.fullName || '';
+      const customerName = so.vehicle?.customer?.user?.fullName || so.vehicle?.customer?.name || '';
       const customerPhone = so.vehicle?.customer?.phone || '';
       const vehiclePlate = so.vehicle?.license_plate || '';
       const soId = `SO-${so.id}`;
@@ -207,6 +207,7 @@ export default function ReceptionServiceOrderList() {
                   <th className="py-3 px-4">Khách hàng</th>
                   <th className="py-3 px-4">Xe</th>
                   <th className="py-3 px-4">Ngày tạo</th>
+                  <th className="py-3 px-4">Tiến độ</th>
                   <th className="py-3 px-4">Trạng thái</th>
                   <th className="py-3 px-4 text-center">Thao tác</th>
                 </tr>
@@ -226,7 +227,7 @@ export default function ReceptionServiceOrderList() {
                             <Users size={16} className="text-[#00285E]" />
                           </div>
                           <div>
-                            <p className="font-semibold text-slate-800 text-sm whitespace-nowrap">{so.vehicle?.customer?.user?.fullName || 'Khách vãng lai'}</p>
+                            <p className="font-semibold text-slate-800 text-sm whitespace-nowrap">{so.vehicle?.customer?.user?.fullName || so.vehicle?.customer?.name || 'Khách vãng lai'}</p>
                             <p className="text-slate-400 text-xs">{so.vehicle?.customer?.phone}</p>
                           </div>
                         </div>
@@ -239,6 +240,28 @@ export default function ReceptionServiceOrderList() {
                       </td>
                       <td className="py-4 px-4">
                         <span className="text-xs text-slate-600 font-semibold">{formatDate(so.createdAt)}</span>
+                      </td>
+                      <td className="py-4 px-4">
+                        {(() => {
+                          const tasks = so.tasks || [];
+                          const totalTasks = tasks.length;
+                          const completedTasks = tasks.filter((t: any) => t.status === 'COMPLETED').length;
+                          const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+                          return (
+                            <div className="w-full max-w-[120px]">
+                              <div className="flex justify-between text-[10px] font-bold mb-1">
+                                <span className="text-slate-500">{completedTasks}/{totalTasks} công việc</span>
+                                <span className={progressPercentage === 100 ? 'text-emerald-600' : 'text-[#00285E]'}>{progressPercentage}%</span>
+                              </div>
+                              <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${progressPercentage === 100 ? 'bg-emerald-500' : 'bg-[#00285E]'}`}
+                                  style={{ width: `${progressPercentage}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="py-4 px-4">
                         <span
@@ -286,11 +309,10 @@ export default function ReceptionServiceOrderList() {
                 <button
                   key={page}
                   onClick={() => setCurrentPage(page)}
-                  className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
-                    page === currentPage
+                  className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${page === currentPage
                       ? 'bg-[#00285E] text-white shadow-md'
                       : 'text-slate-500 hover:bg-slate-100'
-                  }`}
+                    }`}
                 >
                   {page}
                 </button>

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   ClipboardPlus,
   ArrowLeft,
@@ -21,55 +21,25 @@ import {
   ChevronDown,
   ChevronUp,
   Tag,
+  Clock,
 } from 'lucide-react';
 import { useNavigate, useSearchParams, useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import type { ServiceItem } from '../../../model/ServiceOrder';
+import * as PhoneInputLib from 'react-phone-input-2';
+import 'react-phone-input-2/lib/style.css';
 import { SERVICE_ORDER_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
-import { useFetchClient } from '../../../hook/useFetchClient';
+import { useFetchClient, useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
+import { SEARCH_API_ENDPOINTS } from '../../../constants/reception/searchEndpoints';
+import SingleServicesSelector from '../../customer/booking/SingleServicesSelector';
+import ComboServicesSelector from '../../customer/booking/ComboServicesSelector';
+import { SERVICE_API_ENDPOINTS } from '../../../constants/customer/serviceApiEndpoints';
+import type { ServiceCombo, ServiceItem as CustomerServiceItem } from '../../../model/Service';
+import { useTranslation } from 'react-i18next';
+import { VEHICLE_MAKE_MODEL_API_ENDPOINTS } from '../../../constants/customer/vehicelMakeModelEndpoint';
+import { GARAGE_CONFIG_API_ENDPOINTS } from '../../../constants/customer/garage_configurationsEndpoints';
 
-// ========== MOCK: Appointment data (auto-fill) ==========
-const MOCK_APPOINTMENT_DATA: Record<string, {
-  id: string; customerName: string; customerPhone: string;
-  vehiclePlate: string; vehicleModel: string; vehicleYear: number; vehicleMileage: number;
-  appointmentDate: string; appointmentTime: string;
-  services?: string[];
-}> = {
-  'APT-001': {
-    id: 'APT-001', customerName: 'Nguyễn Văn An', customerPhone: '0901 234 567',
-    vehiclePlate: '51A-123.45', vehicleModel: 'Toyota Camry 2.5Q', vehicleYear: 2020, vehicleMileage: 45000,
-    appointmentDate: '2026-06-02', appointmentTime: '09:00',
-    services: ['SV001', 'SV003'], // Bảo dưỡng định kỳ cấp 1, Thay dầu Castrol
-  },
-  'APT-002': {
-    id: 'APT-002', customerName: 'Trần Thị Bình', customerPhone: '0912 345 678',
-    vehiclePlate: '30H-456.78', vehicleModel: 'Honda City RS', vehicleYear: 2022, vehicleMileage: 22000,
-    appointmentDate: '2026-06-02', appointmentTime: '10:30',
-    services: ['SV003'], // Thay dầu Castrol
-  },
-};
 
-// ========== MOCK: Existing customers without appointments ==========
-const MOCK_EXISTING_CUSTOMERS = [
-  { id: 'CUST-001', name: 'Lê Hoàng Long', phone: '0912 345 678', plate: '51F-987.65', model: 'Honda CR-V 2018', year: 2018, mileage: 82000 },
-  { id: 'CUST-002', name: 'Phạm Minh Đức', phone: '0933 445 566', plate: '51G-234.56', model: 'Ford Ranger Wildtrak', year: 2021, mileage: 55000 },
-  { id: 'CUST-003', name: 'Vũ Hoài Nam', phone: '0977 889 900', plate: '30K-987.65', model: 'VinFast VF 8', year: 2023, mileage: 12000 },
-];
-
-// ========== MOCK: Available services ==========
-const AVAILABLE_SERVICES: ServiceItem[] = [
-  { id: 'SV001', name: 'Bảo dưỡng định kỳ cấp 1', category: 'Bảo dưỡng', price: 500000 },
-  { id: 'SV002', name: 'Bảo dưỡng định kỳ cấp 2', category: 'Bảo dưỡng', price: 1200000 },
-  { id: 'SV003', name: 'Thay dầu động cơ Castrol', category: 'Dầu nhớt', price: 650000 },
-  { id: 'SV004', name: 'Cân chỉnh thước lái 3D', category: 'Sửa chữa gầm', price: 600000 },
-  { id: 'SV005', name: 'Vệ sinh kim phun điện tử', category: 'Động cơ', price: 1200000 },
-  { id: 'SV006', name: 'Khử mùi diệt khuẩn ô tô', category: 'Chăm sóc xe', price: 200000 },
-  { id: 'SV007', name: 'Thay má phanh trước', category: 'Phanh', price: 800000 },
-  { id: 'SV008', name: 'Kiểm tra tổng quát', category: 'Kiểm tra', price: 300000 },
-  { id: 'SV009', name: 'Thay lọc gió điều hòa', category: 'Điều hòa', price: 250000 },
-  { id: 'SV010', name: 'Sơn phục hồi vết xước', category: 'Thân vỏ', price: 1500000 },
-];
 
 // ========== MOCK: Available combos ==========
 interface ComboItem {
@@ -81,34 +51,71 @@ interface ComboItem {
   services: string[];
 }
 
-const MOCK_COMBOS: ComboItem[] = [
-  {
-    id: 'CB001',
-    name: 'Combo Chăm Sóc Toàn Diện',
-    price: 1100000,
-    category: 'Combo',
-    description: 'Bao gồm: Bảo dưỡng cấp 1, Thay dầu Castrol, Khử mùi diệt khuẩn',
-    services: ['SV001', 'SV003', 'SV006'],
-  },
-  {
-    id: 'CB002',
-    name: 'Combo An Toàn Hành Trình',
-    price: 1800000,
-    category: 'Combo',
-    description: 'Bao gồm: Bảo dưỡng cấp 2, Cân chỉnh thước lái 3D, Kiểm tra tổng quát',
-    services: ['SV002', 'SV004', 'SV008'],
-  },
-  {
-    id: 'CB003',
-    name: 'Combo Vận Hành Êm Ái',
-    price: 1800000,
-    category: 'Combo',
-    description: 'Bao gồm: Thay dầu Castrol, Vệ sinh kim phun, Thay lọc gió điều hòa',
-    services: ['SV003', 'SV005', 'SV009'],
-  },
-];
+// ── resolve PhoneInput default export ─────────────────────────
+type Mod = { default?: unknown };
+function resolveDefault<T>(mod: unknown): T {
+  const m = mod as Mod;
+  if (m && typeof m === 'object' && 'default' in m) {
+    const d = m.default as unknown;
+    if (d && typeof d === 'object' && 'default' in (d as Mod)) return (d as Mod).default as T;
+    return d as T;
+  }
+  return mod as T;
+}
+type PhoneInputProps = {
+  country?: string;
+  value?: string;
+  onChange?: (value: string) => void;
+  onBlur?: () => void;
+  enableSearch?: boolean;
+  searchPlaceholder?: string;
+  inputProps?: { name?: string };
+};
+const PhoneInput = resolveDefault<React.ComponentType<PhoneInputProps>>(PhoneInputLib);
+
+const phoneStyles = `
+    .login-phone .react-tel-input .form-control {
+        width: 100% !important;
+        height: 48px !important;
+        background: white !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 0.75rem !important;
+        padding: 0 20px 0 58px !important;
+        font-size: 14px !important;
+        color: #0f172a !important;
+        letter-spacing: 0.3px !important;
+        outline: none !important;
+        transition: all 0.2s !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+    }
+    .login-phone .react-tel-input .form-control:focus {
+        border-color: #00285E !important;
+        box-shadow: 0 0 0 2px rgba(0,40,94,0.1) !important;
+    }
+    .login-phone .react-tel-input .flag-dropdown {
+        background: white !important;
+        border: 1px solid #e2e8f0 !important;
+        border-right: none !important;
+        border-radius: 0.75rem 0 0 0.75rem !important;
+    }
+    .login-phone .react-tel-input .flag-dropdown:hover,
+    .login-phone .react-tel-input .flag-dropdown.open {
+        background: #f8fafc !important;
+    }
+    .login-phone .react-tel-input .selected-flag {
+        background: transparent !important;
+        padding: 0 8px 0 14px !important;
+        border-radius: 0.75rem 0 0 0.75rem !important;
+    }
+`;
+
+const MOCK_APPOINTMENT_DATA: Record<string, any> = {};
+const MOCK_EXISTING_CUSTOMERS: any[] = [];
+
+
 
 export default function ReceptionCreateServiceOrder() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { showToast } = useOutletContext<{
@@ -128,10 +135,82 @@ export default function ReceptionCreateServiceOrder() {
   const [manualCustName, setManualCustName] = useState('');
   const [manualCustPhone, setManualCustPhone] = useState('');
   const [manualVehiclePlate, setManualVehiclePlate] = useState('');
-  const [manualVehicleModel, setManualVehicleModel] = useState('');
+  const [manualVehicleVin, setManualVehicleVin] = useState('');
   const [manualVehicleYear, setManualVehicleYear] = useState('');
   const [currentOdo, setCurrentOdo] = useState('');
   const [bayId, setBayId] = useState('1'); // Cầu nâng (default 1)
+
+  // Vehicle autocomplete states
+  const [vehicleBrand, setVehicleBrand] = useState('');
+  const [vehicleModel, setVehicleModel] = useState('');
+  const [brandSuggestions, setBrandSuggestions] = useState<any[]>([]);
+  const [modelSuggestions, setModelSuggestions] = useState<any[]>([]);
+  const [selectedMakeId, setSelectedMakeId] = useState<number | null>(null);
+  const [showBrandSuggestions, setShowBrandSuggestions] = useState(false);
+  const [showModelSuggestions, setShowModelSuggestions] = useState(false);
+
+  const brandRef = useRef<HTMLDivElement>(null);
+  const modelRef = useRef<HTMLDivElement>(null);
+
+  // Time selection states
+  const [bookingDate, setBookingDate] = useState('');
+  const [bookingTime, setBookingTime] = useState('');
+  const [shifts, setShifts] = useState<any[]>([]);
+  const [bufferMinutes, setBufferMinutes] = useState<number>(30);
+  const [garageCapacity, setGarageCapacity] = useState<number>(1);
+  const [bookedCounts, setBookedCounts] = useState<Record<string, number>>({});
+
+  const minDateStr = useMemo(() => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
+
+  const timeSlots = useMemo(() => {
+    const slots: { time: string; label: string; isFull: boolean }[] = [];
+    shifts.forEach(shift => {
+      const [startH, startM] = (shift.start_time || "").split(':').map(Number);
+      const [endH, endM] = (shift.end_time || "").split(':').map(Number);
+      if (isNaN(startH) || isNaN(endH)) return;
+
+      let currentMinutes = startH * 60 + (startM || 0);
+      const endMinutes = endH * 60 + (endM || 0);
+
+      while (currentMinutes < endMinutes) {
+        const h = Math.floor(currentMinutes / 60);
+        const m = currentMinutes % 60;
+        const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        const label = h < 12 ? 'Sáng' : 'Chiều';
+
+        // Calculate UTC hour for bookedCounts matching
+        const utcHour = (h - 7 + 24) % 24;
+        const isFull = (bookedCounts[utcHour] || 0) >= garageCapacity;
+
+        slots.push({ time: timeStr, label, isFull });
+        currentMinutes += bufferMinutes;
+      }
+    });
+
+    if (bookingDate === minDateStr) {
+      const now = new Date();
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      return slots.filter(slot => {
+        const [slotH, slotM] = slot.time.split(':').map(Number);
+        const slotMinutes = slotH * 60 + slotM;
+        return slotMinutes >= nowMinutes + 30;
+      });
+    }
+
+    return slots;
+  }, [shifts, bufferMinutes, bookingDate, minDateStr, bookedCounts, garageCapacity]);
+
+  useEffect(() => {
+    if (bookingTime && !timeSlots.some(slot => slot.time === bookingTime)) {
+      setBookingTime('');
+    }
+  }, [bookingDate, timeSlots, bookingTime]);
 
   // Common fields
   const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
@@ -141,8 +220,198 @@ export default function ReceptionCreateServiceOrder() {
   const [activeServiceTab, setActiveServiceTab] = useState<'single' | 'combo' | 'category'>('single');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
-  const { fetchPrivate } = useFetchClient();
+  const { fetchPrivate, fetchPublic } = useFetchClient_v2();
   const [isLoadingRecord, setIsLoadingRecord] = useState(false);
+
+  // Dynamic Data States for Services
+  const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([]);
+  const [selectedComboId, setSelectedComboId] = useState<number | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [servicePage, setServicePage] = useState(1);
+  const [dbServices, setDbServices] = useState<any[]>([]);
+  const [dbCategories, setDbCategories] = useState<any[]>([]);
+  const [dbCombos, setDbCombos] = useState<ServiceCombo[]>([]);
+
+  // Load dynamic categories & services from backend
+  useEffect(() => {
+    const loadDbData = async () => {
+      try {
+        const catRes = await fetchPrivate(SERVICE_API_ENDPOINTS.GET_CATEGORIES);
+        if (catRes && catRes.data) {
+          setDbCategories(catRes.data);
+        }
+      } catch (error) {
+        console.error("Lỗi khi tải dữ liệu categories:", error);
+      }
+
+      try {
+        const svcRes = await fetchPrivate(SERVICE_API_ENDPOINTS.GET_SERVICES);
+        if (svcRes && svcRes.data) {
+          setDbServices(svcRes.data);
+        }
+      } catch (error) {
+        console.error("Lỗi khi tải dữ liệu services:", error);
+      }
+
+      try {
+        const comboRes = await fetchPrivate(SERVICE_API_ENDPOINTS.GET_COMBOS);
+        if (comboRes && comboRes.data) {
+          const mappedCombos = comboRes.data.map((c: any) => {
+            const serviceIds = (c.catalogs || []).map((cat: any) => cat.id);
+            return {
+              id: c.id,
+              combo_name: c.combo_name,
+              category_id: c.catalogs?.[0]?.category_id || 1,
+              service_ids: serviceIds,
+              discount_percentage: 10,
+              is_active: c.is_active,
+              createdAt: c.createdAt || new Date().toISOString(),
+            };
+          });
+          setDbCombos(mappedCombos);
+        }
+      } catch (error) {
+        console.error("Lỗi khi tải dữ liệu combos:", error);
+      }
+    };
+    loadDbData();
+  }, []);
+
+  // Fetch Configs
+  useEffect(() => {
+    const loadGarageConfigs = async () => {
+      try {
+        const bufferRes = await fetchPublic(GARAGE_CONFIG_API_ENDPOINTS.GET_CONFIGURATION_BY_KEY("BUFFER_TIME_MINUTES"));
+        if (bufferRes && bufferRes.success && bufferRes.data) {
+          const parsedVal = parseInt(bufferRes.data.config_value, 10);
+          if (!isNaN(parsedVal) && parsedVal > 0) {
+            setBufferMinutes(parsedVal);
+          }
+        }
+      } catch (error) {
+        console.error("Lỗi khi tải cấu hình BUFFER_TIME_MINUTES:", error);
+      }
+
+      try {
+        const dateParam = bookingDate ? `?date=${bookingDate}` : '';
+        const availRes = await fetchPublic(GARAGE_CONFIG_API_ENDPOINTS.GET_AVAILABILITY + dateParam);
+        if (availRes && availRes.success && availRes.data) {
+          const data = availRes.data;
+          if (data.shifts) setShifts(data.shifts);
+          if (data.capacity !== undefined) setGarageCapacity(data.capacity);
+          if (data.bookedCounts) setBookedCounts(data.bookedCounts);
+        }
+      } catch (error) {
+        console.error("Lỗi tải ca làm việc và tình trạng sức chứa:", error);
+      }
+    };
+    loadGarageConfigs();
+  }, [bookingDate, fetchPublic]);
+
+  // Handle click outside to close suggestions
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (brandRef.current && !brandRef.current.contains(event.target as Node)) {
+        setShowBrandSuggestions(false);
+      }
+      if (modelRef.current && !modelRef.current.contains(event.target as Node)) {
+        setShowModelSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Debounce fetch Vehicle Brands
+  useEffect(() => {
+    if (!vehicleBrand.trim()) {
+      setBrandSuggestions([]);
+      return;
+    }
+
+    const delayFn = setTimeout(async () => {
+      try {
+        const res = await fetchPublic(VEHICLE_MAKE_MODEL_API_ENDPOINTS.GET_VEHICLE_MAKES, "POST", { search: vehicleBrand });
+        if (res && res.data) {
+          setBrandSuggestions(res.data);
+        }
+      } catch (error) {
+        console.error("Lỗi khi tìm kiếm hãng xe:", error);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayFn);
+  }, [vehicleBrand, fetchPublic]);
+
+  // Debounce fetch Vehicle Models
+  useEffect(() => {
+    if (!vehicleModel.trim()) {
+      setModelSuggestions([]);
+      return;
+    }
+
+    const delayFn = setTimeout(async () => {
+      try {
+        const body: any = { search: vehicleModel };
+        if (selectedMakeId) body.make_id = selectedMakeId;
+
+        const res = await fetchPublic(VEHICLE_MAKE_MODEL_API_ENDPOINTS.GET_VEHICLE_MODELS, "POST", body);
+        if (res && res.data) {
+          setModelSuggestions(res.data);
+        }
+      } catch (error) {
+        console.error("Lỗi khi tìm kiếm dòng xe:", error);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayFn);
+  }, [vehicleModel, selectedMakeId, fetchPublic]);
+
+  const activeCategories = useMemo(() => {
+    return dbCategories.filter((c: any) => c.is_active !== false);
+  }, [dbCategories]);
+
+  const activeDbServices = useMemo(() => {
+    return dbServices.filter((s: any) => s.is_active !== false);
+  }, [dbServices]);
+
+  const mappedServices: CustomerServiceItem[] = useMemo(() => {
+    return activeDbServices.map((s: any) => {
+      const priceValue = s.price || s.base_price || 0;
+      const discountPercent = s.discount_percentage || 0;
+      const originalPriceValue = discountPercent > 0 && priceValue > 0 ? Math.round(priceValue / (1 - discountPercent / 100)) : 0;
+      const originalPriceStr = originalPriceValue > 0 ? `Từ ${originalPriceValue.toLocaleString("vi-VN")}đ` : "";
+
+      const ratingVal = s.rating || 5.0;
+      const reviewVal = s.review_count || 0;
+
+      let detailsList = s.details || [];
+      if (!Array.isArray(detailsList)) {
+        detailsList = [detailsList];
+      }
+      if (detailsList.length === 0) {
+        detailsList = [s.description || "Chi tiết dịch vụ chưa được cập nhật."];
+      }
+
+      return {
+        id: s.id,
+        title: s.service_name,
+        desc: s.description || "",
+        price: priceValue > 0 ? `Từ ${priceValue.toLocaleString("vi-VN")}đ` : "Liên hệ",
+        numericPrice: priceValue,
+        originalPrice: originalPriceStr || undefined,
+        discountPercentage: discountPercent > 0 ? discountPercent : undefined,
+        promoText: s.promo_text || "",
+        rating: ratingVal,
+        reviewCount: reviewVal,
+        badge: s.badge || undefined,
+        details: detailsList,
+        category_id: s.category_id
+      };
+    });
+  }, [activeDbServices]);
 
   // Handle URL appointmentId param on mount
   useEffect(() => {
@@ -189,6 +458,19 @@ export default function ReceptionCreateServiceOrder() {
               appointmentTime = String(dateObj.getHours()).padStart(2, '0') + ':' + String(dateObj.getMinutes()).padStart(2, '0');
             }
 
+            const initialServiceIds: number[] = [];
+            let initialComboId: number | null = null;
+            if (Array.isArray(data.appointmentDetails)) {
+              data.appointmentDetails.forEach((detail: any) => {
+                if (detail.catalog) {
+                  initialServiceIds.push(detail.catalog.id);
+                }
+                if (detail.combo) {
+                  initialComboId = detail.combo.id;
+                }
+              });
+            }
+
             setSelectedRecord({
               type: 'appointment',
               id: String(data.id),
@@ -202,6 +484,8 @@ export default function ReceptionCreateServiceOrder() {
               appointmentTime,
               servicesDetails,
             });
+            setSelectedServiceIds(initialServiceIds);
+            setSelectedComboId(initialComboId);
             setMode('approved_record');
           }
         } catch (e) {
@@ -215,161 +499,105 @@ export default function ReceptionCreateServiceOrder() {
   }, [searchParams]);
 
   // Search algorithm for Tab 1
-  const handleSearchRecord = (val: string) => {
-    setRecordSearch(val);
-    if (!val.trim()) {
+  const handleSearchRecord = async () => {
+    if (!recordSearch || !recordSearch.trim()) {
       setSearchResults([]);
       return;
     }
 
-    const valLower = val.toLowerCase();
+    try {
+      const res = await fetchPrivate(SEARCH_API_ENDPOINTS.CUSTOMER_INFO_BY_PHONE, 'POST', { phone: recordSearch });
+      if (res && res.success && res.data) {
+        const { customer, appointments } = res.data;
+        const results: any[] = [];
 
-    // Search in mock appointments
-    const filteredAppts = Object.values(MOCK_APPOINTMENT_DATA)
-      .filter(
-        (a) =>
-          a.id.toLowerCase().includes(valLower) ||
-          a.customerName.toLowerCase().includes(valLower) ||
-          a.customerPhone.includes(val) ||
-          a.vehiclePlate.toLowerCase().includes(valLower)
-      )
-      .map((a) => ({
-        type: 'appointment',
-        id: a.id,
-        name: a.customerName,
-        phone: a.customerPhone,
-        plate: a.vehiclePlate,
-        model: a.vehicleModel,
-        year: a.vehicleYear,
-        mileage: a.vehicleMileage,
-        appointmentDate: a.appointmentDate,
-        appointmentTime: a.appointmentTime,
-        services: a.services,
-      }));
+        // 1. Nếu khách hàng có Lịch hẹn (Appointments)
+        if (appointments && appointments.length > 0) {
+          appointments.forEach((apt: any) => {
+            results.push({
+              type: 'appointment',
+              id: String(apt.id),
+              name: apt.customer_name,
+              phone: apt.phone,
+              plate: apt.vehicle?.license_plate || 'Chưa cập nhật',
+              vin: apt.vehicle?.vin_number || '',
+              model: apt.vehicle ? `${apt.vehicle.brand} ${apt.vehicle.model}`.trim() : 'Chưa cập nhật',
+              appointmentDate: apt.appointmentDate,
+              appointmentTime: apt.appointmentTime,
+            });
+          });
+        }
 
-    // Search in existing customers
-    const filteredCustomers = MOCK_EXISTING_CUSTOMERS.filter(
-      (c) =>
-        c.id.toLowerCase().includes(valLower) ||
-        c.name.toLowerCase().includes(valLower) ||
-        c.phone.includes(val) ||
-        c.plate.toLowerCase().includes(valLower)
-    ).map((c) => ({
-      type: 'customer',
-      id: c.id,
-      name: c.name,
-      phone: c.phone,
-      plate: c.plate,
-      model: c.model,
-      year: c.year,
-      mileage: c.mileage,
-    }));
+        // 2. Tùy chọn Tiếp nhận khách vãng lai (Không có lịch hẹn)
+        if (customer) {
+          if (customer.vehicles && customer.vehicles.length > 0) {
+            customer.vehicles.forEach((v: any) => {
+              results.push({
+                type: 'customer',
+                id: customer.id,
+                name: customer.customer_name,
+                phone: customer.phone,
+                plate: v.license_plate || 'Chưa cập nhật',
+                vin: v.vin_number,
+                model: `${v.brand} ${v.model}`.trim() || 'Chưa cập nhật',
+                vehicleId: v.id
+              });
+            });
+          } else {
+            results.push({
+              type: 'customer',
+              id: customer.id,
+              name: customer.customer_name,
+              phone: customer.phone,
+              plate: 'Chưa cập nhật',
+              model: 'Chưa cập nhật',
+            });
+          }
+        }
 
-    setSearchResults([...filteredAppts, ...filteredCustomers]);
+        if (results.length > 0) {
+          setSearchResults(results);
+        } else {
+          setSearchResults([]);
+          showToast('Không tìm thấy khách hàng hoặc lịch hẹn', 'info');
+        }
+      } else {
+        setSearchResults([]);
+        showToast('Không tìm thấy khách hàng', 'info');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setSearchResults([]);
+      showToast('Không tìm thấy khách hàng với số điện thoại này', 'warning');
+    }
   };
 
   const handleSelectRecord = (record: any) => {
     setSelectedRecord(record);
-    setSelectedServices(new Set());
-    setSelectedCombos(new Set());
+    setSelectedServiceIds([]);
+    setSelectedComboId(null);
     setRecordSearch('');
     setSearchResults([]);
   };
 
-  const toggleService = (serviceId: string) => {
-    setSelectedServices((prev) => {
-      const next = new Set(prev);
-      if (next.has(serviceId)) next.delete(serviceId);
-      else next.add(serviceId);
-      return next;
-    });
-  };
-
-  const toggleCombo = (comboId: string) => {
-    setSelectedCombos((prev) => {
-      const next = new Set(prev);
-      if (next.has(comboId)) next.delete(comboId);
-      else next.add(comboId);
-      return next;
-    });
-  };
-
-  const filteredServices = useMemo(() => {
-    if (!serviceSearch) return AVAILABLE_SERVICES;
-    const searchLower = serviceSearch.toLowerCase();
-    return AVAILABLE_SERVICES.filter(
-      (s) =>
-        s.name.toLowerCase().includes(searchLower) ||
-        s.category.toLowerCase().includes(searchLower)
-    );
-  }, [serviceSearch]);
-
-  const filteredCombos = useMemo(() => {
-    if (!serviceSearch) return MOCK_COMBOS;
-    const searchLower = serviceSearch.toLowerCase();
-    return MOCK_COMBOS.filter(
-      (c) =>
-        c.name.toLowerCase().includes(searchLower) ||
-        c.description.toLowerCase().includes(searchLower)
-    );
-  }, [serviceSearch]);
-
-  const categoriesWithServices = useMemo(() => {
-    const services = serviceSearch
-      ? AVAILABLE_SERVICES.filter(
-        (s) =>
-          s.name.toLowerCase().includes(serviceSearch.toLowerCase()) ||
-          s.category.toLowerCase().includes(serviceSearch.toLowerCase())
-      )
-      : AVAILABLE_SERVICES;
-
-    const groups: Record<string, ServiceItem[]> = {};
-    services.forEach((s) => {
-      if (!groups[s.category]) {
-        groups[s.category] = [];
-      }
-      groups[s.category].push(s);
-    });
-
-    return Object.entries(groups).map(([categoryName, items]) => {
-      const selectedInCat = items.filter((item) => selectedServices.has(item.id)).length;
-      return {
-        name: categoryName,
-        services: items,
-        selectedCount: selectedInCat,
-      };
-    });
-  }, [serviceSearch, selectedServices]);
-
-  // Auto expand categories when searching
-  useEffect(() => {
-    if (serviceSearch.trim()) {
-      const matchingCats = categoriesWithServices.map((c) => c.name);
-      setExpandedCategories(new Set(matchingCats));
-    }
-  }, [serviceSearch, categoriesWithServices]);
-
-  const toggleCategoryExpand = (catName: string) => {
-    setExpandedCategories((prev) => {
-      const next = new Set(prev);
-      if (next.has(catName)) next.delete(catName);
-      else next.add(catName);
-      return next;
-    });
-  };
-
   const selectedTotal = useMemo(() => {
-    if (mode === 'approved_record' && selectedRecord?.type === 'appointment') {
-      return (selectedRecord.servicesDetails || []).reduce((sum: number, item: any) => sum + (item.price || 0), 0);
+    const servicesPrice = mappedServices
+      .filter((s) => selectedServiceIds.includes(s.id as number))
+      .reduce((sum, s) => sum + s.numericPrice, 0);
+
+    let combosPrice = 0;
+    if (selectedComboId) {
+      const combo = dbCombos.find(c => c.id === selectedComboId);
+      if (combo) {
+        const original = (combo.service_ids || []).reduce((sum, id) => {
+          const s = mappedServices.find(x => x.id === id);
+          return sum + (s?.numericPrice || 0);
+        }, 0);
+        combosPrice = Math.round(original * (1 - (combo.discount_percentage || 10) / 100));
+      }
     }
-    const servicesPrice = AVAILABLE_SERVICES
-      .filter((s) => selectedServices.has(s.id))
-      .reduce((sum, s) => sum + s.price, 0);
-    const combosPrice = MOCK_COMBOS
-      .filter((c) => selectedCombos.has(c.id))
-      .reduce((sum, c) => sum + c.price, 0);
     return servicesPrice + combosPrice;
-  }, [selectedServices, selectedCombos, mode, selectedRecord]);
+  }, [selectedServiceIds, selectedComboId, mappedServices, dbCombos]);
 
   const handleSubmit = async () => {
     try {
@@ -383,7 +611,7 @@ export default function ReceptionCreateServiceOrder() {
           return;
         }
       } else {
-        if (!manualCustName.trim() || !manualCustPhone.trim() || !manualVehiclePlate.trim() || !manualVehicleModel.trim()) {
+        if (!manualCustName.trim() || !manualCustPhone.trim() || !manualVehiclePlate.trim() || !vehicleBrand.trim() || !vehicleModel.trim()) {
           showToast('Vui lòng điền đầy đủ thông tin Khách hàng và Xe.', 'warning');
           return;
         }
@@ -393,27 +621,38 @@ export default function ReceptionCreateServiceOrder() {
         showToast('Vui lòng nhập số km hiện tại (ODO).', 'warning');
         return;
       }
-      if (!bayId) {
-        showToast('Vui lòng chọn cầu nâng.', 'warning');
+      if (!bookingDate || !bookingTime) {
+        showToast('Vui lòng chọn thời gian dự kiến hoàn thành.', 'warning');
         return;
       }
 
-      if (mode === 'first_time' && selectedServices.size === 0 && selectedCombos.size === 0) {
+      if (selectedServiceIds.length === 0 && !selectedComboId) {
         showToast('Vui lòng chọn ít nhất 1 dịch vụ hoặc combo.', 'warning');
-        return;
-      }
-      if (mode === 'approved_record' && selectedRecord?.type === 'appointment' && (!selectedRecord.servicesDetails || selectedRecord.servicesDetails.length === 0)) {
-        showToast('Lịch hẹn không có dịch vụ nào.', 'warning');
         return;
       }
 
       // Prepare payload
+      const estimated_finish_time = `${bookingDate}T${bookingTime}:00`;
       const payload: any = {
-        vehicle_id: mode === 'approved_record' ? Number(selectedRecord.vehicleId) : null, // Backend doesn't support creating vehicle in this API yet
-        bay_id: Number(bayId),
+        vehicle_id: mode === 'approved_record' ? Number(selectedRecord.vehicleId) : null,
+        bay_id: Number(bayId) || null,
         current_odo: Number(currentOdo),
-        estimated_finish_time: null
+        estimated_finish_time: estimated_finish_time,
+        service_ids: selectedServiceIds,
+        combo_ids: selectedComboId ? [selectedComboId] : []
       };
+
+      if (mode === 'first_time') {
+        payload.walk_in = {
+          customer_name: manualCustName,
+          customer_phone: manualCustPhone,
+          vehicle_plate: manualVehiclePlate,
+          vehicle_vin: manualVehicleVin,
+          vehicle_year: manualVehicleYear,
+          brand_name: vehicleBrand,
+          model_name: vehicleModel
+        };
+      }
 
       if (mode === 'approved_record' && selectedRecord?.type === 'appointment') {
         payload.appointment_id = Number(selectedRecord.id);
@@ -435,6 +674,7 @@ export default function ReceptionCreateServiceOrder() {
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-5xl w-full mx-auto">
+      <style>{phoneStyles}</style>
       {/* HEADER */}
       <div className="flex items-center gap-4">
         <button
@@ -467,7 +707,7 @@ export default function ReceptionCreateServiceOrder() {
             }`}
         >
           <Layers size={14} />
-          <span>Lịch hẹn / Khách hàng cũ</span>
+          <span>Khách hàng cũ</span>
         </button>
         <button
           onClick={() => {
@@ -498,17 +738,26 @@ export default function ReceptionCreateServiceOrder() {
             <div className="bg-slate-50 rounded-2xl border border-slate-200/60 p-5 space-y-3 relative">
               <h2 className="text-xs font-bold text-[#00285E] uppercase tracking-widest flex items-center gap-2">
                 <Search size={14} />
-                Tìm kiếm Lịch hẹn hoặc Khách hàng hiện tại
+                Tìm kiếm Khách hàng hiện tại bằng SĐT
               </h2>
-              <div className="relative">
-                <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-slate-400" size={16} />
-                <input
-                  type="text"
-                  placeholder="Nhập tên, SĐT, biển số xe, mã lịch hẹn (APT-001, APT-002, CUST-001)..."
-                  value={recordSearch}
-                  onChange={(e) => handleSearchRecord(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold"
-                />
+              <div className="flex items-start gap-2">
+                <div className="login-phone flex-1">
+                  <PhoneInput
+                    country="vn"
+                    value={recordSearch}
+                    onChange={(val) => setRecordSearch(val)}
+                    enableSearch
+                    searchPlaceholder="Tìm quốc gia..."
+                    inputProps={{ name: 'search_phone' }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSearchRecord}
+                  className="px-6 h-12 bg-[#00285E] text-white rounded-xl text-sm font-bold shadow-sm hover:bg-[#001a3f] transition-colors whitespace-nowrap"
+                >
+                  Tìm kiếm
+                </button>
               </div>
 
               {/* SEARCH RESULTS DROPDOWN */}
@@ -609,6 +858,38 @@ export default function ReceptionCreateServiceOrder() {
                       type="number"
                       icon={<Gauge size={14} className="text-slate-400" />}
                     />
+                    <div className="pt-2">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                        <Clock size={14} className="text-slate-400" />
+                        Thời gian dự kiến hoàn thành *
+                      </label>
+                      <div className="grid grid-cols-1 gap-3">
+                        <input
+                          type="date"
+                          value={bookingDate}
+                          onChange={(e) => setBookingDate(e.target.value)}
+                          min={minDateStr}
+                          className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
+                        />
+                        <select
+                          value={bookingTime}
+                          onChange={(e) => setBookingTime(e.target.value)}
+                          className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
+                        >
+                          <option value="">-- Chọn giờ --</option>
+                          {timeSlots.map(slot => (
+                            <option
+                              key={slot.time}
+                              value={slot.time}
+                              disabled={slot.isFull}
+                              className={slot.isFull ? 'text-gray-300' : ''}
+                            >
+                              {slot.time} ({slot.isFull ? 'Kín lịch' : slot.label})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -640,13 +921,21 @@ export default function ReceptionCreateServiceOrder() {
                   onChange={setManualCustName}
                   placeholder="Nhập họ và tên khách hàng..."
                 />
-                <FormInput
-                  label="Số điện thoại *"
-                  value={manualCustPhone}
-                  onChange={setManualCustPhone}
-                  placeholder="Nhập số điện thoại khách hàng..."
-                  icon={<Phone size={14} className="text-slate-400" />}
-                />
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-widest mb-2 px-1 text-slate-700">
+                    SỐ ĐIỆN THOẠI *
+                  </label>
+                  <div className="login-phone">
+                    <PhoneInput
+                      country="vn"
+                      value={manualCustPhone}
+                      onChange={(val) => setManualCustPhone(val)}
+                      enableSearch
+                      searchPlaceholder="Tìm quốc gia..."
+                      inputProps={{ name: 'phone' }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -665,12 +954,72 @@ export default function ReceptionCreateServiceOrder() {
                     placeholder="VD: 51A-123.45..."
                   />
                 </div>
+                <div className="relative" ref={brandRef}>
+                  <FormInput
+                    label="Hãng xe *"
+                    value={vehicleBrand}
+                    onChange={(val) => {
+                      setVehicleBrand(val);
+                      setShowBrandSuggestions(true);
+                      setSelectedMakeId(null);
+                      setVehicleModel('');
+                    }}
+                    placeholder="VD: Toyota"
+                  />
+                  {showBrandSuggestions && brandSuggestions.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                      {brandSuggestions.map((brand: any) => (
+                        <div
+                          key={brand.id}
+                          className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm font-semibold text-slate-700"
+                          onClick={() => {
+                            setVehicleBrand(brand.make_name);
+                            setSelectedMakeId(brand.id);
+                            setShowBrandSuggestions(false);
+                            setVehicleModel('');
+                          }}
+                        >
+                          {brand.make_name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="relative" ref={modelRef}>
+                  <FormInput
+                    label="Dòng xe *"
+                    value={vehicleModel}
+                    onChange={(val) => {
+                      setVehicleModel(val);
+                      setShowModelSuggestions(true);
+                    }}
+                    placeholder="VD: Camry"
+                  />
+                  {showModelSuggestions && modelSuggestions.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                      {modelSuggestions.map((model: any) => (
+                        <div
+                          key={model.id}
+                          className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm font-semibold text-slate-700"
+                          onClick={() => {
+                            setVehicleModel(model.model_name);
+                            setVehicleBrand(model.make?.make_name || vehicleBrand);
+                            if (model.make_id) setSelectedMakeId(model.make_id);
+                            setShowModelSuggestions(false);
+                          }}
+                        >
+                          {model.model_name} <span className="text-xs text-slate-400">({model.make?.make_name})</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div>
                   <FormInput
-                    label="Dòng xe / Hiệu xe *"
-                    value={manualVehicleModel}
-                    onChange={setManualVehicleModel}
-                    placeholder="VD: Toyota Camry..."
+                    label="Số khung (VIN)"
+                    value={manualVehicleVin}
+                    onChange={setManualVehicleVin}
+                    placeholder="VD: 1XYZ234..."
                   />
                 </div>
                 <div>
@@ -684,7 +1033,7 @@ export default function ReceptionCreateServiceOrder() {
                 </div>
                 <div className="sm:col-span-2">
                   <FormInput
-                    label="Số km hiện tại (ODO) *"
+                    label="ODO hiện tại (km) *"
                     value={currentOdo}
                     onChange={setCurrentOdo}
                     placeholder="VD: 15000..."
@@ -694,20 +1043,35 @@ export default function ReceptionCreateServiceOrder() {
                 </div>
                 <div className="sm:col-span-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                    <Wrench size={14} className="text-slate-400" />
-                    Cầu nâng *
+                    <Clock size={14} className="text-slate-400" />
+                    Thời gian dự kiến hoàn thành *
                   </label>
-                  <select
-                    value={bayId}
-                    onChange={(e) => setBayId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-700"
-                  >
-                    <option value="1">Cầu nâng số 1</option>
-                    <option value="2">Cầu nâng số 2</option>
-                    <option value="3">Cầu nâng số 3</option>
-                    <option value="4">Cầu nâng số 4</option>
-                    <option value="5">Cầu nâng số 5</option>
-                  </select>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input
+                      type="date"
+                      value={bookingDate}
+                      onChange={(e) => setBookingDate(e.target.value)}
+                      min={minDateStr}
+                      className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
+                    />
+                    <select
+                      value={bookingTime}
+                      onChange={(e) => setBookingTime(e.target.value)}
+                      className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
+                    >
+                      <option value="">-- Chọn giờ --</option>
+                      {timeSlots.map(slot => (
+                        <option
+                          key={slot.time}
+                          value={slot.time}
+                          disabled={slot.isFull}
+                          className={slot.isFull ? 'text-gray-300' : ''}
+                        >
+                          {slot.time} ({slot.isFull ? 'Kín lịch' : slot.label})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
@@ -720,283 +1084,80 @@ export default function ReceptionCreateServiceOrder() {
         <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
           <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
             <Wrench size={16} className="text-[#00285E]" />
-            {mode === 'approved_record' && selectedRecord?.type === 'appointment' ? 'Dịch vụ đã đặt ở lịch hẹn' : 'Chọn Dịch vụ'} <span className="text-rose-500">*</span>
+            Chọn Dịch vụ <span className="text-rose-500">*</span>
           </h2>
           <span className="text-xs font-bold text-[#00285E] bg-[#EDF3FF] px-3 py-1 rounded-lg">
-            {mode === 'approved_record' && selectedRecord?.type === 'appointment'
-              ? `Số lượng: ${(selectedRecord.servicesDetails || []).length} — Tổng: ${formatPrice(selectedTotal)}`
-              : `Đã chọn: ${selectedServices.size + selectedCombos.size} — Tổng: ${formatPrice(selectedTotal)}`
-            }
+            Đã chọn: {selectedServiceIds.length + (selectedComboId ? 1 : 0)} — Tổng: {formatPrice(selectedTotal)}
           </span>
         </div>
 
-        {mode === 'approved_record' && selectedRecord?.type === 'appointment' ? (
-          /* SHOW BOOKED SERVICES FROM APPOINTMENT */
-          <div className="space-y-3">
-            {selectedRecord.servicesDetails && selectedRecord.servicesDetails.length > 0 ? (
-              selectedRecord.servicesDetails.map((svc: any, idx: number) => (
-                <div key={idx} className="flex flex-col px-4 py-3 rounded-xl border border-[#00285E]/20 bg-[#EDF3FF]/30 text-left">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <CheckSquare size={18} className="text-[#00285E]" />
-                      <div>
-                        <p className="text-sm font-semibold text-[#00285E]">{svc.name}</p>
-                        <p className="text-[10px] font-semibold text-slate-500 uppercase">{svc.category}</p>
-                      </div>
-                    </div>
-                    <span className="text-sm font-bold text-[#00285E]">{formatPrice(svc.price || 0)}</span>
-                  </div>
-                  {svc.subServices && svc.subServices.length > 0 && (
-                    <div className="mt-2 pl-8 space-y-1 border-t border-[#00285E]/10 pt-2">
-                      <p className="text-[10px] font-semibold text-slate-500 mb-1 uppercase tracking-wider">Chi tiết gói dịch vụ:</p>
-                      {svc.subServices.map((sub: string, subIdx: number) => (
-                        <div key={subIdx} className="flex items-center gap-2 text-xs font-medium text-slate-600">
-                          <div className="w-1 h-1 rounded-full bg-slate-400" />
-                          {sub}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-xs font-semibold text-slate-400">
-                Lịch hẹn này không có dịch vụ nào được đặt trước.
-              </div>
-            )}
+        <div>
+          {/* Sub-tabs Selector */}
+          <div className="flex gap-2 mb-4 border-b border-slate-100 pb-3 overflow-x-auto scrollbar-none">
+            <button
+              type="button"
+              onClick={() => setActiveServiceTab('single')}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeServiceTab === 'single'
+                ? 'bg-[#00285E] text-white shadow-sm'
+                : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                }`}
+            >
+              <Wrench size={14} />
+              <span>Dịch vụ lẻ</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveServiceTab('combo')}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeServiceTab === 'combo'
+                ? 'bg-[#00285E] text-white shadow-sm'
+                : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                }`}
+            >
+              <Package size={14} />
+              <span>Combo</span>
+            </button>
           </div>
-        ) : (
-          /* SHOW MOCK CATALOG FOR FIRST TIME OR EXISTING CUSTOMER W/O APPOINTMENT */
-          <div>
 
-            {/* Sub-tabs Selector */}
-            <div className="flex gap-2 mb-4 border-b border-slate-100 pb-3 overflow-x-auto scrollbar-none">
-              <button
-                type="button"
-                onClick={() => setActiveServiceTab('single')}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeServiceTab === 'single'
-                  ? 'bg-[#00285E] text-white shadow-sm'
-                  : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
-                  }`}
-              >
-                <Wrench size={14} />
-                <span>Dịch vụ lẻ</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveServiceTab('combo')}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeServiceTab === 'combo'
-                  ? 'bg-[#00285E] text-white shadow-sm'
-                  : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
-                  }`}
-              >
-                <Package size={14} />
-                <span>Combo</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveServiceTab('category')}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeServiceTab === 'category'
-                  ? 'bg-[#00285E] text-white shadow-sm'
-                  : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
-                  }`}
-              >
-                <Folder size={14} />
-                <span>Danh mục</span>
-              </button>
-            </div>
-
-            {/* Service search */}
-            <div className="relative mb-4">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder={
-                  activeServiceTab === 'single'
-                    ? 'Tìm dịch vụ lẻ theo tên hoặc danh mục...'
-                    : activeServiceTab === 'combo'
-                      ? 'Tìm combo theo tên hoặc mô tả...'
-                      : 'Tìm danh mục hoặc dịch vụ bên trong...'
-                }
-                value={serviceSearch}
-                onChange={(e) => setServiceSearch(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold"
+          {/* Tab contents */}
+          <div className="mt-4">
+            {activeServiceTab === 'single' && (
+              <SingleServicesSelector
+                mappedServices={mappedServices}
+                activeCategories={activeCategories}
+                selectedServiceIds={selectedServiceIds}
+                setSelectedServiceIds={setSelectedServiceIds}
+                COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
+                t={(k, d) => (t as any)(k, d)}
+                selectedCategoryId={selectedCategoryId}
+                setSelectedCategoryId={setSelectedCategoryId}
+                servicePage={servicePage}
+                setServicePage={setServicePage}
+                dbCombos={dbCombos}
+                selectedComboId={selectedComboId}
               />
-            </div>
+            )}
 
-            {/* Tab contents */}
-            <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
-              {activeServiceTab === 'single' && (
-                <>
-                  {filteredServices.length > 0 ? (
-                    filteredServices.map((service) => {
-                      const isSelected = selectedServices.has(service.id);
-                      return (
-                        <button
-                          key={service.id}
-                          type="button"
-                          onClick={() => toggleService(service.id)}
-                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all text-left ${isSelected
-                            ? 'bg-[#EDF3FF] border-[#00285E]/30 shadow-sm'
-                            : 'bg-white border-slate-200/60 hover:bg-slate-50'
-                            }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            {isSelected ? (
-                              <CheckSquare size={18} className="text-[#00285E]" />
-                            ) : (
-                              <Square size={18} className="text-slate-300" />
-                            )}
-                            <div>
-                              <p className={`text-sm font-semibold ${isSelected ? 'text-[#00285E]' : 'text-slate-700'}`}>
-                                {service.name}
-                              </p>
-                              <p className="text-[10px] font-semibold text-slate-400 uppercase">{service.category}</p>
-                            </div>
-                          </div>
-                          <span className={`text-sm font-bold ${isSelected ? 'text-[#00285E]' : 'text-slate-500'}`}>
-                            {formatPrice(service.price)}
-                          </span>
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center py-8 text-xs font-semibold text-slate-400">
-                      Không tìm thấy dịch vụ nào phù hợp.
-                    </div>
-                  )}
-                </>
-              )}
-
-              {activeServiceTab === 'combo' && (
-                <>
-                  {filteredCombos.length > 0 ? (
-                    filteredCombos.map((combo) => {
-                      const isSelected = selectedCombos.has(combo.id);
-                      return (
-                        <button
-                          key={combo.id}
-                          type="button"
-                          onClick={() => toggleCombo(combo.id)}
-                          className={`w-full flex items-start justify-between px-4 py-3 rounded-xl border transition-all text-left ${isSelected
-                            ? 'bg-[#EDF3FF] border-[#00285E]/30 shadow-sm'
-                            : 'bg-white border-slate-200/60 hover:bg-slate-50'
-                            }`}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="mt-0.5">
-                              {isSelected ? (
-                                <CheckSquare size={18} className="text-[#00285E]" />
-                              ) : (
-                                <Square size={18} className="text-slate-300" />
-                              )}
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <p className={`text-sm font-semibold ${isSelected ? 'text-[#00285E]' : 'text-slate-700'}`}>
-                                  {combo.name}
-                                </p>
-                                <span className="text-[9px] font-extrabold text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
-                                  <Tag size={8} />
-                                  TIẾT KIỆM
-                                </span>
-                              </div>
-                              <p className="text-[11px] font-medium text-slate-400 mt-1 max-w-md">
-                                {combo.description}
-                              </p>
-                            </div>
-                          </div>
-                          <span className={`text-sm font-bold whitespace-nowrap ml-2 ${isSelected ? 'text-[#00285E]' : 'text-slate-500'}`}>
-                            {formatPrice(combo.price)}
-                          </span>
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center py-8 text-xs font-semibold text-slate-400">
-                      Không tìm thấy combo nào phù hợp.
-                    </div>
-                  )}
-                </>
-              )}
-
-              {activeServiceTab === 'category' && (
-                <>
-                  {categoriesWithServices.length > 0 ? (
-                    categoriesWithServices.map((cat) => {
-                      const isExpanded = expandedCategories.has(cat.name);
-                      return (
-                        <div key={cat.name} className="border border-slate-100 rounded-xl overflow-hidden shadow-2xs">
-                          {/* Category Header */}
-                          <button
-                            type="button"
-                            onClick={() => toggleCategoryExpand(cat.name)}
-                            className="w-full flex items-center justify-between px-4 py-3 bg-slate-50/70 hover:bg-slate-50 transition-colors text-left"
-                          >
-                            <div className="flex items-center gap-2">
-                              <Folder size={14} className="text-[#00285E]/70" />
-                              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">{cat.name}</span>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200/60 text-slate-500">
-                                {cat.services.length}
-                              </span>
-                              {cat.selectedCount > 0 && (
-                                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-600">
-                                  Đã chọn: {cat.selectedCount}
-                                </span>
-                              )}
-                            </div>
-                            {isExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
-                          </button>
-
-                          {/* Category Services */}
-                          {isExpanded && (
-                            <div className="p-2 bg-white divide-y divide-slate-50">
-                              {cat.services.map((service) => {
-                                const isSelected = selectedServices.has(service.id);
-                                return (
-                                  <button
-                                    key={service.id}
-                                    type="button"
-                                    onClick={() => toggleService(service.id)}
-                                    className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg transition-all text-left ${isSelected
-                                      ? 'bg-[#EDF3FF]/70 text-[#00285E]'
-                                      : 'hover:bg-slate-50/50 text-slate-600'
-                                      }`}
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      {isSelected ? (
-                                        <CheckSquare size={16} className="text-[#00285E]" />
-                                      ) : (
-                                        <Square size={16} className="text-slate-300" />
-                                      )}
-                                      <span className="text-xs font-semibold">{service.name}</span>
-                                    </div>
-                                    <span className="text-xs font-bold">{formatPrice(service.price)}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center py-8 text-xs font-semibold text-slate-400">
-                      Không tìm thấy danh mục nào.
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {selectedServices.size === 0 && selectedCombos.size === 0 && (
-              <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
-                <AlertCircle size={14} />
-                Cần chọn ít nhất 1 dịch vụ hoặc combo để tạo hóa đơn dịch vụ.
-              </div>
+            {activeServiceTab === 'combo' && (
+              <ComboServicesSelector
+                dbCombos={dbCombos}
+                setDbCombos={setDbCombos}
+                selectedComboId={selectedComboId}
+                setSelectedComboId={setSelectedComboId}
+                mappedServices={mappedServices}
+                COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
+                selectedServiceIds={selectedServiceIds}
+                setSelectedServiceIds={setSelectedServiceIds}
+              />
             )}
           </div>
-        )}
+
+          {selectedServiceIds.length === 0 && !selectedComboId && (
+            <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
+              <AlertCircle size={14} />
+              Cần chọn ít nhất 1 dịch vụ hoặc combo để tạo hóa đơn dịch vụ.
+            </div>
+          )}
+        </div>
       </div>
 
       {/* NOTES */}
