@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Check, Star, Settings } from 'lucide-react';
-import type { ServiceItem } from './BookingPage';
+import type { ServiceItem, ServiceCombo } from '../../../model/Service';
 
 interface SingleServicesSelectorProps {
     mappedServices: ServiceItem[];
@@ -9,6 +9,12 @@ interface SingleServicesSelectorProps {
     setSelectedServiceIds: React.Dispatch<React.SetStateAction<number[]>>;
     COLORS: { orange: string; navy: string;[key: string]: string };
     t: (key: string, defaultValue?: string) => string;
+    selectedCategoryId: number | null;
+    setSelectedCategoryId: React.Dispatch<React.SetStateAction<number | null>>;
+    servicePage: number;
+    setServicePage: React.Dispatch<React.SetStateAction<number>>;
+    dbCombos?: ServiceCombo[];
+    selectedComboId?: number | null;
 }
 
 export default function SingleServicesSelector({
@@ -18,16 +24,27 @@ export default function SingleServicesSelector({
     setSelectedServiceIds,
     COLORS,
     t,
+    selectedCategoryId,
+    setSelectedCategoryId,
+    servicePage,
+    setServicePage,
+    dbCombos = [],
+    selectedComboId = null,
 }: SingleServicesSelectorProps) {
-    const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
-    const [servicePage, setServicePage] = useState(1);
     const servicesPerPage = 16;
 
-    // Filter services by category
+    // Filter services by category and exclude services in the selected combo
     const filteredServices = useMemo(() => {
-        if (selectedCategoryId === null) return mappedServices;
-        return mappedServices.filter(s => s.category_id === selectedCategoryId);
-    }, [mappedServices, selectedCategoryId]);
+        let list = mappedServices;
+        if (selectedComboId) {
+            const combo = dbCombos.find(c => c.id === selectedComboId);
+            if (combo && combo.service_ids) {
+                list = list.filter(s => !combo.service_ids.includes(s.id));
+            }
+        }
+        if (selectedCategoryId === null) return list;
+        return list.filter(s => s.category_id === selectedCategoryId);
+    }, [mappedServices, selectedCategoryId, selectedComboId, dbCombos]);
 
     // Reset pagination to page 1 when category changes
     const handleCategoryChange = (catId: number | null) => {
@@ -48,16 +65,14 @@ export default function SingleServicesSelector({
                 <button
                     type="button"
                     onClick={() => handleCategoryChange(null)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
-                        selectedCategoryId === null
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${selectedCategoryId === null
                             ? 'bg-[#00285E] text-white shadow-md'
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
-                    }`}
+                        }`}
                 >
                     <span>Tất cả</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                        selectedCategoryId === null ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'
-                    }`}>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${selectedCategoryId === null ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'
+                        }`}>
                         {mappedServices.length}
                     </span>
                 </button>
@@ -70,16 +85,14 @@ export default function SingleServicesSelector({
                             key={cat.id}
                             type="button"
                             onClick={() => handleCategoryChange(cat.id)}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
-                                isActive
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${isActive
                                     ? 'bg-[#00285E] text-white shadow-md'
                                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
-                            }`}
+                                }`}
                         >
                             <span>{cat.category_name}</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                                isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'
-                            }`}>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'
+                                }`}>
                                 {count}
                             </span>
                         </button>

@@ -3,5 +3,6 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localho
 export const PROFILE_API_ENDPOINTS = {
     GET_PROFILE: `${API_BASE_URL}/api/customer/profile`,
     UPDATE_PROFILE: `${API_BASE_URL}/api/customer/profile`,
-    CHANGE_PASSWORD: `${API_BASE_URL}/api/customer/change-password`
+    CHANGE_PASSWORD: `${API_BASE_URL}/api/customer/change-password`,
+    GET_VEHICLES: `${API_BASE_URL}/api/customer/vehicel`
 };

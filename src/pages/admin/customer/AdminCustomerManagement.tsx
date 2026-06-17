@@ -5,28 +5,21 @@ import {
   UserPlus,
   Pencil,
   X,
-  Filter,
   Award,
-  Star,
   Download,
   AlertTriangle,
   Search,
   CheckCircle,
   TrendingUp,
-  UserMinus,
   Mail,
   Phone,
   Calendar,
   Car,
   Clock,
-  ChevronRight,
   ShieldAlert,
   Coins,
-  MessageSquare,
   Eye,
   Sparkles,
-  MessageCircle,
-  Share2,
   ShieldCheck,
   Wrench
 } from "lucide-react";
@@ -1311,7 +1304,7 @@ export default function AdminCustomerManagement() {
                     {/* Conversion Probability Box */}
                     <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-4">
                       <div className="flex justify-between items-center">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Khả năng chốt đơn dịch vụ tiếp theo</h4>
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Khả năng chốt hóa đơn dịch vụ tiếp theo</h4>
                         <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
                           selectedCustomer.prediction.conversionProbability >= 80 ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
                           selectedCustomer.prediction.conversionProbability >= 50 ? "bg-amber-50 text-amber-600 border border-amber-100" :

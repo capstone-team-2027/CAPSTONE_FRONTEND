@@ -9,8 +9,6 @@ import {
   X,
   AlertTriangle,
   FileText,
-  Clock,
-  Milestone,
 } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 import { useFetchClient } from '../../../hook/useFetchClient';
@@ -346,8 +344,8 @@ function WarrantyFormModal({ initial, policies, onClose, onSave }: WarrantyFormM
 
   const [policyCode, setPolicyCode] = useState(initial?.policy_code ?? '');
   const [policyName, setPolicyName] = useState(initial?.policy_name ?? '');
-  const [imageCoverUrl, setImageCoverUrl] = useState(initial?.image_cover_url ?? '');
-  const [pdfDocumentUrl, setPdfDocumentUrl] = useState(initial?.pdf_document_url ?? '');
+  const imageCoverUrl = initial?.image_cover_url ?? '';
+  const pdfDocumentUrl = initial?.pdf_document_url ?? '';
   const [description, setDescription] = useState(initial?.description ?? '');
   const [isActive, setIsActive] = useState<boolean>(initial?.is_active ?? true);
 

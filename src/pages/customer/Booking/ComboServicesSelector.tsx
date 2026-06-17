@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { Check, Sparkles } from 'lucide-react';
-import type { ServiceCombo, ServiceItem } from './BookingPage';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { SERVICE_API_ENDPOINTS } from '../../../constants/customer/serviceApiEndpoints';
+import type { ServiceCombo, ServiceItem } from '../../../model/Service';
 
 interface ComboServicesSelectorProps {
     dbCombos: ServiceCombo[];
@@ -10,8 +10,9 @@ interface ComboServicesSelectorProps {
     selectedComboId: number | null;
     setSelectedComboId: (id: number | null) => void;
     mappedServices: ServiceItem[];
-    getServicePriceValue: (id: number) => number;
     COLORS: { orange: string; navy: string;[key: string]: string };
+    selectedServiceIds?: number[];
+    setSelectedServiceIds?: React.Dispatch<React.SetStateAction<number[]>>;
 }
 
 export default function ComboServicesSelector({
@@ -20,8 +21,9 @@ export default function ComboServicesSelector({
     selectedComboId,
     setSelectedComboId,
     mappedServices,
-    getServicePriceValue,
     COLORS,
+    selectedServiceIds = [],
+    setSelectedServiceIds,
 }: ComboServicesSelectorProps) {
     const { fetchPublic } = useFetchClient();
 
@@ -57,7 +59,7 @@ export default function ComboServicesSelector({
                 }
             }
         };
-        
+
         if (dbCombos.length === 0) {
             fetchCombos();
         }
@@ -69,8 +71,11 @@ export default function ComboServicesSelector({
                 const isSelected = selectedComboId === combo.id;
                 const serviceIds = combo.service_ids || [];
                 const discountPercentage = combo.discount_percentage ?? 10;
-                
-                const original = serviceIds.reduce((sum, id) => sum + getServicePriceValue(id), 0);
+
+                const original = serviceIds.reduce((sum, id) => {
+                    const s = mappedServices.find(x => x.id === id);
+                    return sum + (s?.numericPrice || 0);
+                }, 0);
                 const discounted = Math.round(original * (1 - discountPercentage / 100));
                 const comboServiceNames = serviceIds.map(id => {
                     const s = mappedServices.find(x => x.id === id);
@@ -80,7 +85,23 @@ export default function ComboServicesSelector({
                 return (
                     <div
                         key={combo.id}
-                        onClick={() => setSelectedComboId(isSelected ? null : combo.id)}
+                        onClick={() => {
+                            if (isSelected) {
+                                setSelectedComboId(null);
+                            } else {
+                                // Check for overlap with already selected single services
+                                if (combo.service_ids && selectedServiceIds.length > 0) {
+                                    const overlaps = combo.service_ids.filter(id => selectedServiceIds.includes(id));
+                                    if (overlaps.length > 0) {
+                                        alert('Gói Combo này bao gồm các dịch vụ bạn đã chọn lẻ. Các dịch vụ lẻ trùng lặp sẽ tự động được bỏ chọn để tránh trùng lặp!');
+                                        if (setSelectedServiceIds) {
+                                            setSelectedServiceIds(prev => prev.filter(id => !overlaps.includes(id)));
+                                        }
+                                    }
+                                }
+                                setSelectedComboId(combo.id);
+                            }
+                        }}
                         className="relative p-6 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group text-left"
                         style={{
                             borderColor: isSelected ? COLORS.orange : '#F1F5F9',
