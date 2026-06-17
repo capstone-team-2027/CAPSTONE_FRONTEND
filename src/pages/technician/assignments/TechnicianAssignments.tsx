@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   CheckSquare,
   Search,
@@ -10,11 +10,15 @@ import {
   Car,
   Calendar,
   Eye,
+  PlayCircle,
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useFetchClient_v2 as useFetchClient } from '../../../hook/useFetchClient';
+import { TASK_ASSIGNMENT_ENDPOINTS } from '../../../constants/technician/taskAssignmentEndpoint';
 
 // ========== TYPES ==========
 interface Assignment {
@@ -29,120 +33,114 @@ interface Assignment {
   appointmentDate: string;
   appointmentTime: string;
   assignedAt: string;
-  status: 'pending' | 'accepted' | 'rejected';
+  status: 'ASSIGNED' | 'IN_PROGRESS' | 'PAUSED' | 'PENDING_QC' | 'COMPLETED';
   rejectionReason?: string;
   acceptedAt?: string;
   rejectedAt?: string;
+  taskAssignmentId?: string | number;
 }
 
 const ASSIGNMENT_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
-  pending: { label: 'Chờ phản hồi', color: '#D97706', bg: '#FEF3C7', icon: Clock },
-  accepted: { label: 'Đã chấp nhận', color: '#10B981', bg: '#ECFDF5', icon: CheckCircle2 },
-  rejected: { label: 'Đã từ chối', color: '#EF4444', bg: '#FEF2F2', icon: XCircle },
+  ASSIGNED: { label: 'Mới phân công', color: '#D97706', bg: '#FEF3C7', icon: Clock },
+  IN_PROGRESS: { label: 'Đang thực hiện', color: '#3B82F6', bg: '#EFF6FF', icon: CheckSquare },
+  PAUSED: { label: 'Tạm dừng', color: '#EF4444', bg: '#FEF2F2', icon: XCircle },
+  PENDING_QC: { label: 'Chờ QC', color: '#8B5CF6', bg: '#F5F3FF', icon: Eye },
+  COMPLETED: { label: 'Hoàn thành', color: '#10B981', bg: '#ECFDF5', icon: CheckCircle2 },
 };
 
-const MOCK_ASSIGNMENTS: Assignment[] = [
-  {
-    id: 'ASG-001',
-    serviceOrderId: 'SO-001',
-    technicianId: 'TECH-001',
-    customerName: 'Nguyễn Văn An',
-    customerPhone: '0901 234 567',
-    vehiclePlate: '51A-123.45',
-    vehicleModel: 'Toyota Camry 2.5Q',
-    services: ['Bảo dưỡng định kỳ cấp 1', 'Thay dầu động cơ Castrol'],
-    appointmentDate: '2026-06-05',
-    appointmentTime: '08:30',
-    assignedAt: '2026-06-03T08:00:00',
-    status: 'accepted',
-    acceptedAt: '2026-06-03T08:30:00',
-  },
-  {
-    id: 'ASG-002',
-    serviceOrderId: 'SO-002',
-    technicianId: 'TECH-001',
-    customerName: 'Trần Thị Bình',
-    customerPhone: '0912 345 678',
-    vehiclePlate: '30H-456.78',
-    vehicleModel: 'Honda City RS',
-    services: ['Thay dầu động cơ Castrol', 'Vệ sinh kim phun điện tử'],
-    appointmentDate: '2026-06-05',
-    appointmentTime: '10:00',
-    assignedAt: '2026-06-03T09:00:00',
-    status: 'pending',
-  },
-  {
-    id: 'ASG-003',
-    serviceOrderId: 'SO-003',
-    technicianId: 'TECH-001',
-    customerName: 'Phạm Minh Hùng',
-    customerPhone: '0909 888 777',
-    vehiclePlate: '51G-888.88',
-    vehicleModel: 'Mercedes-Benz C200',
-    services: ['Bảo dưỡng định kỳ cấp 2', 'Cân chỉnh thước lái 3D'],
-    appointmentDate: '2026-06-06',
-    appointmentTime: '14:00',
-    assignedAt: '2026-06-03T10:00:00',
-    status: 'pending',
-  },
-  {
-    id: 'ASG-004',
-    serviceOrderId: 'SO-005',
-    technicianId: 'TECH-001',
-    customerName: 'Đặng Hoàng Nam',
-    customerPhone: '0988 555 444',
-    vehiclePlate: '51K-555.55',
-    vehicleModel: 'Hyundai SantaFe',
-    services: ['Bảo dưỡng định kỳ cấp 2', 'Sơn phục hồi vết xước'],
-    appointmentDate: '2026-06-05',
-    appointmentTime: '15:30',
-    assignedAt: '2026-06-02T14:00:00',
-    status: 'accepted',
-    acceptedAt: '2026-06-02T14:30:00',
-  },
-  {
-    id: 'ASG-005',
-    serviceOrderId: 'SO-006',
-    technicianId: 'TECH-001',
-    customerName: 'Võ Thị Mai',
-    customerPhone: '0966 777 888',
-    vehiclePlate: '43A-321.00',
-    vehicleModel: 'Kia Seltos',
-    services: ['Bảo dưỡng định kỳ cấp 1'],
-    appointmentDate: '2026-06-05',
-    appointmentTime: '11:00',
-    assignedAt: '2026-06-03T16:00:00',
-    status: 'pending',
-  },
-  {
-    id: 'ASG-006',
-    serviceOrderId: 'SO-007',
-    technicianId: 'TECH-001',
-    customerName: 'Lý Thanh Tùng',
-    customerPhone: '0933 222 111',
-    vehiclePlate: '51B-777.77',
-    vehicleModel: 'Ford Ranger',
-    services: ['Thay phanh sau'],
-    appointmentDate: '2026-06-04',
-    appointmentTime: '09:00',
-    assignedAt: '2026-06-01T10:00:00',
-    status: 'rejected',
-    rejectedAt: '2026-06-01T10:30:00',
-    rejectionReason: 'Kỹ thuật viên đang xử lý xe khác, không đủ thời gian.',
-  },
-];
+// Mock assignments removed to use API data
 
 const ITEMS_PER_PAGE = 5;
 
 export default function TechnicianAssignments() {
   const navigate = useNavigate();
+  const { fetchPrivate } = useFetchClient();
+
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const fetchAssignments = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.GET_MY_ASSIGNMENTS);
+        if (Array.isArray(response)) {
+          const mappedData: Assignment[] = response.map((so: any) => {
+            const services = so.tasks?.map((t: any) => t.catalog?.service_name) || [];
+            const firstAssignment = so.tasks?.[0]?.assignments?.[0];
+            
+            let status: Assignment['status'] = 'ASSIGNED';
+            if (firstAssignment && ['ASSIGNED', 'IN_PROGRESS', 'PAUSED', 'PENDING_QC', 'COMPLETED'].includes(firstAssignment.status)) {
+               status = firstAssignment.status as Assignment['status'];
+            }
+
+            const aptDate = so.appointment?.scheduled_time ? new Date(so.appointment.scheduled_time) : new Date(so.createdAt);
+
+            return {
+              id: `SO-${so.id}`,
+              serviceOrderId: so.id.toString(),
+              technicianId: firstAssignment?.technician_id?.toString() || '',
+              customerName: so.vehicle?.customer?.name || so.vehicle?.customer?.user?.fullName || 'Khách vãng lai',
+              customerPhone: so.vehicle?.customer?.phone || so.vehicle?.customer?.user?.phoneNumber || '',
+              vehiclePlate: so.vehicle?.license_plate || '',
+              vehicleModel: `${so.vehicle?.model?.make?.make_name || ''} ${so.vehicle?.model?.model_name || ''}`.trim(),
+              services: services.filter(Boolean),
+              appointmentDate: aptDate.toISOString(),
+              appointmentTime: aptDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+              assignedAt: firstAssignment?.createdAt || so.createdAt,
+              status: status,
+              taskAssignmentId: firstAssignment?.id,
+            };
+          });
+          setAssignments(mappedData);
+        }
+      } catch (error) {
+        console.error('Lỗi khi tải danh sách phân công:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchAssignments();
+  }, [fetchPrivate, refreshKey]);
+
+  const handleStartTask = async (taskAssignmentId: string | number | undefined) => {
+    if (!taskAssignmentId) {
+      alert("Không tìm thấy thông tin phân công.");
+      return;
+    }
+    try {
+      await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.START_TASK, 'PUT', { taskAssignmentId });
+      setRefreshKey(prev => prev + 1);
+    } catch (error: any) {
+      console.error('Lỗi khi bắt đầu công việc:', error);
+      alert(error.message || 'Đã xảy ra lỗi khi bắt đầu công việc.');
+    }
+  };
+
+  const handleCompleteTask = async (taskAssignmentId: string | number | undefined) => {
+    if (!taskAssignmentId) {
+      alert("Không tìm thấy thông tin phân công.");
+      return;
+    }
+    if (!confirm("Bạn có chắc chắn muốn HOÀN THÀNH công việc này?")) return;
+
+    try {
+      await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.COMPLETE_TASK, 'PUT', { taskAssignmentId });
+      setRefreshKey(prev => prev + 1);
+      alert("Đã hoàn thành công việc thành công!");
+    } catch (error: any) {
+      console.error('Lỗi khi hoàn thành công việc:', error);
+      alert(error.message || 'Đã xảy ra lỗi khi hoàn thành công việc.');
+    }
+  };
 
   const filteredAssignments = useMemo(() => {
-    return MOCK_ASSIGNMENTS.filter((asg) => {
+    return assignments.filter((asg) => {
       const matchSearch =
         searchTerm === '' ||
         asg.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -154,7 +152,7 @@ export default function TechnicianAssignments() {
 
       return matchSearch && matchStatus;
     });
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, assignments]);
 
   const totalPages = Math.ceil(filteredAssignments.length / ITEMS_PER_PAGE);
   const paginatedData = useMemo(() => {
@@ -163,11 +161,11 @@ export default function TechnicianAssignments() {
   }, [filteredAssignments, currentPage]);
 
   const kpiCounts = useMemo(() => ({
-    total: MOCK_ASSIGNMENTS.length,
-    pending: MOCK_ASSIGNMENTS.filter(a => a.status === 'pending').length,
-    accepted: MOCK_ASSIGNMENTS.filter(a => a.status === 'accepted').length,
-    rejected: MOCK_ASSIGNMENTS.filter(a => a.status === 'rejected').length,
-  }), []);
+    total: assignments.length,
+    assigned: assignments.filter(a => a.status === 'ASSIGNED').length,
+    inProgress: assignments.filter(a => a.status === 'IN_PROGRESS').length,
+    completed: assignments.filter(a => a.status === 'COMPLETED').length,
+  }), [assignments]);
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -196,9 +194,9 @@ export default function TechnicianAssignments() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Tổng phân công', value: kpiCounts.total, icon: <CheckSquare size={22} />, color: '#0E4D40', bg: '#E8F5F0' },
-          { label: 'Chờ phản hồi', value: kpiCounts.pending, icon: <Clock size={22} />, color: '#D97706', bg: '#FEF3C7' },
-          { label: 'Đã chấp nhận', value: kpiCounts.accepted, icon: <CheckCircle2 size={22} />, color: '#10B981', bg: '#ECFDF5' },
-          { label: 'Đã từ chối', value: kpiCounts.rejected, icon: <XCircle size={22} />, color: '#EF4444', bg: '#FEF2F2' },
+          { label: 'Mới phân công', value: kpiCounts.assigned, icon: <Clock size={22} />, color: '#D97706', bg: '#FEF3C7' },
+          { label: 'Đang thực hiện', value: kpiCounts.inProgress, icon: <CheckSquare size={22} />, color: '#3B82F6', bg: '#EFF6FF' },
+          { label: 'Hoàn thành', value: kpiCounts.completed, icon: <CheckCircle2 size={22} />, color: '#10B981', bg: '#ECFDF5' },
         ].map((card, i) => (
           <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs">
             <div className="flex items-start justify-between">
@@ -235,9 +233,11 @@ export default function TechnicianAssignments() {
               className="bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all"
             >
               <option value="all">Tất cả trạng thái</option>
-              <option value="pending">Chờ phản hồi</option>
-              <option value="accepted">Đã chấp nhận</option>
-              <option value="rejected">Đã từ chối</option>
+              <option value="ASSIGNED">Mới phân công</option>
+              <option value="IN_PROGRESS">Đang thực hiện</option>
+              <option value="PAUSED">Tạm dừng</option>
+              <option value="PENDING_QC">Chờ QC</option>
+              <option value="COMPLETED">Hoàn thành</option>
             </select>
           </div>
         </div>
@@ -245,7 +245,12 @@ export default function TechnicianAssignments() {
 
       {/* TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
-        {paginatedData.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+            <Loader2 size={48} className="mb-4 text-[#0E4D40] animate-spin" />
+            <p className="text-lg font-semibold mb-1 text-slate-700">Đang tải phân công...</p>
+          </div>
+        ) : paginatedData.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400">
             <AlertCircle size={48} className="mb-4 text-slate-300" />
             <p className="text-lg font-semibold mb-1">Không tìm thấy phân công</p>
@@ -331,13 +336,27 @@ export default function TechnicianAssignments() {
                         </span>
                       </td>
                       <td className="py-4 px-4">
-                        <div className="flex items-center justify-center">
+                        <div className="flex items-center justify-center gap-2">
                           <button
-                            onClick={() => navigate(`/technician/service-orders/${asg.serviceOrderId}`)}
+                            onClick={() => {
+                               if (asg.status === 'ASSIGNED') {
+                                 handleStartTask(asg.taskAssignmentId);
+                               } else if (asg.status === 'IN_PROGRESS') {
+                                 handleCompleteTask(asg.taskAssignmentId);
+                               }
+                            }}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#0E4D40] bg-[#E8F5F0] hover:bg-[#C4E8E0] transition-colors"
                           >
-                            <Eye size={13} />
-                            {asg.status === 'pending' ? 'Phản hồi' : 'Chi tiết'}
+                            {asg.status === 'ASSIGNED' ? <PlayCircle size={13} /> : asg.status === 'IN_PROGRESS' ? <CheckCircle2 size={13} /> : <Eye size={13} />}
+                            {asg.status === 'ASSIGNED' ? 'Bắt đầu làm' : asg.status === 'IN_PROGRESS' ? 'Hoàn thành' : 'Chi tiết'}
+                          </button>
+                          
+                          <button
+                            onClick={() => navigate(`/technician/assignments/${asg.serviceOrderId}`)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-[#0E4D40] hover:bg-slate-100 transition-colors"
+                            title="Xem chi tiết"
+                          >
+                            <Eye size={16} />
                           </button>
                         </div>
                       </td>
