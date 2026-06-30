@@ -18,8 +18,21 @@ import {
   Car,
   Calendar,
   Activity,
+  FileText,
+  Plus,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
+interface QuotationItem {
+  id: number | null;
+  label: string;
+  quantity: number;
+  unit_price: number;
+}
+
+const emptyItem = (): QuotationItem => ({ id: null, label: '', quantity: 1, unit_price: 0 });
 
 // ========== TYPES ==========
 export interface TechServiceOrder {
@@ -176,6 +189,36 @@ export default function TechnicianServiceOrderList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
+
+  const [quotationOpen, setQuotationOpen] = useState(false);
+  const [quotationServiceOrderId, setQuotationServiceOrderId] = useState('');
+  const [serviceItems, setServiceItems] = useState<QuotationItem[]>([emptyItem()]);
+  const [partItems, setPartItems] = useState<QuotationItem[]>([emptyItem()]);
+  const [quotationNote, setQuotationNote] = useState('');
+
+  const openQuotationModal = (id: string) => {
+    setQuotationServiceOrderId(id);
+    setServiceItems([emptyItem()]);
+    setPartItems([emptyItem()]);
+    setQuotationNote('');
+    setQuotationOpen(true);
+  };
+
+  const updateServiceItem = (index: number, patch: Partial<QuotationItem>) =>
+    setServiceItems(prev => prev.map((item, i) => i === index ? { ...item, ...patch } : item));
+
+  const updatePartItem = (index: number, patch: Partial<QuotationItem>) =>
+    setPartItems(prev => prev.map((item, i) => i === index ? { ...item, ...patch } : item));
+
+  const removeServiceItem = (index: number) =>
+    setServiceItems(prev => prev.length === 1 ? prev : prev.filter((_, i) => i !== index));
+
+  const removePartItem = (index: number) =>
+    setPartItems(prev => prev.length === 1 ? prev : prev.filter((_, i) => i !== index));
+
+  const quotationTotal =
+    serviceItems.reduce((s, i) => s + i.quantity * i.unit_price, 0) +
+    partItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
 
   // Filtered data — only active service orders (exclude rejected)
   const filteredOrders = useMemo(() => {
@@ -397,6 +440,13 @@ export default function TechnicianServiceOrderList() {
                               Cập nhật
                             </button>
                           )}
+                          <button
+                            onClick={() => openQuotationModal(so.id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                            title="Tạo báo giá"
+                          >
+                            <FileText size={15} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -445,6 +495,166 @@ export default function TechnicianServiceOrderList() {
           </div>
         )}
       </div>
+
+      {/* MODAL TẠO BÁO GIÁ */}
+      {quotationOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setQuotationOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Tạo báo giá</h3>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">Đơn DV #{quotationServiceOrderId}</p>
+              </div>
+              <button onClick={() => setQuotationOpen(false)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-5 space-y-5">
+
+              {/* SECTION: Dịch vụ */}
+              <div>
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Dịch vụ</h4>
+                <div className="space-y-2">
+                  {serviceItems.map((item, index) => (
+                    <div key={index} className="border border-slate-200 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={item.id ?? ''}
+                          onChange={(e) => updateServiceItem(index, { id: e.target.value ? Number(e.target.value) : null, label: e.target.options[e.target.selectedIndex].text })}
+                          className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all"
+                        >
+                          <option value="">-- Chọn dịch vụ --</option>
+                        </select>
+                        {serviceItems.length > 1 && (
+                          <button type="button" onClick={() => removeServiceItem(index)} className="w-8 h-8 rounded-lg flex items-center justify-center bg-rose-50 text-rose-500 hover:bg-rose-100 transition-colors shrink-0">
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="number"
+                          min={1}
+                          placeholder="Số lượng"
+                          value={item.quantity || ''}
+                          onChange={(e) => updateServiceItem(index, { quantity: e.target.value ? Number(e.target.value) : 1 })}
+                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all"
+                        />
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="Đơn giá"
+                          value={item.unit_price ? item.unit_price.toLocaleString('vi-VN') : ''}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/\./g, '').replace(/[^0-9]/g, '');
+                            updateServiceItem(index, { unit_price: raw ? Number(raw) : 0 });
+                          }}
+                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all"
+                        />
+                      </div>
+                      <div className="text-right text-xs font-bold text-slate-400">
+                        Thành tiền: <span className="text-[#0E4D40]">{(item.quantity * item.unit_price).toLocaleString('vi-VN')}đ</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setServiceItems(prev => [...prev, emptyItem()])}
+                  className="mt-2 w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-dashed border-slate-300 text-xs font-bold text-slate-500 hover:border-[#0E4D40] hover:text-[#0E4D40] transition-colors"
+                >
+                  <Plus size={14} /> Thêm dịch vụ
+                </button>
+              </div>
+
+              {/* SECTION: Phụ tùng */}
+              <div>
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Phụ tùng</h4>
+                <div className="space-y-2">
+                  {partItems.map((item, index) => (
+                    <div key={index} className="border border-slate-200 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={item.id ?? ''}
+                          onChange={(e) => updatePartItem(index, { id: e.target.value ? Number(e.target.value) : null, label: e.target.options[e.target.selectedIndex].text })}
+                          className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all"
+                        >
+                          <option value="">-- Chọn phụ tùng --</option>
+                        </select>
+                        {partItems.length > 1 && (
+                          <button type="button" onClick={() => removePartItem(index)} className="w-8 h-8 rounded-lg flex items-center justify-center bg-rose-50 text-rose-500 hover:bg-rose-100 transition-colors shrink-0">
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="number"
+                          min={1}
+                          placeholder="Số lượng"
+                          value={item.quantity || ''}
+                          onChange={(e) => updatePartItem(index, { quantity: e.target.value ? Number(e.target.value) : 1 })}
+                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all"
+                        />
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="Đơn giá"
+                          value={item.unit_price ? item.unit_price.toLocaleString('vi-VN') : ''}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/\./g, '').replace(/[^0-9]/g, '');
+                            updatePartItem(index, { unit_price: raw ? Number(raw) : 0 });
+                          }}
+                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all"
+                        />
+                      </div>
+                      <div className="text-right text-xs font-bold text-slate-400">
+                        Thành tiền: <span className="text-[#0E4D40]">{(item.quantity * item.unit_price).toLocaleString('vi-VN')}đ</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPartItems(prev => [...prev, emptyItem()])}
+                  className="mt-2 w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-dashed border-slate-300 text-xs font-bold text-slate-500 hover:border-[#0E4D40] hover:text-[#0E4D40] transition-colors"
+                >
+                  <Plus size={14} /> Thêm phụ tùng
+                </button>
+              </div>
+
+              {/* Ghi chú */}
+              <label className="block">
+                <span className="text-xs font-bold text-slate-500 mb-1.5 block">Ghi chú</span>
+                <textarea
+                  rows={3}
+                  value={quotationNote}
+                  onChange={(e) => setQuotationNote(e.target.value)}
+                  placeholder="Ghi chú thêm cho báo giá..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all resize-none"
+                />
+              </label>
+
+              {/* Tổng */}
+              <div className="bg-slate-50 rounded-xl p-4 flex items-center justify-between">
+                <span className="text-sm font-semibold text-slate-500">Tổng báo giá</span>
+                <span className="text-xl font-bold text-[#0E4D40]">{quotationTotal.toLocaleString('vi-VN')}đ</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 p-5 border-t border-slate-100 shrink-0">
+              <button onClick={() => setQuotationOpen(false)} className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
+                Hủy
+              </button>
+              <button className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-[#0E4D40] text-white hover:bg-[#0a3a30] transition-colors shadow-md">
+                Tạo báo giá
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -15,6 +15,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  FileText,
+  Plus,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useFetchClient_v2 as useFetchClient } from '../../../hook/useFetchClient';
@@ -48,7 +52,23 @@ const ASSIGNMENT_STATUS_CONFIG: Record<string, { label: string; color: string; b
   COMPLETED: { label: 'Hoàn thành', color: '#10B981', bg: '#ECFDF5', icon: CheckCircle2 },
 };
 
-// Mock assignments removed to use API data
+interface QuotationItem {
+  type: 'service' | 'part';
+  service_catalog_id: number | null;
+  spare_part_id: number | null;
+  label: string;
+  quantity: number;
+  unit_price: number;
+}
+
+const emptyQuotationItem = (): QuotationItem => ({
+  type: 'service',
+  service_catalog_id: null,
+  spare_part_id: null,
+  label: '',
+  quantity: 1,
+  unit_price: 0,
+});
 
 const ITEMS_PER_PAGE = 5;
 
@@ -63,6 +83,29 @@ export default function TechnicianAssignments() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Modal tạo báo giá
+  const [quotationOpen, setQuotationOpen] = useState(false);
+  const [quotationServiceOrderId, setQuotationServiceOrderId] = useState<string>('');
+  const [quotationItems, setQuotationItems] = useState<QuotationItem[]>([emptyQuotationItem()]);
+  const [quotationNote, setQuotationNote] = useState('');
+
+  const openQuotationModal = (serviceOrderId: string) => {
+    setQuotationServiceOrderId(serviceOrderId);
+    setQuotationItems([emptyQuotationItem()]);
+    setQuotationNote('');
+    setQuotationOpen(true);
+  };
+
+  const updateQuotationItem = (index: number, patch: Partial<QuotationItem>) =>
+    setQuotationItems(prev => prev.map((item, i) => i === index ? { ...item, ...patch } : item));
+
+  const removeQuotationItem = (index: number) =>
+    setQuotationItems(prev => prev.length === 1 ? prev : prev.filter((_, i) => i !== index));
+
+  const quotationTotal = quotationItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+
+  const formatPrice = (v: number) => v.toLocaleString('vi-VN') + 'đ';
 
   useEffect(() => {
     const fetchAssignments = async () => {
@@ -352,6 +395,14 @@ export default function TechnicianAssignments() {
                           </button>
                           
                           <button
+                            onClick={() => openQuotationModal(asg.serviceOrderId)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                            title="Tạo báo giá"
+                          >
+                            <FileText size={16} />
+                          </button>
+
+                          <button
                             onClick={() => navigate(`/technician/assignments/${asg.serviceOrderId}`)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-[#0E4D40] hover:bg-slate-100 transition-colors"
                             title="Xem chi tiết"
@@ -406,6 +457,153 @@ export default function TechnicianAssignments() {
           </div>
         )}
       </div>
+      {/* MODAL TẠO BÁO GIÁ */}
+      {quotationOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            onClick={() => setQuotationOpen(false)}
+          />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Tạo báo giá</h3>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">Đơn DV #{quotationServiceOrderId}</p>
+              </div>
+              <button
+                onClick={() => setQuotationOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto flex-1 p-5 space-y-4">
+              {/* Danh sách items */}
+              <div className="space-y-3">
+                {quotationItems.map((item, index) => (
+                  <div key={index} className="border border-slate-200 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      {/* Toggle service/part */}
+                      <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                        <button
+                          type="button"
+                          onClick={() => updateQuotationItem(index, { type: 'service', spare_part_id: null })}
+                          className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${item.type === 'service' ? 'bg-white text-[#0E4D40] shadow-sm' : 'text-slate-500'}`}
+                        >
+                          Dịch vụ
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateQuotationItem(index, { type: 'part', service_catalog_id: null })}
+                          className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${item.type === 'part' ? 'bg-white text-[#0E4D40] shadow-sm' : 'text-slate-500'}`}
+                        >
+                          Phụ tùng
+                        </button>
+                      </div>
+                      {quotationItems.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeQuotationItem(index)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-rose-50 text-rose-500 hover:bg-rose-100 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Tên dịch vụ / phụ tùng */}
+                    <input
+                      type="text"
+                      placeholder={item.type === 'service' ? 'Tên dịch vụ' : 'Tên phụ tùng'}
+                      value={item.label}
+                      onChange={(e) => updateQuotationItem(index, { label: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all"
+                    />
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="block">
+                        <span className="text-xs font-bold text-slate-500 mb-1.5 block">Số lượng</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={item.quantity || ''}
+                          onChange={(e) => updateQuotationItem(index, { quantity: e.target.value ? Number(e.target.value) : 1 })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-bold text-slate-500 mb-1.5 block">Đơn giá</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={item.unit_price ? item.unit_price.toLocaleString('vi-VN') : ''}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/\./g, '').replace(/[^0-9]/g, '');
+                            updateQuotationItem(index, { unit_price: raw ? Number(raw) : 0 });
+                          }}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="text-right text-xs font-bold text-slate-400">
+                      Thành tiền:{' '}
+                      <span className="text-[#0E4D40]">{formatPrice(item.quantity * item.unit_price)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Thêm dòng */}
+              <button
+                type="button"
+                onClick={() => setQuotationItems(prev => [...prev, emptyQuotationItem()])}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-slate-300 text-sm font-bold text-slate-500 hover:border-[#0E4D40] hover:text-[#0E4D40] transition-colors"
+              >
+                <Plus size={16} />
+                Thêm dòng
+              </button>
+
+              {/* Ghi chú */}
+              <label className="block">
+                <span className="text-xs font-bold text-slate-500 mb-1.5 block">Ghi chú</span>
+                <textarea
+                  rows={3}
+                  value={quotationNote}
+                  onChange={(e) => setQuotationNote(e.target.value)}
+                  placeholder="Ghi chú thêm cho báo giá..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all resize-none"
+                />
+              </label>
+
+              {/* Tổng */}
+              <div className="bg-slate-50 rounded-xl p-4 flex items-center justify-between">
+                <span className="text-sm font-semibold text-slate-500">Tổng báo giá</span>
+                <span className="text-xl font-bold text-[#0E4D40]">{formatPrice(quotationTotal)}</span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 p-5 border-t border-slate-100 shrink-0">
+              <button
+                onClick={() => setQuotationOpen(false)}
+                className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-[#0E4D40] text-white hover:bg-[#0a3a2f] transition-colors shadow-md"
+              >
+                Tạo báo giá
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
