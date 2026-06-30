@@ -8,8 +8,17 @@ export interface SparePartResponse {
   name: string;
   brand: string;
   stock_quantity: number;
-  retail_price: string;
+  retail_price: number;
   warranty_km_limit: number;
   warranty_period_months: number;
   category: SparePartCategoryResponse;
+}
+
+
+export interface UpdateSparePartRequest {
+  name: string;
+  brand: string;
+  retail_price: number;
+  warranty_km_limit: number;
+  warranty_period_months: number;
 }

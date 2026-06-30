@@ -145,7 +145,7 @@ export default function AppointmentList() {
       const res = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.CHECK_VEHICLE_INFO(apptId));
       if (res.success && res.data) {
         const { has_vin, vin_number, has_odo, last_odo } = res.data;
-        
+
         // Nếu đã có đủ VIN và ODO, tự động tiếp nhận luôn
         if (has_vin && has_odo) {
           if (currentStatus !== 'in_progress') {
@@ -153,7 +153,7 @@ export default function AppointmentList() {
             if (!receiveRes.success) throw new Error(receiveRes.message || 'Lỗi tiếp nhận');
           }
           showToast('Tiếp nhận thành công (Đã có sẵn VIN và ODO)', 'success');
-          navigate(`/reception/service-orders/create?appointmentId=${apptId}&odo=${last_odo}`);
+          //navigate(`/reception/service-orders/create?appointmentId=${apptId}&odo=${last_odo}`);
           return;
         }
 
@@ -163,7 +163,7 @@ export default function AppointmentList() {
     } catch (e) {
       console.error(e);
     }
-    
+
     setIsVinModalOpen(true);
   };
 

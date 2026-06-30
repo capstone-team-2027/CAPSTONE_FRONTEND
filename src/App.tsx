@@ -33,6 +33,8 @@ const InventoryParts = lazy(() => import("./pages/inventory/parts/InventoryParts
 const ImportHistory = lazy(() => import("./pages/inventory/import/InventoryImport"));
 const PartCategories = lazy(() => import("./pages/inventory/categories/InventoryPartCategories"));
 const InventorySuppliers = lazy(() => import("./pages/inventory/suppliers/InventorySuppliers"));
+const InventoryApprovedQuotes = lazy(() => import("./pages/inventory/export/InventoryApprovedQuotes"));
+const InventoryExport = lazy(() => import("./pages/inventory/export/InventoryExport"));
 
 // Reception Page Imports
 const ReceptionLayout = lazy(() => import("./pages/reception/ReceptionLayout"));
@@ -85,6 +87,7 @@ function App() {
           <Route path="parts" element={<Parts />} />
           <Route path="phone-service" element={<BookingPage />} />
           <Route path="login" element={<Login />} />
+          <Route path="oauth-success" element={<Login />} />
           <Route path="signup" element={<Signup />} />
           <Route path="user-profile" element={<UserProfile />} />
           <Route path="forgot-password" element={<ForgotPassword />} />
@@ -115,6 +118,8 @@ function App() {
           <Route path="categories" element={<PartCategories />} />
           <Route path="import" element={<ImportHistory />} />
           <Route path="suppliers" element={<InventorySuppliers />} />
+          <Route path="approved-quotes" element={<InventoryApprovedQuotes />} />
+          <Route path="export" element={<InventoryExport />} />
         </Route>
 
         <Route path="/technician" element={<TechnicianLayout />}>

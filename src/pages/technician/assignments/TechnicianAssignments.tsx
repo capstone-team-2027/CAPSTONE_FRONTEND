@@ -34,10 +34,9 @@ interface Assignment {
   appointmentTime: string;
   assignedAt: string;
   status: 'ASSIGNED' | 'IN_PROGRESS' | 'PAUSED' | 'PENDING_QC' | 'COMPLETED';
-  rejectionReason?: string;
-  acceptedAt?: string;
   rejectedAt?: string;
   taskAssignmentId?: string | number;
+  bookingType: string;
 }
 
 const ASSIGNMENT_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
@@ -95,6 +94,7 @@ export default function TechnicianAssignments() {
               assignedAt: firstAssignment?.createdAt || so.createdAt,
               status: status,
               taskAssignmentId: firstAssignment?.id,
+              bookingType: so.appointment?.booking_type || 'WALK_IN',
             };
           });
           setAssignments(mappedData);
@@ -337,19 +337,44 @@ export default function TechnicianAssignments() {
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => {
-                              if (asg.status === 'ASSIGNED') {
-                                handleStartTask(asg.taskAssignmentId);
-                              } else if (asg.status === 'IN_PROGRESS') {
-                                handleCompleteTask(asg.taskAssignmentId);
-                              }
-                            }}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#0E4D40] bg-[#E8F5F0] hover:bg-[#C4E8E0] transition-colors"
-                          >
-                            {asg.status === 'ASSIGNED' ? <PlayCircle size={13} /> : asg.status === 'IN_PROGRESS' ? <CheckCircle2 size={13} /> : <Eye size={13} />}
-                            {asg.status === 'ASSIGNED' ? 'Bắt đầu làm' : asg.status === 'IN_PROGRESS' ? 'Hoàn thành' : 'Chi tiết'}
-                          </button>
+                          {asg.status === 'ASSIGNED' ? (
+                            (asg.bookingType === 'RECEPTIONIST_REPAIR' || asg.bookingType === 'CUSTOMER_REPAIR') ? (
+                              <button
+                                onClick={() => {
+                                  // TODO: Handle quote creation navigation
+                                  alert('Chức năng tạo báo giá đang được cập nhật...');
+                                }}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
+                              >
+                                <CheckSquare size={13} />
+                                Tạo báo giá
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleStartTask(asg.taskAssignmentId)}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#0E4D40] bg-[#E8F5F0] hover:bg-[#C4E8E0] transition-colors"
+                              >
+                                <PlayCircle size={13} />
+                                Bắt đầu làm
+                              </button>
+                            )
+                          ) : asg.status === 'IN_PROGRESS' ? (
+                            <button
+                              onClick={() => handleCompleteTask(asg.taskAssignmentId)}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#0E4D40] bg-[#E8F5F0] hover:bg-[#C4E8E0] transition-colors"
+                            >
+                              <CheckCircle2 size={13} />
+                              Hoàn thành
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => navigate(`/technician/assignments/${asg.serviceOrderId}`)}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+                            >
+                              <Eye size={13} />
+                              Chi tiết
+                            </button>
+                          )}
 
                           <button
                             onClick={() => navigate(`/technician/assignments/${asg.serviceOrderId}`)}
@@ -387,8 +412,8 @@ export default function TechnicianAssignments() {
                   key={page}
                   onClick={() => setCurrentPage(page)}
                   className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${page === currentPage
-                      ? 'bg-[#0E4D40] text-white shadow-md'
-                      : 'text-slate-500 hover:bg-slate-100'
+                    ? 'bg-[#0E4D40] text-white shadow-md'
+                    : 'text-slate-500 hover:bg-slate-100'
                     }`}
                 >
                   {page}

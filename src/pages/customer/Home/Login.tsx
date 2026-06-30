@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { Lock, Eye, EyeOff, ShieldCheck, ChevronRight } from 'lucide-react';
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import 'react-phone-input-2/lib/style.css';
 import * as PhoneInputLib from 'react-phone-input-2';
 import { COLORS } from '../../../components/share/Color';
@@ -121,20 +121,71 @@ const phoneStyles = `
 // ── MAIN COMPONENT ────────────────────────────────────────────
 export default function Login() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { fetchPublic } = useFetchClient();
     const dispatch = useDispatch()
     const { i18n } = useTranslation();
     const isVi = i18n.language === 'vi';
-
     const [phone, setPhone] = useState('');
     const [password, setPassword] = useState('');
     const [rememberMe, setRememberMe] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
-
-
     const [errors, setErrors] = useState<Partial<Record<keyof LoginFormData, string>>>({});
     const [apiError, setApiError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+
+    const handleGoogleLogin = () => {
+        window.location.href = AUTH_API_ENDPOINTS.LOGIN_GOOGLE;
+    };
+
+    const handleGoogleCallback = () => {
+        const accessToken = searchParams.get('accessToken');
+        const refreshToken = searchParams.get('refreshToken');
+        const userParam = searchParams.get('user');
+        const error = searchParams.get('error');
+
+        if (error) {
+            setApiError(isVi ? 'Đăng nhập Google thất bại. Vui lòng thử lại.' : 'Google login failed. Please try again.');
+            return;
+        }
+
+        if (!accessToken) return;
+
+        window.history.replaceState({}, '', window.location.pathname);
+
+        localStorage.setItem('token', accessToken);
+        localStorage.setItem('accessToken', accessToken);
+        if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
+
+        if (userParam) {
+            try {
+                const userData = JSON.parse(decodeURIComponent(userParam));
+                localStorage.setItem('user', JSON.stringify(userData));
+                dispatch(loginSuccess({
+                    id: userData.id,
+                    fullName: userData.fullName,
+                    phoneNumber: userData.phoneNumber,
+                    avatar: userData.avatar,
+                    role: userData.role,
+                }));
+
+                if (userData.role === 'CUSTOMER') navigate('/');
+                else if (userData.role === 'ADMIN') navigate('/admin/statistics');
+                else if (userData.role === 'RECEPTIONIST') navigate('/reception');
+                else if (userData.role === 'TECHNICIAN') navigate('/technician');
+                else navigate('/');
+            } catch {
+                navigate('/login');
+            }
+        } else {
+            navigate('/');
+        }
+    };
+
+    useEffect(() => {
+        handleGoogleCallback();
+    }, [searchParams]);
+
 
 
     const normalizePhone = (raw: string): string => {
@@ -457,25 +508,18 @@ export default function Login() {
                             </span>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            {[
-                                { label: 'Google', img: '/images/google.png' },
-                                { label: 'Zalo', img: '/images/zalo.png' },
-                            ].map((social) => (
-                                <Button
-                                    key={social.label}
-                                    size="sm"
-                                    bg={COLORS.white}
-                                    color={COLORS.navy}
-                                    icon={null}
-                                    className="h-14 justify-center rounded-2xl text-sm font-medium"
-                                    style={{ border: '1px solid #EFF6FF', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
-                                >
-                                    <img src={social.img} className="w-5 mr-2" alt={social.label} />
-                                    {social.label}
-                                </Button>
-                            ))}
-                        </div>
+                        <Button
+                            size="sm"
+                            bg={COLORS.white}
+                            color={COLORS.navy}
+                            icon={null}
+                            className="w-full h-14 justify-center rounded-2xl text-sm font-medium"
+                            style={{ border: '1px solid #EFF6FF', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
+                            onClick={handleGoogleLogin}
+                        >
+                            <img src="/images/google.png" className="w-5 mr-2" alt="Google" />
+                            {isVi ? 'Đăng nhập bằng Google' : 'Sign in with Google'}
+                        </Button>
                     </div>
 
                     <p className="mt-12 text-center text-sm" style={{ color: `${COLORS.navy}80` }}>

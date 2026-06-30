@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   Truck,
   BarChart3,
+  FileCheck2,
   HelpCircle,
   LogOut,
   Search,
@@ -83,6 +84,7 @@ export default function InventoryLayout() {
     { name: 'Lịch sử nhập kho', icon: ArrowDownToLine, path: '/inventory/import' },
     { name: 'Lịch sử xuất kho', icon: ArrowUpFromLine, path: '/inventory/export' },
     { name: 'Kiểm kê', icon: ClipboardCheck, path: '/inventory/stocktake' },
+    { name: 'Báo giá đã duyệt', icon: FileCheck2, path: '/inventory/approved-quotes' },
     { name: 'Nhà cung cấp', icon: Truck, path: '/inventory/suppliers' },
     { name: 'Báo cáo kho', icon: BarChart3, path: '/inventory/reports' },
   ];
@@ -96,6 +98,7 @@ export default function InventoryLayout() {
     if (path.includes('/import')) return 'Lịch sử nhập kho';
     if (path.includes('/export')) return 'Lịch sử xuất kho';
     if (path.includes('/stocktake')) return 'Kiểm kê';
+    if (path.includes('/approved-quotes')) return 'Báo giá đã duyệt';
     if (path.includes('/suppliers')) return 'Nhà cung cấp';
     if (path.includes('/reports')) return 'Báo cáo kho';
     return 'Tổng quan';
