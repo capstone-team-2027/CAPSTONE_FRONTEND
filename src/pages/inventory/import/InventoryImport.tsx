@@ -46,7 +46,8 @@ interface ImportLineForm {
   warranty_km_limit: number | null;
   quantity: number;
   unit_price: number;
-  
+  retail_price: number;
+
   conflict?: {
     message: string;
     candidates: { id: number; sku: string; name: string; brand?: string }[];
@@ -65,6 +66,7 @@ const emptyLine = (): ImportLineForm => ({
   warranty_km_limit: null,
   quantity: 1,
   unit_price: 0,
+  retail_price: 0,
   conflict: null,
    force: false
 });
@@ -197,6 +199,7 @@ export default function ImportHistory() {
       items: lines.map((line) => ({
         quantity: line.quantity,
         unit_price: line.unit_price,
+        retail_price: line.retail_price || undefined,
         ...(line.mode === 'existing'
           ? { part_id: line.part_id! }
           : {
@@ -734,7 +737,7 @@ export default function ImportHistory() {
                         </div>
                       )}
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-3 gap-3">
                         <label className="block">
                           <span className="text-xs font-bold text-slate-500 mb-1.5 block">
                             Số lượng
@@ -762,6 +765,22 @@ export default function ImportHistory() {
                             onChange={(e) => {
                               const raw = e.target.value.replace(/\./g, '').replace(/[^0-9]/g, '');
                               updateLine(index, { unit_price: raw ? Number(raw) : 0 });
+                            }}
+                            className={createInputCls}
+                            placeholder="0"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs font-bold text-slate-500 mb-1.5 block">
+                            Giá bán
+                          </span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={line.retail_price ? line.retail_price.toLocaleString('vi-VN') : ''}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/\./g, '').replace(/[^0-9]/g, '');
+                              updateLine(index, { retail_price: raw ? Number(raw) : 0 });
                             }}
                             className={createInputCls}
                             placeholder="0"
