@@ -182,7 +182,7 @@ export default function TechnicianUpdateProgress() {
           <div className="bg-slate-50 rounded-xl p-4 text-sm max-w-sm mx-auto space-y-2">
             <div className="flex justify-between">
               <span className="text-slate-500">Tiến độ tổng:</span>
-              <span className="font-bold text-[#0E4D40]">{overallProgress}%</span>
+              <span className="font-bold text-[#00285E]">{overallProgress}%</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Hoàn thành:</span>
@@ -192,7 +192,7 @@ export default function TechnicianUpdateProgress() {
           <div className="flex gap-3 justify-center pt-2">
             <button
               onClick={() => navigate('/technician/service-orders')}
-              className="px-6 py-3 bg-[#0E4D40] text-white rounded-xl text-sm font-bold hover:bg-[#0a3a30] transition-colors"
+              className="px-6 py-3 bg-[#00285E] text-white rounded-xl text-sm font-bold hover:bg-[#0a3a30] transition-colors"
             >
               Quay về danh sách
             </button>
@@ -208,13 +208,13 @@ export default function TechnicianUpdateProgress() {
       <div className="flex flex-col gap-4">
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#0E4D40] transition-colors self-start"
+          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#00285E] transition-colors self-start"
         >
           <ArrowLeft size={16} />
           Quay lại
         </button>
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#0E4D40] tracking-tight leading-none mb-2 flex items-center gap-2">
+          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
             <Activity className="text-amber-500" size={28} />
             Cập nhật tiến độ sửa chữa
           </h1>
@@ -225,11 +225,11 @@ export default function TechnicianUpdateProgress() {
       </div>
 
       {/* VEHICLE INFO BANNER */}
-      <div className="bg-gradient-to-r from-[#E8F5F0] to-[#D5F0E8] p-5 rounded-2xl border border-[#C4E8E0]">
+      <div className="bg-gradient-to-r from-[#EDF3FF] to-[#DCE8FF] p-5 rounded-2xl border border-[#DCE8FF]">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Mã lệnh sửa chữa</p>
-            <p className="font-bold text-[#0E4D40]">{MOCK_VEHICLE_INFO.repairOrderId}</p>
+            <p className="font-bold text-[#00285E]">{MOCK_VEHICLE_INFO.repairOrderId}</p>
           </div>
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Biển số xe</p>
@@ -260,7 +260,7 @@ export default function TechnicianUpdateProgress() {
                   strokeWidth="3"
                 />
                 <path
-                  className="text-[#0E4D40]"
+                  className="text-[#00285E]"
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   fill="none"
                   stroke="currentColor"
@@ -270,7 +270,7 @@ export default function TechnicianUpdateProgress() {
                 />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-lg font-bold text-[#0E4D40]">{overallProgress}%</span>
+                <span className="text-lg font-bold text-[#00285E]">{overallProgress}%</span>
               </div>
             </div>
             <div>
@@ -310,7 +310,7 @@ export default function TechnicianUpdateProgress() {
       {/* REPAIR TASK LIST */}
       <div className="space-y-3">
         <div className="flex items-center gap-2 px-1">
-          <BarChart3 size={18} className="text-[#0E4D40]" />
+          <BarChart3 size={18} className="text-[#00285E]" />
           <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Danh sách công việc</h3>
         </div>
 
@@ -411,7 +411,7 @@ export default function TechnicianUpdateProgress() {
                       {/* Progress slider */}
                       <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                          Tiến độ: <span className="text-[#0E4D40]">{task.progress}%</span>
+                          Tiến độ: <span className="text-[#00285E]">{task.progress}%</span>
                         </label>
                         <div className="flex items-center gap-4">
                           <input
@@ -422,7 +422,7 @@ export default function TechnicianUpdateProgress() {
                             onChange={(e) => updateTaskProgress(task.id, parseInt(e.target.value))}
                             className="flex-1 h-2 rounded-full appearance-none cursor-pointer"
                             style={{
-                              background: `linear-gradient(to right, #0E4D40 ${task.progress}%, #E2E8F0 ${task.progress}%)`,
+                              background: `linear-gradient(to right, #00285E ${task.progress}%, #E2E8F0 ${task.progress}%)`,
                             }}
                           />
                           <input
@@ -431,7 +431,7 @@ export default function TechnicianUpdateProgress() {
                             max={100}
                             value={task.progress}
                             onChange={(e) => updateTaskProgress(task.id, parseInt(e.target.value) || 0)}
-                            className="w-16 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-center text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40]"
+                            className="w-16 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-center text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E]"
                           />
                           <span className="text-xs text-slate-400 font-medium">%</span>
                         </div>
@@ -453,7 +453,7 @@ export default function TechnicianUpdateProgress() {
                           onChange={(e) => updateTaskNotes(task.id, e.target.value)}
                           placeholder="Mô tả tình trạng, vấn đề gặp phải..."
                           rows={3}
-                          className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all resize-none"
+                          className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all resize-none"
                         />
                       </div>
                     </div>
@@ -468,8 +468,8 @@ export default function TechnicianUpdateProgress() {
       {/* ESTIMATED COMPLETION TIME */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-lg bg-[#E8F5F0] flex items-center justify-center">
-            <Timer size={16} className="text-[#0E4D40]" />
+          <div className="w-8 h-8 rounded-lg bg-[#EDF3FF] flex items-center justify-center">
+            <Timer size={16} className="text-[#00285E]" />
           </div>
           <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Thời gian hoàn thành dự kiến</h3>
         </div>
@@ -477,7 +477,7 @@ export default function TechnicianUpdateProgress() {
           type="datetime-local"
           value={estimatedCompletion}
           onChange={(e) => setEstimatedCompletion(e.target.value)}
-          className="w-full md:w-auto bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all"
+          className="w-full md:w-auto bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
         />
       </div>
 
@@ -494,7 +494,7 @@ export default function TechnicianUpdateProgress() {
           onChange={(e) => setOverallNotes(e.target.value)}
           placeholder="Ghi chú chung về tiến độ sửa chữa..."
           rows={4}
-          className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all resize-none"
+          className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all resize-none"
         />
       </div>
 
@@ -509,7 +509,7 @@ export default function TechnicianUpdateProgress() {
         <button
           onClick={handleSubmit}
           disabled={isSubmitting}
-          className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 bg-[#0E4D40] hover:bg-[#0a3a30] text-white rounded-xl text-sm font-bold shadow-md transition-all disabled:opacity-50"
+          className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 bg-[#00285E] hover:bg-[#0a3a30] text-white rounded-xl text-sm font-bold shadow-md transition-all disabled:opacity-50"
         >
           {isSubmitting ? (
             <Loader2 size={16} className="animate-spin" />

@@ -986,7 +986,7 @@ export default function BookingPage() {
                                                 }`}
                                         >
                                             <Sparkles size={14} />
-                                            Tư vấn trực tiếp
+                                            Tham khảo tư vấn AI
                                         </button>
                                         <button
                                             type="button"
@@ -1013,7 +1013,7 @@ export default function BookingPage() {
                                                         }`}
                                                 >
                                                     <Sparkles size={12} className={consultationType === 'AI_DIAGNOSIS' ? 'text-amber-300' : 'text-amber-500'} />
-                                                    AI nhận diện lỗi, phân tích
+                                                    AI nhận diện lỗi
                                                 </button>
                                                 <button
                                                     type="button"
@@ -1024,15 +1024,7 @@ export default function BookingPage() {
                                                         }`}
                                                 >
                                                     <Phone size={12} />
-                                                    Gọi điện tư vấn trực tiếp
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setBookingFlow('SPECIFIC')}
-                                                    className="flex-1 py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 border-none cursor-pointer text-slate-500 hover:text-slate-800 bg-transparent"
-                                                >
-                                                    <Wrench size={12} />
-                                                    Đặt dịch vụ sửa chữa
+                                                    Gọi điện tư vấn
                                                 </button>
                                             </div>
 
@@ -1608,7 +1600,7 @@ export default function BookingPage() {
                                             className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceCategoryMode === 'REPAIR' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'}`}
                                         >
                                             <Wrench size={14} />
-                                            Sửa chữa lỗi
+                                            Kiểm tra và sửa chữa lỗi
                                         </button>
                                     </div>
 

@@ -180,13 +180,13 @@ export default function TechnicianRequestParts() {
             </div>
             <div className="flex justify-between border-t border-slate-200 pt-2">
               <span className="text-slate-500 font-semibold">Tổng dự toán:</span>
-              <span className="font-bold text-[#0E4D40]">{formatPrice(totalEstimatedCost)}</span>
+              <span className="font-bold text-[#00285E]">{formatPrice(totalEstimatedCost)}</span>
             </div>
           </div>
           <div className="flex gap-3 justify-center pt-2">
             <button
               onClick={() => navigate('/technician/service-orders')}
-              className="px-6 py-3 bg-[#0E4D40] text-white rounded-xl text-sm font-bold hover:bg-[#0a3a30] transition-colors"
+              className="px-6 py-3 bg-[#00285E] text-white rounded-xl text-sm font-bold hover:bg-[#0a3a30] transition-colors"
             >
               Quay về danh sách
             </button>
@@ -202,13 +202,13 @@ export default function TechnicianRequestParts() {
       <div className="flex flex-col gap-4">
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#0E4D40] transition-colors self-start"
+          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#00285E] transition-colors self-start"
         >
           <ArrowLeft size={16} />
           Quay lại
         </button>
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#0E4D40] tracking-tight leading-none mb-2 flex items-center gap-2">
+          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
             <PackagePlus className="text-amber-500" size={28} />
             Yêu cầu thêm phụ tùng & dịch vụ
           </h1>
@@ -219,11 +219,11 @@ export default function TechnicianRequestParts() {
       </div>
 
       {/* VEHICLE INFO BANNER */}
-      <div className="bg-gradient-to-r from-[#E8F5F0] to-[#D5F0E8] p-5 rounded-2xl border border-[#C4E8E0]">
+      <div className="bg-gradient-to-r from-[#EDF3FF] to-[#DCE8FF] p-5 rounded-2xl border border-[#DCE8FF]">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Mã lệnh sửa chữa</p>
-            <p className="font-bold text-[#0E4D40]">{MOCK_VEHICLE.repairOrderId}</p>
+            <p className="font-bold text-[#00285E]">{MOCK_VEHICLE.repairOrderId}</p>
           </div>
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Biển số xe</p>
@@ -244,8 +244,8 @@ export default function TechnicianRequestParts() {
         {/* ADDITIONAL SERVICES */}
         <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
           <div className="p-5 border-b border-slate-100 flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-[#E8F5F0] flex items-center justify-center">
-              <Wrench size={16} className="text-[#0E4D40]" />
+            <div className="w-8 h-8 rounded-lg bg-[#EDF3FF] flex items-center justify-center">
+              <Wrench size={16} className="text-[#00285E]" />
             </div>
             <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Dịch vụ bổ sung</h3>
           </div>
@@ -259,7 +259,7 @@ export default function TechnicianRequestParts() {
                 placeholder="Tìm dịch vụ để thêm..."
                 value={serviceSearch}
                 onChange={(e) => setServiceSearch(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200/80 rounded-lg pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all"
+                className="w-full bg-slate-50 border border-slate-200/80 rounded-lg pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
               />
             </div>
             {serviceSearch && filteredServices.length > 0 && (
@@ -268,7 +268,7 @@ export default function TechnicianRequestParts() {
                   <button
                     key={svc.id}
                     onClick={() => { addService(svc); setServiceSearch(''); }}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[#E8F5F0] transition-colors text-left"
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[#EDF3FF] transition-colors text-left"
                   >
                     <div>
                       <p className="text-xs font-semibold text-slate-700">{svc.name}</p>
@@ -276,7 +276,7 @@ export default function TechnicianRequestParts() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-slate-600">{formatPrice(svc.price)}</span>
-                      <Plus size={14} className="text-[#0E4D40]" />
+                      <Plus size={14} className="text-[#00285E]" />
                     </div>
                   </button>
                 ))}
@@ -328,7 +328,7 @@ export default function TechnicianRequestParts() {
                 placeholder="Tìm phụ tùng để thêm..."
                 value={partSearch}
                 onChange={(e) => setPartSearch(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200/80 rounded-lg pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all"
+                className="w-full bg-slate-50 border border-slate-200/80 rounded-lg pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
               />
             </div>
             {partSearch && filteredParts.length > 0 && (
@@ -407,8 +407,8 @@ export default function TechnicianRequestParts() {
       {/* COST ESTIMATION */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
         <div className="flex items-center gap-2 mb-4">
-          <div className="w-8 h-8 rounded-lg bg-[#E8F5F0] flex items-center justify-center">
-            <Calculator size={16} className="text-[#0E4D40]" />
+          <div className="w-8 h-8 rounded-lg bg-[#EDF3FF] flex items-center justify-center">
+            <Calculator size={16} className="text-[#00285E]" />
           </div>
           <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Dự toán chi phí</h3>
         </div>
@@ -423,9 +423,9 @@ export default function TechnicianRequestParts() {
             <p className="text-lg font-bold text-slate-800">{formatPrice(partsCost)}</p>
             <p className="text-[10px] text-slate-400 mt-0.5">{selectedParts.length} phụ tùng</p>
           </div>
-          <div className="bg-[#E8F5F0] rounded-xl p-4 text-center border border-[#C4E8E0]">
-            <p className="text-[10px] font-bold text-[#0E4D40] uppercase tracking-widest mb-1">Tổng dự toán</p>
-            <p className="text-xl font-bold text-[#0E4D40]">{formatPrice(totalEstimatedCost)}</p>
+          <div className="bg-[#EDF3FF] rounded-xl p-4 text-center border border-[#DCE8FF]">
+            <p className="text-[10px] font-bold text-[#00285E] uppercase tracking-widest mb-1">Tổng dự toán</p>
+            <p className="text-xl font-bold text-[#00285E]">{formatPrice(totalEstimatedCost)}</p>
           </div>
         </div>
       </div>
@@ -443,7 +443,7 @@ export default function TechnicianRequestParts() {
           onChange={(e) => setTechNotes(e.target.value)}
           placeholder="Mô tả lý do cần thêm phụ tùng hoặc dịch vụ bổ sung..."
           rows={4}
-          className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all resize-none"
+          className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all resize-none"
         />
       </div>
 
@@ -479,7 +479,7 @@ export default function TechnicianRequestParts() {
         <button
           onClick={handleSubmit}
           disabled={isSubmitting}
-          className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 bg-[#0E4D40] hover:bg-[#0a3a30] text-white rounded-xl text-sm font-bold shadow-md transition-all disabled:opacity-50"
+          className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 bg-[#00285E] hover:bg-[#0a3a30] text-white rounded-xl text-sm font-bold shadow-md transition-all disabled:opacity-50"
         >
           {isSubmitting ? (
             <Loader2 size={16} className="animate-spin" />

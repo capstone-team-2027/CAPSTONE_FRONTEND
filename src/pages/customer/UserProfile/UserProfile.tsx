@@ -30,7 +30,7 @@ import { useFetchClient } from '../../../hook/useFetchClient';
 import { PROFILE_API_ENDPOINTS } from '../../../constants/customer/profileApiEndpoint';
 
 const MENU_ITEMS = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'dashboard', label: 'Hồ sơ người dùng', icon: LayoutDashboard },
     { id: 'vehicles', label: 'Xe sở hữu', icon: Car },
     { id: 'appointments', label: 'Lịch hẹn', icon: Calendar },
     { id: 'history', label: 'Lịch sử sửa chữa', icon: History },

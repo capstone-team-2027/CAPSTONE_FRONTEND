@@ -133,7 +133,6 @@ export default function TechnicianLayout() {
 
   // Menu items for the sidebar
   const menuItems = [
-    { name: 'Đơn dịch vụ', icon: ClipboardList, path: '/technician/service-orders' },
     { name: 'Phân công', icon: CheckSquare, path: '/technician/assignments' },
     { name: 'Lịch làm việc', icon: Calendar, path: '/technician/my-shifts' },
     { name: 'Yêu cầu phụ tùng', icon: PackagePlus, path: '/technician/parts-request' },
@@ -143,30 +142,29 @@ export default function TechnicianLayout() {
   // Dynamic active menu item based on current URL path
   const activeMenu = useMemo(() => {
     const path = location.pathname;
-    if (path.includes('/service-orders')) return 'Đơn dịch vụ';
     if (path.includes('/assignments')) return 'Phân công';
     if (path.includes('/my-shifts')) return 'Lịch làm việc';
     if (path.includes('/parts-request')) return 'Yêu cầu phụ tùng';
     if (path.includes('/progress')) return 'Cập nhật tiến độ';
-    return 'Đơn dịch vụ';
+    return 'Phân công';
   }, [location.pathname]);
 
   const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => (
     <>
       {/* Sidebar Header */}
-      <div className="p-6 border-b border-[#C4E8E0] flex items-center justify-between">
+      <div className="p-6 border-b border-slate-200/60 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#0E4D40] flex items-center justify-center shadow-md">
+          <div className="w-10 h-10 rounded-xl bg-[#00285E] flex items-center justify-center shadow-md">
             <Wrench size={20} className="text-white" />
           </div>
           <div className="flex flex-col">
-            <span className="font-bold text-[#0E4D40] uppercase tracking-wider text-base">AGM Intelligent</span>
+            <span className="font-bold text-[#00285E] uppercase tracking-wider text-base">AGM Intelligent</span>
             <span className="text-[10px] text-slate-500 font-semibold tracking-widest uppercase">Kỹ thuật viên</span>
           </div>
         </div>
         <button
           onClick={() => setIsMobileSidebarOpen(false)}
-          className="md:hidden p-1 rounded-lg hover:bg-[#C4E8E0] text-[#0E4D40] transition-colors"
+          className="md:hidden p-1 rounded-lg hover:bg-slate-100 text-[#00285E] transition-colors"
         >
           <X size={20} />
         </button>
@@ -190,13 +188,13 @@ export default function TechnicianLayout() {
                     onNavigate?.();
                   }}
                   className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all group ${isActive
-                    ? 'bg-[#0E4D40] text-white shadow-lg shadow-[#0E4D40]/15'
-                    : 'text-slate-600 hover:bg-[#D5F0E8] hover:text-[#0E4D40]'
+                    ? 'bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-[#00285E]'
                     }`}
                 >
                   <Icon
                     size={18}
-                    className={isActive ? 'text-[#F9A11B]' : 'text-slate-500 group-hover:text-[#0E4D40]'}
+                    className={isActive ? 'text-[#F9A11B]' : 'text-slate-500 group-hover:text-[#00285E]'}
                   />
                   <span>{item.name}</span>
                 </button>
@@ -207,10 +205,10 @@ export default function TechnicianLayout() {
       </div>
 
       {/* Sidebar Footer */}
-      <div className="p-4 border-t border-[#C4E8E0] space-y-1">
+      <div className="p-4 border-t border-slate-200/60 space-y-1">
         <button
           onClick={() => showToast('Chức năng hỗ trợ đang được kết nối...', 'info')}
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-[#D5F0E8] hover:text-[#0E4D40] transition-colors"
+          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 hover:text-[#00285E] transition-colors"
         >
           <HelpCircle size={18} className="text-slate-500" />
           <span>Hỗ trợ</span>
@@ -291,7 +289,7 @@ export default function TechnicianLayout() {
                   <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                     <h3 className="font-bold text-slate-800">Thông báo</h3>
                     {unreadCount > 0 && (
-                      <button onClick={handleMarkAllAsRead} className="text-xs font-semibold text-[#0E4D40] hover:text-[#F9A11B] transition-colors">
+                      <button onClick={handleMarkAllAsRead} className="text-xs font-semibold text-[#00285E] hover:text-[#F9A11B] transition-colors">
                         Đánh dấu đã đọc
                       </button>
                     )}
@@ -334,7 +332,7 @@ export default function TechnicianLayout() {
 
       {/* SIDEBAR ON DESKTOP */}
       <aside
-        className="fixed inset-y-0 left-0 bg-[#E8F5F0] border-r border-[#C4E8E0] w-72 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:sticky md:h-screen md:flex md:flex-col shrink-0 hidden md:block"
+        className="fixed inset-y-0 left-0 bg-white border-r border-slate-200/60 w-72 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:sticky md:h-screen md:flex md:flex-col shrink-0 hidden md:block"
         style={{ height: '100vh' }}
       >
         <SidebarContent />
@@ -347,7 +345,7 @@ export default function TechnicianLayout() {
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"
             onClick={() => setIsMobileSidebarOpen(false)}
           ></div>
-          <aside className="relative flex flex-col w-72 bg-[#E8F5F0] border-r border-[#C4E8E0] h-full p-0">
+          <aside className="relative flex flex-col w-72 bg-white border-r border-slate-200/60 h-full p-0">
             <SidebarContent onNavigate={() => setIsMobileSidebarOpen(false)} />
           </aside>
         </div>
@@ -366,7 +364,7 @@ export default function TechnicianLayout() {
               placeholder="Tìm kiếm đơn dịch vụ, biển số xe..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200/80 rounded-full pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0E4D40]/10 focus:border-[#0E4D40] transition-all"
+              className="w-full bg-slate-50 border border-slate-200/80 rounded-full pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
             />
           </div>
 
@@ -395,7 +393,7 @@ export default function TechnicianLayout() {
                       <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                         <h3 className="font-bold text-slate-800">Thông báo</h3>
                         {unreadCount > 0 && (
-                          <button onClick={handleMarkAllAsRead} className="text-xs font-semibold text-[#0E4D40] hover:text-[#F9A11B] transition-colors">
+                          <button onClick={handleMarkAllAsRead} className="text-xs font-semibold text-[#00285E] hover:text-[#F9A11B] transition-colors">
                             Đánh dấu đã đọc
                           </button>
                         )}
@@ -455,7 +453,7 @@ export default function TechnicianLayout() {
                 <img
                   src={avatarUrl}
                   alt="Technician User Avatar"
-                  className="w-10 h-10 rounded-full object-cover border-2 border-[#E8F5F0] shadow-sm"
+                  className="w-10 h-10 rounded-full object-cover border-2 border-[#EDF3FF] shadow-sm"
                 />
                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
               </div>

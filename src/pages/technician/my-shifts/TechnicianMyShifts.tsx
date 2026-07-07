@@ -118,7 +118,7 @@ export default function TechnicianMyShifts() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-            <CalendarDays className="text-[#0E4D40]" size={28} />
+            <CalendarDays className="text-[#00285E]" size={28} />
             Lịch làm việc của tôi
           </h1>
           <p className="text-slate-500 mt-1 text-sm font-medium">
@@ -134,7 +134,7 @@ export default function TechnicianMyShifts() {
             <ChevronLeft size={20} />
           </button>
           <div className="font-bold text-slate-800 text-sm md:text-base flex items-center gap-2">
-            <CalendarClock size={18} className="text-[#0E4D40]" />
+            <CalendarClock size={18} className="text-[#00285E]" />
             Tuần: {weekDays[0].formatted} - {weekDays[6].formatted}
           </div>
           <button onClick={handleNextWeek} disabled={isLoading} className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors disabled:opacity-50">
@@ -146,7 +146,7 @@ export default function TechnicianMyShifts() {
           <button 
             onClick={setThisWeek} 
             disabled={isLoading}
-            className="px-4 py-2 text-sm font-bold text-[#0E4D40] bg-[#E8F5F0] hover:bg-[#D5F0E8] rounded-xl transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] rounded-xl transition-colors disabled:opacity-50"
           >
             Tuần hiện tại
           </button>
@@ -157,7 +157,7 @@ export default function TechnicianMyShifts() {
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden relative min-h-[300px]">
         {isLoading && (
           <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-50 flex items-center justify-center">
-            <Loader2 className="animate-spin text-[#0E4D40]" size={32} />
+            <Loader2 className="animate-spin text-[#00285E]" size={32} />
           </div>
         )}
         <div className="overflow-x-auto">
@@ -171,7 +171,7 @@ export default function TechnicianMyShifts() {
                   <th key={i} className="py-3 px-2 text-center border-r border-slate-200/50 last:border-r-0 min-w-[120px]">
                     <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{day.label}</div>
                     <div className={`text-sm font-bold mt-1 ${day.date.toDateString() === new Date().toDateString()
-                      ? "text-[#0E4D40] bg-[#E8F5F0] mx-auto w-max px-2 py-0.5 rounded-full"
+                      ? "text-[#00285E] bg-[#EDF3FF] mx-auto w-max px-2 py-0.5 rounded-full"
                       : "text-slate-800"
                       }`}>
                       {day.formatted}
@@ -183,7 +183,7 @@ export default function TechnicianMyShifts() {
             <tbody>
               <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
                 <td className="py-5 px-6 border-r border-slate-200/50 sticky left-0 bg-white shadow-[1px_0_0_0_rgba(226,232,240,0.5)] z-10 group-hover:bg-slate-50/50">
-                  <div className="font-bold text-[#0E4D40] text-sm truncate max-w-[200px]">{displayName}</div>
+                  <div className="font-bold text-[#00285E] text-sm truncate max-w-[200px]">{displayName}</div>
                   <div className="text-[11px] font-semibold text-slate-400 truncate">Kỹ thuật viên</div>
                 </td>
 

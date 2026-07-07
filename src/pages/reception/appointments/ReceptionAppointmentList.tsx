@@ -22,15 +22,15 @@ import { APPOINTMENT_API_ENDPOINTS, SERVICE_ORDER_API_ENDPOINTS } from '../../..
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   pending: { label: 'Chờ xác nhận', color: '#D97706', bg: '#FEF3C7', icon: Clock },
   confirmed: { label: 'Đã xác nhận', color: '#2563EB', bg: '#DBEAFE', icon: CheckCircle2 },
-  in_progress: { label: 'Đã tiếp nhận (Đang sửa)', color: '#EA580C', bg: '#FED7AA', icon: Loader2 },
-  completed: { label: 'Đã tiếp nhận (Hoàn thành)', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
+  in_progress: { label: 'Đã tiếp nhận ', color: '#EA580C', bg: '#FED7AA', icon: Loader2 },
+  completed: { label: 'Đã tiếp nhận', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
   cancelled: { label: 'Đã hủy', color: '#DC2626', bg: '#FEE2E2', icon: XCircle },
   no_show: { label: 'Khách không đến (No Show)', color: '#6B7280', bg: '#F3F4F6', icon: XCircle },
 };
 
 const ITEMS_PER_PAGE = 6;
 
-const formatBookingType = (type?: string) => {
+/*const formatBookingType = (type?: string) => {
   switch (type) {
     case 'CUSTOMER_SPECIFIC': return { label: 'KH Đặt Dịch Vụ', style: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
     case 'CUSTOMER_REPAIR': return { label: 'KH Đặt Sửa Chữa', style: 'bg-rose-50 text-rose-600 border-rose-100' };
@@ -41,7 +41,7 @@ const formatBookingType = (type?: string) => {
     case 'CONSULTATION': return { label: 'Tư Vấn', style: 'bg-purple-50 text-purple-600 border-purple-100' };
     default: return { label: type || 'Khác', style: 'bg-slate-50 text-slate-600 border-slate-100' };
   }
-};
+};*/
 
 export default function AppointmentList() {
   const navigate = useNavigate();
@@ -78,7 +78,7 @@ export default function AppointmentList() {
           }
 
           if (services.length === 0 && appt.booking_type && appt.booking_type.includes('REPAIR')) {
-            services.push('Khám & Sửa chữa');
+            services.push('Kiểm tra');
           }
 
           let appointmentDate = '';
@@ -403,11 +403,6 @@ export default function AppointmentList() {
                       <td className="py-4 px-4">
                         <div className="flex flex-col gap-1.5 items-start">
                           <span className="font-bold text-[#00285E] text-xs">APT-{apt.id.padStart(3, '0')}</span>
-                          {apt.bookingType && (
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${formatBookingType(apt.bookingType).style}`}>
-                              {formatBookingType(apt.bookingType).label}
-                            </span>
-                          )}
                         </div>
                       </td>
                       <td className="py-4 px-4">

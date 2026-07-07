@@ -160,7 +160,7 @@ export default function InventoryParts() {
       {/* TITLE */}
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
-          Quản lý sản phẩm
+          Quản lý phụ tùng
         </h1>
         <p className="text-slate-500 text-sm">
           Quản lý danh mục phụ tùng và nhập kho theo phiếu.
@@ -204,7 +204,7 @@ export default function InventoryParts() {
         <div className="p-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
           <div className="flex items-center gap-2.5">
             <h2 className="text-lg font-bold text-slate-800 tracking-tight">
-              Danh sách sản phẩm
+              Danh sách phụ tùng
             </h2>
             <span className="bg-[#EDF3FF] text-[#00285E] px-2.5 py-0.5 rounded-full text-xs font-bold">
               {filtered.length} mặt hàng
@@ -282,6 +282,7 @@ export default function InventoryParts() {
               <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
                 <th className="py-4 px-6">Mã sản phẩm</th>
                 <th className="py-4 px-6">Tên sản phẩm</th>
+                <th className="py-4 px-4">Thương hiệu</th>
                 <th className="py-4 px-4">Danh mục</th>
                 <th className="py-4 px-4">Số lượng</th>
                 <th className="py-4 px-4">Đơn giá bán</th>
@@ -314,6 +315,13 @@ export default function InventoryParts() {
                       </td>
                       <td className="py-4 px-6 text-sm font-semibold text-slate-700">
                         {p.name}
+                      </td>
+                      <td className="py-4 px-4">
+                        {p.brand ? (
+                          <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold tracking-wide bg-[#EDF3FF] text-[#00285E]">
+                            {p.brand}
+                          </span>
+                        ) : <span className="text-slate-400 text-sm">—</span>}
                       </td>
                       <td className="py-4 px-4 text-sm text-slate-600">
                         {p.category?.category_name ?? "—"}
