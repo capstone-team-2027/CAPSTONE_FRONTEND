@@ -10,6 +10,10 @@ import {
   X,
   Package,
   Eye,
+  ScanLine,
+  Upload,
+  Camera,
+  Loader2,
 } from "lucide-react";
 import { useOutletContext } from "react-router-dom";
 import {
@@ -93,10 +97,66 @@ export default function ImportHistory() {
   const [formError, setFormError] = useState<string | null>(null);
   const formErrorRef = useRef<HTMLDivElement>(null);
 
+  // ── Scan OCR ──
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanFile, setScanFile] = useState<File | null>(null);
+  const [scanPreview, setScanPreview] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const scanInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
   const resetCreateForm = () => {
     setSupplierId(null);
     setLines([emptyLine()]);
     setFormError(null);
+  };
+
+  const handleScanFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setScanFile(file);
+    setScanPreview(URL.createObjectURL(file));
+  };
+
+  const handleScanInvoice = async () => {
+    if (!scanFile) return;
+    setIsScanning(true);
+    try {
+      const formData = new FormData();
+      formData.append('invoice', scanFile);
+      const res = await fetch(INVENTORY_LOG_API_ENDPOINTS.SCAN_INVOICE, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Scan thất bại');
+      const data = await res.json();
+      const items: { name: string; brand?: string; unit?: string; quantity: number; unit_price: number; retail_price: number; category_id?: number | null }[] = data?.data?.items ?? data?.items ?? [];
+      if (items.length === 0) {
+        showToast('Không nhận diện được sản phẩm nào', 'warning');
+        return;
+      }
+      const newLines: ImportLineForm[] = items.map((item) => ({
+        ...emptyLine(),
+        mode: 'new' as const,
+        name: item.name ?? '',
+        brand: item.brand ?? '',
+        category_id: item.category_id ?? null,
+        quantity: Number(item.quantity) || 1,
+        unit_price: Number(item.unit_price) || 0,
+        retail_price: Number(item.retail_price) || 0,
+      }));
+      setLines(newLines);
+      setScanOpen(false);
+      setScanFile(null);
+      setScanPreview(null);
+      setCreateOpen(true);
+      showToast(`Đã nhận diện ${newLines.length} sản phẩm`, 'success');
+    } catch {
+      showToast('Lỗi khi scan hóa đơn', 'warning');
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   const updateLine = (index: number, patch: Partial<ImportLineForm>) => {
@@ -271,13 +331,22 @@ export default function ImportHistory() {
             Danh sách các phiếu nhập kho đã thực hiện.
           </p>
         </div>
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[#00285E] text-white rounded-xl text-sm font-semibold shadow-md shadow-[#00285E]/10 hover:bg-[#082245] transition-all transform hover:translate-y-[-1px] active:translate-y-0 self-start"
-        >
-          <Plus size={16} />
-          <span>Tạo phiếu nhập</span>
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setScanOpen(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all transform hover:translate-y-[-1px] active:translate-y-0 self-start"
+          >
+            <ScanLine size={16} />
+            <span>Scan hóa đơn</span>
+          </button>
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#00285E] text-white rounded-xl text-sm font-semibold shadow-md shadow-[#00285E]/10 hover:bg-[#082245] transition-all transform hover:translate-y-[-1px] active:translate-y-0 self-start"
+          >
+            <Plus size={16} />
+            <span>Tạo phiếu nhập</span>
+          </button>
+        </div>
       </div>
 
       {/* SUMMARY CARDS */}
@@ -530,6 +599,129 @@ export default function ImportHistory() {
                     {formatPrice(lineTotal(selected))}
                   </span>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── SCAN INVOICE MODAL ── */}
+      <AnimatePresence>
+        {scanOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { setScanOpen(false); setScanFile(null); setScanPreview(null); }}
+              className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-[#EDF3FF] text-[#00285E] flex items-center justify-center">
+                    <ScanLine size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-800">Scan hóa đơn</h3>
+                    <p className="text-xs text-slate-400">Chụp hoặc upload ảnh hóa đơn giấy</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setScanOpen(false); setScanFile(null); setScanPreview(null); }}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                {/* input chọn file */}
+                <input
+                  ref={scanInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleScanFileChange}
+                />
+                {/* input mở camera */}
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleScanFileChange}
+                />
+
+                {!scanPreview ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="border-2 border-dashed border-slate-200 rounded-xl py-8 flex flex-col items-center gap-2.5 text-slate-400 hover:border-[#00285E] hover:text-[#00285E] transition-colors"
+                    >
+                      <Camera size={28} />
+                      <span className="text-sm font-semibold">Chụp ảnh</span>
+                      <span className="text-xs">Mở máy ảnh</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => scanInputRef.current?.click()}
+                      className="border-2 border-dashed border-slate-200 rounded-xl py-8 flex flex-col items-center gap-2.5 text-slate-400 hover:border-[#00285E] hover:text-[#00285E] transition-colors"
+                    >
+                      <Upload size={28} />
+                      <span className="text-sm font-semibold">Chọn file</span>
+                      <span className="text-xs">JPG, PNG — 10MB</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative rounded-xl overflow-hidden border border-slate-200">
+                    <img src={scanPreview} alt="preview" className="w-full max-h-64 object-contain bg-slate-50" />
+                    <button
+                      type="button"
+                      onClick={() => { setScanFile(null); setScanPreview(null); }}
+                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 flex items-center justify-center text-slate-500 hover:bg-white shadow-sm"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {scanFile && (
+                  <p className="text-xs text-slate-400 text-center">{scanFile.name}</p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 p-5 border-t border-slate-100">
+                <button
+                  onClick={() => { setScanOpen(false); setScanFile(null); setScanPreview(null); }}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleScanInvoice}
+                  disabled={!scanFile || isScanning}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-[#00285E] text-white hover:bg-[#082245] transition-colors shadow-md shadow-[#00285E]/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isScanning ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" />
+                      Đang nhận diện...
+                    </>
+                  ) : (
+                    <>
+                      <ScanLine size={15} />
+                      Nhận diện
+                    </>
+                  )}
+                </button>
               </div>
             </motion.div>
           </div>
