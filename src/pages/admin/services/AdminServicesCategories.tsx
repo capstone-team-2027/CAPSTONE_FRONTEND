@@ -63,7 +63,7 @@ export default function AdminServices() {
       params.set('include_services', 'false');
       if (query.trim()) params.set('q', query.trim());
 
-      const url = `${SERVICE_CATEGORY_API_ENDPOINTS.LIST}?${params.toString()}`;
+      const url = `${SERVICE_CATEGORY_API_ENDPOINTS.SEARCH}?${params.toString()}`;
 
       const res = await fetchPrivate(url, 'GET');
       if (res.success && res.data) {

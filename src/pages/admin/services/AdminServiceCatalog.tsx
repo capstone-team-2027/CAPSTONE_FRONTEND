@@ -135,12 +135,23 @@ export default function AdminServiceManagement() {
   const handleGetServiceCatalog = async () => {
     setServicesLoading(true);
     try {
-      const url = `${SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG}?page=${servicesPage}&limit=${servicesLimit}&q=${encodeURIComponent(debouncedServiceQuery)}`;
+      const url = debouncedServiceQuery.trim()
+        ? `${SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG_SEARCH}?q=${encodeURIComponent(debouncedServiceQuery.trim())}`
+        : `${SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG}?page=${servicesPage}&limit=${servicesLimit}`;
+
       const result = await fetchPrivate<any>(url, 'GET');
       if (result && result.data) {
-        setServices(result.data.items || []);
-        setTotalServices(result.data.total || 0);
-        setTotalActiveServices(result.data.totalActive || 0);
+        const responseData = result.data;
+        const items = Array.isArray(responseData) ? responseData : responseData.items || [];
+        setServices(items);
+        setTotalServices(
+          typeof responseData.total === 'number'
+            ? responseData.total
+            : Array.isArray(responseData)
+              ? responseData.length
+              : items.length
+        );
+        setTotalActiveServices(responseData.totalActive || 0);
       }
     } catch (error) {
       console.error('Lỗi lấy danh sách dịch vụ:', error);
@@ -194,12 +205,17 @@ export default function AdminServiceManagement() {
   const handleGetServiceCombos = async () => {
     setCombosLoading(true);
     try {
-      const url = `${SERVICE_COMBOS_API_ENDPOINTS.LIST_SERVICE_COMBOS}?page=${comboPage}&limit=${comboLimit}&q=${encodeURIComponent(debouncedComboQuery)}`;
-      const result = await fetchPrivate(url, 'GET');
-      if (result && result.data && result.data.items) {
-        const combosData = (result.data.items || []).map((c: any) => {
+      const url = debouncedComboQuery.trim()
+        ? `${SERVICE_COMBOS_API_ENDPOINTS.SEARCH_SERVICE_COMBOS}?q=${encodeURIComponent(debouncedComboQuery.trim())}`
+        : `${SERVICE_COMBOS_API_ENDPOINTS.LIST_SERVICE_COMBOS}?page=${comboPage}&limit=${comboLimit}`;
+
+      const result = await fetchPrivate<any>(url, 'GET');
+      if (result && result.data) {
+        const responseData = result.data;
+        const items = Array.isArray(responseData) ? responseData : responseData.items || [];
+        const combosData = (items || []).map((c: any) => {
           let discount = 10;
-          if (c.combo_name.toLowerCase().includes("toàn diện") || c.combo_name.toLowerCase().includes("làm đẹp")) {
+          if (c.combo_name.toLowerCase().includes('toàn diện') || c.combo_name.toLowerCase().includes('làm đẹp')) {
             discount = 15;
           }
           let catId = 0;
@@ -213,14 +229,20 @@ export default function AdminServiceManagement() {
             category_id: catId,
             service_ids: c.catalogs ? c.catalogs.map((item: any) => item.id) : [],
             discount_percentage: discount,
-            description: c.description || "",
+            description: c.description || '',
             is_active: c.is_active,
             createdAt: c.createdAt,
           };
         });
         setCombos(combosData);
-        setTotalCombos(result.data.total || 0);
-        setTotalActiveCombos(result.data.totalActive || 0);
+        setTotalCombos(
+          typeof responseData.total === 'number'
+            ? responseData.total
+            : Array.isArray(responseData)
+              ? responseData.length
+              : combosData.length
+        );
+        setTotalActiveCombos(responseData.totalActive || 0);
       }
     } catch (error) {
       console.error('Lỗi lấy danh sách combo:', error);
