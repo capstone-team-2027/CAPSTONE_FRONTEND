@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   FolderHeart,
   CheckCircle2,
@@ -9,7 +9,8 @@ import {
   AlertTriangle,
   FolderOpen,
   Filter,
-  Pencil
+  Pencil,
+  Search,
 } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { SERVICE_CATEGORY_API_ENDPOINTS } from '../../../constants/admin/serviceCategoriesApiEndPoint';
@@ -29,14 +30,19 @@ export default function AdminServices() {
 
   const { fetchPrivate } = useFetchClient();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // State Variables
   const [categories, setCategories] = useState<ServiceCombo[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Pagination
-  const [page, setPage] = useState(1);
-  const [totalCategories, setTotalCategories] = useState(0);
+  // Pagination & Search
+  const page = Number(searchParams.get("page")) || 1;
   const limit = 8;
+  const [categorySearchQuery, setCategorySearchQuery] = useState(searchParams.get("q") || "");
+  const debouncedSearchQuery = searchParams.get("q") || "";
+  const [totalCategories, setTotalCategories] = useState(0);
+  const [totalActiveCategories, setTotalActiveCategories] = useState(0);
 
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -48,42 +54,68 @@ export default function AdminServices() {
 
   // ── LOAD DATA ──────────────────────────────────────────────────────────────
 
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async (pageNumber: number = page, query: string = debouncedSearchQuery) => {
     setLoading(true);
     try {
-      const url = `${SERVICE_CATEGORY_API_ENDPOINTS.LIST}?page=${page}&limit=${limit}&include_services=false`;
+      const params = new URLSearchParams();
+      params.set('page', String(pageNumber));
+      params.set('limit', String(limit));
+      params.set('include_services', 'false');
+      if (query.trim()) params.set('q', query.trim());
+
+      const url = `${SERVICE_CATEGORY_API_ENDPOINTS.LIST}?${params.toString()}`;
 
       const res = await fetchPrivate(url, 'GET');
       if (res.success && res.data) {
         setCategories(res.data.items || []);
         setTotalCategories(res.data.total || 0);
+        setTotalActiveCategories(res.data.totalActive || 0);
       } else {
         showToast(res.message || 'Không thể tải danh sách danh mục dịch vụ', 'warning');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      showToast(err.message || 'Lỗi kết nối tải danh sách danh mục', 'warning');
+      const message = err instanceof Error ? err.message : String(err);
+      showToast(message || 'Lỗi kết nối tải danh sách danh mục', 'warning');
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchPrivate, limit, showToast, page, debouncedSearchQuery]);
 
+  // Debouncing search query input and writing it to URL
   useEffect(() => {
-    loadCategories();
-  }, [page]);
+    const urlVal = searchParams.get("q") || "";
+    if (categorySearchQuery === urlVal) return;
+
+    const handler = setTimeout(() => {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        const trimmed = categorySearchQuery.trim();
+        if (trimmed) {
+          next.set("q", trimmed);
+        } else {
+          next.delete("q");
+        }
+        next.set("page", "1");
+        return next;
+      });
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [categorySearchQuery, setSearchParams, searchParams]);
+
+  // Fetching categories when page or debounced query changes
+  useEffect(() => {
+    loadCategories(page, debouncedSearchQuery);
+  }, [page, debouncedSearchQuery, loadCategories]);
 
   // KPI Calculations
   const stats = useMemo(() => {
-    const total = totalCategories || categories.length;
-    const active = categories.filter((c) => c.is_active).length;
-    const inactive = categories.filter((c) => !c.is_active).length;
-
     return {
-      total,
-      active,
-      inactive
+      total: totalCategories,
+      active: totalActiveCategories,
+      inactive: totalCategories - totalActiveCategories
     };
-  }, [categories, totalCategories]);
+  }, [totalCategories, totalActiveCategories]);
 
   // ── VALIDATION & FORM SAVING ───────────────────────────────────────────────
 
@@ -144,9 +176,10 @@ export default function AdminServices() {
           showToast(res.message || 'Lỗi khi thêm danh mục dịch vụ', 'warning');
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      showToast(err.message || 'Lỗi kết nối lưu danh mục', 'warning');
+      const message = err instanceof Error ? err.message : String(err);
+      showToast(message || 'Lỗi kết nối lưu danh mục', 'warning');
     } finally {
       setSaving(false);
     }
@@ -162,9 +195,10 @@ export default function AdminServices() {
         } else {
           showToast(res.message || 'Lỗi khi xóa danh mục dịch vụ', 'warning');
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error(err);
-        showToast(err.message || 'Lỗi kết nối xóa danh mục', 'warning');
+        const message = err instanceof Error ? err.message : String(err);
+        showToast(message || 'Lỗi kết nối xóa danh mục', 'warning');
       }
     }
   };
@@ -179,9 +213,10 @@ export default function AdminServices() {
       } else {
         showToast(res.message || 'Lỗi cập nhật trạng thái', 'warning');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      showToast(err.message || 'Lỗi kết nối cập nhật trạng thái', 'warning');
+      const message = err instanceof Error ? err.message : String(err);
+      showToast(message || 'Lỗi kết nối cập nhật trạng thái', 'warning');
     }
   };
 
@@ -240,7 +275,7 @@ export default function AdminServices() {
 
         <motion.div
           whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)" }}
-          className="bg-white p-6 rounded-2xl border-2 border-[#F9A11B] shadow-xs flex items-center gap-4 cursor-pointer transition-all"
+          className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs flex items-center gap-4 cursor-pointer transition-all"
         >
           <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
             <CheckCircle2 size={22} />
@@ -279,12 +314,24 @@ export default function AdminServices() {
           <h2 className="text-lg font-bold text-slate-800 tracking-tight">
             Danh mục Dịch vụ
           </h2>
-          <button
-            onClick={() => showToast('Mở bộ lọc nâng cao...', 'info')}
-            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-slate-600"
-          >
-            <Filter size={16} />
-          </button>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
+              <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Tìm kiếm danh mục..."
+                value={categorySearchQuery}
+                onChange={(e) => setCategorySearchQuery(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+              />
+            </div>
+            <button
+              onClick={() => showToast('Mở bộ lọc nâng cao...', 'info')}
+              className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-slate-600"
+            >
+              <Filter size={16} />
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -363,29 +410,90 @@ export default function AdminServices() {
         </div>
 
         {/* PAGINATION BAR */}
-        {!loading && totalCategories > limit && (
-          <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">
-              Hiển thị {categories.length} / {totalCategories} danh mục
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="px-3.5 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white"
-              >
-                Trước
-              </button>
-              <button
-                onClick={() => setPage((p) => p + 1)}
-                disabled={page * limit >= totalCategories}
-                className="px-3.5 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white"
-              >
-                Sau
-              </button>
+        {!loading && totalCategories > 0 && (() => {
+          const totalPages = Math.ceil(totalCategories / limit);
+          if (totalPages <= 1) return null;
+
+          const pages = [];
+          const maxVisible = 5;
+          let start = Math.max(1, page - Math.floor(maxVisible / 2));
+          let end = Math.min(totalPages, start + maxVisible - 1);
+
+          if (end - start + 1 < maxVisible) {
+            start = Math.max(1, end - maxVisible + 1);
+          }
+
+          for (let i = start; i <= end; i++) {
+            pages.push(i);
+          }
+
+          const handlePageChange = (newPage: number) => {
+            setSearchParams(prev => {
+              const next = new URLSearchParams(prev);
+              next.set("page", String(newPage));
+              return next;
+            });
+          };
+
+          return (
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <span className="text-xs font-semibold text-slate-500">
+                Hiển thị {categories.length} / {totalCategories} danh mục
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => handlePageChange(page - 1)}
+                  disabled={page === 1}
+                  className="px-3 py-1.5 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition-colors cursor-pointer disabled:cursor-not-allowed"
+                >
+                  Trước
+                </button>
+                {start > 1 && (
+                  <>
+                    <button
+                      onClick={() => handlePageChange(1)}
+                      className="w-8 h-8 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                    >
+                      1
+                    </button>
+                    {start > 2 && <span className="text-slate-400 text-xs px-1">...</span>}
+                  </>
+                )}
+                {pages.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => handlePageChange(p)}
+                    className={`w-8 h-8 rounded border text-xs font-bold transition-all cursor-pointer ${
+                      p === page
+                        ? "bg-[#00285E] border-[#00285E] text-white"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+                {end < totalPages && (
+                  <>
+                    {end < totalPages - 1 && <span className="text-slate-400 text-xs px-1">...</span>}
+                    <button
+                      onClick={() => handlePageChange(totalPages)}
+                      className="w-8 h-8 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                    >
+                      {totalPages}
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => handlePageChange(page + 1)}
+                  disabled={page === totalPages}
+                  className="px-3 py-1.5 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition-colors cursor-pointer disabled:cursor-not-allowed"
+                >
+                  Sau
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* ── ADD/EDIT DIALOG (MODAL) ─────────────────────────────────────────── */}
