@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   FolderHeart,
   CheckCircle2,
@@ -30,15 +30,19 @@ export default function AdminServices() {
 
   const { fetchPrivate } = useFetchClient();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // State Variables
   const [categories, setCategories] = useState<ServiceCombo[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Pagination
-  const [page, setPage] = useState(1);
-  const [totalCategories, setTotalCategories] = useState(0);
+  // Pagination & Search
+  const page = Number(searchParams.get("page")) || 1;
   const limit = 8;
-  const [categorySearchQuery, setCategorySearchQuery] = useState('');
+  const [categorySearchQuery, setCategorySearchQuery] = useState(searchParams.get("q") || "");
+  const debouncedSearchQuery = searchParams.get("q") || "";
+  const [totalCategories, setTotalCategories] = useState(0);
+  const [totalActiveCategories, setTotalActiveCategories] = useState(0);
 
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -50,7 +54,7 @@ export default function AdminServices() {
 
   // ── LOAD DATA ──────────────────────────────────────────────────────────────
 
-  const loadCategories = useCallback(async (pageNumber: number = page, query: string = '') => {
+  const loadCategories = useCallback(async (pageNumber: number = page, query: string = debouncedSearchQuery) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -65,7 +69,7 @@ export default function AdminServices() {
       if (res.success && res.data) {
         setCategories(res.data.items || []);
         setTotalCategories(res.data.total || 0);
-        setPage(pageNumber);
+        setTotalActiveCategories(res.data.totalActive || 0);
       } else {
         showToast(res.message || 'Không thể tải danh sách danh mục dịch vụ', 'warning');
       }
@@ -76,38 +80,42 @@ export default function AdminServices() {
     } finally {
       setLoading(false);
     }
-  }, [fetchPrivate, limit, showToast, page]);
+  }, [fetchPrivate, limit, showToast, page, debouncedSearchQuery]);
 
+  // Debouncing search query input and writing it to URL
   useEffect(() => {
-    // Call on next tick to avoid synchronous setState inside effect
-    const timer = window.setTimeout(() => {
-      loadCategories(page, categorySearchQuery);
-    }, 0);
-    return () => window.clearTimeout(timer);
-    // Intentionally only depend on `page` and `loadCategories`.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, loadCategories]);
+    const urlVal = searchParams.get("q") || "";
+    if (categorySearchQuery === urlVal) return;
 
+    const handler = setTimeout(() => {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        const trimmed = categorySearchQuery.trim();
+        if (trimmed) {
+          next.set("q", trimmed);
+        } else {
+          next.delete("q");
+        }
+        next.set("page", "1");
+        return next;
+      });
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [categorySearchQuery, setSearchParams, searchParams]);
+
+  // Fetching categories when page or debounced query changes
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setPage(1);
-      loadCategories(1, categorySearchQuery);
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [categorySearchQuery, loadCategories]);
+    loadCategories(page, debouncedSearchQuery);
+  }, [page, debouncedSearchQuery, loadCategories]);
 
   // KPI Calculations
   const stats = useMemo(() => {
-    const total = totalCategories || categories.length;
-    const active = categories.filter((c) => c.is_active).length;
-    const inactive = categories.filter((c) => !c.is_active).length;
-
     return {
-      total,
-      active,
-      inactive
+      total: totalCategories,
+      active: totalActiveCategories,
+      inactive: totalCategories - totalActiveCategories
     };
-  }, [categories, totalCategories]);
+  }, [totalCategories, totalActiveCategories]);
 
   // ── VALIDATION & FORM SAVING ───────────────────────────────────────────────
 
@@ -267,7 +275,7 @@ export default function AdminServices() {
 
         <motion.div
           whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)" }}
-          className="bg-white p-6 rounded-2xl border-2 border-[#F9A11B] shadow-xs flex items-center gap-4 cursor-pointer transition-all"
+          className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs flex items-center gap-4 cursor-pointer transition-all"
         >
           <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
             <CheckCircle2 size={22} />
@@ -402,29 +410,90 @@ export default function AdminServices() {
         </div>
 
         {/* PAGINATION BAR */}
-        {!loading && totalCategories > limit && (
-          <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">
-              Hiển thị {categories.length} / {totalCategories} danh mục
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="px-3.5 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white"
-              >
-                Trước
-              </button>
-              <button
-                onClick={() => setPage((p) => p + 1)}
-                disabled={page * limit >= totalCategories}
-                className="px-3.5 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white"
-              >
-                Sau
-              </button>
+        {!loading && totalCategories > 0 && (() => {
+          const totalPages = Math.ceil(totalCategories / limit);
+          if (totalPages <= 1) return null;
+
+          const pages = [];
+          const maxVisible = 5;
+          let start = Math.max(1, page - Math.floor(maxVisible / 2));
+          let end = Math.min(totalPages, start + maxVisible - 1);
+
+          if (end - start + 1 < maxVisible) {
+            start = Math.max(1, end - maxVisible + 1);
+          }
+
+          for (let i = start; i <= end; i++) {
+            pages.push(i);
+          }
+
+          const handlePageChange = (newPage: number) => {
+            setSearchParams(prev => {
+              const next = new URLSearchParams(prev);
+              next.set("page", String(newPage));
+              return next;
+            });
+          };
+
+          return (
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <span className="text-xs font-semibold text-slate-500">
+                Hiển thị {categories.length} / {totalCategories} danh mục
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => handlePageChange(page - 1)}
+                  disabled={page === 1}
+                  className="px-3 py-1.5 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition-colors cursor-pointer disabled:cursor-not-allowed"
+                >
+                  Trước
+                </button>
+                {start > 1 && (
+                  <>
+                    <button
+                      onClick={() => handlePageChange(1)}
+                      className="w-8 h-8 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                    >
+                      1
+                    </button>
+                    {start > 2 && <span className="text-slate-400 text-xs px-1">...</span>}
+                  </>
+                )}
+                {pages.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => handlePageChange(p)}
+                    className={`w-8 h-8 rounded border text-xs font-bold transition-all cursor-pointer ${
+                      p === page
+                        ? "bg-[#00285E] border-[#00285E] text-white"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+                {end < totalPages && (
+                  <>
+                    {end < totalPages - 1 && <span className="text-slate-400 text-xs px-1">...</span>}
+                    <button
+                      onClick={() => handlePageChange(totalPages)}
+                      className="w-8 h-8 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                    >
+                      {totalPages}
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => handlePageChange(page + 1)}
+                  disabled={page === totalPages}
+                  className="px-3 py-1.5 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition-colors cursor-pointer disabled:cursor-not-allowed"
+                >
+                  Sau
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* ── ADD/EDIT DIALOG (MODAL) ─────────────────────────────────────────── */}
