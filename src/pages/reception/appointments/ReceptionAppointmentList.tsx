@@ -22,13 +22,26 @@ import { APPOINTMENT_API_ENDPOINTS, SERVICE_ORDER_API_ENDPOINTS } from '../../..
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   pending: { label: 'Chờ xác nhận', color: '#D97706', bg: '#FEF3C7', icon: Clock },
   confirmed: { label: 'Đã xác nhận', color: '#2563EB', bg: '#DBEAFE', icon: CheckCircle2 },
-  in_progress: { label: 'Đã tiếp nhận (Đang sửa)', color: '#EA580C', bg: '#FED7AA', icon: Loader2 },
-  completed: { label: 'Đã tiếp nhận (Hoàn thành)', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
+  in_progress: { label: 'Đã tiếp nhận ', color: '#EA580C', bg: '#FED7AA', icon: Loader2 },
+  completed: { label: 'Đã tiếp nhận', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
   cancelled: { label: 'Đã hủy', color: '#DC2626', bg: '#FEE2E2', icon: XCircle },
   no_show: { label: 'Khách không đến (No Show)', color: '#6B7280', bg: '#F3F4F6', icon: XCircle },
 };
 
 const ITEMS_PER_PAGE = 6;
+
+/*const formatBookingType = (type?: string) => {
+  switch (type) {
+    case 'CUSTOMER_SPECIFIC': return { label: 'KH Đặt Dịch Vụ', style: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
+    case 'CUSTOMER_REPAIR': return { label: 'KH Đặt Sửa Chữa', style: 'bg-rose-50 text-rose-600 border-rose-100' };
+    case 'RECEPTIONIST_SPECIFIC': return { label: 'LT Đặt Dịch Vụ', style: 'bg-indigo-50 text-indigo-600 border-indigo-100' };
+    case 'RECEPTIONIST_REPAIR': return { label: 'LT Đặt Sửa Chữa', style: 'bg-orange-50 text-orange-600 border-orange-100' };
+    case 'WALK_IN_SPECIFIC': return { label: 'Khách Vãng Lai - Dịch Vụ', style: 'bg-teal-50 text-teal-600 border-teal-100' };
+    case 'WALK_IN_REPAIR': return { label: 'Khách Vãng Lai - Sửa Chữa', style: 'bg-red-50 text-red-600 border-red-100' };
+    case 'CONSULTATION': return { label: 'Tư Vấn', style: 'bg-purple-50 text-purple-600 border-purple-100' };
+    default: return { label: type || 'Khác', style: 'bg-slate-50 text-slate-600 border-slate-100' };
+  }
+};*/
 
 export default function AppointmentList() {
   const navigate = useNavigate();
@@ -64,6 +77,10 @@ export default function AppointmentList() {
             });
           }
 
+          if (services.length === 0 && appt.booking_type && appt.booking_type.includes('REPAIR')) {
+            services.push('Kiểm tra');
+          }
+
           let appointmentDate = '';
           let appointmentTime = '';
           if (appt.scheduled_time) {
@@ -89,11 +106,13 @@ export default function AppointmentList() {
             vinNumber: appt.vehicle?.vin_number || undefined,
             hasServiceOrder: !!appt.serviceOrder,
             serviceOrderId: appt.serviceOrder?.id || null,
+            hasOdo: (appt.serviceOrder?.current_odo || 0) > 0,
             services,
             appointmentDate,
             appointmentTime,
             notes: appt.notes || '',
             status,
+            bookingType: appt.booking_type || '',
             createdAt: appt.createdAt || appt.created_at || '',
           } as any;
         });
@@ -126,7 +145,7 @@ export default function AppointmentList() {
       const res = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.CHECK_VEHICLE_INFO(apptId));
       if (res.success && res.data) {
         const { has_vin, vin_number, has_odo, last_odo } = res.data;
-        
+
         // Nếu đã có đủ VIN và ODO, tự động tiếp nhận luôn
         if (has_vin && has_odo) {
           if (currentStatus !== 'in_progress') {
@@ -134,7 +153,7 @@ export default function AppointmentList() {
             if (!receiveRes.success) throw new Error(receiveRes.message || 'Lỗi tiếp nhận');
           }
           showToast('Tiếp nhận thành công (Đã có sẵn VIN và ODO)', 'success');
-          navigate(`/reception/service-orders/create?appointmentId=${apptId}&odo=${last_odo}`);
+          //navigate(`/reception/service-orders/create?appointmentId=${apptId}&odo=${last_odo}`);
           return;
         }
 
@@ -144,7 +163,7 @@ export default function AppointmentList() {
     } catch (e) {
       console.error(e);
     }
-    
+
     setIsVinModalOpen(true);
   };
 
@@ -382,7 +401,9 @@ export default function AppointmentList() {
                   return (
                     <tr key={apt.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors">
                       <td className="py-4 px-4">
-                        <span className="font-bold text-[#00285E] text-xs">APT-{apt.id.padStart(3, '0')}</span>
+                        <div className="flex flex-col gap-1.5 items-start">
+                          <span className="font-bold text-[#00285E] text-xs">APT-{apt.id.padStart(3, '0')}</span>
+                        </div>
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-3">
@@ -446,7 +467,7 @@ export default function AppointmentList() {
                           </button>
                           {(apt.status === 'confirmed' || apt.status === 'pending' || apt.status === 'in_progress') && (
                             <>
-                              {(apt.hasServiceOrder && apt.vinNumber) ? (
+                              {(apt.hasServiceOrder && apt.vinNumber && apt.hasOdo) ? (
                                 <button
                                   onClick={() => navigate(`/reception/service-orders/${apt.serviceOrderId}`)}
                                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 transition-colors"

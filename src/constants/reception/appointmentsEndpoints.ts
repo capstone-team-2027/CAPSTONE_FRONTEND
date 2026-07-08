@@ -14,3 +14,4 @@ export const SERVICE_ORDER_API_ENDPOINTS = {
     GET_DETAIL: (id: string) => `${API_BASE_URL}/api/receptionist/service-order/${id}`,
     UPDATE_ODO: (id: string) => `${API_BASE_URL}/api/receptionist/service-order/${id}/odo`,
 };
+

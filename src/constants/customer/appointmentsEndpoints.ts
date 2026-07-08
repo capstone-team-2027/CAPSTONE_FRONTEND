@@ -6,4 +6,5 @@ export const APPOINTMENT_API_ENDPOINTS = {
     DELETE_APPOINTMENT: `${API_BASE_URL}/api/customer/appointment`,
     CANCEL_APPOINTMENT: `${API_BASE_URL}/api/customer/appointment/cancel`,
     ANALYZE_CAR_COLOR: `${API_BASE_URL}/api/customer/analyze-car-color`,
+    GET_APPOINTMENT_VEHICLE: `${API_BASE_URL}/api/customer/appointment-vehicle`,
 };

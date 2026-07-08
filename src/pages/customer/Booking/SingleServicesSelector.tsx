@@ -33,18 +33,12 @@ export default function SingleServicesSelector({
 }: SingleServicesSelectorProps) {
     const servicesPerPage = 16;
 
-    // Filter services by category and exclude services in the selected combo
+    // Filter services by category (do not exclude combo services, just disable them in UI)
     const filteredServices = useMemo(() => {
         let list = mappedServices;
-        if (selectedComboId) {
-            const combo = dbCombos.find(c => c.id === selectedComboId);
-            if (combo && combo.service_ids) {
-                list = list.filter(s => !combo.service_ids.includes(s.id));
-            }
-        }
         if (selectedCategoryId === null) return list;
         return list.filter(s => s.category_id === selectedCategoryId);
-    }, [mappedServices, selectedCategoryId, selectedComboId, dbCombos]);
+    }, [mappedServices, selectedCategoryId]);
 
     // Reset pagination to page 1 when category changes
     const handleCategoryChange = (catId: number | null) => {
@@ -112,21 +106,34 @@ export default function SingleServicesSelector({
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 animate-fadeIn">
                 {currentServices.map((service) => {
                     const isSelected = selectedServiceIds.includes(service.id);
+                    
+                    // Check if this service is included in the currently selected combo
+                    let isInCombo = false;
+                    if (selectedComboId) {
+                        const combo = dbCombos.find(c => c.id === selectedComboId);
+                        if (combo && combo.service_ids && combo.service_ids.includes(service.id)) {
+                            isInCombo = true;
+                        }
+                    }
+
                     return (
                         <div
                             key={service.id}
                             onClick={() => {
+                                if (isInCombo) return; // Prevent selection if it's already in the combo
                                 setSelectedServiceIds(prev =>
                                     prev.includes(service.id)
                                         ? prev.filter(id => id !== service.id)
                                         : [...prev, service.id]
                                 );
                             }}
-                            className="relative p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between group text-left min-h-[175px]"
+                            className={`relative p-3 rounded-xl border transition-all flex flex-col justify-between text-left min-h-[175px] ${
+                                isInCombo ? 'opacity-50 cursor-not-allowed grayscale bg-slate-50' : 'cursor-pointer group bg-white'
+                            }`}
                             style={{
-                                borderColor: isSelected ? COLORS.orange : '#F1F5F9',
-                                backgroundColor: isSelected ? 'rgba(249,161,27,0.05)' : '#FFFFFF',
-                                boxShadow: isSelected ? '0 6px 12px rgba(249,161,27,0.08)' : 'none'
+                                borderColor: isInCombo ? '#E2E8F0' : (isSelected ? COLORS.orange : '#F1F5F9'),
+                                backgroundColor: isInCombo ? '#F8FAFC' : (isSelected ? 'rgba(249,161,27,0.05)' : '#FFFFFF'),
+                                boxShadow: (!isInCombo && isSelected) ? '0 6px 12px rgba(249,161,27,0.08)' : 'none'
                             }}
                         >
                             <div>
@@ -169,18 +176,24 @@ export default function SingleServicesSelector({
                                         <span className="text-[10px] md:text-xs font-bold text-brand-orange">{service.price}</span>
                                     </div>
                                 </div>
-                                {/* Checkbox indicator */}
-                                <div
-                                    className="w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0"
-                                    style={{
-                                        borderColor: isSelected ? COLORS.orange : '#CBD5E1',
-                                        backgroundColor: isSelected ? COLORS.orange : 'transparent',
-                                        color: isSelected ? COLORS.navy : 'transparent',
-                                        borderRadius: '4px',
-                                    }}
-                                >
-                                    <Check size={8} strokeWidth={4} />
-                                </div>
+                                {/* Checkbox indicator (hide or show locked icon if in combo) */}
+                                {isInCombo ? (
+                                    <div className="text-[9px] font-bold text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                        Trong Combo
+                                    </div>
+                                ) : (
+                                    <div
+                                        className="w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0"
+                                        style={{
+                                            borderColor: isSelected ? COLORS.orange : '#CBD5E1',
+                                            backgroundColor: isSelected ? COLORS.orange : 'transparent',
+                                            color: isSelected ? COLORS.navy : 'transparent',
+                                            borderRadius: '4px',
+                                        }}
+                                    >
+                                        <Check size={8} strokeWidth={4} />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     );

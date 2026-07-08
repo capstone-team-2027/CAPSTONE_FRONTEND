@@ -18,6 +18,8 @@ import {
   AlertTriangle,
   Wrench,
   Settings,
+  Video,
+  PhoneCall
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -40,6 +42,9 @@ export default function ReceptionLayout() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'info' | 'warning'; text: string } | null>(null);
+  
+  // State nhận cuộc gọi Video
+  const [incomingCall, setIncomingCall] = useState<{roomId: string, timestamp: any} | null>(null);
 
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -135,10 +140,42 @@ export default function ReceptionLayout() {
         loadUnreadCount();
       };
 
+      const handleIncomingCall = (data: any) => {
+        setIncomingCall(data);
+        showToast('Có cuộc gọi Video khẩn cấp từ khách hàng!', 'warning');
+      };
+
+      const handleCallAnswered = (data: any) => {
+        // Nếu 1 lễ tân khác đã bấm nghe, thì tắt chuông ở máy của các lễ tân còn lại
+        setIncomingCall(current => {
+          if (current && current.roomId === data.roomId) {
+            return null;
+          }
+          return current;
+        });
+      };
+
+      const handleCallEnded = (data: any) => {
+        // Nếu khách hàng dập máy hoặc quá giờ, tự tắt chuông
+        setIncomingCall(current => {
+          if (current && current.roomId === data.roomId) {
+            showToast('Khách hàng đã kết thúc cuộc gọi', 'info');
+            return null;
+          }
+          return current;
+        });
+      };
+
       socket.on('new_notification', handleNewNotification);
+      socket.on('incoming-video-call', handleIncomingCall);
+      socket.on('call-answered', handleCallAnswered);
+      socket.on('end-video-call', handleCallEnded);
 
       return () => {
         socket.off('new_notification', handleNewNotification);
+        socket.off('incoming-video-call', handleIncomingCall);
+        socket.off('call-answered', handleCallAnswered);
+        socket.off('end-video-call', handleCallEnded);
       };
     }
   }, [user, fetchPrivate, socket]);
@@ -331,6 +368,57 @@ export default function ReceptionLayout() {
             {toastMessage.type === 'info' && <Info size={18} className="text-blue-400" />}
             {toastMessage.type === 'warning' && <AlertTriangle size={18} className="text-amber-400" />}
             <span>{toastMessage.text}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Màn hình hiển thị cuộc gọi đến (Video Call Ringing) */}
+      <AnimatePresence>
+        {incomingCall && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm"
+          >
+            <div className="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl flex flex-col items-center text-center relative overflow-hidden">
+              <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-rose-500/20 to-transparent"></div>
+              
+              <div className="w-24 h-24 bg-rose-100 rounded-full flex items-center justify-center mb-6 relative animate-bounce">
+                <div className="absolute inset-0 bg-rose-500 rounded-full animate-ping opacity-20"></div>
+                <Video size={40} className="text-rose-600 relative z-10" />
+              </div>
+              
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">Cuộc gọi khẩn cấp</h3>
+              <p className="text-slate-500 mb-8">Một Khách hàng đang gọi Video (SOS) cho Lễ tân...</p>
+              
+              <div className="flex items-center gap-4 w-full">
+                <button
+                  onClick={() => {
+                    if (incomingCall?.roomId) {
+                      socket?.emit('end-video-call', { roomId: incomingCall.roomId });
+                    }
+                    setIncomingCall(null);
+                  }}
+                  className="flex-1 py-3 px-4 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                >
+                  Từ chối
+                </button>
+                <button
+                  onClick={() => {
+                    const roomId = incomingCall.roomId;
+                    setIncomingCall(null);
+                    // Báo cho Server biết "TÔI ĐÃ NGHE", hãy bảo các Lễ tân khác tắt chuông đi
+                    socket?.emit('accept-video-call', { roomId });
+                    navigate(`/video-call/${roomId}`);
+                  }}
+                  className="flex-1 py-3 px-4 rounded-xl font-bold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2"
+                >
+                  <PhoneCall size={18} />
+                  Nghe máy
+                </button>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

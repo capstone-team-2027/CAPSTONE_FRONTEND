@@ -330,10 +330,6 @@ export default function AdminServiceManagement() {
     }
   };
 
-  const getCategoryName = (catId: number) => {
-    return categoryList.find((cat) => cat.id === catId)?.category_name || "Chưa phân loại";
-  };
-
   const getComboServicesNames = (serviceIds: number[]) => {
     return serviceIds
       .map(id => services.find(s => s.id === id)?.service_name)
@@ -707,7 +703,7 @@ export default function AdminServiceManagement() {
               <thead>
                 <tr className="border-y border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
                   <th className="py-4 px-6">Tên gói combo</th>
-                  <th className="py-4 px-4">Phân loại</th>
+                  <th className="py-4 px-4">Mô tả</th>
                   <th className="py-4 px-4">Dịch vụ đi kèm</th>
                   <th className="py-4 px-4">Tổng giá</th>
                   <th className="py-4 px-4">Trạng thái</th>
@@ -736,17 +732,10 @@ export default function AdminServiceManagement() {
                           <span className="font-bold text-[#00285E] text-sm block">
                             {c.combo_name}
                           </span>
-                          {c.description && (
-                            <span className="text-slate-400 text-xs block mt-0.5 max-w-xs truncate" title={c.description}>
-                              {c.description}
-                            </span>
-                          )}
                         </td>
 
-                        <td className="py-4 px-4">
-                          <span className="inline-block px-2.5 py-1 rounded-md text-[10px] font-extrabold tracking-wide uppercase bg-amber-50 text-[#F9A11B] border border-amber-100">
-                            {getCategoryName(c.category_id)}
-                          </span>
+                        <td className="py-4 px-4 text-slate-500 text-xs max-w-[200px] truncate" title={c.description}>
+                          {c.description || "—"}
                         </td>
                         <td className="py-4 px-4 text-slate-600 text-xs max-w-xs truncate" title={getComboServicesNames(c.service_ids)}>
                           {getComboServicesNames(c.service_ids) || "—"}
@@ -899,6 +888,7 @@ export default function AdminServiceManagement() {
             setEditingService(null);
           }}
           onRefresh={handleGetServiceCatalog}
+          showToast={showToast}
         />
       )}
 
@@ -955,9 +945,10 @@ interface ServiceFormModalProps {
   categoryList: Category[];
   onClose: () => void;
   onRefresh: () => void;
+  showToast: (text: string, type?: "success" | "info" | "warning") => void;
 }
 
-function ServiceFormModal({ initial, categoryList, onClose, onRefresh }: ServiceFormModalProps) {
+function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast }: ServiceFormModalProps) {
   const isEdit = !!initial;
   const { fetchPrivate } = useFetchClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -980,7 +971,6 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh }: Service
   const [price, setPrice] = useState<number>(initialPrice);
 
   const [errorMsg, setErrorMsg] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
 
   const validateForm = () => {
     if (!name.trim()) {
@@ -1036,9 +1026,9 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh }: Service
           saveServiceImage(newService.id, imageUrl);
         }
       }
-      setSuccessMsg("Tạo dịch vụ thành công!");
+      showToast("Tạo dịch vụ thành công!", "success");
       onRefresh();
-      setTimeout(onClose, 800);
+      onClose();
     } catch (error: any) {
       console.error("Lỗi tạo dịch vụ:", error);
       setErrorMsg(error?.message || "Thêm dịch vụ thất bại, vui lòng thử lại");
@@ -1065,9 +1055,9 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh }: Service
           saveServiceImage(initial.id, imageUrl);
         }
       }
-      setSuccessMsg("Cập nhật thông tin dịch vụ thành công!");
+      showToast("Cập nhật thông tin dịch vụ thành công!", "success");
       onRefresh();
-      setTimeout(onClose, 800);
+      onClose();
     } catch (error: any) {
       console.error("Lỗi cập nhật dịch vụ:", error);
       setErrorMsg(error?.message || "Cập nhật dịch vụ thất bại, vui lòng thử lại");
@@ -1149,7 +1139,7 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh }: Service
           <div className="md:col-span-3 p-6 space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                Tên dịch vụ *
+                Tên dịch vụ
               </label>
               <input
                 type="text"
@@ -1176,7 +1166,7 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh }: Service
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                  Danh mục *
+                  Danh mục 
                 </label>
                 <select
                   value={categoryId}
@@ -1193,7 +1183,7 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh }: Service
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                  Thời gian (phút) *
+                  Thời gian (phút) 
                 </label>
                 <input
                   type="number"
@@ -1208,16 +1198,22 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh }: Service
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                  Giá dịch vụ (VNĐ) *
+                  Giá dịch vụ
                 </label>
-                <input
-                  type="number"
-                  value={price}
-                  onChange={(e) => setPrice(Number(e.target.value))}
-                  min={1}
-                  placeholder="Vd: 350000"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm font-bold text-[#00285E] focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={price ? price.toLocaleString('vi-VN') : ''}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\./g, '').replace(/[^0-9]/g, '');
+                      setPrice(raw ? Number(raw) : 0);
+                    }}
+                    placeholder="Vd: 350.000"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm font-bold text-[#00285E] focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all pr-12"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">VND</span>
+                </div>
               </div>
               <div className="flex items-end pb-2.5">
                 <label className="flex items-center gap-2.5 cursor-pointer select-none">
@@ -1241,12 +1237,6 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh }: Service
               </div>
             )}
 
-            {successMsg && (
-              <div className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded px-3 py-2 flex items-center gap-1.5">
-                <CheckCircle2 size={14} />
-                <span>{successMsg}</span>
-              </div>
-            )}
           </div>
         </div>
 

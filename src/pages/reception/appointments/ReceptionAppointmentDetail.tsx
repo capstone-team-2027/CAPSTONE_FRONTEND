@@ -85,6 +85,10 @@ export default function ReceptionAppointmentDetail() {
           });
         }
 
+        if (services.length === 0 && appt.booking_type && appt.booking_type.includes('REPAIR')) {
+          services.push('Khám & Sửa chữa');
+        }
+
         let appointmentDate = '';
         let appointmentTime = '';
         if (appt.scheduled_time) {

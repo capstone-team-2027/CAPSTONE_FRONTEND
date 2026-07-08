@@ -12,6 +12,7 @@ import {
   Square,
   StickyNote,
   AlertCircle,
+  Settings,
   Search,
   UserCheck,
   PlusCircle,
@@ -216,6 +217,7 @@ export default function ReceptionCreateServiceOrder() {
   const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
   const [selectedCombos, setSelectedCombos] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState('');
+  const [receptionServiceMode, setReceptionServiceMode] = useState<'SERVICE' | 'REPAIR'>('SERVICE');
   const [serviceSearch, setServiceSearch] = useState('');
   const [activeServiceTab, setActiveServiceTab] = useState<'single' | 'combo' | 'category'>('single');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
@@ -471,6 +473,25 @@ export default function ReceptionCreateServiceOrder() {
               });
             }
 
+            if (data.booking_type && data.booking_type.includes('REPAIR')) {
+              setReceptionServiceMode('REPAIR');
+              if (data.notes && servicesDetails.length === 0) {
+                servicesDetails.push({
+                  id: 'repair-notes',
+                  name: 'Khám & Sửa chữa lỗi',
+                  price: 0,
+                  category: 'Yêu cầu của khách',
+                  description: data.notes
+                });
+              }
+            } else {
+              setReceptionServiceMode('SERVICE');
+            }
+
+            if (data.notes) {
+              setNotes(data.notes);
+            }
+
             setSelectedRecord({
               type: 'appointment',
               id: String(data.id),
@@ -626,20 +647,34 @@ export default function ReceptionCreateServiceOrder() {
         return;
       }
 
-      if (selectedServiceIds.length === 0 && !selectedComboId) {
+      if (receptionServiceMode === 'SERVICE' && selectedServiceIds.length === 0 && !selectedComboId) {
         showToast('Vui lòng chọn ít nhất 1 dịch vụ hoặc combo.', 'warning');
         return;
+      }
+      if (receptionServiceMode === 'REPAIR' && !notes.trim()) {
+        showToast('Vui lòng điền mô tả tình trạng sửa chữa.', 'warning');
+        return;
+      }
+
+      // Determine explicit booking type
+      let finalBookingType = '';
+      if (mode === 'first_time') {
+        finalBookingType = receptionServiceMode === 'SERVICE' ? 'WALK_IN_SPECIFIC' : 'WALK_IN_REPAIR';
+      } else if (mode === 'approved_record' && selectedRecord?.type === 'customer') {
+        finalBookingType = receptionServiceMode === 'SERVICE' ? 'RECEPTIONIST_SPECIFIC' : 'RECEPTIONIST_REPAIR';
       }
 
       // Prepare payload
       const estimated_finish_time = `${bookingDate}T${bookingTime}:00`;
       const payload: any = {
+        booking_type: finalBookingType || undefined,
         vehicle_id: mode === 'approved_record' ? Number(selectedRecord.vehicleId) : null,
         bay_id: Number(bayId) || null,
         current_odo: Number(currentOdo),
         estimated_finish_time: estimated_finish_time,
-        service_ids: selectedServiceIds,
-        combo_ids: selectedComboId ? [selectedComboId] : []
+        service_ids: receptionServiceMode === 'SERVICE' ? selectedServiceIds : undefined,
+        combo_ids: receptionServiceMode === 'SERVICE' && selectedComboId ? [selectedComboId] : undefined,
+        notes: receptionServiceMode === 'REPAIR' && notes.trim() ? notes.trim() : undefined
       };
 
       if (mode === 'first_time') {
@@ -861,7 +896,7 @@ export default function ReceptionCreateServiceOrder() {
                     <div className="pt-2">
                       <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
                         <Clock size={14} className="text-slate-400" />
-                        Thời gian dự kiến hoàn thành *
+                        Thời gian *
                       </label>
                       <div className="grid grid-cols-1 gap-3">
                         <input
@@ -1044,7 +1079,7 @@ export default function ReceptionCreateServiceOrder() {
                 <div className="sm:col-span-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
                     <Clock size={14} className="text-slate-400" />
-                    Thời gian dự kiến hoàn thành *
+                    Thời gian *
                   </label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input
@@ -1079,85 +1114,139 @@ export default function ReceptionCreateServiceOrder() {
         )}
       </AnimatePresence>
 
-      {/* SERVICE SELECTION */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
-        <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-          <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
-            <Wrench size={16} className="text-[#00285E]" />
-            Chọn Dịch vụ <span className="text-rose-500">*</span>
-          </h2>
-          <span className="text-xs font-bold text-[#00285E] bg-[#EDF3FF] px-3 py-1 rounded-lg">
-            Đã chọn: {selectedServiceIds.length + (selectedComboId ? 1 : 0)} — Tổng: {formatPrice(selectedTotal)}
-          </span>
+      {/* SERVICE OR REPAIR SELECTION */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-6">
+        {/* Toggle Buttons */}
+        <div className="flex gap-2 p-1 bg-slate-100/60 rounded-xl w-fit border border-slate-200/20">
+          <button
+            type="button"
+            onClick={() => setReceptionServiceMode('SERVICE')}
+            className={`py-2.5 px-5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${receptionServiceMode === 'SERVICE'
+              ? 'bg-[#00285E] text-white shadow-sm'
+              : 'text-slate-500 hover:text-slate-800'
+              }`}
+          >
+            <Settings size={14} />
+            Khách làm Dịch Vụ
+          </button>
+          <button
+            type="button"
+            onClick={() => setReceptionServiceMode('REPAIR')}
+            className={`py-2.5 px-5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${receptionServiceMode === 'REPAIR'
+              ? 'bg-rose-500 text-white shadow-sm'
+              : 'text-slate-500 hover:text-slate-800'
+              }`}
+          >
+            <Wrench size={14} />
+            Khách làm Sửa Chữa
+          </button>
         </div>
 
-        <div>
-          {/* Sub-tabs Selector */}
-          <div className="flex gap-2 mb-4 border-b border-slate-100 pb-3 overflow-x-auto scrollbar-none">
-            <button
-              type="button"
-              onClick={() => setActiveServiceTab('single')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeServiceTab === 'single'
-                ? 'bg-[#00285E] text-white shadow-sm'
-                : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
-                }`}
-            >
-              <Wrench size={14} />
-              <span>Dịch vụ lẻ</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveServiceTab('combo')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeServiceTab === 'combo'
-                ? 'bg-[#00285E] text-white shadow-sm'
-                : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
-                }`}
-            >
-              <Package size={14} />
-              <span>Combo</span>
-            </button>
-          </div>
+        {/* REPAIR NOTES */}
+        {receptionServiceMode === 'REPAIR' && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+            <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
+              <StickyNote size={16} className="text-[#00285E]" />
+              Mô tả tình trạng hỏng hóc <span className="text-rose-500">*</span>
+            </h2>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Nhập mô tả các vấn đề của xe (ví dụ: xe kêu lạch cạch ở gầm, điều hòa không mát...)"
+              rows={3}
+              className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-amber-400 focus:bg-white text-brand-blue resize-none"
+            />
+          </motion.div>
+        )}
 
-          {/* Tab contents */}
-          <div className="mt-4">
-            {activeServiceTab === 'single' && (
-              <SingleServicesSelector
-                mappedServices={mappedServices}
-                activeCategories={activeCategories}
-                selectedServiceIds={selectedServiceIds}
-                setSelectedServiceIds={setSelectedServiceIds}
-                COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
-                t={(k, d) => (t as any)(k, d)}
-                selectedCategoryId={selectedCategoryId}
-                setSelectedCategoryId={setSelectedCategoryId}
-                servicePage={servicePage}
-                setServicePage={setServicePage}
-                dbCombos={dbCombos}
-                selectedComboId={selectedComboId}
-              />
-            )}
-
-            {activeServiceTab === 'combo' && (
-              <ComboServicesSelector
-                dbCombos={dbCombos}
-                setDbCombos={setDbCombos}
-                selectedComboId={selectedComboId}
-                setSelectedComboId={setSelectedComboId}
-                mappedServices={mappedServices}
-                COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
-                selectedServiceIds={selectedServiceIds}
-                setSelectedServiceIds={setSelectedServiceIds}
-              />
-            )}
-          </div>
-
-          {selectedServiceIds.length === 0 && !selectedComboId && (
-            <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
-              <AlertCircle size={14} />
-              Cần chọn ít nhất 1 dịch vụ hoặc combo để tạo hóa đơn dịch vụ.
+        {receptionServiceMode === 'SERVICE' && (
+          <div>
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+              <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
+                <Settings size={16} className="text-[#00285E]" />
+                Chọn Dịch vụ <span className="text-rose-500">*</span>
+              </h2>
+              <span className="text-xs font-bold text-[#00285E] bg-[#EDF3FF] px-3 py-1 rounded-lg">
+                Đã chọn: {selectedServiceIds.length + (selectedComboId ? 1 : 0)} — Tổng: {formatPrice(selectedTotal)}
+              </span>
             </div>
-          )}
-        </div>
+
+            <div>
+              {/* Sub-tabs Selector */}
+              <div className="flex gap-2 mb-4 border-b border-slate-100 pb-3 overflow-x-auto scrollbar-none">
+                <button
+                  type="button"
+                  onClick={() => setActiveServiceTab('single')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeServiceTab === 'single'
+                    ? 'bg-[#00285E] text-white shadow-sm'
+                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                    }`}
+                >
+                  <Wrench size={14} />
+                  <span>Dịch vụ lẻ</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveServiceTab('combo')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeServiceTab === 'combo'
+                    ? 'bg-[#00285E] text-white shadow-sm'
+                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                    }`}
+                >
+                  <Package size={14} />
+                  <span>Combo</span>
+                </button>
+              </div>
+
+              {/* Tab contents */}
+              <div className="mt-4">
+                {activeServiceTab === 'single' && (
+                  <SingleServicesSelector
+                    mappedServices={mappedServices}
+                    activeCategories={activeCategories}
+                    selectedServiceIds={selectedServiceIds}
+                    setSelectedServiceIds={setSelectedServiceIds}
+                    COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
+                    t={(k, d) => (t as any)(k, d)}
+                    selectedCategoryId={selectedCategoryId}
+                    setSelectedCategoryId={setSelectedCategoryId}
+                    servicePage={servicePage}
+                    setServicePage={setServicePage}
+                    dbCombos={dbCombos}
+                    selectedComboId={selectedComboId}
+                  />
+                )}
+
+                {activeServiceTab === 'combo' && (
+                  <ComboServicesSelector
+                    dbCombos={dbCombos}
+                    setDbCombos={setDbCombos}
+                    selectedComboId={selectedComboId}
+                    setSelectedComboId={setSelectedComboId}
+                    mappedServices={mappedServices}
+                    COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
+                    selectedServiceIds={selectedServiceIds}
+                    setSelectedServiceIds={setSelectedServiceIds}
+                  />
+                )}
+              </div>
+
+              {selectedServiceIds.length === 0 && !selectedComboId && (
+                <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
+                  <AlertCircle size={14} />
+                  Cần chọn ít nhất 1 dịch vụ hoặc combo.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {receptionServiceMode === 'REPAIR' && !notes.trim() && (
+          <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
+            <AlertCircle size={14} />
+            Cần điền mô tả tình trạng sửa chữa.
+          </div>
+        )}
       </div>
 
       {/* NOTES */}

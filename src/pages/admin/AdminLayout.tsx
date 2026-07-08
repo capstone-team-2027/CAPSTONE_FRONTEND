@@ -17,7 +17,8 @@ import {
   Info,
   AlertTriangle,
   Package,
-  ShieldCheck
+  ShieldCheck,
+  CalendarClock
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -25,7 +26,7 @@ import type { RootState } from '../../store/store';
 import type { UserModel } from '../../model/User';
 import { useFetchClient } from '../../hook/useFetchClient';
 import { loginSuccess, logout } from '../../store/slices/userSlice';
-import { PROFILE_API_ENDPOINTS } from '../../constants/customer/profileApiEndpoint';
+import { API_BASE_URL } from '../../constants/customer/profileApiEndpoint';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -49,7 +50,7 @@ export default function AdminLayout() {
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
-        const response = await fetchPrivate(PROFILE_API_ENDPOINTS.GET_PROFILE);
+        const response = await fetchPrivate(`${API_BASE_URL}/api/auth/profile`);
         const userData = response?.data;
         if (!userData) return;
         dispatch(
@@ -80,6 +81,7 @@ export default function AdminLayout() {
     { name: 'Kho phụ tùng', icon: Boxes, path: '/admin/spare-part' },
     { name: 'Khách Hàng', icon: Users, path: '/admin/customers' },
     { name: 'Nhân sự', icon: UserCog, path: '/admin/staff' },
+    { name: 'Ca làm việc', icon: CalendarClock, path: '/admin/shifts' },
     { name: 'Dịch vụ', icon: Wrench, path: '/admin/services' },
     { name: 'Tài nguyên', icon: Package, path: '/admin/resources' },
     { name: 'Chính sách bảo hành', icon: ShieldCheck, path: '/admin/warranty' },
@@ -93,6 +95,7 @@ export default function AdminLayout() {
     if (path.includes('/spare-part')) return 'Kho phụ tùng';
     if (path.includes('/customers')) return 'Khách Hàng';
     if (path.includes('/staff')) return 'Nhân sự';
+    if (path.includes('/shifts')) return 'Ca làm việc';
     if (path.includes('/services')) return 'Dịch vụ';
     if (path.includes('/resources')) return 'Tài nguyên';
     if (path.includes('/warranty')) return 'Chính sách bảo hành';

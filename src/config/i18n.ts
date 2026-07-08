@@ -98,7 +98,7 @@ const resources = {
         logout: "Đăng xuất",
         userProfile: "Hồ sơ người dùng",
         tabs: {
-          dashboard: "Bảng điều khiển",
+          dashboard: "Hồ sơ người dùng",
           vehicles: "Xe sở hữu",
           appointments: "Lịch hẹn",
           history: "Lịch sử sửa chữa",

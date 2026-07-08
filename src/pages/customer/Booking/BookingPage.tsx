@@ -5,7 +5,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
     Calendar, Car, Settings,
     Check, ChevronRight, Phone, Clock, Edit2, ArrowLeft,
-    Sparkles, Upload, X
+    Sparkles, Upload, X, AlertTriangle, Banknote, Wrench, Video
 } from 'lucide-react';
 import { COLORS } from '../../../components/share/Color';
 import { useFetchClient_v2 } from '../../../hook/useFetchClient';
@@ -14,6 +14,7 @@ import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/customer/appointme
 import { GARAGE_CONFIG_API_ENDPOINTS } from '../../../constants/customer/garage_configurationsEndpoints';
 import { PROFILE_API_ENDPOINTS } from '../../../constants/customer/profileApiEndpoint';
 import { VEHICLE_MAKE_MODEL_API_ENDPOINTS } from '../../../constants/customer/vehicelMakeModelEndpoint';
+import { useSocket } from '../../../hook/useSocket';
 import SingleServicesSelector from './SingleServicesSelector';
 import ComboServicesSelector from './ComboServicesSelector';
 import type { ServiceCombo, ServiceItem } from '../../../model/Service';
@@ -21,16 +22,30 @@ import type { ServiceCombo, ServiceItem } from '../../../model/Service';
 
 
 export default function BookingPage() {
+    const apiAI = import.meta.env.VITE_AI_API_URL || "http://localhost:3000";
     const { t } = useTranslation();
     const [step, setStep] = useState(1);
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { fetchPublic, fetchPrivate, fetchPrivateForm } = useFetchClient_v2();
+    const socket = useSocket();
+
+    const handleStartVideoCall = () => {
+        const roomId = `sos_${Date.now()}`;
+        if (socket) {
+            socket.emit('request-video-call', {
+                roomId,
+                timestamp: new Date()
+            });
+        }
+        navigate(`/video-call/${roomId}`);
+    };
 
     // Booking Flow State: 'CONSULTATION' | 'SPECIFIC'
     const [bookingFlow, setBookingFlow] = useState<'CONSULTATION' | 'SPECIFIC'>('SPECIFIC');
     // Service Subtype State: 'service' | 'combo'
-    const [serviceSubtype, setServiceSubtype] = useState<'service' | 'combo'>('combo');
+    const [serviceSubtype, setServiceSubtype] = useState<'combo' | 'service'>('combo');
+    const [serviceCategoryMode, setServiceCategoryMode] = useState<'SERVICES' | 'REPAIR'>('SERVICES');
     // Consultation notes / description state
     const [notes, setNotes] = useState('');
 
@@ -45,7 +60,15 @@ export default function BookingPage() {
     const [servicePage, setServicePage] = useState(1);
     const [selectedSubItems, setSelectedSubItems] = useState<string[]>([]);
 
-    const [bookingDate, setBookingDate] = useState('');
+    const getTodayString = () => {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+
+    const [bookingDate, setBookingDate] = useState(getTodayString());
     const [bookingTime, setBookingTime] = useState('');
 
     const [customerVehicles, setCustomerVehicles] = useState<any[]>([]);
@@ -58,7 +81,8 @@ export default function BookingPage() {
     const [vehicleYear, setVehicleYear] = useState('');
     const [vehicleColor, setVehicleColor] = useState('');
     const [isAnalyzingColor, setIsAnalyzingColor] = useState(false);
-    const [colorImagePreview, setColorImagePreview] = useState<string | null>(null);
+    const [colorImagePreviews, setColorImagePreviews] = useState<string[]>([]);
+    const [fullScreenImageUrl, setFullScreenImageUrl] = useState<string | null>(null);
     const [colorInputMode, setColorInputMode] = useState<'TEXT' | 'IMAGE'>('TEXT');
     const [aiDetectionResult, setAiDetectionResult] = useState<{
         rawText: string | null;
@@ -71,12 +95,30 @@ export default function BookingPage() {
     const [consultationType, setConsultationType] = useState<'AI_DIAGNOSIS' | 'CALL_BACK'>('AI_DIAGNOSIS');
     const [issueDescription, setIssueDescription] = useState('');
     const [issueImagePreview, setIssueImagePreview] = useState<string | null>(null);
+    const [isImageFullScreen, setIsImageFullScreen] = useState(false);
     const [isAnalyzingIssue, setIsAnalyzingIssue] = useState(false);
     const [aiIssueResult, setAiIssueResult] = useState<{
         possible_causes: string[];
         severity: string;
         recommendation: string;
     } | null>(null);
+
+    // State cho kết quả AI YOLO phân tích ảnh
+    const [aiImageDamageResult, setAiImageDamageResult] = useState<{
+        tong_so_loi: number;
+        chi_tiet_loi: {
+            loi_phat_hien: string;
+            class_yolo: string;
+            do_tin_cay: string;
+            toa_do_box: number[];
+            muc_do_nghiem_trong: string;
+            chi_phi_uoc_tinh: string;
+            thoi_gian_du_kien: string;
+            vat_tu_can_thiet: string[];
+            quy_trinh_xu_ly: string[];
+        }[];
+    } | null>(null);
+
     const [callbackPhone, setCallbackPhone] = useState('');
     const [callbackNotes, setCallbackNotes] = useState('');
 
@@ -220,11 +262,6 @@ export default function BookingPage() {
 
     // Debounce fetch Vehicle Brands
     useEffect(() => {
-        if (!vehicleBrand.trim()) {
-            setBrandSuggestions([]);
-            return;
-        }
-
         const delayFn = setTimeout(async () => {
             try {
                 const res = await fetchPublic(VEHICLE_MAKE_MODEL_API_ENDPOINTS.GET_VEHICLE_MAKES, "POST", { search: vehicleBrand });
@@ -241,11 +278,6 @@ export default function BookingPage() {
 
     // Debounce fetch Vehicle Models
     useEffect(() => {
-        if (!vehicleModel.trim()) {
-            setModelSuggestions([]);
-            return;
-        }
-
         const delayFn = setTimeout(async () => {
             try {
                 const body: any = { search: vehicleModel };
@@ -276,7 +308,7 @@ export default function BookingPage() {
                         setCallbackPhone(res.data.phone_number);
                     }
                 }
-                const vehicleRes = await fetchPrivate(PROFILE_API_ENDPOINTS.GET_VEHICLES);
+                const vehicleRes = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.GET_APPOINTMENT_VEHICLE);
                 if (vehicleRes && vehicleRes.success && vehicleRes.data) {
                     setCustomerVehicles(vehicleRes.data);
                     if (vehicleRes.data.length > 0) {
@@ -294,18 +326,20 @@ export default function BookingPage() {
         const files = e.target.files;
         if (!files || files.length === 0) return;
 
-        const file = files[0];
+        const fileArray = Array.from(files).slice(0, 3); // Max 3 files
 
         // Preview local image
-        const localUrl = URL.createObjectURL(file);
-        setColorImagePreview(localUrl);
+        const localUrls = fileArray.map(file => URL.createObjectURL(file));
+        setColorImagePreviews(localUrls);
         setAiDetectionResult(null);
 
         // Call API to analyze
         setIsAnalyzingColor(true);
         try {
             const formData = new FormData();
-            formData.append("image", file);
+            fileArray.forEach(file => {
+                formData.append("images", file);
+            });
 
             const endpoint = (APPOINTMENT_API_ENDPOINTS as any).ANALYZE_CAR_COLOR || `${API_BASE_URL}/api/customer/analyze-car-color`;
             const response = await fetchPrivateForm(
@@ -326,8 +360,8 @@ export default function BookingPage() {
             }
         } catch (error: any) {
             console.error("Lỗi phân tích ảnh xe:", error);
-            alert("Tính năng nhận diện xe bằng AI hiện đang được nâng cấp/bảo trì. Vui lòng dùng tính năng 'Nhập trực tiếp'.");
-            setColorImagePreview(null);
+            alert("Tính năng nhận diện xe bằng AI hiện đang có lỗi xử lý. Vui lòng thử lại hoặc nhập trực tiếp.");
+            setColorImagePreviews([]);
             setAiDetectionResult(null);
         } finally {
             setIsAnalyzingColor(false);
@@ -336,20 +370,50 @@ export default function BookingPage() {
     };
 
     const handleRemoveColorImage = () => {
-        setColorImagePreview(null);
+        setColorImagePreviews([]);
         setAiDetectionResult(null);
     };
 
-    const handleIssueImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
+
+    const handleIssueImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
         const file = files[0];
         const localUrl = URL.createObjectURL(file);
         setIssueImagePreview(localUrl);
+
+        setIsAnalyzingImage(true);
+        setAiImageDamageResult(null);
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const response = await fetch(`${apiAI}/api/analyze-damage`, {
+                method: "POST",
+                body: formData,
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.status === "success") {
+                    setAiImageDamageResult(data);
+                    if (data.image_base64) {
+                        setIssueImagePreview(data.image_base64);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("Lỗi phân tích AI:", error);
+        } finally {
+            setIsAnalyzingImage(false);
+            e.target.value = '';
+        }
     };
 
     const handleRemoveIssueImage = () => {
         setIssueImagePreview(null);
+        setAiImageDamageResult(null);
     };
 
     const handleAnalyzeIssue = async () => {
@@ -486,9 +550,7 @@ export default function BookingPage() {
                     subItems.push(`Mức độ: ${aiIssueResult.severity}`);
                 }
             } else {
-                subItems.push(`Hình thức: Gọi điện tư vấn`);
-                if (callbackPhone) subItems.push(`SĐT nhận cuộc gọi: ${callbackPhone}`);
-                if (callbackNotes) subItems.push(`Ghi chú: ${callbackNotes}`);
+                subItems.push(`Hình thức: Gọi Video trực tiếp (SOS)`);
             }
 
             return {
@@ -499,6 +561,17 @@ export default function BookingPage() {
                 discountPercentage: undefined,
                 promoText: consultationType === 'AI_DIAGNOSIS' ? 'Nhận kết quả chẩn đoán tức thì từ trợ lý AI' : 'CSKH liên hệ tư vấn trong 15 phút',
                 subItems: subItems.length > 0 ? subItems : ['Chưa nhập thông tin yêu cầu'],
+            };
+        }
+        if (serviceCategoryMode === 'REPAIR') {
+            return {
+                title: 'Sửa chữa lỗi xe',
+                price: 'Liên hệ',
+                numericPrice: 0,
+                originalPrice: undefined,
+                discountPercentage: undefined,
+                promoText: 'Kỹ thuật viên sẽ kiểm tra trực tiếp',
+                subItems: issueDescription ? [`Mô tả: ${issueDescription}`] : ['Chưa có mô tả'],
             };
         }
         if (serviceSubtype === 'service') {
@@ -541,11 +614,11 @@ export default function BookingPage() {
             };
         }
         return null;
-    }, [bookingFlow, serviceSubtype, selectedServiceIds, selectedComboId, mappedServices, dbCombos, selectedSubItems, notes]);
+    }, [bookingFlow, serviceCategoryMode, serviceSubtype, selectedServiceIds, selectedComboId, mappedServices, dbCombos, selectedSubItems, issueDescription, consultationType, aiIssueResult]);
 
     // Handle subitems customize default fill — merge details of all selected services
     useEffect(() => {
-        if (bookingFlow === 'SPECIFIC' && serviceSubtype === 'service' && selectedServiceIds.length > 0) {
+        if (bookingFlow === 'SPECIFIC' && serviceCategoryMode === 'SERVICES' && serviceSubtype === 'service' && selectedServiceIds.length > 0) {
             const allDetails = selectedServiceIds.flatMap(id => {
                 const service = mappedServices.find(s => s.id === id);
                 return service?.details ?? [];
@@ -559,7 +632,7 @@ export default function BookingPage() {
                 setSelectedSubItems([]);
             }
         }
-    }, [bookingFlow, serviceSubtype, selectedServiceIds, mappedServices, selectedSubItems]);
+    }, [bookingFlow, serviceCategoryMode, serviceSubtype, selectedServiceIds, mappedServices, selectedSubItems]);
 
     const timeSlots = useMemo(() => {
         const slots: { time: string; label: string; isFull: boolean }[] = [];
@@ -614,7 +687,7 @@ export default function BookingPage() {
                     if (consultationType === 'AI_DIAGNOSIS') {
                         return issueDescription.trim().length > 0;
                     } else {
-                        return callbackPhone.trim().length >= 9;
+                        return true;
                     }
                 }
                 if (bookingFlow === 'SPECIFIC') {
@@ -635,6 +708,9 @@ export default function BookingPage() {
             case 2:
                 if (bookingFlow === 'CONSULTATION') return bookingDate !== '' && bookingTime !== '';
                 if (bookingFlow === 'SPECIFIC') {
+                    if (serviceCategoryMode === 'REPAIR') {
+                        return issueDescription.trim().length > 0;
+                    }
                     return selectedServiceIds.length > 0 || selectedComboId !== null;
                 }
                 return false;
@@ -682,17 +758,24 @@ export default function BookingPage() {
                         finalNotes += `- Kết quả: Chưa thực hiện phân tích lỗi bằng AI`;
                     }
                 } else {
-                    finalNotes = `[Yêu cầu gọi lại tư vấn]\n- Số điện thoại liên hệ: ${callbackPhone}\n- Ghi chú thêm: ${callbackNotes || 'Không có'}`;
+                    finalNotes = `[Yêu cầu Gọi Video Trực tiếp SOS] Khách hàng sẽ kết nối Video qua hệ thống.`;
                 }
+            } else if (bookingFlow === 'SPECIFIC' && serviceCategoryMode === 'REPAIR') {
+                finalNotes = `[Yêu cầu sửa chữa lỗi]\n- Mô tả lỗi của khách hàng: ${issueDescription}\n` + (notes ? `\n- Ghi chú thêm: ${notes}` : '');
+            }
+
+            let finalBookingType: string = bookingFlow; // CONSULTATION
+            if (bookingFlow === 'SPECIFIC') {
+                finalBookingType = serviceCategoryMode === 'SERVICES' ? 'CUSTOMER_SPECIFIC' : 'CUSTOMER_REPAIR';
             }
 
             const payload = {
                 vehicle_id: bookingFlow === 'SPECIFIC' && vehicleInputMode === 'EXISTING' ? selectedCustomerVehicleId : null,
-                booking_type: bookingFlow,
+                booking_type: finalBookingType,
                 scheduled_time: new Date(`${bookingDate}T${bookingTime}:00`).toISOString(),
                 notes: finalNotes || null,
-                service_ids: bookingFlow === 'SPECIFIC' && selectedServiceIds.length > 0 ? selectedServiceIds : undefined,
-                combo_ids: bookingFlow === 'SPECIFIC' && selectedComboId ? [selectedComboId] : undefined,
+                service_ids: bookingFlow === 'SPECIFIC' && serviceCategoryMode === 'SERVICES' && selectedServiceIds.length > 0 ? selectedServiceIds : undefined,
+                combo_ids: bookingFlow === 'SPECIFIC' && serviceCategoryMode === 'SERVICES' && selectedComboId ? [selectedComboId] : undefined,
                 vehicle_brand: bookingFlow === 'SPECIFIC' && vehicleInputMode === 'NEW' ? vehicleBrand : null,
                 vehicle_model: bookingFlow === 'SPECIFIC' && vehicleInputMode === 'NEW' ? vehicleModel : null,
                 vehicle_plate: bookingFlow === 'SPECIFIC' && vehicleInputMode === 'NEW' ? vehiclePlate : null,
@@ -903,7 +986,7 @@ export default function BookingPage() {
                                                 }`}
                                         >
                                             <Sparkles size={14} />
-                                            Tư vấn trực tiếp
+                                            Tham khảo tư vấn AI
                                         </button>
                                         <button
                                             type="button"
@@ -920,7 +1003,7 @@ export default function BookingPage() {
                                     {bookingFlow === 'CONSULTATION' && (
                                         <div className="space-y-6">
                                             {/* Subtype Switcher: AI Diagnosis vs Call Consultation */}
-                                            <div className="flex gap-2 p-1 bg-slate-100/60 rounded-xl max-w-md border border-slate-200/20">
+                                            <div className="flex gap-2 p-1 bg-slate-100/60 rounded-xl max-w-lg border border-slate-200/20">
                                                 <button
                                                     type="button"
                                                     onClick={() => setConsultationType('AI_DIAGNOSIS')}
@@ -930,7 +1013,7 @@ export default function BookingPage() {
                                                         }`}
                                                 >
                                                     <Sparkles size={12} className={consultationType === 'AI_DIAGNOSIS' ? 'text-amber-300' : 'text-amber-500'} />
-                                                    AI nhận diện lỗi, phân tích
+                                                    AI nhận diện lỗi
                                                 </button>
                                                 <button
                                                     type="button"
@@ -941,7 +1024,7 @@ export default function BookingPage() {
                                                         }`}
                                                 >
                                                     <Phone size={12} />
-                                                    Gọi điện tư vấn trực tiếp
+                                                    Gọi điện tư vấn
                                                 </button>
                                             </div>
 
@@ -965,6 +1048,13 @@ export default function BookingPage() {
                                                         <label className="block text-xs font-bold text-slate-700 mb-2">
                                                             Ảnh chụp khu vực gặp lỗi (Tùy chọn)
                                                         </label>
+
+                                                        {isAnalyzingImage && (
+                                                            <div className="flex flex-col items-center justify-center p-8 bg-amber-50 rounded-2xl border border-amber-100 mb-4 animate-pulse">
+                                                                <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-500 rounded-full animate-spin mb-3"></div>
+                                                                <span className="text-amber-800 font-bold text-sm">AI đang siêu soi ảnh của bạn...</span>
+                                                            </div>
+                                                        )}
 
                                                         {!issueImagePreview ? (
                                                             <div>
@@ -991,15 +1081,68 @@ export default function BookingPage() {
                                                                 </label>
                                                             </div>
                                                         ) : (
-                                                            <div className="relative w-40 h-40 rounded-2xl overflow-hidden border border-slate-200">
-                                                                <img src={issueImagePreview} alt="Lỗi xe" className="w-full h-full object-cover" />
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={handleRemoveIssueImage}
-                                                                    className="absolute top-0 right-0 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-bl-2xl border-none cursor-pointer"
-                                                                >
-                                                                    <X size={16} />
-                                                                </button>
+                                                            <div className="space-y-4">
+                                                                <div className={`relative ${aiImageDamageResult ? 'w-full' : 'w-40'} h-auto rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-slate-50 group`}>
+                                                                    <img
+                                                                        src={issueImagePreview}
+                                                                        alt="Lỗi xe"
+                                                                        className="w-full h-auto object-contain cursor-zoom-in hover:scale-105 transition-transform duration-300"
+                                                                        onClick={() => setIsImageFullScreen(true)}
+                                                                    />
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={handleRemoveIssueImage}
+                                                                        className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-full border-none cursor-pointer backdrop-blur-sm"
+                                                                    >
+                                                                        <X size={16} />
+                                                                    </button>
+                                                                </div>
+
+                                                                {aiImageDamageResult && aiImageDamageResult.chi_tiet_loi.length > 0 && (
+                                                                    <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 shadow-xl border border-amber-500/30 relative overflow-hidden">
+                                                                        <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl"></div>
+
+                                                                        <div className="flex items-center gap-3 mb-4">
+                                                                            <div className="p-2 bg-amber-500/20 rounded-lg">
+                                                                                <AlertTriangle className="text-amber-400" size={20} />
+                                                                            </div>
+                                                                            <h4 className="text-white font-bold text-base">Báo cáo </h4>
+                                                                        </div>
+
+                                                                        <div className="space-y-4">
+                                                                            {aiImageDamageResult.chi_tiet_loi.map((loi, idx) => (
+                                                                                <div key={idx} className="bg-white/5 rounded-xl p-4 border border-white/10 relative z-10">
+                                                                                    <div className="flex justify-between items-start mb-2">
+                                                                                        <span className="text-amber-400 font-bold text-sm">{loi.loi_phat_hien}</span>
+                                                                                        <span className="px-2 py-1 bg-red-500/20 text-red-400 text-[10px] font-bold rounded-md">
+                                                                                            {loi.muc_do_nghiem_trong}
+                                                                                        </span>
+                                                                                    </div>
+
+                                                                                    <div className="grid grid-cols-2 gap-3 mb-3">
+                                                                                        <div className="bg-black/20 rounded-lg p-2">
+                                                                                            <span className="block text-slate-400 text-[10px] uppercase tracking-wider mb-1">Chi phí dự kiến</span>
+                                                                                            <span className="text-white font-bold text-xs">{loi.chi_phi_uoc_tinh}</span>
+                                                                                        </div>
+                                                                                        <div className="bg-black/20 rounded-lg p-2">
+                                                                                            <span className="block text-slate-400 text-[10px] uppercase tracking-wider mb-1">Thời gian sửa</span>
+                                                                                            <span className="text-white font-bold text-xs">{loi.thoi_gian_du_kien}</span>
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    <div className="space-y-1">
+                                                                                        <span className="text-slate-400 text-[10px] uppercase tracking-wider">Khuyến nghị xử lý:</span>
+                                                                                        <ul className="list-disc list-inside text-slate-300 text-xs space-y-1">
+                                                                                            {loi.quy_trinh_xu_ly.map((qt, i) => (
+                                                                                                <li key={i}>{qt}</li>
+                                                                                            ))}
+                                                                                        </ul>
+                                                                                    </div>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </div>
@@ -1071,34 +1214,31 @@ export default function BookingPage() {
                                                 </div>
                                             )}
 
-                                            {/* Option 2: Callback Request */}
+                                            {/* Option 2: Callback Request (SOS Video Call Only) */}
                                             {consultationType === 'CALL_BACK' && (
                                                 <div className="space-y-4 max-w-md">
-                                                    <div className="space-y-2">
-                                                        <label className="block text-xs font-bold text-slate-700">
-                                                            Số điện thoại nhận tư vấn <span className="text-red-500">*</span>
-                                                        </label>
-                                                        <input
-                                                            type="tel"
-                                                            value={callbackPhone}
-                                                            onChange={(e) => setCallbackPhone(e.target.value)}
-                                                            placeholder="Nhập số điện thoại liên hệ"
-                                                            className={inputClass}
-                                                        />
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <label className="block text-xs font-bold text-slate-700">
-                                                            Ghi chú thêm cho cố vấn dịch vụ (Tùy chọn)
-                                                        </label>
-                                                        <textarea
-                                                            value={callbackNotes}
-                                                            onChange={(e) => setCallbackNotes(e.target.value)}
-                                                            placeholder="Ví dụ: Gọi điện cho tôi vào buổi chiều sau 14h..."
-                                                            className="w-full h-24 bg-[#F8FAFC] border border-blue-50/50 rounded-2xl p-4 text-xs md:text-sm outline-none transition-all focus:border-amber-400 focus:bg-white text-brand-blue"
-                                                        />
-                                                    </div>
-                                                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-[11px] text-slate-500 leading-relaxed">
-                                                        * Bộ phận CSKH của AGM sẽ gọi điện hỗ trợ tư vấn trực tiếp cho bạn qua số điện thoại này theo khung giờ hẹn ở bước tiếp theo.
+                                                    {/* Nút SOS Video Call */}
+                                                    <div className="bg-red-50/50 border border-red-100 rounded-2xl p-4 flex flex-col md:flex-row items-center gap-4 justify-between relative overflow-hidden mt-2">
+                                                        <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/5 rounded-full blur-2xl"></div>
+                                                        <div className="flex items-start gap-3 relative z-10 text-left">
+                                                            <div className="p-2.5 bg-red-100 text-red-600 rounded-xl shrink-0 mt-0.5 animate-pulse">
+                                                                <Video size={20} />
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="text-red-700 font-bold text-sm mb-1">Cần hỗ trợ khẩn cấp (SOS)?</h4>
+                                                                <p className="text-xs text-red-600/80 leading-relaxed m-0">
+                                                                    Gọi Video trực tiếp với Lễ tân để quay trực tiếp tình trạng xe của bạn qua Camera.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleStartVideoCall}
+                                                            className="shrink-0 w-full md:w-auto px-5 py-3 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl transition-all shadow-md hover:shadow-lg shadow-red-500/30 flex items-center justify-center gap-2 border-none cursor-pointer relative z-10"
+                                                        >
+                                                            <Video size={14} />
+                                                            Gọi Video Ngay
+                                                        </button>
                                                     </div>
                                                 </div>
                                             )}
@@ -1147,6 +1287,7 @@ export default function BookingPage() {
                                                         <div
                                                             key={v.id}
                                                             onClick={() => {
+                                                                if (v.isDisabled) return;
                                                                 setSelectedCustomerVehicleId(v.id);
                                                                 setVehicleBrand(v.model?.make?.make_name || '');
                                                                 setVehicleModel(v.model?.model_name || '');
@@ -1154,16 +1295,17 @@ export default function BookingPage() {
                                                                 setVehicleYear(v.year?.toString() || '');
                                                                 setVehicleColor(v.color || '');
                                                             }}
-                                                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${selectedCustomerVehicleId === v.id
-                                                                ? 'border-amber-400 bg-amber-50/30 shadow-md'
-                                                                : 'border-slate-100 bg-white hover:border-amber-200 hover:bg-slate-50'
+                                                            className={`p-4 rounded-2xl border-2 transition-all relative overflow-hidden ${v.isDisabled ? 'opacity-60 cursor-not-allowed border-slate-200 bg-slate-50' :
+                                                                    selectedCustomerVehicleId === v.id
+                                                                        ? 'border-amber-400 bg-amber-50/30 shadow-md cursor-pointer'
+                                                                        : 'border-slate-100 bg-white hover:border-amber-200 hover:bg-slate-50 cursor-pointer'
                                                                 }`}
                                                         >
                                                             <div className="flex justify-between items-start mb-2">
-                                                                <h3 className="font-bold text-brand-blue text-sm m-0">
+                                                                <h3 className={`font-bold text-sm m-0 ${v.isDisabled ? 'text-slate-500' : 'text-brand-blue'}`}>
                                                                     {v.model?.make?.make_name} {v.model?.model_name}
                                                                 </h3>
-                                                                {selectedCustomerVehicleId === v.id && (
+                                                                {selectedCustomerVehicleId === v.id && !v.isDisabled && (
                                                                     <div className="w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center text-white">
                                                                         <Check size={12} strokeWidth={3} />
                                                                     </div>
@@ -1172,144 +1314,232 @@ export default function BookingPage() {
                                                             <div className="text-xs text-slate-500 space-y-1">
                                                                 <p className="m-0">Biển số: <span className="font-semibold text-slate-700">{v.license_plate}</span></p>
                                                                 <p className="m-0">Năm SX: {v.year} {v.color && `• Màu: ${v.color}`}</p>
+                                                                {v.isDisabled && (
+                                                                    <p className="m-0 mt-2 text-rose-500 font-bold bg-rose-50 border border-rose-100 inline-block px-2 py-0.5 rounded text-[10px]">
+                                                                        {v.disableReason}
+                                                                    </p>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     ))}
                                                 </div>
                                             ) : (
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
-                                                    <div className="relative" ref={brandRef}>
-                                                        <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1 text-left">
-                                                            {t('booking.step3.brandLabel', 'Hãng xe')}
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            placeholder={t('booking.step3.brandPlaceholder', 'Ví dụ: Toyota, BMW, Mazda...')}
-                                                            value={vehicleBrand}
-                                                            onChange={(e) => {
-                                                                setVehicleBrand(e.target.value);
-                                                                setSelectedMakeId(null);
-                                                                setShowBrandSuggestions(true);
-                                                            }}
-                                                            onFocus={() => {
-                                                                if (vehicleBrand.trim()) setShowBrandSuggestions(true);
-                                                            }}
-                                                            className={inputClass}
-                                                        />
-                                                        {showBrandSuggestions && brandSuggestions.length > 0 && (
-                                                            <div className="absolute z-50 w-full mt-1 bg-white rounded-xl border border-gray-100 shadow-lg max-h-48 overflow-y-auto">
-                                                                {brandSuggestions.map((brand) => (
-                                                                    <div
-                                                                        key={brand.id}
-                                                                        className="p-3 hover:bg-slate-50 cursor-pointer text-sm text-brand-blue border-b border-gray-50 last:border-none"
-                                                                        onClick={() => {
-                                                                            setVehicleBrand(brand.make_name);
-                                                                            setSelectedMakeId(brand.id);
-                                                                            setShowBrandSuggestions(false);
-                                                                        }}
-                                                                    >
-                                                                        {brand.make_name}
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
+                                                <div className="space-y-6 text-left">
+                                                    {/* Mode Selector Tab Pills */}
+                                                    <div className="flex gap-2 bg-slate-100/60 p-1 rounded-xl max-w-xs border border-slate-200/20">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setColorInputMode('TEXT')}
+                                                            className={`flex-1 py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all border-none cursor-pointer ${colorInputMode === 'TEXT'
+                                                                ? 'bg-white text-brand-blue shadow-xs'
+                                                                : 'text-slate-500 hover:text-slate-800 bg-transparent'
+                                                                }`}
+                                                        >
+                                                            Nhập trực tiếp
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setColorInputMode('IMAGE')}
+                                                            className={`flex-1 py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1.5 border-none cursor-pointer ${colorInputMode === 'IMAGE'
+                                                                ? 'bg-white text-brand-blue shadow-xs'
+                                                                : 'text-slate-500 hover:text-slate-800 bg-transparent'
+                                                                }`}
+                                                        >
+                                                            <Sparkles size={10} className="text-amber-500" />
+                                                            Tải ảnh xe (AI)
+                                                        </button>
                                                     </div>
-                                                    <div className="relative" ref={modelRef}>
-                                                        <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1 text-left">
-                                                            {t('booking.step3.modelLabel', 'Dòng xe (Model)')}
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            placeholder={t('booking.step3.modelPlaceholder', 'Ví dụ: Camry, 320i, CX-5...')}
-                                                            value={vehicleModel}
-                                                            onChange={(e) => {
-                                                                setVehicleModel(e.target.value);
-                                                                setShowModelSuggestions(true);
-                                                            }}
-                                                            onFocus={() => {
-                                                                if (vehicleModel.trim()) setShowModelSuggestions(true);
-                                                            }}
-                                                            className={inputClass}
-                                                        />
-                                                        {showModelSuggestions && modelSuggestions.length > 0 && (
-                                                            <div className="absolute z-50 w-full mt-1 bg-white rounded-xl border border-gray-100 shadow-lg max-h-48 overflow-y-auto">
-                                                                {modelSuggestions.map((model) => (
-                                                                    <div
-                                                                        key={model.id}
-                                                                        className="p-3 hover:bg-slate-50 cursor-pointer text-sm text-brand-blue border-b border-gray-50 last:border-none"
-                                                                        onClick={() => {
-                                                                            setVehicleModel(model.model_name);
-                                                                            setShowModelSuggestions(false);
-                                                                            if (model.make_id && model.make) {
-                                                                                setVehicleBrand(model.make.make_name);
-                                                                                setSelectedMakeId(model.make_id);
-                                                                            }
-                                                                        }}
-                                                                    >
-                                                                        {model.model_name} <span className="text-gray-400 text-xs ml-1">({model.make?.make_name})</span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1 text-left">
-                                                            {t('booking.step3.plateLabel', 'Biển số xe')}
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            placeholder={t('booking.step3.platePlaceholder', 'Ví dụ: 30A-123.45 hoặc 51F-999.99')}
-                                                            value={vehiclePlate}
-                                                            onChange={(e) => setVehiclePlate(e.target.value)}
-                                                            className={inputClass}
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1 text-left">
-                                                            Năm sản xuất
-                                                        </label>
-                                                        <input
-                                                            type="number"
-                                                            placeholder="Ví dụ: 2020, 2022..."
-                                                            value={vehicleYear}
-                                                            onChange={(e) => setVehicleYear(e.target.value)}
-                                                            className={inputClass}
-                                                            min="1900"
-                                                            max={new Date().getFullYear() + 1}
-                                                        />
-                                                    </div>
-                                                    <div className="md:col-span-2">
-                                                        <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1 text-left">
-                                                            Màu sắc (Tùy chọn)
-                                                        </label>
 
-                                                        {/* Mode Selector Tab Pills */}
-                                                        <div className="flex gap-2 mb-3 bg-slate-100/60 p-1 rounded-xl max-w-xs border border-slate-200/20">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setColorInputMode('TEXT')}
-                                                                className={`flex-1 py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all border-none cursor-pointer ${colorInputMode === 'TEXT'
-                                                                    ? 'bg-white text-brand-blue shadow-xs'
-                                                                    : 'text-slate-500 hover:text-slate-800 bg-transparent'
-                                                                    }`}
-                                                            >
-                                                                Nhập trực tiếp
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setColorInputMode('IMAGE')}
-                                                                className={`flex-1 py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1.5 border-none cursor-pointer ${colorInputMode === 'IMAGE'
-                                                                    ? 'bg-white text-brand-blue shadow-xs'
-                                                                    : 'text-slate-500 hover:text-slate-800 bg-transparent'
-                                                                    }`}
-                                                            >
-                                                                <Sparkles size={10} className="text-amber-500" />
-                                                                Tải ảnh xe (AI)
-                                                            </button>
+                                                    {/* Mode 2: AI Photo Upload UI (at the top) */}
+                                                    {colorInputMode === 'IMAGE' && (
+                                                        <div className="space-y-3">
+                                                            {colorImagePreviews.length === 0 ? (
+                                                                <div>
+                                                                    <input
+                                                                        type="file"
+                                                                        id="colorImageUpload"
+                                                                        accept="image/*"
+                                                                        multiple
+                                                                        onChange={handleColorImageUpload}
+                                                                        className="hidden"
+                                                                    />
+                                                                    <label
+                                                                        htmlFor="colorImageUpload"
+                                                                        className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 hover:border-amber-400/80 bg-white/50 hover:bg-white p-6 rounded-2xl transition-all cursor-pointer group"
+                                                                    >
+                                                                        <div className="w-10 h-10 rounded-full bg-slate-50 group-hover:bg-amber-50/50 flex items-center justify-center text-slate-400 group-hover:text-amber-500 transition-colors mb-2">
+                                                                            <Upload size={18} />
+                                                                        </div>
+                                                                        <span className="text-xs font-bold text-slate-700 group-hover:text-slate-900 transition-colors">
+                                                                            Chọn nhiều ảnh xe (tối đa 3 ảnh)
+                                                                        </span>
+                                                                        <span className="text-[10px] text-gray-400 mt-1 text-center">
+                                                                            Bạn có thể tải ảnh mặt trước, mặt ngang và mặt sau.<br />
+                                                                            AI sẽ tổng hợp các góc ảnh để phân tích chính xác nhất!
+                                                                        </span>
+                                                                    </label>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-xs space-y-3">
+                                                                    <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                                                                        <div className="flex gap-2 shrink-0">
+                                                                            {colorImagePreviews.map((url, idx) => (
+                                                                                <div key={idx} className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border border-slate-200 cursor-zoom-in hover:opacity-80 transition-opacity" onClick={() => setFullScreenImageUrl(url)}>
+                                                                                    <img src={url} alt={`Xem trước ${idx}`} className="w-full h-full object-cover pointer-events-none" />
+                                                                                </div>
+                                                                            ))}
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={handleRemoveColorImage}
+                                                                                className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-full border-none cursor-pointer z-10"
+                                                                            >
+                                                                                <X size={14} />
+                                                                            </button>
+                                                                        </div>
+                                                                        <div className="flex-grow space-y-2 w-full text-xs">
+                                                                            <div className="font-bold text-slate-700">Ảnh đã tải lên</div>
+                                                                            <div className="text-gray-500">Các thông tin xe đã được AI phân tích và tự động điền vào các ô bên dưới.</div>
+                                                                            <div className="mt-2">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={handleRemoveColorImage}
+                                                                                    className="text-amber-500 hover:text-amber-600 font-bold underline bg-transparent border-none cursor-pointer text-[10px]"
+                                                                                >
+                                                                                    Tải ảnh khác
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    {aiDetectionResult && aiDetectionResult.rawText && (
+                                                                        <div className="pt-3 border-t border-slate-200/60 text-xs space-y-2 text-left">
+                                                                            <div className="font-bold text-slate-700 flex items-center gap-1.5">
+                                                                                <Sparkles size={12} className="text-amber-500" />
+                                                                                Chi tiết xe do AI nhận diện:
+                                                                            </div>
+                                                                            <div className="bg-white p-3.5 rounded-xl border border-slate-100/80 text-slate-600 leading-relaxed whitespace-pre-line text-left">
+                                                                                {aiDetectionResult.rawText}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+
+                                                            {/* AI Loading State */}
+                                                            {isAnalyzingColor && (
+                                                                <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50/50 px-3 py-2.5 rounded-xl border border-amber-100/50 animate-pulse mt-2">
+                                                                    <div className="w-3.5 h-3.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin shrink-0" />
+                                                                    <span>AI đang phân tích hình ảnh để nhận diện thông số xe...</span>
+                                                                </div>
+                                                            )}
                                                         </div>
+                                                    )}
 
-                                                        {/* Mode 1: Direct Text Input */}
-                                                        {colorInputMode === 'TEXT' ? (
+                                                    {/* Form fields grid */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                        <div className="relative" ref={brandRef}>
+                                                            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1 text-left">
+                                                                {t('booking.step3.brandLabel', 'Hãng xe')}
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder={t('booking.step3.brandPlaceholder', 'Ví dụ: Toyota, BMW, Mazda...')}
+                                                                value={vehicleBrand}
+                                                                onChange={(e) => {
+                                                                    setVehicleBrand(e.target.value);
+                                                                    setSelectedMakeId(null);
+                                                                    setShowBrandSuggestions(true);
+                                                                }}
+                                                                onFocus={() => {
+                                                                    setShowBrandSuggestions(true);
+                                                                }}
+                                                                className={inputClass}
+                                                            />
+                                                            {showBrandSuggestions && brandSuggestions.length > 0 && (
+                                                                <div className="absolute z-50 w-full mt-1 bg-white rounded-xl border border-gray-100 shadow-lg max-h-48 overflow-y-auto">
+                                                                    {brandSuggestions.map((brand) => (
+                                                                        <div
+                                                                            key={brand.id}
+                                                                            className="p-3 hover:bg-slate-50 cursor-pointer text-sm text-brand-blue border-b border-gray-50 last:border-none"
+                                                                            onClick={() => {
+                                                                                setVehicleBrand(brand.make_name);
+                                                                                setSelectedMakeId(brand.id);
+                                                                                setShowBrandSuggestions(false);
+                                                                            }}
+                                                                        >
+                                                                            {brand.make_name}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="relative" ref={modelRef}>
+                                                            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1 text-left">
+                                                                {t('booking.step3.modelLabel', 'Dòng xe (Model)')}
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder={t('booking.step3.modelPlaceholder', 'Ví dụ: Camry, 320i, CX-5...')}
+                                                                value={vehicleModel}
+                                                                onChange={(e) => {
+                                                                    setVehicleModel(e.target.value);
+                                                                    setShowModelSuggestions(true);
+                                                                }}
+                                                                onFocus={() => {
+                                                                    setShowModelSuggestions(true);
+                                                                }}
+                                                                className={inputClass}
+                                                            />
+                                                            {showModelSuggestions && modelSuggestions.length > 0 && (
+                                                                <div className="absolute z-50 w-full mt-1 bg-white rounded-xl border border-gray-100 shadow-lg max-h-48 overflow-y-auto">
+                                                                    {modelSuggestions.map((model) => (
+                                                                        <div
+                                                                            key={model.id}
+                                                                            className="p-3 hover:bg-slate-50 cursor-pointer text-sm text-brand-blue border-b border-gray-50 last:border-none"
+                                                                            onClick={() => {
+                                                                                setVehicleModel(model.model_name);
+                                                                                setShowModelSuggestions(false);
+                                                                                if (model.make_id && model.make) {
+                                                                                    setVehicleBrand(model.make.make_name);
+                                                                                    setSelectedMakeId(model.make_id);
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            {model.model_name} <span className="text-gray-400 text-xs ml-1">({model.make?.make_name})</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1 text-left">
+                                                                {t('booking.step3.plateLabel', 'Biển số xe')}
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder={t('booking.step3.platePlaceholder', 'Ví dụ: 30A-123.45 hoặc 51F-999.99')}
+                                                                value={vehiclePlate}
+                                                                onChange={(e) => setVehiclePlate(e.target.value)}
+                                                                className={inputClass}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1 text-left">
+                                                                Năm sản xuất
+                                                            </label>
+                                                            <input
+                                                                type="number"
+                                                                placeholder="Ví dụ: 2020, 2022..."
+                                                                value={vehicleYear}
+                                                                onChange={(e) => setVehicleYear(e.target.value)}
+                                                                className={inputClass}
+                                                                min="1900"
+                                                                max={new Date().getFullYear() + 1}
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-2">
+                                                            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1 text-left">
+                                                                Màu sắc (Tùy chọn)
+                                                            </label>
                                                             <div className="relative">
                                                                 <input
                                                                     type="text"
@@ -1317,6 +1547,7 @@ export default function BookingPage() {
                                                                     value={vehicleColor}
                                                                     onChange={(e) => setVehicleColor(e.target.value)}
                                                                     className={inputClass}
+                                                                    disabled={isAnalyzingColor}
                                                                 />
                                                                 {vehicleColor && (
                                                                     <button
@@ -1328,100 +1559,7 @@ export default function BookingPage() {
                                                                     </button>
                                                                 )}
                                                             </div>
-                                                        ) : (
-                                                            /* Mode 2: AI Photo Upload */
-                                                            <div className="space-y-3">
-                                                                {!colorImagePreview ? (
-                                                                    <div>
-                                                                        <input
-                                                                            type="file"
-                                                                            id="colorImageUpload"
-                                                                            accept="image/*"
-                                                                            onChange={handleColorImageUpload}
-                                                                            className="hidden"
-                                                                        />
-                                                                        <label
-                                                                            htmlFor="colorImageUpload"
-                                                                            className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 hover:border-amber-400/80 bg-white/50 hover:bg-white p-6 rounded-2xl transition-all cursor-pointer group"
-                                                                        >
-                                                                            <div className="w-10 h-10 rounded-full bg-slate-50 group-hover:bg-amber-50/50 flex items-center justify-center text-slate-400 group-hover:text-amber-500 transition-colors mb-2">
-                                                                                <Upload size={18} />
-                                                                            </div>
-                                                                            <span className="text-xs font-bold text-slate-700 group-hover:text-slate-900 transition-colors">
-                                                                                Kéo thả hoặc chọn ảnh xe
-                                                                            </span>
-                                                                            <span className="text-[10px] text-gray-400 mt-1">
-                                                                                AI sẽ tự động nhận diện màu sắc từ hình ảnh xe của bạn
-                                                                            </span>
-                                                                        </label>
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-xs space-y-3">
-                                                                        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                                                                            <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-slate-200 shrink-0">
-                                                                                <img src={colorImagePreview} alt="Xem trước ảnh xe" className="w-full h-full object-cover" />
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={handleRemoveColorImage}
-                                                                                    className="absolute top-0 right-0 p-1 bg-black/60 hover:bg-black/80 text-white rounded-bl-xl border-none cursor-pointer"
-                                                                                >
-                                                                                    <X size={14} />
-                                                                                </button>
-                                                                            </div>
-                                                                            <div className="flex-grow space-y-2 w-full">
-                                                                                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Màu sắc nhận diện bởi AI:</div>
-                                                                                <div className="relative">
-                                                                                    <input
-                                                                                        type="text"
-                                                                                        placeholder="Chưa nhận diện được..."
-                                                                                        value={vehicleColor}
-                                                                                        onChange={(e) => setVehicleColor(e.target.value)}
-                                                                                        className={`${inputClass} !py-2 !px-3`}
-                                                                                        disabled={isAnalyzingColor}
-                                                                                    />
-                                                                                    {vehicleColor && !isAnalyzingColor && (
-                                                                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] bg-emerald-50 text-emerald-600 font-bold px-1.5 py-0.5 rounded border border-emerald-100 flex items-center gap-0.5">
-                                                                                            <Check size={10} strokeWidth={3} /> AI gợi ý
-                                                                                        </span>
-                                                                                    )}
-                                                                                </div>
-                                                                                <div className="flex justify-between items-center text-[10px] text-gray-400">
-                                                                                    <span>* Bạn có thể tự chỉnh sửa lại nếu kết quả nhận diện chưa chuẩn xác</span>
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        onClick={handleRemoveColorImage}
-                                                                                        className="text-amber-500 hover:text-amber-600 font-bold underline bg-transparent border-none cursor-pointer"
-                                                                                    >
-                                                                                        Tải ảnh khác
-                                                                                    </button>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        {/* AI parsed output details */}
-                                                                        {aiDetectionResult && aiDetectionResult.rawText && (
-                                                                            <div className="pt-3 border-t border-slate-200/60 text-xs space-y-2 text-left">
-                                                                                <div className="font-bold text-slate-700 flex items-center gap-1.5">
-                                                                                    <Sparkles size={12} className="text-amber-500" />
-                                                                                    Chi tiết xe do AI nhận diện:
-                                                                                </div>
-                                                                                <div className="bg-white p-3.5 rounded-xl border border-slate-100/80 text-slate-600 leading-relaxed whitespace-pre-line text-left">
-                                                                                    {aiDetectionResult.rawText}
-                                                                                </div>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                )}
-
-                                                                {/* AI Loading State */}
-                                                                {isAnalyzingColor && (
-                                                                    <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50/50 px-3 py-2.5 rounded-xl border border-amber-100/50 animate-pulse">
-                                                                        <div className="w-3.5 h-3.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin shrink-0" />
-                                                                        <span>AI đang phân tích hình ảnh để nhận diện màu sắc...</span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}
@@ -1443,48 +1581,70 @@ export default function BookingPage() {
                                         <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-brand-blue">
                                             <Settings size={20} />
                                         </div>
-                                        <h2 className="text-xl md:text-2xl font-bold text-brand-blue font-display">Chọn dịch vụ</h2>
+                                        <h2 className="text-xl md:text-2xl font-bold text-brand-blue font-display">Chọn dịch vụ hoặc Sửa chữa lỗi</h2>
                                     </div>
 
-                                    {/* Subtype Switcher */}
+                                    {/* Category Mode Switcher */}
                                     <div className="flex p-1 bg-slate-100/80 rounded-2xl mb-8 max-w-xl border border-slate-200/40">
                                         <button
                                             type="button"
-                                            onClick={() => { setServiceSubtype('combo'); setServicePage(1); }}
-                                            className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceSubtype === 'combo' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'
-                                                }`}
+                                            onClick={() => setServiceCategoryMode('SERVICES')}
+                                            className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceCategoryMode === 'SERVICES' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'}`}
                                         >
-                                            <Sparkles size={14} />
-                                            Gói Combo
+                                            <Settings size={14} />
+                                            Chọn dịch vụ
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => { setServiceSubtype('service'); setServicePage(1); }}
-                                            className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceSubtype === 'service' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'
-                                                }`}
+                                            onClick={() => setServiceCategoryMode('REPAIR')}
+                                            className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceCategoryMode === 'REPAIR' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'}`}
                                         >
-                                            <Settings size={14} />
-                                            Dịch vụ lẻ
+                                            <Wrench size={14} />
+                                            Kiểm tra và sửa chữa lỗi
                                         </button>
                                     </div>
 
-                                    {/* List Display according to type */}
-                                    {serviceSubtype === 'service' && (
-                                        <SingleServicesSelector
-                                            mappedServices={mappedServices}
-                                            activeCategories={activeCategories}
-                                            selectedServiceIds={selectedServiceIds}
-                                            setSelectedServiceIds={setSelectedServiceIds}
-                                            COLORS={COLORS}
-                                            t={t as any}
-                                            selectedCategoryId={selectedCategoryId}
-                                            setSelectedCategoryId={setSelectedCategoryId}
-                                            servicePage={servicePage}
-                                            setServicePage={setServicePage}
-                                            dbCombos={dbCombos}
-                                            selectedComboId={selectedComboId}
-                                        />
-                                    )}
+                                    {serviceCategoryMode === 'SERVICES' ? (
+                                        <>
+                                            {/* Subtype Switcher */}
+                                            <div className="flex p-1 bg-slate-100/80 rounded-2xl mb-8 max-w-xl border border-slate-200/40">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setServiceSubtype('combo'); setServicePage(1); }}
+                                                    className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceSubtype === 'combo' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'
+                                                        }`}
+                                                >
+                                                    <Sparkles size={14} />
+                                                    Gói Combo
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setServiceSubtype('service'); setServicePage(1); }}
+                                                    className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceSubtype === 'service' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'
+                                                        }`}
+                                                >
+                                                    <Settings size={14} />
+                                                    Dịch vụ lẻ
+                                                </button>
+                                            </div>
+
+                                            {/* List Display according to type */}
+                                            {serviceSubtype === 'service' && (
+                                                <SingleServicesSelector
+                                                    mappedServices={mappedServices}
+                                                    activeCategories={activeCategories}
+                                                    selectedServiceIds={selectedServiceIds}
+                                                    setSelectedServiceIds={setSelectedServiceIds}
+                                                    COLORS={COLORS}
+                                                    t={t as any}
+                                                    selectedCategoryId={selectedCategoryId}
+                                                    setSelectedCategoryId={setSelectedCategoryId}
+                                                    servicePage={servicePage}
+                                                    setServicePage={setServicePage}
+                                                    dbCombos={dbCombos}
+                                                    selectedComboId={selectedComboId}
+                                                />
+                                            )}
 
                                     {serviceSubtype === 'combo' && (
                                         <ComboServicesSelector
@@ -1559,6 +1719,22 @@ export default function BookingPage() {
                                             </div>
                                         </motion.div>
                                     )}
+                                        </>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-bold text-slate-700 mb-2">
+                                                    Mô tả tình trạng lỗi/hỏng hóc của xe để đặt lịch sửa chữa <span className="text-red-500">*</span>
+                                                </label>
+                                                <textarea
+                                                    value={issueDescription}
+                                                    onChange={(e) => setIssueDescription(e.target.value)}
+                                                    placeholder="Ví dụ: Xe bị xước móp ở cửa trước bên phải, cần phục hồi và sơn lại..."
+                                                    className="w-full h-40 bg-[#F8FAFC] border border-blue-50/50 rounded-2xl p-4 text-sm outline-none transition-all focus:border-amber-400 focus:bg-white text-brand-blue shadow-inner"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                 </motion.div>
                             )}
 
@@ -1605,10 +1781,10 @@ export default function BookingPage() {
                                                             key={slot.time}
                                                             onClick={() => !slot.isFull && setBookingTime(slot.time)}
                                                             className={`p-3.5 rounded-xl border text-center transition-all ${slot.isFull
-                                                                    ? 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed opacity-60'
-                                                                    : isSelected
-                                                                        ? 'border-brand-orange bg-amber-50/20 text-brand-orange font-bold shadow-xs cursor-pointer'
-                                                                        : 'border-slate-100 bg-slate-50 hover:bg-slate-100/70 text-brand-blue cursor-pointer'
+                                                                ? 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed opacity-60'
+                                                                : isSelected
+                                                                    ? 'border-brand-orange bg-amber-50/20 text-brand-orange font-bold shadow-xs cursor-pointer'
+                                                                    : 'border-slate-100 bg-slate-50 hover:bg-slate-100/70 text-brand-blue cursor-pointer'
                                                                 }`}
                                                         >
                                                             <div className={`text-sm font-mono ${slot.isFull ? 'line-through decoration-gray-400' : ''}`}>{slot.time}</div>
@@ -1834,6 +2010,74 @@ export default function BookingPage() {
                     </aside>
                 </div>
             </div>
+
+            {/* Modal phóng to ảnh (Lightbox) */}
+            <AnimatePresence>
+                {isImageFullScreen && issueImagePreview && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 md:p-10 cursor-zoom-out"
+                        onClick={() => setIsImageFullScreen(false)}
+                    >
+                        {/* Nút đóng */}
+                        <button
+                            className="absolute top-4 right-4 md:top-8 md:right-8 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-colors z-50"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsImageFullScreen(false);
+                            }}
+                        >
+                            <X size={24} />
+                        </button>
+
+                        {/* Ảnh phóng to */}
+                        <motion.img
+                            initial={{ scale: 0.9 }}
+                            animate={{ scale: 1 }}
+                            exit={{ scale: 0.9 }}
+                            src={issueImagePreview}
+                            alt="Phóng to lỗi xe"
+                            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Modal phóng to ảnh chung (General Lightbox) */}
+            <AnimatePresence>
+                {fullScreenImageUrl && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 md:p-10 cursor-zoom-out"
+                        onClick={() => setFullScreenImageUrl(null)}
+                    >
+                        <button
+                            className="absolute top-4 right-4 md:top-8 md:right-8 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-colors z-50"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setFullScreenImageUrl(null);
+                            }}
+                        >
+                            <X size={24} />
+                        </button>
+
+                        <motion.img
+                            initial={{ scale: 0.9 }}
+                            animate={{ scale: 1 }}
+                            exit={{ scale: 0.9 }}
+                            src={fullScreenImageUrl}
+                            alt="Phóng to ảnh"
+                            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

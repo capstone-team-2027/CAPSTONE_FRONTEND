@@ -15,22 +15,24 @@ const Team = lazy(() => import("./pages/customer/Team/Team"));
 const OtpVerification = lazy(() => import("./pages/customer/Home/verify-otp"));
 const VerifyPhone = lazy(() => import("./pages/customer/Home/verify-phone"));
 
-// Admin Page Imports
+const VideoCallRoom = lazy(() => import("./pages/common/VideoCallRoom"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminSettings = lazy(() => import("./pages/admin/settings/AdminSettings"));
 const AdminServicesCategories = lazy(() => import("./pages/admin/services/AdminServicesCategories"));
 const AdminResources = lazy(() => import("./pages/admin/resources/AdminResources"));
 const AdminServiceCatalog = lazy(() => import("./pages/admin/services/AdminServiceCatalog"));
 const AdminStaffManagement = lazy(() => import("./pages/admin/staff/AdminStaffManagement"));
+const AdminShiftManagement = lazy(() => import("./pages/admin/staff/AdminShiftManagement"));
 const AdminWarrantyPolicies = lazy(() => import("./pages/admin/warranty/AdminWarrantyPolicies"));
 const AdminStatistics = lazy(() => import("./pages/admin/dashboard/AdminStatistics"));
 const AdminCustomerManagement = lazy(() => import("./pages/admin/customer/AdminCustomerManagement"));
-const InventoryLayout = lazy (() => import("./pages/inventory/InventoryLayout"));
-const InventoryDashboard = lazy(() => import( "./pages/inventory/dashboard/InventoryDashboard"));
-const InventoryParts = lazy(() => import( "./pages/inventory/parts/InventoryParts"));
-const ImportHistory = lazy(() => import( "./pages/inventory/import/InventoryImport"));
+const AdminCustomerDetailPage = lazy(() => import("./pages/admin/customer/AdminCustomerDetailPage"));
+const InventoryLayout = lazy(() => import("./pages/inventory/InventoryLayout"));
+const InventoryDashboard = lazy(() => import("./pages/inventory/dashboard/InventoryDashboard"));
+const InventoryParts = lazy(() => import("./pages/inventory/parts/InventoryParts"));
+const ImportHistory = lazy(() => import("./pages/inventory/import/InventoryImport"));
 const PartCategories = lazy(() => import("./pages/inventory/categories/InventoryPartCategories"));
-const InventorySuppliers = lazy(() =>  import("./pages/inventory/suppliers/InventorySuppliers"));
+const InventorySuppliers = lazy(() => import("./pages/inventory/suppliers/InventorySuppliers"));
 const InventoryApprovedQuotes = lazy(() => import("./pages/inventory/export/InventoryApprovedQuotes"));
 const InventoryExport = lazy(() => import("./pages/inventory/export/InventoryExport"));
 
@@ -49,12 +51,11 @@ const ReceptionQuoteDetail = lazy(() => import("./pages/reception/quotes/Recepti
 
 // Technician Page Imports
 const TechnicianLayout = lazy(() => import("./pages/technician/TechnicianLayout"));
-const TechnicianServiceOrderList = lazy(() => import("./pages/technician/service-orders/TechnicianServiceOrderList"));
-const TechnicianServiceOrderDetail = lazy(() => import("./pages/technician/service-orders/TechnicianServiceOrderDetail"));
 const TechnicianAssignments = lazy(() => import("./pages/technician/assignments/TechnicianAssignments"));
 const TechnicianAssignmentsDetail = lazy(() => import("./pages/technician/assignments/TechnicianAssignmentsDetail"));
 const TechnicianRequestParts = lazy(() => import("./pages/technician/parts-request/TechnicianRequestParts"));
 const TechnicianUpdateProgress = lazy(() => import("./pages/technician/progress/TechnicianUpdateProgress"));
+const TechnicianMyShifts = lazy(() => import("./pages/technician/my-shifts/TechnicianMyShifts"));
 const LoadingScreen = () => (
   <div className="fixed inset-0 bg-slate-50/50 backdrop-blur-xs flex flex-col items-center justify-center z-50">
     <div className="relative w-16 h-16">
@@ -71,7 +72,10 @@ function App() {
   const location = useLocation();
   const isAdminPath =
     location.pathname.startsWith("/admin") ||
-    location.pathname.startsWith("/inventory");
+    location.pathname.startsWith("/inventory") ||
+    location.pathname.startsWith("/reception") ||
+    location.pathname.startsWith("/technician") ||
+    location.pathname.startsWith("/video-call");
   return (
     <Suspense fallback={<LoadingScreen />}>
       <Routes>
@@ -90,6 +94,8 @@ function App() {
           <Route path="verify-phone" element={<VerifyPhone />} />
         </Route>
 
+        <Route path="/video-call/:roomId" element={<VideoCallRoom />} />
+
         {/* Admin Dashboard */}
         <Route path="/admin" element={<AdminLayout />}>
           <Route path="" element={<AdminStatistics />} />
@@ -98,9 +104,11 @@ function App() {
           <Route path="settings" element={<AdminSettings />} />
           <Route path="services" element={<AdminServiceCatalog />} />
           <Route path="staff" element={<AdminStaffManagement />} />
+          <Route path="shifts" element={<AdminShiftManagement />} />
           <Route path="warranty" element={<AdminWarrantyPolicies />} />
           <Route path="statistics" element={<AdminStatistics />} />
           <Route path="customers" element={<AdminCustomerManagement />} />
+          <Route path="customers/:id" element={<AdminCustomerDetailPage />} />
         </Route>
         <Route path="/inventory" element={<InventoryLayout />}>
           <Route path="" element={<InventoryDashboard />} />
@@ -113,15 +121,14 @@ function App() {
         </Route>
 
         <Route path="/technician" element={<TechnicianLayout />}>
-          <Route path="" element={<Navigate to="service-orders" replace />} />
-          <Route path="service-orders" element={<TechnicianServiceOrderList />} />
-          <Route path="service-orders/:id" element={<TechnicianServiceOrderDetail />} />
+          <Route path="" element={<Navigate to="assignments" replace />} />
           <Route path="assignments" element={<TechnicianAssignments />} />
           <Route path="assignments/:id" element={<TechnicianAssignmentsDetail />} />
           <Route path="parts-request" element={<TechnicianRequestParts />} />
           <Route path="parts-request/:id" element={<TechnicianRequestParts />} />
           <Route path="progress" element={<TechnicianUpdateProgress />} />
           <Route path="progress/:id" element={<TechnicianUpdateProgress />} />
+          <Route path="my-shifts" element={<TechnicianMyShifts />} />
         </Route>
 
         {/* Reception Dashboard */}

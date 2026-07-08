@@ -12,6 +12,7 @@ export interface AppointmentModel {
   vinNumber?: string;
   hasServiceOrder?: boolean;
   serviceOrderId?: string;
+  hasOdo?: boolean;
   services: string[];
   appointmentDate: string;
   appointmentTime: string;
@@ -19,5 +20,6 @@ export interface AppointmentModel {
   assignedStaff?: string;
   notes?: string;
   status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
+  bookingType?: string;
   createdAt: string;
 }

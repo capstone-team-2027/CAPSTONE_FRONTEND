@@ -32,7 +32,7 @@ export default function TechnicianAssignmentsDetail() {
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[500px] text-slate-400">
-        <Loader2 size={48} className="mb-4 text-[#0E4D40] animate-spin" />
+        <Loader2 size={48} className="mb-4 text-[#00285E] animate-spin" />
         <p className="text-lg font-semibold mb-1 text-slate-700">Đang tải chi tiết lệnh sửa chữa...</p>
       </div>
     );
@@ -42,7 +42,7 @@ export default function TechnicianAssignmentsDetail() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[500px] text-slate-400">
         <p className="text-lg font-semibold mb-1 text-slate-700">Không tìm thấy dữ liệu.</p>
-        <button onClick={() => navigate(-1)} className="mt-4 text-[#0E4D40] hover:underline">Quay lại</button>
+        <button onClick={() => navigate(-1)} className="mt-4 text-[#00285E] hover:underline">Quay lại</button>
       </div>
     );
   }
@@ -61,7 +61,7 @@ export default function TechnicianAssignmentsDetail() {
           <ChevronLeft size={20} className="text-slate-600" />
         </button>
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#0E4D40] tracking-tight leading-none mb-2">
+          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
             Chi tiết Lệnh sửa chữa #{detailData.id}
           </h1>
           <p className="text-slate-500 text-sm flex items-center gap-2">
@@ -116,7 +116,7 @@ export default function TechnicianAssignmentsDetail() {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-slate-400 font-medium block">Trạng thái hẹn</span>
-              <span className="text-slate-800 font-bold px-2 py-1 bg-[#E8F5F0] text-[#0E4D40] rounded-lg inline-block mt-1">
+              <span className="text-slate-800 font-bold px-2 py-1 bg-[#EDF3FF] text-[#00285E] rounded-lg inline-block mt-1">
                 {appointment?.status || 'Đã xác nhận'}
               </span>
             </div>
@@ -159,7 +159,7 @@ export default function TechnicianAssignmentsDetail() {
               <tbody>
                 {tasks.map((task: any) => (
                   <tr key={task.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-50 last:border-0">
-                    <td className="py-3 px-4 font-bold text-[#0E4D40]">#{task.id}</td>
+                    <td className="py-3 px-4 font-bold text-[#00285E]">#{task.id}</td>
                     <td className="py-3 px-4 font-semibold text-slate-700">{task.catalog?.service_name || '--'}</td>
                     <td className="py-3 px-4 text-slate-600">{task.catalog?.estimated_duration || 0}</td>
                     <td className="py-3 px-4">
