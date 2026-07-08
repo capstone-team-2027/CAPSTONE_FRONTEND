@@ -105,12 +105,12 @@ export default function AdminServiceManagement() {
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
-  const handleGetServiceCatalog = async () => {
+  const handleGetServiceCatalog = async (query: string = '') => {
     try {
-      const result = await fetchPrivate<ServiceCatalog[]>(
-        SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG,
-        'GET'
-      );
+      const serviceCatalogUrl = query
+        ? `${SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG}?q=${encodeURIComponent(query)}`
+        : SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG;
+      const result = await fetchPrivate<ServiceCatalog[]>(serviceCatalogUrl, 'GET');
       setServices(result.data || []);
     } catch (error) {
       console.error('Lỗi lấy danh sách dịch vụ:', error);
@@ -127,28 +127,12 @@ export default function AdminServiceManagement() {
     }
   };
 
-  const loadCategories = async () => {
-    setCategoriesLoading(true);
+  const handleGetServiceCombos = async (query: string = '') => {
     try {
-      const url = `${SERVICE_CATEGORY_API_ENDPOINTS.LIST}?page=${categoryPage}&limit=${categoryLimit}&include_services=false`;
-      const res = await fetchPrivate(url, 'GET');
-      if (res.success && res.data) {
-        setCategories(res.data.items || []);
-        setTotalCategories(res.data.total || 0);
-      } else {
-        showToast(res.message || 'Không thể tải danh sách danh mục dịch vụ', 'warning');
-      }
-    } catch (err: any) {
-      console.error(err);
-      showToast(err.message || 'Lỗi kết nối tải danh sách danh mục', 'warning');
-    } finally {
-      setCategoriesLoading(false);
-    }
-  };
-
-  const handleGetServiceCombos = async () => {
-    try {
-      const result = await fetchPrivate(SERVICE_COMBOS_API_ENDPOINTS.LIST_SERVICE_COMBOS, 'GET');
+      const comboUrl = query
+        ? `${SERVICE_COMBOS_API_ENDPOINTS.LIST_SERVICE_COMBOS}?q=${encodeURIComponent(query)}`
+        : SERVICE_COMBOS_API_ENDPOINTS.LIST_SERVICE_COMBOS;
+      const result = await fetchPrivate(comboUrl, 'GET');
       if (result && result.data) {
         const combosData = (result.data || []).map((c: any) => {
           let discount = 10;
@@ -179,11 +163,61 @@ export default function AdminServiceManagement() {
     }
   };
 
+  const loadCategories = async (pageNumber: number = categoryPage, query: string = categorySearchQuery) => {
+    setCategoriesLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(pageNumber));
+      params.set('limit', String(categoryLimit));
+      params.set('include_services', 'false');
+      if (query.trim()) {
+        params.set('q', query.trim());
+      }
+      const url = `${SERVICE_CATEGORY_API_ENDPOINTS.LIST}?${params.toString()}`;
+      const res = await fetchPrivate(url, 'GET');
+      if (res.success && res.data) {
+        setCategories(res.data.items || []);
+        setTotalCategories(res.data.total || 0);
+        setCategoryPage(pageNumber);
+      } else {
+        showToast(res.message || 'Không thể tải danh sách danh mục dịch vụ', 'warning');
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message || 'Lỗi kết nối tải danh sách danh mục', 'warning');
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
+
   useEffect(() => {
-    handleGetServiceCatalog();
+    handleGetServiceCatalog(searchQueryLocal);
     handleGetCategory();
-    handleGetServiceCombos();
+    handleGetServiceCombos(comboSearchQuery);
+    loadCategories(1, categorySearchQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      handleGetServiceCatalog(searchQueryLocal);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchQueryLocal]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      handleGetServiceCombos(comboSearchQuery);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [comboSearchQuery]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      loadCategories(1, categorySearchQuery);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [categorySearchQuery]);
 
   // Prepopulate mock service prices and combos if empty
   useEffect(() => {

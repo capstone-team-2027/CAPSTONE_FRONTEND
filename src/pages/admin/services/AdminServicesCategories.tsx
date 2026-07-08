@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useOutletContext } from 'react-router-dom';
 import {
@@ -9,7 +9,8 @@ import {
   AlertTriangle,
   FolderOpen,
   Filter,
-  Pencil
+  Pencil,
+  Search,
 } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { SERVICE_CATEGORY_API_ENDPOINTS } from '../../../constants/admin/serviceCategoriesApiEndPoint';
@@ -37,6 +38,7 @@ export default function AdminServices() {
   const [page, setPage] = useState(1);
   const [totalCategories, setTotalCategories] = useState(0);
   const limit = 8;
+  const [categorySearchQuery, setCategorySearchQuery] = useState('');
 
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -48,29 +50,51 @@ export default function AdminServices() {
 
   // ── LOAD DATA ──────────────────────────────────────────────────────────────
 
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async (pageNumber: number = page, query: string = '') => {
     setLoading(true);
     try {
-      const url = `${SERVICE_CATEGORY_API_ENDPOINTS.LIST}?page=${page}&limit=${limit}&include_services=false`;
+      const params = new URLSearchParams();
+      params.set('page', String(pageNumber));
+      params.set('limit', String(limit));
+      params.set('include_services', 'false');
+      if (query.trim()) params.set('q', query.trim());
+
+      const url = `${SERVICE_CATEGORY_API_ENDPOINTS.LIST}?${params.toString()}`;
 
       const res = await fetchPrivate(url, 'GET');
       if (res.success && res.data) {
         setCategories(res.data.items || []);
         setTotalCategories(res.data.total || 0);
+        setPage(pageNumber);
       } else {
         showToast(res.message || 'Không thể tải danh sách danh mục dịch vụ', 'warning');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      showToast(err.message || 'Lỗi kết nối tải danh sách danh mục', 'warning');
+      const message = err instanceof Error ? err.message : String(err);
+      showToast(message || 'Lỗi kết nối tải danh sách danh mục', 'warning');
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchPrivate, limit, showToast, page]);
 
   useEffect(() => {
-    loadCategories();
-  }, [page]);
+    // Call on next tick to avoid synchronous setState inside effect
+    const timer = window.setTimeout(() => {
+      loadCategories(page, categorySearchQuery);
+    }, 0);
+    return () => window.clearTimeout(timer);
+    // Intentionally only depend on `page` and `loadCategories`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, loadCategories]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      loadCategories(1, categorySearchQuery);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [categorySearchQuery, loadCategories]);
 
   // KPI Calculations
   const stats = useMemo(() => {
@@ -144,9 +168,10 @@ export default function AdminServices() {
           showToast(res.message || 'Lỗi khi thêm danh mục dịch vụ', 'warning');
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      showToast(err.message || 'Lỗi kết nối lưu danh mục', 'warning');
+      const message = err instanceof Error ? err.message : String(err);
+      showToast(message || 'Lỗi kết nối lưu danh mục', 'warning');
     } finally {
       setSaving(false);
     }
@@ -162,9 +187,10 @@ export default function AdminServices() {
         } else {
           showToast(res.message || 'Lỗi khi xóa danh mục dịch vụ', 'warning');
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error(err);
-        showToast(err.message || 'Lỗi kết nối xóa danh mục', 'warning');
+        const message = err instanceof Error ? err.message : String(err);
+        showToast(message || 'Lỗi kết nối xóa danh mục', 'warning');
       }
     }
   };
@@ -179,9 +205,10 @@ export default function AdminServices() {
       } else {
         showToast(res.message || 'Lỗi cập nhật trạng thái', 'warning');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      showToast(err.message || 'Lỗi kết nối cập nhật trạng thái', 'warning');
+      const message = err instanceof Error ? err.message : String(err);
+      showToast(message || 'Lỗi kết nối cập nhật trạng thái', 'warning');
     }
   };
 
@@ -279,12 +306,24 @@ export default function AdminServices() {
           <h2 className="text-lg font-bold text-slate-800 tracking-tight">
             Danh mục Dịch vụ
           </h2>
-          <button
-            onClick={() => showToast('Mở bộ lọc nâng cao...', 'info')}
-            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-slate-600"
-          >
-            <Filter size={16} />
-          </button>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
+              <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Tìm kiếm danh mục..."
+                value={categorySearchQuery}
+                onChange={(e) => setCategorySearchQuery(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+              />
+            </div>
+            <button
+              onClick={() => showToast('Mở bộ lọc nâng cao...', 'info')}
+              className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-slate-600"
+            >
+              <Filter size={16} />
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
