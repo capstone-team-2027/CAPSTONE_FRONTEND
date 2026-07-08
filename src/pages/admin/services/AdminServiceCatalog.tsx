@@ -108,7 +108,7 @@ export default function AdminServiceManagement() {
   const handleGetServiceCatalog = async (query: string = '') => {
     try {
       const serviceCatalogUrl = query
-        ? `${SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG}?q=${encodeURIComponent(query)}`
+        ? `${SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG_SEARCH}?q=${encodeURIComponent(query)}`
         : SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG;
       const result = await fetchPrivate<ServiceCatalog[]>(serviceCatalogUrl, 'GET');
       setServices(result.data || []);
@@ -130,7 +130,7 @@ export default function AdminServiceManagement() {
   const handleGetServiceCombos = async (query: string = '') => {
     try {
       const comboUrl = query
-        ? `${SERVICE_COMBOS_API_ENDPOINTS.LIST_SERVICE_COMBOS}?q=${encodeURIComponent(query)}`
+        ? `${SERVICE_COMBOS_API_ENDPOINTS.SEARCH_SERVICE_COMBOS}?q=${encodeURIComponent(query)}`
         : SERVICE_COMBOS_API_ENDPOINTS.LIST_SERVICE_COMBOS;
       const result = await fetchPrivate(comboUrl, 'GET');
       if (result && result.data) {
