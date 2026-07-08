@@ -23,7 +23,7 @@ import type { ServiceCombo, ServiceItem } from '../../../model/Service';
 
 export default function BookingPage() {
     const apiAI = import.meta.env.VITE_AI_API_URL || "http://localhost:3000";
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [step, setStep] = useState(1);
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -70,6 +70,7 @@ export default function BookingPage() {
 
     const [bookingDate, setBookingDate] = useState(getTodayString());
     const [bookingTime, setBookingTime] = useState('');
+    const [isDateFocused, setIsDateFocused] = useState(false);
 
     const [customerVehicles, setCustomerVehicles] = useState<any[]>([]);
     const [selectedCustomerVehicleId, setSelectedCustomerVehicleId] = useState<number | null>(null);
@@ -78,6 +79,8 @@ export default function BookingPage() {
     const [vehicleBrand, setVehicleBrand] = useState('');
     const [vehicleModel, setVehicleModel] = useState('');
     const [vehiclePlate, setVehiclePlate] = useState('');
+    const [plateError, setPlateError] = useState('');
+    const [isCheckingPlate, setIsCheckingPlate] = useState(false);
     const [vehicleYear, setVehicleYear] = useState('');
     const [vehicleColor, setVehicleColor] = useState('');
     const [isAnalyzingColor, setIsAnalyzingColor] = useState(false);
@@ -186,9 +189,10 @@ export default function BookingPage() {
     useEffect(() => {
         const loadDbData = async () => {
             setIsLoading(true);
+            const currentLang = i18n.language || 'vi';
             try {
                 // Fetch Categories
-                const catRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_CATEGORIES);
+                const catRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.GET_CATEGORIES}?lang=${currentLang}`);
                 if (catRes && catRes.data) {
                     setDbCategories(catRes.data);
                 }
@@ -198,7 +202,7 @@ export default function BookingPage() {
 
             try {
                 // Fetch Services (Catalogs)
-                const svcRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_SERVICES);
+                const svcRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.GET_SERVICES}?lang=${currentLang}`);
                 if (svcRes && svcRes.data) {
                     setDbServices(svcRes.data);
                 }
@@ -209,7 +213,7 @@ export default function BookingPage() {
             }
         };
         loadDbData();
-    }, []);
+    }, [i18n.language]);
 
     // Load garage configuration data (shifts & buffer time)
     useEffect(() => {
@@ -243,6 +247,32 @@ export default function BookingPage() {
         };
         loadGarageConfigs();
     }, [bookingDate, fetchPublic]);
+
+    // Check duplicate license plate
+    useEffect(() => {
+        if (vehicleInputMode !== 'NEW' || !vehiclePlate.trim()) {
+            setPlateError('');
+            return;
+        }
+
+        const timer = setTimeout(async () => {
+            setIsCheckingPlate(true);
+            try {
+                const res = await fetchPublic(APPOINTMENT_API_ENDPOINTS.CHECK_LICENSE_PLATE + '?license_plate=' + encodeURIComponent(vehiclePlate.trim()));
+                if (res && res.success && res.exists) {
+                    setPlateError(res.message || 'Biển số xe đã tồn tại.');
+                } else {
+                    setPlateError('');
+                }
+            } catch (error) {
+                console.error("Lỗi khi kiểm tra biển số:", error);
+            } finally {
+                setIsCheckingPlate(false);
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [vehiclePlate, vehicleInputMode, fetchPublic]);
 
     // Handle click outside to close suggestions
     useEffect(() => {
@@ -701,7 +731,9 @@ export default function BookingPage() {
                         vehicleBrand.trim() !== '' &&
                         vehicleModel.trim() !== '' &&
                         vehiclePlate.trim() !== '' &&
-                        isYearValid
+                        isYearValid &&
+                        plateError === '' &&
+                        !isCheckingPlate
                     );
                 }
                 return false;
@@ -821,7 +853,7 @@ export default function BookingPage() {
                         <div className="flex justify-between">
                             <span className="text-gray-400">Hình thức:</span>
                             <span className="font-bold text-brand-blue">
-                                {bookingFlow === 'CONSULTATION' ? 'Tư vấn trực tiếp' : 'Đặt lịch dịch vụ'}
+                                {bookingFlow === 'CONSULTATION' ? t('booking.directConsultation', 'Tư vấn trực tiếp') : t('booking.serviceBooking', 'Đặt lịch dịch vụ')}
                             </span>
                         </div>
                         <div className="flex justify-between">
@@ -974,7 +1006,7 @@ export default function BookingPage() {
                                         <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-brand-blue">
                                             {bookingFlow === 'CONSULTATION' ? <Settings size={20} /> : <Car size={20} />}
                                         </div>
-                                        <h2 className="text-xl md:text-2xl font-bold text-brand-blue font-display">Chọn hình thức đặt lịch</h2>
+                                        <h2 className="text-xl md:text-2xl font-bold text-brand-blue font-display">{t('booking.selectBookingMode', 'Chọn hình thức đặt lịch')}</h2>
                                     </div>
 
                                     {/* Flow Switcher (Consultation vs Specific Service) */}
@@ -986,7 +1018,7 @@ export default function BookingPage() {
                                                 }`}
                                         >
                                             <Sparkles size={14} />
-                                            Tham khảo tư vấn AI
+                                            {t('booking.aiConsultation', 'Tham khảo tư vấn AI')}
                                         </button>
                                         <button
                                             type="button"
@@ -995,7 +1027,7 @@ export default function BookingPage() {
                                                 }`}
                                         >
                                             <Settings size={14} />
-                                            Đặt lịch dịch vụ
+                                            {t('booking.serviceBooking', 'Đặt lịch dịch vụ')}
                                         </button>
                                     </div>
 
@@ -1258,7 +1290,7 @@ export default function BookingPage() {
                                                             : 'text-slate-500 hover:text-slate-800 bg-transparent'
                                                             }`}
                                                     >
-                                                        Chọn xe đã lưu
+                                                        {t('booking.savedVehicle', 'Chọn xe đã lưu')}
                                                     </button>
                                                     <button
                                                         type="button"
@@ -1276,7 +1308,7 @@ export default function BookingPage() {
                                                             : 'text-slate-500 hover:text-slate-800 bg-transparent'
                                                             }`}
                                                     >
-                                                        Thêm xe mới
+                                                        {t('booking.addNewVehicle', 'Thêm xe mới')}
                                                     </button>
                                                 </div>
                                             )}
@@ -1519,8 +1551,10 @@ export default function BookingPage() {
                                                                 placeholder={t('booking.step3.platePlaceholder', 'Ví dụ: 30A-123.45 hoặc 51F-999.99')}
                                                                 value={vehiclePlate}
                                                                 onChange={(e) => setVehiclePlate(e.target.value)}
-                                                                className={inputClass}
+                                                                className={inputClass + (plateError ? ' !border-red-500 focus:!border-red-500' : '')}
                                                             />
+                                                            {isCheckingPlate && <p className="text-[10px] text-gray-500 mt-1 italic">Đang kiểm tra biển số...</p>}
+                                                            {plateError && <p className="text-[10px] text-red-500 mt-1 font-semibold">{plateError}</p>}
                                                         </div>
                                                         <div>
                                                             <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1 text-left">
@@ -1581,7 +1615,7 @@ export default function BookingPage() {
                                         <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-brand-blue">
                                             <Settings size={20} />
                                         </div>
-                                        <h2 className="text-xl md:text-2xl font-bold text-brand-blue font-display">Chọn dịch vụ hoặc Sửa chữa lỗi</h2>
+                                        <h2 className="text-xl md:text-2xl font-bold text-brand-blue font-display">{t('booking.selectServiceOrRepair', 'Chọn dịch vụ hoặc Sửa chữa lỗi')}</h2>
                                     </div>
 
                                     {/* Category Mode Switcher */}
@@ -1592,7 +1626,7 @@ export default function BookingPage() {
                                             className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceCategoryMode === 'SERVICES' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'}`}
                                         >
                                             <Settings size={14} />
-                                            Chọn dịch vụ
+                                            {t('booking.selectService', 'Chọn dịch vụ')}
                                         </button>
                                         <button
                                             type="button"
@@ -1600,7 +1634,7 @@ export default function BookingPage() {
                                             className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceCategoryMode === 'REPAIR' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'}`}
                                         >
                                             <Wrench size={14} />
-                                            Kiểm tra và sửa chữa lỗi
+                                            {t('booking.checkAndRepair', 'Kiểm tra và sửa chữa lỗi')}
                                         </button>
                                     </div>
 
@@ -1615,7 +1649,7 @@ export default function BookingPage() {
                                                         }`}
                                                 >
                                                     <Sparkles size={14} />
-                                                    Gói Combo
+                                                    {t('booking.comboPackage', 'Gói Combo')}
                                                 </button>
                                                 <button
                                                     type="button"
@@ -1624,7 +1658,7 @@ export default function BookingPage() {
                                                         }`}
                                                 >
                                                     <Settings size={14} />
-                                                    Dịch vụ lẻ
+                                                    {t('booking.singleService', 'Dịch vụ lẻ')}
                                                 </button>
                                             </div>
 
@@ -1760,8 +1794,13 @@ export default function BookingPage() {
                                                 {t('booking.step2.dateLabel', 'Chọn ngày hẹn')}
                                             </label>
                                             <input
-                                                type="date"
-                                                value={bookingDate}
+                                                type={isDateFocused ? 'date' : 'text'}
+                                                value={isDateFocused ? bookingDate : (bookingDate ? `${bookingDate.split('-')[2]}/${bookingDate.split('-')[1]}/${bookingDate.split('-')[0]}` : '')}
+                                                onFocus={() => setIsDateFocused(true)}
+                                                onBlur={(e) => {
+                                                    if (!e.target.value) setBookingDate(getTodayString());
+                                                    setIsDateFocused(false);
+                                                }}
                                                 onChange={(e) => setBookingDate(e.target.value)}
                                                 min={minDateStr}
                                                 max={maxDateStr}
@@ -1865,10 +1904,10 @@ export default function BookingPage() {
                                     <div className="flex-grow">
                                         <div className="text-[9px] text-white/40 font-bold uppercase tracking-widest">
                                             {bookingFlow === 'CONSULTATION'
-                                                ? 'Đặt lịch tư vấn'
+                                                ? t('booking.consultationBooking', 'Đặt lịch tư vấn')
                                                 : serviceSubtype === 'service'
-                                                    ? 'Dịch vụ lẻ'
-                                                    : 'Gói Combo'}
+                                                    ? t('booking.singleService', 'Dịch vụ lẻ')
+                                                    : t('booking.comboPackage', 'Gói Combo')}
                                         </div>
                                         <div className="flex justify-between items-center mt-1">
                                             <span className="font-bold text-xs md:text-sm">

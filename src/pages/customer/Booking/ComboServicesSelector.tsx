@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, Sparkles } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { SERVICE_API_ENDPOINTS } from '../../../constants/customer/serviceApiEndpoints';
@@ -26,6 +27,7 @@ export default function ComboServicesSelector({
     setSelectedServiceIds,
 }: ComboServicesSelectorProps) {
     const { fetchPublic } = useFetchClient();
+    const { t } = useTranslation();
 
     useEffect(() => {
         const fetchCombos = async () => {
@@ -93,7 +95,7 @@ export default function ComboServicesSelector({
                                 if (combo.service_ids && selectedServiceIds.length > 0) {
                                     const overlaps = combo.service_ids.filter(id => selectedServiceIds.includes(id));
                                     if (overlaps.length > 0) {
-                                        alert('Gói Combo này bao gồm các dịch vụ bạn đã chọn lẻ. Các dịch vụ lẻ trùng lặp sẽ tự động được bỏ chọn để tránh trùng lặp!');
+                                        alert(t('booking.comboOverlapWarning', 'Gói Combo này bao gồm các dịch vụ bạn đã chọn lẻ. Các dịch vụ lẻ trùng lặp sẽ tự động được bỏ chọn để tránh trùng lặp!'));
                                         if (setSelectedServiceIds) {
                                             setSelectedServiceIds(prev => prev.filter(id => !overlaps.includes(id)));
                                         }
@@ -112,10 +114,10 @@ export default function ComboServicesSelector({
                         <div>
                             <div className="absolute top-4 right-4 flex items-center gap-1.5 flex-wrap justify-end">
                                 <div className="bg-red-100 text-red-600 text-[10px] font-black uppercase px-2 py-0.5 rounded-lg shadow-xs shrink-0">
-                                    Giảm {discountPercentage}%
+                                    {t('booking.discountText', 'Giảm {{percent}}%', { percent: discountPercentage })}
                                 </div>
                                 <div className="text-[9px] font-bold px-2 py-0.5 rounded-lg shrink-0 bg-brand-orange text-brand-blue">
-                                    Combo
+                                    {t('booking.comboBadge', 'Combo')}
                                 </div>
                             </div>
 
@@ -138,7 +140,7 @@ export default function ComboServicesSelector({
 
                         <div className="flex justify-between items-end mt-4 pt-4 border-t border-slate-50">
                             <div>
-                                <div className="text-[9px] font-bold uppercase mb-0.5 text-gray-400">Giá combo ưu đãi</div>
+                                <div className="text-[9px] font-bold uppercase mb-0.5 text-gray-400">{t('booking.comboPromoPrice', 'Giá combo ưu đãi')}</div>
                                 <div className="flex items-baseline gap-1.5">
                                     <span className="text-xs text-gray-400 line-through font-medium">Từ {original.toLocaleString("vi-VN")}đ</span>
                                     <span className="text-base font-bold text-brand-orange">Từ {discounted.toLocaleString("vi-VN")}đ</span>
