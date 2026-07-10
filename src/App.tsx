@@ -48,7 +48,7 @@ const ReceptionServiceHistory = lazy(() => import("./pages/reception/service-his
 const ReceptionProcessPayment = lazy(() => import("./pages/reception/payments/ReceptionProcessPayment"));
 const ReceptionQuoteList = lazy(() => import("./pages/reception/quotes/ReceptionQuoteList"));
 const ReceptionQuoteDetail = lazy(() => import("./pages/reception/quotes/ReceptionQuoteDetail"));
-
+const ReceptionIssueReports =  lazy(() => import("./pages/reception/issues-report/ReceptionIssuesReportHistory"));
 // Technician Page Imports
 const TechnicianLayout = lazy(() => import("./pages/technician/TechnicianLayout"));
 const TechnicianAssignments = lazy(() => import("./pages/technician/assignments/TechnicianAssignments"));
@@ -147,6 +147,7 @@ function App() {
           <Route path="payments" element={<ReceptionProcessPayment />} />
           <Route path="quotes" element={<ReceptionQuoteList />} />
           <Route path="quotes/:id" element={<ReceptionQuoteDetail />} />
+          <Route path="issues" element={<ReceptionIssueReports />} />
         </Route>
       </Routes>
       {!isAdminPath && (
