@@ -27,7 +27,7 @@ import type { RootState } from '../../store/store';
 import type { UserModel } from '../../model/User';
 import { useFetchClient } from '../../hook/useFetchClient';
 import { loginSuccess, logout } from '../../store/slices/userSlice';
-import { PROFILE_API_ENDPOINTS } from '../../constants/customer/profileApiEndpoint';
+import { PROFILE_API_ENDPOINTS } from '../../constants/common/profileEndpoints';
 
 export default function InventoryLayout() {
   const navigate = useNavigate();
@@ -156,7 +156,7 @@ export default function InventoryLayout() {
             initial={{ opacity: 0, y: -50, x: '-50%' }}
             animate={{ opacity: 1, y: 16, x: '-50%' }}
             exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className="fixed top-0 left-1/2 z-50 transform -translate-x-1/2 flex items-center gap-2.5 px-5 py-3.5 bg-slate-900 text-white rounded-2xl shadow-xl border border-slate-800 text-sm font-semibold"
+            className="fixed top-0 left-1/2 z-[9999] transform -translate-x-1/2 flex items-center gap-2.5 px-5 py-3.5 bg-slate-900 text-white rounded-2xl shadow-xl border border-slate-800 text-sm font-semibold"
           >
             {toastMessage.type === 'success' && <CheckCircle size={18} className="text-emerald-400" />}
             {toastMessage.type === 'info' && <Info size={18} className="text-blue-400" />}

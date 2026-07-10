@@ -19,7 +19,7 @@ import {
   FolderOpen,
   XCircle,
 } from "lucide-react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useSearchParams } from "react-router-dom";
 import { type Category, type ServiceCatalog } from "../../../model/dto/serviceCatalog.dto";
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { SERVICE_CATALOG_API_ENDPOINTS } from '../../../constants/admin/serviceCatalogApiEndPoint';
@@ -75,23 +75,50 @@ export default function AdminServiceManagement() {
   }>();
   const { fetchPrivate } = useFetchClient();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Active tab
+  const activeTab = (searchParams.get("tab") as "services" | "combos" | "categories") || "services";
+
+  // Controlled search inputs
+  const [searchQueryLocal, setSearchQueryLocal] = useState(searchParams.get("servicesQ") || "");
+  const [comboSearchQuery, setComboSearchQuery] = useState(searchParams.get("comboQ") || "");
+  const [categorySearchQuery, setCategorySearchQuery] = useState(searchParams.get("categoryQ") || "");
+
+  // Pages
+  const servicesPage = Number(searchParams.get("servicesPage")) || 1;
+  const comboPage = Number(searchParams.get("comboPage")) || 1;
+  const categoryPage = Number(searchParams.get("categoryPage")) || 1;
+
+  // Debounced values from URL query parameters
+  const debouncedServiceQuery = searchParams.get("servicesQ") || "";
+  const debouncedComboQuery = searchParams.get("comboQ") || "";
+  const debouncedCategoryQuery = searchParams.get("categoryQ") || "";
+
+  const servicesLimit = 8;
+  const comboLimit = 8;
+  const categoryLimit = 8;
+
   // State variables
   const [services, setServices] = useState<ServiceCatalog[]>([]);
   const [categoryList, setCategoryList] = useState<Category[]>([]);
   const [combos, setCombos] = useState<ServiceCombo[]>([]);
+  const [allServicesForCombo, setAllServicesForCombo] = useState<ServiceCatalog[]>([]);
 
-  const [activeTab, setActiveTab] = useState<"services" | "combos" | "categories">("services");
-  const [searchQueryLocal, setSearchQueryLocal] = useState("");
-  const [comboSearchQuery, setComboSearchQuery] = useState("");
-  const [categorySearchQuery, setCategorySearchQuery] = useState("");
+  const [totalServices, setTotalServices] = useState(0);
+  const [totalActiveServices, setTotalActiveServices] = useState(0);
+  const [servicesLoading, setServicesLoading] = useState(false);
 
-  // Categories management tab states
+  const [totalCombos, setTotalCombos] = useState(0);
+  const [totalActiveCombos, setTotalActiveCombos] = useState(0);
+  const [combosLoading, setCombosLoading] = useState(false);
+
   const [categories, setCategories] = useState<any[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
-  const [categoryPage, setCategoryPage] = useState(1);
   const [totalCategories, setTotalCategories] = useState(0);
-  const categoryLimit = 8;
+  const [totalActiveCategories, setTotalActiveCategories] = useState(0);
 
+  // Categories management tab states
   // Service Modals State
   const [editingService, setEditingService] = useState<ServiceCatalog | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -106,15 +133,43 @@ export default function AdminServiceManagement() {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   const handleGetServiceCatalog = async () => {
+    setServicesLoading(true);
     try {
-      const result = await fetchPrivate<ServiceCatalog[]>(
-        SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG,
-        'GET'
-      );
-      setServices(result.data || []);
+      const url = debouncedServiceQuery.trim()
+        ? `${SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG_SEARCH}?q=${encodeURIComponent(debouncedServiceQuery.trim())}`
+        : `${SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG}?page=${servicesPage}&limit=${servicesLimit}`;
+
+      const result = await fetchPrivate<any>(url, 'GET');
+      if (result && result.data) {
+        const responseData = result.data;
+        const items = Array.isArray(responseData) ? responseData : responseData.items || [];
+        setServices(items);
+        setTotalServices(
+          typeof responseData.total === 'number'
+            ? responseData.total
+            : Array.isArray(responseData)
+              ? responseData.length
+              : items.length
+        );
+        setTotalActiveServices(responseData.totalActive || 0);
+      }
     } catch (error) {
       console.error('Lỗi lấy danh sách dịch vụ:', error);
       showToast('Không thể tải danh sách dịch vụ', 'warning');
+    } finally {
+      setServicesLoading(false);
+    }
+  };
+
+  const handleGetAllServicesForCombo = async () => {
+    try {
+      const result = await fetchPrivate<any>(
+        `${SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG}?all=true`,
+        'GET'
+      );
+      setAllServicesForCombo(result.data || []);
+    } catch (error) {
+      console.error('Lỗi lấy danh sách toàn bộ dịch vụ cho combo:', error);
     }
   };
 
@@ -130,11 +185,12 @@ export default function AdminServiceManagement() {
   const loadCategories = async () => {
     setCategoriesLoading(true);
     try {
-      const url = `${SERVICE_CATEGORY_API_ENDPOINTS.LIST}?page=${categoryPage}&limit=${categoryLimit}&include_services=false`;
+      const url = `${SERVICE_CATEGORY_API_ENDPOINTS.LIST}?page=${categoryPage}&limit=${categoryLimit}&include_services=false&q=${encodeURIComponent(debouncedCategoryQuery)}`;
       const res = await fetchPrivate(url, 'GET');
       if (res.success && res.data) {
         setCategories(res.data.items || []);
         setTotalCategories(res.data.total || 0);
+        setTotalActiveCategories(res.data.totalActive || 0);
       } else {
         showToast(res.message || 'Không thể tải danh sách danh mục dịch vụ', 'warning');
       }
@@ -147,12 +203,19 @@ export default function AdminServiceManagement() {
   };
 
   const handleGetServiceCombos = async () => {
+    setCombosLoading(true);
     try {
-      const result = await fetchPrivate(SERVICE_COMBOS_API_ENDPOINTS.LIST_SERVICE_COMBOS, 'GET');
+      const url = debouncedComboQuery.trim()
+        ? `${SERVICE_COMBOS_API_ENDPOINTS.SEARCH_SERVICE_COMBOS}?q=${encodeURIComponent(debouncedComboQuery.trim())}`
+        : `${SERVICE_COMBOS_API_ENDPOINTS.LIST_SERVICE_COMBOS}?page=${comboPage}&limit=${comboLimit}`;
+
+      const result = await fetchPrivate<any>(url, 'GET');
       if (result && result.data) {
-        const combosData = (result.data || []).map((c: any) => {
+        const responseData = result.data;
+        const items = Array.isArray(responseData) ? responseData : responseData.items || [];
+        const combosData = (items || []).map((c: any) => {
           let discount = 10;
-          if (c.combo_name.toLowerCase().includes("toàn diện") || c.combo_name.toLowerCase().includes("làm đẹp")) {
+          if (c.combo_name.toLowerCase().includes('toàn diện') || c.combo_name.toLowerCase().includes('làm đẹp')) {
             discount = 15;
           }
           let catId = 0;
@@ -166,24 +229,108 @@ export default function AdminServiceManagement() {
             category_id: catId,
             service_ids: c.catalogs ? c.catalogs.map((item: any) => item.id) : [],
             discount_percentage: discount,
-            description: c.description || "",
+            description: c.description || '',
             is_active: c.is_active,
             createdAt: c.createdAt,
           };
         });
         setCombos(combosData);
+        setTotalCombos(
+          typeof responseData.total === 'number'
+            ? responseData.total
+            : Array.isArray(responseData)
+              ? responseData.length
+              : combosData.length
+        );
+        setTotalActiveCombos(responseData.totalActive || 0);
       }
     } catch (error) {
       console.error('Lỗi lấy danh sách combo:', error);
       showToast('Không thể tải danh sách gói combo', 'warning');
+    } finally {
+      setCombosLoading(false);
     }
   };
 
+  // Debounce for service search
+  useEffect(() => {
+    const urlVal = searchParams.get("servicesQ") || "";
+    if (searchQueryLocal === urlVal) return;
+
+    const handler = setTimeout(() => {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        const trimmed = searchQueryLocal.trim();
+        if (trimmed) {
+          next.set("servicesQ", trimmed);
+        } else {
+          next.delete("servicesQ");
+        }
+        next.set("servicesPage", "1");
+        return next;
+      });
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [searchQueryLocal, setSearchParams, searchParams]);
+
+  // Debounce for combo search
+  useEffect(() => {
+    const urlVal = searchParams.get("comboQ") || "";
+    if (comboSearchQuery === urlVal) return;
+
+    const handler = setTimeout(() => {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        const trimmed = comboSearchQuery.trim();
+        if (trimmed) {
+          next.set("comboQ", trimmed);
+        } else {
+          next.delete("comboQ");
+        }
+        next.set("comboPage", "1");
+        return next;
+      });
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [comboSearchQuery, setSearchParams, searchParams]);
+
+  // Debounce for category search
+  useEffect(() => {
+    const urlVal = searchParams.get("categoryQ") || "";
+    if (categorySearchQuery === urlVal) return;
+
+    const handler = setTimeout(() => {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        const trimmed = categorySearchQuery.trim();
+        if (trimmed) {
+          next.set("categoryQ", trimmed);
+        } else {
+          next.delete("categoryQ");
+        }
+        next.set("categoryPage", "1");
+        return next;
+      });
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [categorySearchQuery, setSearchParams, searchParams]);
+
+  useEffect(() => {
+    handleGetCategory();
+    handleGetAllServicesForCombo();
+  }, []);
+
   useEffect(() => {
     handleGetServiceCatalog();
-    handleGetCategory();
+  }, [servicesPage, debouncedServiceQuery]);
+
+  useEffect(() => {
     handleGetServiceCombos();
-  }, []);
+  }, [comboPage, debouncedComboQuery]);
+
+  useEffect(() => {
+    loadCategories();
+  }, [categoryPage, debouncedCategoryQuery]);
 
   // Prepopulate mock service prices and combos if empty
   useEffect(() => {
@@ -338,28 +485,117 @@ export default function AdminServiceManagement() {
   };
 
   const calculateComboPrice = (serviceIds: number[]) => {
-    const servicePrices = getServicePrices();
-    const total = serviceIds.reduce((sum, id) => {
-      const price = servicePrices[id] ?? 300000;
+    const prices = getServicePrices();
+    return serviceIds.reduce((sum, id) => {
+      const price = prices[id] ?? 300000;
       return sum + price;
     }, 0);
-    return total;
   };
 
-  // Filter lists based on search queries
-  const filteredServices = services.filter((s) =>
-    s.service_name.toLowerCase().includes(searchQueryLocal.toLowerCase())
-  );
-
-  const filteredCombos = combos.filter((c) =>
-    c.combo_name.toLowerCase().includes(comboSearchQuery.toLowerCase())
-  );
-
-  const filteredCategories = categories.filter((c) =>
-    c.category_name.toLowerCase().includes(categorySearchQuery.toLowerCase())
-  );
-
+  const filteredServices = services;
+  const filteredCombos = combos;
+  const filteredCategories = categories;
   const servicePrices = getServicePrices();
+
+  const handlePageChange = (type: "services" | "combos" | "categories", newPage: number) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      const paramName = type === "services" ? "servicesPage" : type === "combos" ? "comboPage" : "categoryPage";
+      next.set(paramName, String(newPage));
+      return next;
+    });
+  };
+
+  const renderPagination = (
+    currentPage: number,
+    totalPages: number,
+    onPageChange: (p: number) => void,
+    totalItems: number,
+    itemsOnPage: number,
+    itemLabel: string
+  ) => {
+    if (totalPages <= 1) return null;
+
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages, start + maxVisible - 1);
+
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1);
+    }
+
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+
+    return (
+      <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <span className="text-xs font-semibold text-slate-500">
+          Hiển thị {itemsOnPage} / {totalItems} {itemLabel}
+        </span>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="px-3 py-1.5 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition-colors cursor-pointer disabled:cursor-not-allowed"
+          >
+            Trước
+          </button>
+          {start > 1 && (
+            <>
+              <button
+                onClick={() => onPageChange(1)}
+                className="w-8 h-8 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                1
+              </button>
+              {start > 2 && <span className="text-slate-400 text-xs px-1">...</span>}
+            </>
+          )}
+          {pages.map((p) => (
+            <button
+              key={p}
+              onClick={() => onPageChange(p)}
+              className={`w-8 h-8 rounded border text-xs font-bold transition-all cursor-pointer ${
+                p === currentPage
+                  ? "bg-[#00285E] border-[#00285E] text-white"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+          {end < totalPages && (
+            <>
+              {end < totalPages - 1 && <span className="text-slate-400 text-xs px-1">...</span>}
+              <button
+                onClick={() => onPageChange(totalPages)}
+                className="w-8 h-8 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                {totalPages}
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="px-3 py-1.5 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition-colors cursor-pointer disabled:cursor-not-allowed"
+          >
+            Sau
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const handleTabChange = (tab: "services" | "combos" | "categories") => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", tab);
+      return next;
+    });
+  };
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
@@ -420,7 +656,7 @@ export default function AdminServiceManagement() {
 
       {/* KPI CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        {activeTab !== "categories" ? (
+        {activeTab === "services" ? (
           <>
             <motion.div
               whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)" }}
@@ -434,7 +670,7 @@ export default function AdminServiceManagement() {
                   Tổng dịch vụ đơn lẻ
                 </span>
                 <span className="text-2xl font-bold text-slate-900 tracking-tight block">
-                  {services.length}
+                  {totalServices}
                 </span>
               </div>
             </motion.div>
@@ -461,14 +697,67 @@ export default function AdminServiceManagement() {
               className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs flex items-center gap-4 cursor-pointer transition-all"
             >
               <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                <CheckCircle2 size={22} />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block">
+                  Dịch vụ đang hoạt động
+                </span>
+                <span className="text-2xl font-bold text-slate-900 tracking-tight block">
+                  {totalActiveServices} Dịch vụ
+                </span>
+              </div>
+            </motion.div>
+          </>
+        ) : activeTab === "combos" ? (
+          <>
+            <motion.div
+              whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)" }}
+              className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs flex items-center gap-4 cursor-pointer transition-all"
+            >
+              <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-[#00285E]">
                 <Boxes size={22} />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block">
+                  Tổng gói combo
+                </span>
+                <span className="text-2xl font-bold text-slate-900 tracking-tight block">
+                  {totalCombos} Gói
+                </span>
+              </div>
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)" }}
+              className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs flex items-center gap-4 cursor-pointer transition-all"
+            >
+              <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center text-[#F9A11B]">
+                <TrendingUp size={22} />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block">
+                  Phổ biến nhất
+                </span>
+                <span className="text-base font-bold text-slate-900 tracking-tight block truncate max-w-[200px]">
+                  {combos[0]?.combo_name || "Combo chăm sóc xe"}
+                </span>
+              </div>
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)" }}
+              className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs flex items-center gap-4 cursor-pointer transition-all"
+            >
+              <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                <CheckCircle2 size={22} />
               </div>
               <div>
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block">
                   Gói Combo đang hoạt động
                 </span>
                 <span className="text-2xl font-bold text-slate-900 tracking-tight block">
-                  {combos.filter(c => c.is_active).length} Gói
+                  {totalActiveCombos} Gói
                 </span>
               </div>
             </motion.div>
@@ -494,7 +783,7 @@ export default function AdminServiceManagement() {
 
             <motion.div
               whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)" }}
-              className="bg-white p-6 rounded-2xl border-2 border-[#F9A11B] shadow-xs flex items-center gap-4 cursor-pointer transition-all"
+              className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs flex items-center gap-4 cursor-pointer transition-all"
             >
               <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
                 <CheckCircle2 size={22} />
@@ -504,7 +793,7 @@ export default function AdminServiceManagement() {
                   Đang hoạt động
                 </span>
                 <span className="text-2xl font-bold text-slate-900 tracking-tight block">
-                  {categories.filter((c) => c.is_active).length}
+                  {totalActiveCategories}
                 </span>
               </div>
             </motion.div>
@@ -521,7 +810,7 @@ export default function AdminServiceManagement() {
                   Đang tạm ngưng
                 </span>
                 <span className="text-2xl font-bold text-slate-900 tracking-tight block">
-                  {categories.filter((c) => !c.is_active).length}
+                  {totalCategories - totalActiveCategories}
                 </span>
               </div>
             </motion.div>
@@ -532,7 +821,7 @@ export default function AdminServiceManagement() {
       {/* TABS SWITCHER */}
       <div className="flex border-b border-slate-200/60">
         <button
-          onClick={() => setActiveTab("services")}
+          onClick={() => handleTabChange("services")}
           className={`px-6 py-3 font-bold text-sm border-b-2 transition-all ${activeTab === "services"
             ? "border-[#00285E] text-[#00285E]"
             : "border-transparent text-slate-400 hover:text-slate-600"
@@ -541,7 +830,7 @@ export default function AdminServiceManagement() {
           Dịch vụ đơn lẻ
         </button>
         <button
-          onClick={() => setActiveTab("combos")}
+          onClick={() => handleTabChange("combos")}
           className={`px-6 py-3 font-bold text-sm border-b-2 transition-all ${activeTab === "combos"
             ? "border-[#00285E] text-[#00285E]"
             : "border-transparent text-slate-400 hover:text-slate-600"
@@ -550,7 +839,7 @@ export default function AdminServiceManagement() {
           Gói Combo dịch vụ
         </button>
         <button
-          onClick={() => setActiveTab("categories")}
+          onClick={() => handleTabChange("categories")}
           className={`px-6 py-3 font-bold text-sm border-b-2 transition-all ${activeTab === "categories"
             ? "border-[#00285E] text-[#00285E]"
             : "border-transparent text-slate-400 hover:text-slate-600"
@@ -852,29 +1141,32 @@ export default function AdminServiceManagement() {
           )}
         </div>
 
-        {/* PAGINATION BAR FOR CATEGORIES */}
-        {activeTab === "categories" && !categoriesLoading && totalCategories > categoryLimit && (
-          <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">
-              Hiển thị {filteredCategories.length} / {totalCategories} danh mục
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setCategoryPage((p) => Math.max(1, p - 1))}
-                disabled={categoryPage === 1}
-                className="px-3.5 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white"
-              >
-                Trước
-              </button>
-              <button
-                onClick={() => setCategoryPage((p) => p + 1)}
-                disabled={categoryPage * categoryLimit >= totalCategories}
-                className="px-3.5 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white"
-              >
-                Sau
-              </button>
-            </div>
-          </div>
+        {/* PAGINATION BARS */}
+        {activeTab === "services" && !servicesLoading && renderPagination(
+          servicesPage,
+          Math.ceil(totalServices / servicesLimit),
+          (p) => handlePageChange("services", p),
+          totalServices,
+          services.length,
+          "dịch vụ"
+        )}
+
+        {activeTab === "combos" && !combosLoading && renderPagination(
+          comboPage,
+          Math.ceil(totalCombos / comboLimit),
+          (p) => handlePageChange("combos", p),
+          totalCombos,
+          combos.length,
+          "combo"
+        )}
+
+        {activeTab === "categories" && !categoriesLoading && renderPagination(
+          categoryPage,
+          Math.ceil(totalCategories / categoryLimit),
+          (p) => handlePageChange("categories", p),
+          totalCategories,
+          categories.length,
+          "danh mục"
         )}
       </div>
 
@@ -896,7 +1188,7 @@ export default function AdminServiceManagement() {
       {isComboModalOpen && (
         <ComboFormModal
           initial={editingCombo}
-          services={services}
+          services={allServicesForCombo}
           categories={categoryList}
           existingCombos={combos}
           onClose={() => {
