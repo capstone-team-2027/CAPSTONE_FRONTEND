@@ -56,6 +56,8 @@ const TechnicianAssignmentsDetail = lazy(() => import("./pages/technician/assign
 const TechnicianRequestParts = lazy(() => import("./pages/technician/parts-request/TechnicianRequestParts"));
 const TechnicianUpdateProgress = lazy(() => import("./pages/technician/progress/TechnicianUpdateProgress"));
 const TechnicianMyShifts = lazy(() => import("./pages/technician/my-shifts/TechnicianMyShifts"));
+const TechnicianIssuesReportHistory = lazy(() => import("./pages/technician/assignments/IssuesReportHistory"));
+
 const LoadingScreen = () => (
   <div className="fixed inset-0 bg-slate-50/50 backdrop-blur-xs flex flex-col items-center justify-center z-50">
     <div className="relative w-16 h-16">
@@ -129,6 +131,7 @@ function App() {
           <Route path="progress" element={<TechnicianUpdateProgress />} />
           <Route path="progress/:id" element={<TechnicianUpdateProgress />} />
           <Route path="my-shifts" element={<TechnicianMyShifts />} />
+          <Route path="issues-reports" element={<TechnicianIssuesReportHistory />} />
         </Route>
 
         {/* Reception Dashboard */}

@@ -330,7 +330,7 @@ export default function TechnicianAssignments() {
     try {
       setIsSubmittingIssueReport(true);
       const data = await fetchPrivate(
-        TASK_ASSIGNMENT_ENDPOINTS.CREATE_ISSUES_REPORT,
+        TASK_ASSIGNMENT_ENDPOINTS.ISSUES_REPORT,
         "POST",
         payload,
       );

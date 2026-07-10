@@ -5,6 +5,7 @@ export const TASK_ASSIGNMENT_ENDPOINTS = {
     GET_SERVICE_ORDER_DETAIL: (id: string | number) => `${API_BASE_URL}/api/technician/service-orders/${id}`,
     START_TASK: `${API_BASE_URL}/api/technician/task-assignments/start`,
     COMPLETE_TASK: `${API_BASE_URL}/api/technician/task-assignments/complete`,
-    CREATE_ISSUES_REPORT: `${API_BASE_URL}/api/technician/issues`,
+    ISSUES_REPORT: `${API_BASE_URL}/api/technician/issues`,
     GET_COMPONENTS : `${API_BASE_URL}/api/technician/component`,
+    GET_REPORT_HISTORY: `${API_BASE_URL}/api/technician/component`,
 };
