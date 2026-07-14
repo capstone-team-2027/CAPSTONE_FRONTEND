@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useOutletContext } from "react-router-dom";
 import type { GetIssuesReportItemResponse } from "../../../model/dto/receptionistIssueReports.dto";
 import {
@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import {ISSUE_REPORTS_ENDPOINTS} from "../../../constants/reception/issueReportsApiEndPoints";
 import {useFetchClient} from "../../../hook/useFetchClient";
-import type { CreateQuotationRequest, GetServicesResponse, GetSparePartsResponse } from "../../../model/dto/quoteManagement.dto";
+import type { CreateQuotationRequest, GetServicesResponse, GetAllSparePartsResponse } from "../../../model/dto/quoteManagement.dto";
 import { QUOTE_MANAGEMENT_ENDPOINTS } from "../../../constants/reception/quoteManagementEndpoints";
 
 // 1 báo cáo = các issues cùng task (gom nhiều hạng mục linh kiện)
@@ -39,12 +39,17 @@ interface IssueReport {
   items: GetIssuesReportItemResponse[];
 }
 
-// 1 dịch vụ đã chọn trong form báo giá, gắn với 1 hạng mục lỗi để đồng bộ issue_id
+// 1 dịch vụ đã chọn trong form báo giá
+// Cùng 1 dịch vụ có thể thêm nhiều dòng (mỗi dòng gắn 1 lỗi khác nhau) nên cần uid riêng
 interface QuotationServiceForm {
-  issueId: number;
+  uid: number;
   serviceId: number;
   serviceName: string;
   fee: number;
+  // Giá có sẵn trong DB (labor_price) -> hiện cố định; không có -> cho nhập tay
+  hasDbPrice: boolean;
+  // Hạng mục lỗi mà dịch vụ này xử lý -> issue_id trong payload
+  issueId: number | null;
 }
 
 // 1 dòng trong form báo giá: hạng mục lỗi + sản phẩm chọn từ hệ thống
@@ -61,6 +66,55 @@ const ITEMS_PER_PAGE = 5;
 
 const formatVND = (value: number) =>
   `${new Intl.NumberFormat("vi-VN").format(value)} VND`;
+
+// Ô nhập giá: giữ chuỗi đang gõ ở local state cho mượt (không reformat từng phím,
+// caret không nhảy), chỉ đẩy số ra ngoài + format lại khi rời ô.
+function PriceInput({
+  value,
+  readOnly,
+  title,
+  className,
+  placeholder,
+  onCommit,
+}: {
+  value: number;
+  readOnly?: boolean;
+  title?: string;
+  className?: string;
+  placeholder?: string;
+  onCommit: (value: number) => void;
+}) {
+  const [focused, setFocused] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  // Khi không focus: hiện giá đã format từ ngoài; khi focus: hiện chuỗi đang gõ
+  const display = focused
+    ? draft
+    : value
+      ? new Intl.NumberFormat("vi-VN").format(value)
+      : "";
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      placeholder={placeholder}
+      readOnly={readOnly}
+      title={title}
+      value={display}
+      onFocus={() => {
+        setDraft(value ? String(value) : "");
+        setFocused(true);
+      }}
+      onChange={(e) => setDraft(e.target.value.replace(/\D/g, ""))}
+      onBlur={() => {
+        setFocused(false);
+        onCommit(Number(draft) || 0);
+      }}
+      className={className}
+    />
+  );
+}
 
 export default function ReceptionIssuesReportHistory() {
   // TODO: tự viết hàm fetch API rồi setIssues(data) + setIsLoading
@@ -89,8 +143,31 @@ export default function ReceptionIssuesReportHistory() {
     QuotationServiceForm[]
   >([]);
   const [quotationNote, setQuotationNote] = useState("");
-  const [spareParts, setSpareParts] = useState<GetSparePartsResponse[]>([]);
+  // Khu thêm dịch vụ: chọn 1 dịch vụ + tích các lỗi rồi mới bấm "Thêm"
+  const [servicePicker, setServicePicker] = useState<number | "">("");
+  const [pickedIssueIds, setPickedIssueIds] = useState<number[]>([]);
+  // Cảnh báo tồn kho hiện ngay dưới ô bị lỗi (tự ẩn sau vài giây)
+  const [stockWarning, setStockWarning] = useState<{
+    issueId: number;
+    field: "part" | "quantity";
+    message: string;
+  } | null>(null);
+  const stockWarningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const warnStock = (
+    issueId: number,
+    field: "part" | "quantity",
+    message: string,
+  ) => {
+    setStockWarning({ issueId, field, message });
+    if (stockWarningTimer.current) clearTimeout(stockWarningTimer.current);
+    stockWarningTimer.current = setTimeout(() => setStockWarning(null), 4000);
+  };
+  const [spareParts, setSpareParts] = useState<GetAllSparePartsResponse[]>([]);
   const [services, setServices] = useState<GetServicesResponse[]>([]);
+
+
+
 
   const openQuotationModal = (report: IssueReport) => {
     setQuotationReport(report);
@@ -107,45 +184,52 @@ export default function ReceptionIssuesReportHistory() {
     );
     setQuotationServices([]);
     setQuotationNote("");
+    setServicePicker("");
+    setPickedIssueIds([]);
+    setStockWarning(null);
   };
 
-  // Thêm 1 dịch vụ: phí lấy theo labor_price, mặc định gắn với hạng mục lỗi
-  // đầu tiên (đổi được ở từng dòng) để dòng dịch vụ cũng có issue_id
-  const addQuotationService = (id: number) => {
+  // Thêm dịch vụ: chọn 1 dịch vụ rồi tích nhiều lỗi -> sinh mỗi lỗi 1 dòng.
+  // Mỗi dòng định danh bằng uid, giá mặc định lấy labor_price (DB không có thì nhập tay).
+  const serviceUidRef = useRef(0);
+  const addQuotationServiceForIssues = (id: number, issueIds: number[]) => {
     const service = services.find((s) => s.id === id);
-    const defaultIssueId = quotationItems[0]?.issueId;
-    if (!service || defaultIssueId == null) return;
-    setQuotationServices((prev) =>
-      prev.some((s) => s.serviceId === id)
-        ? prev
-        : [
-            ...prev,
-            {
-              issueId: defaultIssueId,
-              serviceId: id,
-              serviceName: service.service_name,
-              fee: Number(service.labor_price ?? 0) || 0,
-            },
-          ],
-    );
+    if (!service || issueIds.length === 0) return;
+    const dbPrice = Number(service.labor_price) || 0;
+    setQuotationServices((prev) => {
+      // Bỏ qua lỗi đã có dịch vụ này rồi để không tạo dòng trùng (service + lỗi)
+      const newRows = issueIds
+        .filter(
+          (issueId) =>
+            !prev.some((s) => s.serviceId === id && s.issueId === issueId),
+        )
+        .map((issueId) => {
+          serviceUidRef.current += 1;
+          return {
+            uid: serviceUidRef.current,
+            serviceId: id,
+            serviceName: service.service_name,
+            fee: dbPrice,
+            hasDbPrice: dbPrice > 0,
+            issueId,
+          };
+        });
+      return [...prev, ...newRows];
+    });
   };
 
-  const updateQuotationServiceIssue = (serviceId: number, issueId: number) =>
+  const updateQuotationServiceFee = (uid: number, fee: number) =>
     setQuotationServices((prev) =>
-      prev.map((s) => (s.serviceId === serviceId ? { ...s, issueId } : s)),
+      prev.map((s) => (s.uid === uid ? { ...s, fee: Math.max(0, fee) } : s)),
     );
 
-  const updateQuotationServiceFee = (serviceId: number, fee: number) =>
+  const updateQuotationServiceIssue = (uid: number, issueId: number | null) =>
     setQuotationServices((prev) =>
-      prev.map((s) =>
-        s.serviceId === serviceId ? { ...s, fee: Math.max(0, fee) } : s,
-      ),
+      prev.map((s) => (s.uid === uid ? { ...s, issueId } : s)),
     );
 
-  const removeQuotationService = (serviceId: number) =>
-    setQuotationServices((prev) =>
-      prev.filter((s) => s.serviceId !== serviceId),
-    );
+  const removeQuotationService = (uid: number) =>
+    setQuotationServices((prev) => prev.filter((s) => s.uid !== uid));
 
   const getRemainingStock = (
     items: QuotationItemForm[],
@@ -166,9 +250,23 @@ export default function ReceptionIssuesReportHistory() {
   };
 
   // Chọn sản phẩm trong hệ thống cho 1 dòng -> đơn giá tự lấy theo giá bán lẻ,
-  // số lượng hiện tại bị kẹp lại theo tồn kho còn lại của sản phẩm mới
+  // số lượng hiện tại bị kẹp lại theo tồn kho còn lại của sản phẩm mới.
+  // Hết hàng thì báo ngay và giữ nguyên lựa chọn cũ.
   const selectQuotationPart = (issueId: number, partId: number | null) => {
     const part = spareParts.find((p) => p.id === partId);
+    if (part) {
+      const remaining = getRemainingStock(quotationItems, issueId, partId);
+      if (remaining <= 0) {
+        warnStock(
+          issueId,
+          "part",
+          part.stock_quantity <= 0
+            ? `"${part.name}" đã hết hàng trong kho.`
+            : `"${part.name}" đã được chọn hết tồn kho ở hạng mục khác.`,
+        );
+        return;
+      }
+    }
     setQuotationItems((prev) =>
       prev.map((item) => {
         if (item.issueId !== issueId) return item;
@@ -186,18 +284,37 @@ export default function ReceptionIssuesReportHistory() {
     );
   };
 
-  // Số lượng không được vượt quá tồn kho còn lại của sản phẩm đã chọn
-  const updateQuotationQuantity = (issueId: number, quantity: number) =>
+  // Số lượng không được vượt quá tồn kho còn lại của sản phẩm đã chọn.
+  // Bấm tăng vượt tồn kho thì cảnh báo ngay cho người dùng biết.
+  const updateQuotationQuantity = (issueId: number, quantity: number) => {
+    const item = quotationItems.find((i) => i.issueId === issueId);
+    if (item?.partId) {
+      const remaining = getRemainingStock(
+        quotationItems,
+        issueId,
+        item.partId,
+      );
+      if (quantity > remaining) {
+        warnStock(
+          issueId,
+          "quantity",
+          remaining <= 0
+            ? "Đã hết hàng trong kho."
+            : `Số lượng trong kho chỉ còn ${remaining}`,
+        );
+      }
+    }
     setQuotationItems((prev) =>
-      prev.map((item) => {
-        if (item.issueId !== issueId) return item;
-        const remaining = getRemainingStock(prev, issueId, item.partId);
+      prev.map((it) => {
+        if (it.issueId !== issueId) return it;
+        const remaining = getRemainingStock(prev, issueId, it.partId);
         return {
-          ...item,
+          ...it,
           quantity: Math.min(Math.max(0, quantity), remaining),
         };
       }),
     );
+  };
 
   const removeQuotationItem = (issueId: number) =>
     setQuotationItems((prev) =>
@@ -255,7 +372,7 @@ export default function ReceptionIssuesReportHistory() {
               quantity: i.quantity,
             })),
           ...quotationServices.map((s) => ({
-            issue_id: s.issueId,
+            issue_id: s.issueId ?? undefined,
             service_id: s.serviceId,
             quantity: 1,
             repair_price: s.fee,
@@ -263,9 +380,11 @@ export default function ReceptionIssuesReportHistory() {
         ],
         note: quotationNote,
       };
-      await fetchPrivate(QUOTE_MANAGEMENT_ENDPOINTS.CREATE_QUOTATION,"POST",payload);
+      console.log("payload:", payload);
+      await fetchPrivate(QUOTE_MANAGEMENT_ENDPOINTS.QUOTE_MANAGEMENT,"POST",payload);
       setQuotationReport(null);
       showToast("Tạo báo giá thành công!", "success");
+      await getIssueReports();
     } catch (error: any) {
       console.error(error.message);
       showToast(
@@ -990,11 +1109,6 @@ export default function ReceptionIssuesReportHistory() {
                             const selectedPart = spareParts.find(
                               (p) => p.id === item.partId,
                             );
-                            const remainingStock = getRemainingStock(
-                              quotationItems,
-                              item.issueId,
-                              item.partId,
-                            );
                             return (
                               <tr
                                 key={item.issueId}
@@ -1037,21 +1151,33 @@ export default function ReceptionIssuesReportHistory() {
                                       -- Chọn sản phẩm --
                                     </option>
                                     {spareParts.map((part) => (
-                                      <option key={part.id} value={part.id}>
+                                      <option
+                                        key={part.id}
+                                        value={part.id}
+                                        disabled={part.stock_quantity <= 0}
+                                      >
                                         {part.name}
                                         {part.brand ? ` - ${part.brand}` : ""}
-                                        {` (tồn: ${part.stock_quantity})`}
+                                        {part.stock_quantity <= 0
+                                          ? " (hết hàng)"
+                                          : ` (tồn: ${part.stock_quantity})`}
                                       </option>
                                     ))}
                                   </select>
+                                  {stockWarning?.issueId === item.issueId && (
+                                    <p className="flex items-center gap-1 text-[10px] font-semibold text-amber-600 mt-1">
+                                      <AlertCircle
+                                        size={11}
+                                        className="shrink-0"
+                                      />
+                                      {stockWarning.message}
+                                    </p>
+                                  )}
                                 </td>
                                 <td className="py-3.5 px-3">
                                   <input
                                     type="number"
                                     min={0}
-                                    max={
-                                      selectedPart ? remainingStock : undefined
-                                    }
                                     value={item.quantity}
                                     onChange={(e) =>
                                       updateQuotationQuantity(
@@ -1115,79 +1241,198 @@ export default function ReceptionIssuesReportHistory() {
                     </span>
                   )}
                 </div>
-                <select
-                  value=""
-                  onChange={(e) => {
-                    if (e.target.value)
-                      addQuotationService(Number(e.target.value));
-                  }}
-                  className={`w-full bg-slate-50 border rounded-lg px-3 py-2 text-sm font-semibold focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors ${
-                    quotationServices.length > 0
-                      ? "border-slate-200 text-slate-500"
-                      : "border-amber-300 text-slate-400"
-                  }`}
-                >
-                  <option value="">-- Thêm dịch vụ trong hệ thống --</option>
-                  {services
-                    .filter(
-                      (service) =>
-                        !quotationServices.some(
-                          (s) => s.serviceId === service.id,
-                        ),
-                    )
-                    .map((service) => (
+                {/* Chọn 1 dịch vụ + tích các lỗi cần áp -> bấm Thêm sinh mỗi lỗi 1 dòng */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-3">
+                  <select
+                    value={servicePicker}
+                    onChange={(e) => {
+                      setServicePicker(
+                        e.target.value ? Number(e.target.value) : "",
+                      );
+                      setPickedIssueIds([]);
+                    }}
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
+                  >
+                    <option value="">-- Chọn dịch vụ trong hệ thống --</option>
+                    {services.map((service) => (
                       <option key={service.id} value={service.id}>
                         {service.service_name}
                       </option>
                     ))}
-                </select>
+                  </select>
+
+                  {servicePicker !== "" &&
+                    (() => {
+                      // Lỗi còn được áp cho dịch vụ đang chọn (loại lỗi đã có dịch vụ này)
+                      const availableIssues = quotationItems.filter(
+                        (item) =>
+                          !quotationServices.some(
+                            (s) =>
+                              s.serviceId === servicePicker &&
+                              s.issueId === item.issueId,
+                          ),
+                      );
+                      if (availableIssues.length === 0)
+                        return (
+                          <p className="text-xs text-rose-500 italic px-1">
+                            Mọi hạng mục lỗi đã được áp dịch vụ này.
+                          </p>
+                        );
+                      return (
+                        <>
+                          <div className="flex items-center justify-between px-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                              Áp cho hạng mục lỗi
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPickedIssueIds(
+                                  pickedIssueIds.length ===
+                                    availableIssues.length
+                                    ? []
+                                    : availableIssues.map((i) => i.issueId),
+                                )
+                              }
+                              className="text-[11px] font-semibold text-[#00285E] hover:underline"
+                            >
+                              {pickedIssueIds.length === availableIssues.length
+                                ? "Bỏ chọn tất cả"
+                                : "Chọn tất cả"}
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                            {availableIssues.map((item) => {
+                              const checked = pickedIssueIds.includes(
+                                item.issueId,
+                              );
+                              return (
+                                <label
+                                  key={item.issueId}
+                                  className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-semibold cursor-pointer transition-colors ${
+                                    checked
+                                      ? "border-[#00285E] bg-white text-slate-800"
+                                      : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() =>
+                                      setPickedIssueIds((prev) =>
+                                        prev.includes(item.issueId)
+                                          ? prev.filter(
+                                              (id) => id !== item.issueId,
+                                            )
+                                          : [...prev, item.issueId],
+                                      )
+                                    }
+                                    className="accent-[#00285E]"
+                                  />
+                                  <span className="truncate">
+                                    {item.componentName}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                          <button
+                            type="button"
+                            disabled={pickedIssueIds.length === 0}
+                            onClick={() => {
+                              addQuotationServiceForIssues(
+                                servicePicker,
+                                pickedIssueIds,
+                              );
+                              setServicePicker("");
+                              setPickedIssueIds([]);
+                            }}
+                            style={{ backgroundColor: "#00285E" }}
+                            className="w-full py-2 rounded-lg text-xs font-semibold text-white transition-all hover:brightness-125 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            Thêm dịch vụ cho {pickedIssueIds.length} hạng mục
+                          </button>
+                        </>
+                      );
+                    })()}
+                </div>
                 {quotationServices.length > 0 && (
                   <div className="mt-3 space-y-2">
+                    {/* Tiêu đề cột cho danh sách dịch vụ */}
+                    <div className="flex items-center gap-3 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <span className="flex-1 min-w-[140px]">Dịch vụ</span>
+                      <span className="w-40">Hạng mục lỗi</span>
+                      <span className="w-32 text-right">Đơn giá (VND)</span>
+                      <span className="w-28 text-right">Thành tiền</span>
+                      <span className="w-7" />
+                    </div>
                     {quotationServices.map((service) => (
                       <div
-                        key={service.serviceId}
+                        key={service.uid}
                         className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5"
                       >
                         <span className="flex-1 min-w-[140px] text-sm font-semibold text-slate-800 truncate">
                           {service.serviceName}
                         </span>
-                        {/* Hạng mục lỗi liên quan -> issue_id của dòng dịch vụ */}
+                        {/* Gắn dịch vụ với hạng mục lỗi -> issue_id trong payload */}
                         <select
-                          value={service.issueId}
+                          value={service.issueId ?? ""}
                           onChange={(e) =>
                             updateQuotationServiceIssue(
-                              service.serviceId,
-                              Number(e.target.value),
+                              service.uid,
+                              e.target.value ? Number(e.target.value) : null,
                             )
                           }
-                          className="w-44 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
-                          title="Hạng mục lỗi liên quan"
+                          className={`w-40 bg-white border rounded-lg px-2 py-1.5 text-xs font-semibold focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors ${
+                            service.issueId
+                              ? "border-slate-200 text-slate-800"
+                              : "border-amber-300 text-slate-400"
+                          }`}
                         >
-                          {quotationItems.map((item) => (
-                            <option key={item.issueId} value={item.issueId}>
-                              {item.componentName}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1000}
-                          value={service.fee}
-                          onChange={(e) =>
-                            updateQuotationServiceFee(
-                              service.serviceId,
-                              Number(e.target.value),
+                          <option value="">-- Chọn hạng mục --</option>
+                          {/* Ẩn lỗi đã được chính dịch vụ này chiếm ở dòng khác (tránh trùng service + lỗi) */}
+                          {quotationItems
+                            .filter(
+                              (item) =>
+                                item.issueId === service.issueId ||
+                                !quotationServices.some(
+                                  (s) =>
+                                    s.uid !== service.uid &&
+                                    s.serviceId === service.serviceId &&
+                                    s.issueId === item.issueId,
+                                ),
                             )
+                            .map((item) => (
+                              <option key={item.issueId} value={item.issueId}>
+                                {item.componentName}
+                              </option>
+                            ))}
+                        </select>
+                        {/* Giá có trong DB thì khóa ô nhập, không có thì cho nhập tay */}
+                        <PriceInput
+                          placeholder="Nhập giá"
+                          readOnly={service.hasDbPrice}
+                          title={
+                            service.hasDbPrice
+                              ? "Giá lấy từ hệ thống, không chỉnh được"
+                              : undefined
                           }
-                          className="w-32 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-800 text-right focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
+                          value={service.fee}
+                          onCommit={(v) =>
+                            updateQuotationServiceFee(service.uid, v)
+                          }
+                          className={`w-32 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-right transition-colors focus:outline-none ${
+                            service.hasDbPrice
+                              ? "bg-slate-100 text-slate-500 cursor-not-allowed"
+                              : "bg-white text-slate-800 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                          }`}
                         />
                         <span className="w-28 text-right text-xs font-bold text-[#00285E] whitespace-nowrap">
                           {formatVND(service.fee)}
                         </span>
                         <button
                           onClick={() =>
-                            removeQuotationService(service.serviceId)
+                            removeQuotationService(service.uid)
                           }
                           className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
                           title="Xóa dịch vụ"
@@ -1239,7 +1484,8 @@ export default function ReceptionIssuesReportHistory() {
                   disabled={
                     quotationItems.length === 0 ||
                     quotationItems.some((i) => !i.partId || i.quantity <= 0) ||
-                    quotationServices.length === 0
+                    quotationServices.length === 0 ||
+                    quotationServices.some((s) => !s.issueId)
                   }
                   style={{ backgroundColor: "#00285E" }}
                   className="px-6 py-2.5 rounded-full text-sm font-semibold text-white shadow-lg shadow-[#00285E]/20 hover:brightness-125 transition-all disabled:opacity-40 disabled:cursor-not-allowed"

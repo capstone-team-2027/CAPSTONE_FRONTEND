@@ -49,6 +49,7 @@ const ReceptionProcessPayment = lazy(() => import("./pages/reception/payments/Re
 const ReceptionQuoteList = lazy(() => import("./pages/reception/quotes/ReceptionQuoteList"));
 const ReceptionQuoteDetail = lazy(() => import("./pages/reception/quotes/ReceptionQuoteDetail"));
 const ReceptionIssueReports =  lazy(() => import("./pages/reception/issues-report/ReceptionIssuesReportHistory"));
+
 // Technician Page Imports
 const TechnicianLayout = lazy(() => import("./pages/technician/TechnicianLayout"));
 const TechnicianAssignments = lazy(() => import("./pages/technician/assignments/TechnicianAssignments"));
