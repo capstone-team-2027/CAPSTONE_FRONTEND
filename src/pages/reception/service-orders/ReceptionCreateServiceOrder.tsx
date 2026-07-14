@@ -604,7 +604,7 @@ export default function ReceptionCreateServiceOrder() {
   const selectedTotal = useMemo(() => {
     const servicesPrice = mappedServices
       .filter((s) => selectedServiceIds.includes(s.id as number))
-      .reduce((sum, s) => sum + s.numericPrice, 0);
+      .reduce((sum, s) => sum + (s.numericPrice ?? 0), 0);
 
     let combosPrice = 0;
     if (selectedComboId) {

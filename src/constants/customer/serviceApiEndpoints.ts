@@ -6,6 +6,8 @@ export const SERVICE_API_ENDPOINTS = {
 
     // Services (Catalogs)
     GET_SERVICES: `${API_BASE_URL}/api/guest/service-catalogs`,
+    SEARCH_SERVICES: `${API_BASE_URL}/api/guest/service-catalogs/search`,
+    GET_SERVICE_DETAIL: (id: number | string) => `${API_BASE_URL}/api/guest/service-catalogs/${id}`,
 
     // Combos
     GET_COMBOS: `${API_BASE_URL}/api/guest/service-combos`,

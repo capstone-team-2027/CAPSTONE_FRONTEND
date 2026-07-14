@@ -577,7 +577,7 @@ export default function BookingPage() {
         if (serviceSubtype === 'service') {
             if (selectedServiceIds.length === 0) return null;
             const selected = mappedServices.filter(x => selectedServiceIds.includes(x.id));
-            const totalPrice = selected.reduce((sum, s) => sum + s.numericPrice, 0);
+            const totalPrice = selected.reduce((sum, s) => sum + (s.numericPrice ?? 0), 0);
             const title = selected.length === 1
                 ? selected[0].title
                 : `${selected.length} dịch vụ đã chọn`;
