@@ -175,6 +175,9 @@ export default function ReceptionQuoteList() {
   const [servicePicker, setServicePicker] = useState<number | "">("");
   const [pickedIssueIds, setPickedIssueIds] = useState<number[]>([]);
   const editUidRef = useRef(0);
+  // Hộp xác nhận trước khi duyệt báo giá
+  const [confirmApprove, setConfirmApprove] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
 
   useEffect(() => {
     handleGetQuotationHistory();
@@ -476,6 +479,30 @@ export default function ReceptionQuoteList() {
         error?.message || "Đã xảy ra lỗi khi cập nhật báo giá.",
         "warning",
       );
+    }
+  };
+
+  // Lễ tân gọi điện xác nhận với khách xong -> duyệt báo giá (PENDING -> APPROVED)
+  const handleApproveQuotation = async () => {
+    if (!selectedQuotation) return;
+    setIsApproving(true);
+    try {
+      await fetchPrivate(
+        QUOTE_MANAGEMENT_ENDPOINTS.APPROVE_QUOTE(selectedQuotation.id),
+        "PATCH",
+      );
+      showToast("Đã duyệt báo giá!", "success");
+      setConfirmApprove(false);
+      closeQuotationDetail();
+      handleGetQuotationHistory();
+    } catch (error: any) {
+      console.error(error);
+      showToast(
+        error?.message || "Đã xảy ra lỗi khi duyệt báo giá.",
+        "warning",
+      );
+    } finally {
+      setIsApproving(false);
     }
   };
 
@@ -1577,7 +1604,7 @@ export default function ReceptionQuoteList() {
                   <>
                     <button
                       onClick={() => setIsEditing(false)}
-                      className="px-5 py-2.5 rounded-full text-sm font-semibold text-slate-500 hover:bg-slate-100 transition-colors"
+                      className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] transition-all"
                     >
                       Hủy
                     </button>
@@ -1589,8 +1616,7 @@ export default function ReceptionQuoteList() {
                             (!r.partId || r.quantity <= 0)) ||
                           (r.kind === "service" && !r.serviceId),
                       )}
-                      style={{ backgroundColor: "#00285E" }}
-                      className="px-6 py-2.5 rounded-full text-sm font-semibold text-white shadow-lg shadow-[#00285E]/20 hover:brightness-125 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="h-11 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-[#003C7D] to-[#00285E] shadow-lg shadow-[#00285E]/25 hover:shadow-[#00285E]/40 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100"
                     >
                       Lưu thay đổi
                     </button>
@@ -1600,22 +1626,87 @@ export default function ReceptionQuoteList() {
                     {selectedQuotation.status === "PENDING" && (
                       <button
                         onClick={startEdit}
-                        className="flex items-center gap-1.5 px-5 py-2.5 rounded-full text-sm font-semibold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] transition-colors"
+                        className="h-11 flex items-center gap-2 px-5 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/25 hover:shadow-[#00285E]/40 hover:brightness-110 active:scale-[0.98] transition-all"
                       >
                         <Pencil size={14} />
                         Sửa báo giá
                       </button>
                     )}
-                    <button
-                      onClick={closeQuotationDetail}
-                      className="px-6 py-2.5 rounded-full text-sm font-semibold text-white shadow-lg shadow-[#00285E]/20 hover:brightness-125 transition-all"
-                      style={{ backgroundColor: "#00285E" }}
-                    >
-                      Đóng
-                    </button>
+                    {/* Gọi điện xác nhận với khách xong -> duyệt để chuyển kho xuất hàng */}
+                    {selectedQuotation.status === "PENDING" && (
+                      <button
+                        onClick={() => setConfirmApprove(true)}
+                        className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-600/25 hover:shadow-emerald-600/40 hover:brightness-105 active:scale-[0.98] transition-all"
+                      >
+                        <CheckCircle2 size={16} />
+                        Duyệt báo giá
+                      </button>
+                    )}
                   </>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* XÁC NHẬN DUYỆT BÁO GIÁ */}
+      {confirmApprove && selectedQuotation && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            onClick={() => setConfirmApprove(false)}
+          />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden ring-1 ring-slate-900/5">
+            <div className="px-6 pt-6 pb-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-xl bg-emerald-50 shrink-0">
+                  <CheckCircle2 size={18} className="text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800">
+                    Duyệt báo giá {selectedQuotation.code}?
+                  </h3>
+                  <p className="text-sm text-slate-500 leading-relaxed mt-1">
+                    Xác nhận khách hàng{" "}
+                    <span className="font-semibold text-slate-700">
+                      {selectedQuotation.customerName}
+                    </span>{" "}
+                    đã đồng ý báo giá{" "}
+                    <span className="font-semibold text-[#00285E]">
+                      {formatVND(selectedQuotation.total_amount)}
+                    </span>
+                    . Sau khi duyệt, kho sẽ tiến hành xuất phụ tùng và báo giá
+                    không sửa được nữa.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2.5 px-6 py-4 bg-slate-50 border-t border-slate-100">
+              <button
+                onClick={() => setConfirmApprove(false)}
+                disabled={isApproving}
+                className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] transition-all disabled:opacity-40"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleApproveQuotation}
+                disabled={isApproving}
+                className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-600/25 hover:shadow-emerald-600/40 hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+              >
+                {isApproving ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin" />
+                    Đang duyệt...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={15} />
+                    Xác nhận duyệt
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
