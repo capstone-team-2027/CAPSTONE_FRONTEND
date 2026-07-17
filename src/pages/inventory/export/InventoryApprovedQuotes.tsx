@@ -10,6 +10,8 @@ import {
   Package,
   PackageCheck,
   StickyNote,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
 import { useOutletContext } from "react-router-dom";
 import { useFetchClient } from "../../../hook/useFetchClient";
@@ -61,6 +63,7 @@ export default function InventoryApprovedQuotes() {
   const effectiveSearch = (searchQuery || localSearch).toLowerCase();
 
   const [quotations, setQuotations] = useState<ApprovedQuotation[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     handleGetApprovedQuotes();
@@ -79,17 +82,30 @@ export default function InventoryApprovedQuotes() {
   };
 
   const handleExportStock = async (quotationId: number) => {
+    setIsExporting(true);
     try {
       await fetchPrivate(
         APPROVED_QUOTE_API_ENDPOINTS.APPROVE_EXPORT(quotationId),
         "POST",
       );
       showToast("Xuất kho thành công", "success");
+      setSelected(null);
       handleGetApprovedQuotes();
     } catch (error: any) {
       showToast(error?.message ?? "Xuất kho thất bại", "warning");
+    } finally {
+      setIsExporting(false);
     }
   };
+
+  // Thiếu tồn kho ở bất kỳ dòng nào -> chặn xuất kho
+  const hasLowStock = useMemo(
+    () =>
+      !!selected?.items.some(
+        (item) => item.sparePart.stock_quantity < item.quantity,
+      ),
+    [selected],
+  );
 
   const filtered = useMemo(() => {
     return quotations.filter(
@@ -310,145 +326,192 @@ export default function InventoryApprovedQuotes() {
               initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 10 }}
-              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5"
             >
               {/* Header */}
-              <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white z-10">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <div
+                className="flex items-center justify-between px-7 py-5 shrink-0"
+                style={{ backgroundColor: "#00285E" }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center">
                     <FileText size={18} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-slate-800 leading-tight">
+                    <h3 className="text-lg font-bold text-white leading-tight">
                       Báo giá #{selected.id}
                     </h3>
-                    <span className="text-xs font-bold text-emerald-600">
-                      Đã duyệt
+                    <span className="text-xs font-semibold text-emerald-300">
+                      Đã duyệt · chờ xuất kho
                     </span>
                   </div>
                 </div>
                 <button
                   onClick={() => setSelected(null)}
-                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+                  className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
                 >
                   <X size={18} />
                 </button>
               </div>
 
-              <div className="p-5 space-y-5">
-                {/* Info grid */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
+              <div className="overflow-y-auto flex-1 px-7 py-6 space-y-5 bg-slate-50/50">
+                {/* Thông tin báo giá */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
                       Đơn dịch vụ
                     </span>
-                    <span className="text-sm font-bold text-slate-800">
-                      {selected.service_order_id}
+                    <span className="text-sm font-semibold text-slate-800">
+                      #{selected.service_order_id}
                     </span>
                   </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
                       Ngày tạo
                     </span>
-                    <span className="text-sm font-bold text-slate-800">
+                    <span className="text-sm font-semibold text-slate-800">
                       {formatDate(selected.createdAt)}
                     </span>
                   </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
                       Ngày duyệt
                     </span>
-                    <span className="text-sm font-bold text-emerald-700">
+                    <span className="text-sm font-semibold text-emerald-600">
                       {formatDate(selected.approved_at)}
                     </span>
                   </div>
                 </div>
 
-                {/* Note */}
-                {selected.note && (
-                  <div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                {/* Ghi chú */}
+                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <StickyNote size={13} className="text-slate-400" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                       Ghi chú
                     </span>
-                    <p className="text-sm text-slate-600 bg-slate-50 rounded-xl px-4 py-3">
-                      {selected.note}
-                    </p>
                   </div>
-                )}
-
-                {/* Parts table */}
-                <div>
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">
-                    Phụ tùng cần xuất kho
-                  </span>
-                  <div className="border border-slate-100 rounded-xl overflow-hidden">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="bg-slate-50/70 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                          <th className="py-2.5 px-3">Phụ tùng</th>
-                          <th className="py-2.5 px-3 text-center">SL cần</th>
-                          <th className="py-2.5 px-3 text-center">Tồn kho</th>
-                          <th className="py-2.5 px-3 text-right">Đơn giá</th>
-                          <th className="py-2.5 px-3 text-right">
-                            Thành tiền
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selected.items.map((item) => {
-                          const isLowStock =
-                            item.sparePart.stock_quantity < item.quantity;
-                          return (
-                            <tr
-                              key={item.id}
-                              className="border-t border-slate-100"
-                            >
-                              <td className="py-2.5 px-3">
-                                <span className="text-sm font-bold text-slate-700 block">
-                                  {item.sparePart.name}
-                                </span>
-                                <span className="text-xs text-slate-400">
-                                  {item.sparePart.sku}
-                                </span>
-                              </td>
-                              <td className="py-2.5 px-3 text-center text-sm font-semibold text-slate-600">
-                                {item.quantity}
-                              </td>
-                              <td className="py-2.5 px-3 text-center">
-                                <span
-                                  className={`text-sm font-bold ${isLowStock ? "text-rose-600" : "text-emerald-600"}`}
-                                >
-                                  {item.sparePart.stock_quantity}
-                                </span>
-                                {isLowStock && (
-                                  <span className="block text-[10px] font-bold text-rose-500 mt-0.5">
-                                    Không đủ hàng
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-2.5 px-3 text-right text-sm font-semibold text-slate-600">
-                                {formatPrice(item.unit_price)}
-                              </td>
-                              <td className="py-2.5 px-3 text-right text-sm font-bold text-slate-800">
-                                {formatPrice(item.amount)}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                    {selected.note || "Không có ghi chú."}
+                  </p>
                 </div>
 
-                {/* Total */}
-                <div className="bg-slate-50 rounded-xl p-4 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-slate-500">
+                {/* Phụ tùng cần xuất kho */}
+                <div>
+                  <div className="flex items-center justify-between mb-3 px-1">
+                    <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                      <Package size={14} className="text-slate-500" />
+                      Phụ tùng cần xuất kho
+                    </label>
+                    <span
+                      className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                      style={{ backgroundColor: "#00285E", color: "#fff" }}
+                    >
+                      {selected.items.length} phụ tùng
+                    </span>
+                  </div>
+                  <div className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[560px] text-left border-collapse text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
+                            <th className="py-3 px-4 align-middle">Phụ tùng</th>
+                            <th className="py-3 px-3 align-middle text-center w-16 whitespace-nowrap">
+                              SL cần
+                            </th>
+                            <th className="py-3 px-3 align-middle text-center w-20 whitespace-nowrap">
+                              Tồn kho
+                            </th>
+                            <th className="py-3 px-4 align-middle text-right whitespace-nowrap">
+                              Đơn giá
+                            </th>
+                            <th className="py-3 px-4 align-middle text-right whitespace-nowrap">
+                              Thành tiền
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selected.items.map((item) => {
+                            const isLowStock =
+                              item.sparePart.stock_quantity < item.quantity;
+                            return (
+                              <tr
+                                key={item.id}
+                                className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors"
+                              >
+                                <td className="py-3 px-4">
+                                  <span className="text-xs font-semibold text-slate-800 block truncate max-w-[200px]">
+                                    {item.sparePart.name}
+                                  </span>
+                                  <span className="text-[11px] text-slate-400">
+                                    {item.sparePart.sku}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 text-center text-xs font-semibold text-slate-700">
+                                  {item.quantity}
+                                </td>
+                                <td className="py-3 px-3 text-center">
+                                  <span
+                                    className={`text-xs font-bold ${isLowStock ? "text-rose-600" : "text-slate-700"}`}
+                                  >
+                                    {item.sparePart.stock_quantity}
+                                  </span>
+                                  {isLowStock && (
+                                    <span className="block text-[10px] font-semibold text-rose-500 mt-0.5">
+                                      Không đủ
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 text-right whitespace-nowrap text-xs text-slate-600 font-medium">
+                                  {formatPrice(item.unit_price)}
+                                </td>
+                                <td className="py-3 px-4 text-right whitespace-nowrap text-xs font-bold text-[#00285E]">
+                                  {formatPrice(item.amount)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  {hasLowStock && (
+                    <p className="flex items-center gap-1.5 text-xs text-rose-500 mt-2 px-1">
+                      <AlertCircle size={13} className="shrink-0" />
+                      Có phụ tùng không đủ tồn kho — không thể xuất kho báo giá
+                      này.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between gap-3 px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
                     Tổng giá trị
                   </span>
-                  <span className="text-xl font-bold text-[#00285E]">
+                  <span className="text-lg font-bold text-[#00285E]">
                     {formatPrice(selected.total_amount)}
                   </span>
                 </div>
+                <button
+                  onClick={() => handleExportStock(selected.id)}
+                  disabled={hasLowStock || isExporting}
+                  className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-600/25 hover:shadow-emerald-600/40 hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100"
+                >
+                  {isExporting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Đang xuất kho...
+                    </>
+                  ) : (
+                    <>
+                      <PackageCheck size={16} />
+                      Xác nhận xuất kho
+                    </>
+                  )}
+                </button>
               </div>
             </motion.div>
           </div>
