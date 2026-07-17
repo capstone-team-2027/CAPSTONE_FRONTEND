@@ -41,15 +41,78 @@ interface QuotationItem {
   sparePart: SparePartInfo;
 }
 
+interface QuotationCreator {
+  id: number;
+  fullName: string | null;
+}
+
+// task -> serviceOrder -> vehicle -> model/customer -> user
+interface QuoteVehicleModel {
+  id: number;
+  model_name: string;
+}
+
+interface QuoteCustomerUser {
+  id: number;
+  fullName: string | null;
+  phoneNumber: string | null;
+}
+
+interface QuoteCustomer {
+  id: number;
+  name: string | null;
+  phone: string | null;
+  user?: QuoteCustomerUser | null;
+}
+
+interface QuoteVehicle {
+  id: number;
+  color: string | null;
+  license_plate: string | null;
+  model?: QuoteVehicleModel | null;
+  customer?: QuoteCustomer | null;
+}
+
+interface QuoteServiceOrder {
+  id: number;
+  vehicle?: QuoteVehicle | null;
+}
+
+interface QuoteTask {
+  id: number;
+  serviceOrder?: QuoteServiceOrder | null;
+}
+
 interface ApprovedQuotation {
   id: number;
-  service_order_id: number;
   total_amount: number;
   approved_at: string;
   note: string | null;
   createdAt: string;
   items: QuotationItem[];
+  creator?: QuotationCreator | null;
+  task?: QuoteTask | null;
 }
+
+// Báo giá kèm mã BG-... sinh ở FE
+interface QuotationRow extends ApprovedQuotation {
+  code: string;
+}
+
+// Rút thông tin khách/xe/đơn dịch vụ từ cây task -> serviceOrder -> vehicle
+const getQuoteInfo = (q: ApprovedQuotation) => {
+  const vehicle = q.task?.serviceOrder?.vehicle;
+  const customer = vehicle?.customer;
+  return {
+    serviceOrderId: q.task?.serviceOrder?.id ?? null,
+    customerName: customer?.name || customer?.user?.fullName || "Khách vãng lai",
+    customerPhone: customer?.phone || customer?.user?.phoneNumber || "",
+    vehiclePlate: vehicle?.license_plate || "",
+    vehicleName: vehicle?.model?.model_name || "",
+    vehicleColor: vehicle?.color || "",
+    creatorName: q.creator?.fullName || "",
+  };
+};
 
 export default function InventoryApprovedQuotes() {
   const { searchQuery, showToast } = useOutletContext<{
@@ -59,7 +122,7 @@ export default function InventoryApprovedQuotes() {
 
   const { fetchPrivate } = useFetchClient();
   const [localSearch, setLocalSearch] = useState("");
-  const [selected, setSelected] = useState<ApprovedQuotation | null>(null);
+  const [selected, setSelected] = useState<QuotationRow | null>(null);
   const effectiveSearch = (searchQuery || localSearch).toLowerCase();
 
   const [quotations, setQuotations] = useState<ApprovedQuotation[]>([]);
@@ -107,19 +170,60 @@ export default function InventoryApprovedQuotes() {
     [selected],
   );
 
+  // Thông tin khách/xe của báo giá đang mở
+  const selectedInfo = useMemo(
+    () =>
+      selected
+        ? getQuoteInfo(selected)
+        : {
+            serviceOrderId: null,
+            customerName: "",
+            customerPhone: "",
+            vehiclePlate: "",
+            vehicleName: "",
+            vehicleColor: "",
+            creatorName: "",
+          },
+    [selected],
+  );
+
+  // Gắn mã BG-ddMMyyyy-stt (stt theo thứ tự createdAt trong cùng ngày), đồng bộ
+  // với cách đánh mã ở trang lịch sử báo giá bên lễ tân
+  const quotationRows = useMemo(() => {
+    const rows = quotations.map((q) => ({ ...q, code: "" }));
+    const counters: Record<string, number> = {};
+    [...rows]
+      .sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      )
+      .forEach((row) => {
+        const d = new Date(row.createdAt);
+        const dateKey = `${String(d.getDate()).padStart(2, "0")}${String(
+          d.getMonth() + 1,
+        ).padStart(2, "0")}${d.getFullYear()}`;
+        counters[dateKey] = (counters[dateKey] ?? 0) + 1;
+        row.code = `BG-${dateKey}-${String(counters[dateKey]).padStart(2, "0")}`;
+      });
+    return rows;
+  }, [quotations]);
+
   const filtered = useMemo(() => {
-    return quotations.filter(
-      (q) =>
-        String(q.id).includes(effectiveSearch) ||
-        String(q.service_order_id).includes(effectiveSearch) ||
+    return quotationRows.filter((q) => {
+      const info = getQuoteInfo(q);
+      return (
+        q.code.toLowerCase().includes(effectiveSearch) ||
+        info.customerName.toLowerCase().includes(effectiveSearch) ||
+        info.vehiclePlate.toLowerCase().includes(effectiveSearch) ||
         (q.note ?? "").toLowerCase().includes(effectiveSearch) ||
         q.items.some(
           (item) =>
             item.sparePart.name.toLowerCase().includes(effectiveSearch) ||
             item.sparePart.sku.toLowerCase().includes(effectiveSearch),
-        ),
-    );
-  }, [quotations, effectiveSearch]);
+        )
+      );
+    });
+  }, [quotationRows, effectiveSearch]);
 
   const stats = useMemo(() => {
     const total = quotations.length;
@@ -219,11 +323,12 @@ export default function InventoryApprovedQuotes() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
-                <th className="py-4 px-6">ID</th>
-                <th className="py-4 px-4">Đơn DV</th>
+                <th className="py-4 px-6">Đơn báo giá</th>
+                <th className="py-4 px-4">Người tạo</th>
                 <th className="py-4 px-4">Phụ tùng</th>
                 <th className="py-4 px-4">Tổng tiền</th>
-                <th className="py-4 px-4">Ngày duyệt</th>
+                <th className="py-4 px-4">Ngày tạo</th>
+                <th className="py-4 px-4">Trạng thái</th>
                 <th className="py-4 px-6 text-right">Thao tác</th>
               </tr>
             </thead>
@@ -231,26 +336,30 @@ export default function InventoryApprovedQuotes() {
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="py-14 text-center text-slate-400 text-sm"
                   >
                     Không tìm thấy báo giá phù hợp...
                   </td>
                 </tr>
               ) : (
-                filtered.map((q) => (
+                filtered.map((q) => {
+                  const info = getQuoteInfo(q);
+                  return (
                   <tr
                     key={q.id}
                     onClick={() => setSelected(q)}
                     className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors cursor-pointer group"
                   >
                     <td className="py-4 px-6">
-                      <span className="font-bold text-slate-800 text-sm group-hover:text-[#00285E] transition-colors">
-                        {q.id}
+                      <span className="font-bold text-[#00285E] text-xs">
+                        {q.code}
                       </span>
                     </td>
-                    <td className="py-4 px-4 text-sm font-semibold text-slate-700">
-                      {q.service_order_id}
+                    <td className="py-4 px-4">
+                      <span className="text-sm font-semibold text-slate-700 truncate block max-w-[160px]">
+                        {info.creatorName || "—"}
+                      </span>
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex flex-wrap gap-1.5">
@@ -276,7 +385,13 @@ export default function InventoryApprovedQuotes() {
                     <td className="py-4 px-4">
                       <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500">
                         <Calendar size={13} className="text-slate-400" />
-                        {formatDate(q.approved_at)}
+                        {formatDate(q.createdAt)}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 whitespace-nowrap">
+                        <CheckCircle2 size={11} />
+                        Đã duyệt
                       </span>
                     </td>
                     <td className="py-4 px-6">
@@ -291,20 +406,11 @@ export default function InventoryApprovedQuotes() {
                         >
                           <Eye size={15} />
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleExportStock(q.id);
-                          }}
-                          title="Chấp nhận xuất kho"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
-                        >
-                          <PackageCheck size={15} />
-                        </button>
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -339,7 +445,7 @@ export default function InventoryApprovedQuotes() {
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-white leading-tight">
-                      Báo giá #{selected.id}
+                      Báo giá {selected.code}
                     </h3>
                     <span className="text-xs font-semibold text-emerald-300">
                       Đã duyệt · chờ xuất kho
@@ -356,44 +462,54 @@ export default function InventoryApprovedQuotes() {
 
               <div className="overflow-y-auto flex-1 px-7 py-6 space-y-5 bg-slate-50/50">
                 {/* Thông tin báo giá */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
-                      Đơn dịch vụ
-                    </span>
-                    <span className="text-sm font-semibold text-slate-800">
-                      #{selected.service_order_id}
-                    </span>
-                  </div>
-                  <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
                       Ngày tạo
                     </span>
-                    <span className="text-sm font-semibold text-slate-800">
-                      {formatDate(selected.createdAt)}
-                    </span>
+                    <div className="space-y-2">
+                      <div className="flex items-baseline gap-3">
+                        <span className="w-16 shrink-0 text-xs text-slate-400">
+                          Thời gian
+                        </span>
+                        <span className="text-sm font-semibold text-slate-800">
+                          {formatDate(selected.createdAt)}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-3">
+                        <span className="w-16 shrink-0 text-xs text-slate-400">
+                          Người tạo
+                        </span>
+                        <span className="text-sm font-semibold text-slate-800 truncate">
+                          {selectedInfo.creatorName || "—"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                   <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
                       Ngày duyệt
                     </span>
-                    <span className="text-sm font-semibold text-emerald-600">
-                      {formatDate(selected.approved_at)}
-                    </span>
+                    <div className="space-y-2">
+                      <div className="flex items-baseline gap-3">
+                        <span className="w-16 shrink-0 text-xs text-slate-400">
+                          Thời gian
+                        </span>
+                        <span className="text-sm font-semibold text-emerald-600">
+                          {formatDate(selected.approved_at)}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-3">
+                        <span className="w-16 shrink-0 text-xs text-slate-400">
+                          Trạng thái
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+                          <CheckCircle2 size={11} />
+                          Đã duyệt
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-
-                {/* Ghi chú */}
-                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <StickyNote size={13} className="text-slate-400" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Ghi chú
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
-                    {selected.note || "Không có ghi chú."}
-                  </p>
                 </div>
 
                 {/* Phụ tùng cần xuất kho */}
@@ -482,6 +598,19 @@ export default function InventoryApprovedQuotes() {
                       này.
                     </p>
                   )}
+                </div>
+
+                {/* Ghi chú */}
+                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <StickyNote size={13} className="text-slate-400" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      Ghi chú
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                    {selected.note || "Không có ghi chú."}
+                  </p>
                 </div>
               </div>
 

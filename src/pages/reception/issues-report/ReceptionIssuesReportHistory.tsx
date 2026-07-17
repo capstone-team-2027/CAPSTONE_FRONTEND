@@ -618,7 +618,7 @@ export default function ReceptionIssuesReportHistory() {
               <thead>
                 <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
                   <th className="py-3 px-4 align-middle whitespace-nowrap">
-                    ID
+                    Mã lỗi
                   </th>
                   <th className="py-3 px-4 align-middle whitespace-nowrap">
                     Khách hàng

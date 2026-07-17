@@ -174,6 +174,7 @@ export default function Login() {
                 else if (userData.role === 'RECEPTIONIST') navigate('/reception');
                 else if (userData.role === 'TECHNICIAN') navigate('/technician');
                 else if (userData.role === 'INVENTORY_MANAGER') navigate('/inventory');
+                else if (userData.role === 'QUALITY_CONTROLLER') navigate('/quality');
                 else navigate('/');
             } catch {
                 navigate('/login');
@@ -280,6 +281,9 @@ export default function Login() {
             }
             if (userData.role === "INVENTORY_MANAGER") {
                 navigate('/inventory');
+            }
+            if (userData.role === "QUALITY_CONTROLLER") {
+                navigate('/quality');
             }
         } catch (err: any) {
             setApiError(err.message || (isVi ? 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.' : 'Login failed. Please check your credentials.'));
