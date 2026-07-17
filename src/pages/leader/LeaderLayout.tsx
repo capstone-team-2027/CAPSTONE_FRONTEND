@@ -22,7 +22,7 @@ import { useFetchClient } from '../../hook/useFetchClient';
 import { loginSuccess, logout } from '../../store/slices/userSlice';
 import { PROFILE_API_ENDPOINTS } from '../../constants/common/profileEndpoints';
 
-export default function QualityLayout() {
+export default function LeaderLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
@@ -66,20 +66,20 @@ export default function QualityLayout() {
   }, [dispatch, fetchPrivate, user]);
 
   const avatarUrl = user?.avatar?.trim() || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=256&auto=format&fit=crop';
-  const displayName = user?.fullName || 'Nhân viên kiểm định';
-  const displayRole = 'Kiểm định chất lượng';
+  const displayName = user?.fullName || 'Tổ trưởng kỹ thuật';
+  const displayRole = 'Phân công kỹ thuật';
 
-  // Sidebar menu items for quality control
+  // Sidebar menu items for team leader
   const menuItems = [
-    { name: 'Tổng quan', icon: LayoutDashboard, path: '/quality' },
-    { name: 'Kiểm định chất lượng', icon: ClipboardCheck, path: '/quality/inspections' },
+    { name: 'Tổng quan', icon: LayoutDashboard, path: '/leader' },
+    { name: 'Phân công kỹ thuật', icon: ClipboardCheck, path: '/leader/assignments' },
   ];
 
   // Dynamic active menu item based on current URL path
   const activeMenu = useMemo(() => {
     const path = location.pathname;
-    if (path === '/quality' || path === '/quality/') return 'Tổng quan';
-    if (path.includes('/inspections')) return 'Kiểm định chất lượng';
+    if (path === '/leader' || path === '/leader/') return 'Tổng quan';
+    if (path.includes('/assignments')) return 'Phân công kỹ thuật';
     return 'Tổng quan';
   }, [location.pathname]);
 
@@ -154,7 +154,7 @@ export default function QualityLayout() {
             <Menu size={24} />
           </button>
           <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-800 uppercase tracking-tight text-sm">AGM · QC</span>
+            <span className="font-bold text-slate-800 uppercase tracking-tight text-sm">AGM · Leader</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -167,7 +167,7 @@ export default function QualityLayout() {
           </button>
           <img
             src={avatarUrl}
-            alt="Quality Controller Profile"
+            alt="Team Leader Profile"
             className="w-9 h-9 rounded-full object-cover border border-slate-200"
           />
         </div>
@@ -186,7 +186,7 @@ export default function QualityLayout() {
             </div>
             <div className="flex flex-col">
               <span className="font-bold text-[#00285E] uppercase tracking-wider text-base">AGM Intelligent</span>
-              <span className="text-[10px] text-slate-500 font-semibold tracking-widest uppercase">Kiểm định chất lượng</span>
+              <span className="text-[10px] text-slate-500 font-semibold tracking-widest uppercase">Phân công kỹ thuật</span>
             </div>
           </div>
         </div>
@@ -195,7 +195,7 @@ export default function QualityLayout() {
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-7 scrollbar-none">
           <div>
             <span className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
-              Nghiệp vụ kiểm định
+              Nghiệp vụ phân công
             </span>
             {renderNav()}
           </div>
@@ -235,7 +235,7 @@ export default function QualityLayout() {
                 </div>
                 <div className="flex flex-col">
                   <span className="font-bold text-[#00285E] uppercase tracking-wider text-sm">AGM Intelligent</span>
-                  <span className="text-[9px] text-slate-500 font-semibold tracking-widest uppercase">Kiểm định chất lượng</span>
+                  <span className="text-[9px] text-slate-500 font-semibold tracking-widest uppercase">Phân công kỹ thuật</span>
                 </div>
               </div>
               <button
@@ -249,7 +249,7 @@ export default function QualityLayout() {
             <div className="flex-1 overflow-y-auto px-4 py-6 space-y-7 scrollbar-none">
               <div>
                 <span className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
-                  Nghiệp vụ kiểm định
+                  Nghiệp vụ phân công
                 </span>
                 {renderNav()}
               </div>
@@ -323,7 +323,7 @@ export default function QualityLayout() {
               <div className="relative">
                 <img
                   src={avatarUrl}
-                  alt="Quality Controller Avatar"
+                  alt="Team Leader Avatar"
                   className="w-10 h-10 rounded-full object-cover border-2 border-[#EDF3FF] shadow-sm"
                 />
                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
@@ -338,7 +338,7 @@ export default function QualityLayout() {
         {/* PAGE FOOTER */}
         <footer className="mt-auto px-8 py-6 border-t border-slate-200/50 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-semibold text-slate-400">
           <div>
-            © 2024 <span className="text-slate-500 font-bold">AGM Intelligent</span> - Hệ thống kiểm định chất lượng
+            © 2024 <span className="text-slate-500 font-bold">AGM Intelligent</span> - Hệ thống phân công kỹ thuật
           </div>
           <div className="flex items-center gap-6">
             <a href="#" className="hover:text-slate-600 transition-colors">Điều khoản</a>

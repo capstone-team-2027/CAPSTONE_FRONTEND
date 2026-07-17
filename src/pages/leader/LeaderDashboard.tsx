@@ -1,6 +1,6 @@
 import { ClipboardCheck, ShieldCheck, Clock, CheckCircle2 } from "lucide-react";
 
-export default function QualityDashboard() {
+export default function LeaderDashboard() {
   // TODO: nối API thống kê kiểm định khi BE sẵn sàng
   const stats = [
     { label: "Chờ kiểm định", value: "—", icon: Clock, tint: "bg-amber-50 text-amber-600" },
@@ -13,10 +13,10 @@ export default function QualityDashboard() {
       {/* TITLE */}
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
-          Tổng quan kiểm định
+          Tổng quan phân công
         </h1>
         <p className="text-slate-500 text-sm">
-          Theo dõi các phiếu kiểm định chất lượng sau sửa chữa.
+          Theo dõi việc phân công kỹ thuật viên cho các task.
         </p>
       </div>
 
@@ -49,7 +49,7 @@ export default function QualityDashboard() {
           <ClipboardCheck size={26} className="text-[#00285E]" />
         </div>
         <h2 className="text-lg font-bold text-slate-800">
-          Màn hình kiểm định đang được xây dựng
+          Màn hình phân công đang được xây dựng
         </h2>
         <p className="text-sm text-slate-500 max-w-md">
           Khung giao diện đã sẵn sàng. Các chức năng nghiệp vụ và dữ liệu sẽ được

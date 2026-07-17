@@ -144,12 +144,15 @@ export default function InventoryApprovedQuotes() {
     }
   };
 
-  const handleExportStock = async (quotationId: number) => {
+  const handleExportStock = async (quotation: QuotationRow) => {
     setIsExporting(true);
     try {
+      // BE lọc items theo detailIds -> phải gửi id các dòng phụ tùng cần xuất
+      const detailIds = quotation.items.map((item) => item.id);
       await fetchPrivate(
-        APPROVED_QUOTE_API_ENDPOINTS.APPROVE_EXPORT(quotationId),
+        APPROVED_QUOTE_API_ENDPOINTS.APPROVE_EXPORT(quotation.id),
         "POST",
+        { detailIds },
       );
       showToast("Xuất kho thành công", "success");
       setSelected(null);
@@ -625,7 +628,7 @@ export default function InventoryApprovedQuotes() {
                   </span>
                 </div>
                 <button
-                  onClick={() => handleExportStock(selected.id)}
+                  onClick={() => handleExportStock(selected)}
                   disabled={hasLowStock || isExporting}
                   className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-600/25 hover:shadow-emerald-600/40 hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100"
                 >
