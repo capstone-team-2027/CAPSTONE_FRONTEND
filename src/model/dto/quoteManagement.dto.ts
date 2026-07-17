@@ -5,6 +5,8 @@ export interface GetAllSparePartsResponse {
   brand: string;
   retail_price: number;
   stock_quantity: number;
+  // Tồn thực tế trừ phần đã bị báo giá APPROVED giữ chỗ nhưng chưa xuất kho
+  available_quantity: number;
 }
 export interface GetServicesResponse {
   id: number;

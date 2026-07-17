@@ -378,9 +378,9 @@ export default function ReceptionQuoteList() {
     setEditRows((prev) =>
       prev.map((row) => {
         if (row.uid !== uid) return row;
-        const stock =
-          spareParts.find((p) => p.id === row.partId)?.stock_quantity ??
-          Infinity;
+        // available_quantity: tồn đã trừ phần bị báo giá APPROVED giữ chỗ
+        const part = spareParts.find((p) => p.id === row.partId);
+        const stock = part ? Number(part.available_quantity) : Infinity;
         return { ...row, quantity: Math.min(Math.max(0, quantity), stock) };
       }),
     );
@@ -1259,18 +1259,26 @@ export default function ReceptionQuoteList() {
                                                   {detail.sparePart.name}
                                                 </option>
                                               )}
-                                            {spareParts.map((part) => (
-                                              <option
-                                                key={part.id}
-                                                value={part.id}
-                                              >
-                                                {part.name}
-                                                {part.brand
-                                                  ? ` - ${part.brand}`
-                                                  : ""}
-                                                {` (tồn: ${part.stock_quantity})`}
-                                              </option>
-                                            ))}
+                                            {spareParts.map((part) => {
+                                              const available = Number(
+                                                part.available_quantity,
+                                              );
+                                              return (
+                                                <option
+                                                  key={part.id}
+                                                  value={part.id}
+                                                  disabled={available <= 0}
+                                                >
+                                                  {part.name}
+                                                  {part.brand
+                                                    ? ` - ${part.brand}`
+                                                    : ""}
+                                                  {available <= 0
+                                                    ? " (hết hàng)"
+                                                    : ` (còn: ${available})`}
+                                                </option>
+                                              );
+                                            })}
                                           </select>
                                           {row.partId != null && (
                                             <p className="text-[11px] text-slate-400 mt-1">

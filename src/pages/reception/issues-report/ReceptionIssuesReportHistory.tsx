@@ -246,7 +246,8 @@ export default function ReceptionIssuesReportHistory() {
           : sum,
       0,
     );
-    return Math.max(0, part.stock_quantity - usedByOthers);
+    // Dùng available_quantity: tồn kho đã trừ phần bị báo giá APPROVED giữ chỗ
+    return Math.max(0, Number(part.available_quantity) - usedByOthers);
   };
 
   // Chọn sản phẩm trong hệ thống cho 1 dòng -> đơn giá tự lấy theo giá bán lẻ,
@@ -260,8 +261,8 @@ export default function ReceptionIssuesReportHistory() {
         warnStock(
           issueId,
           "part",
-          part.stock_quantity <= 0
-            ? `"${part.name}" đã hết hàng trong kho.`
+          Number(part.available_quantity) <= 0
+            ? `"${part.name}" đã hết hàng khả dụng trong kho.`
             : `"${part.name}" đã được chọn hết tồn kho ở hạng mục khác.`,
         );
         return;
@@ -1150,19 +1151,24 @@ export default function ReceptionIssuesReportHistory() {
                                     <option value="">
                                       -- Chọn sản phẩm --
                                     </option>
-                                    {spareParts.map((part) => (
-                                      <option
-                                        key={part.id}
-                                        value={part.id}
-                                        disabled={part.stock_quantity <= 0}
-                                      >
-                                        {part.name}
-                                        {part.brand ? ` - ${part.brand}` : ""}
-                                        {part.stock_quantity <= 0
-                                          ? " (hết hàng)"
-                                          : ` (tồn: ${part.stock_quantity})`}
-                                      </option>
-                                    ))}
+                                    {spareParts.map((part) => {
+                                      const available = Number(
+                                        part.available_quantity,
+                                      );
+                                      return (
+                                        <option
+                                          key={part.id}
+                                          value={part.id}
+                                          disabled={available <= 0}
+                                        >
+                                          {part.name}
+                                          {part.brand ? ` - ${part.brand}` : ""}
+                                          {available <= 0
+                                            ? " (hết hàng)"
+                                            : ` (còn: ${available})`}
+                                        </option>
+                                      );
+                                    })}
                                   </select>
                                   {stockWarning?.issueId === item.issueId && (
                                     <p className="flex items-center gap-1 text-[10px] font-semibold text-amber-600 mt-1">
