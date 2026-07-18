@@ -91,6 +91,7 @@ export default function TechnicianUpdateProgress() {
   const [estimatedCompletion, setEstimatedCompletion] = useState('2026-06-05T16:00');
   const [overallNotes, setOverallNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [expandedTask, setExpandedTask] = useState<string | null>(INITIAL_TASKS[0]?.id || null);
@@ -107,6 +108,10 @@ export default function TechnicianUpdateProgress() {
   };
 
   const overallStatus = getOverallStatus();
+
+  // Chỉ cho chốt công việc khi mọi hạng mục đã hoàn thành
+  const canComplete =
+    tasks.length > 0 && tasks.every(t => t.status === 'completed');
 
   // Update task handlers
   const updateTaskProgress = (taskId: string, progress: number) => {
@@ -160,6 +165,23 @@ export default function TechnicianUpdateProgress() {
     await new Promise(resolve => setTimeout(resolve, 1000));
     setIsSubmitting(false);
     setSubmitSuccess(true);
+  };
+
+  // Chốt cả phân công sau khi mọi hạng mục đã xong
+  const handleCompleteAssignment = async () => {
+    if (!canComplete) return;
+    if (!confirm('Bạn có chắc chắn muốn HOÀN THÀNH công việc này?')) return;
+
+    setIsCompleting(true);
+    try {
+      // TODO: nối API hoàn thành phân công (COMPLETE_TASK)
+      await new Promise(resolve => setTimeout(resolve, 800));
+      navigate('/technician/assignments');
+    } catch (error) {
+      console.error('Lỗi khi hoàn thành công việc:', error);
+    } finally {
+      setIsCompleting(false);
+    }
   };
 
   const formatPrice = (price: number) => price.toLocaleString('vi-VN') + ' đ';
@@ -518,7 +540,32 @@ export default function TechnicianUpdateProgress() {
           )}
           {isSubmitting ? 'Đang cập nhật...' : 'Cập nhật'}
         </button>
+        {/* Chốt cả phân công: chỉ mở khi mọi hạng mục đã xong */}
+        <button
+          onClick={handleCompleteAssignment}
+          disabled={!canComplete || isCompleting}
+          title={
+            canComplete
+              ? undefined
+              : 'Hoàn thành tất cả hạng mục trước khi chốt công việc'
+          }
+          className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 bg-gradient-to-b from-emerald-500 to-emerald-600 text-white rounded-xl text-sm font-bold shadow-md shadow-emerald-600/25 hover:brightness-105 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+        >
+          {isCompleting ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <CheckCircle2 size={16} />
+          )}
+          {isCompleting ? 'Đang hoàn thành...' : 'Hoàn thành công việc'}
+        </button>
       </div>
+      {!canComplete && (
+        <p className="flex items-center gap-1.5 text-xs text-slate-400 justify-center">
+          <AlertCircle size={13} className="shrink-0" />
+          Còn {tasks.filter((t) => t.status !== 'completed').length} hạng mục
+          chưa hoàn thành.
+        </p>
+      )}
     </div>
   );
 }

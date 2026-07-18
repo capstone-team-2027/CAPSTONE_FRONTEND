@@ -49,6 +49,8 @@ interface Assignment {
   rejectedAt?: string;
   taskAssignmentId?: string | number;
   bookingType: string;
+  // INSPECTION: kiểm tra rồi tạo báo cáo sự cố | REPAIR: sửa chữa, cập nhật tiến độ
+  taskType?: string;
 }
 
 interface IssueChecklistItem {
@@ -249,6 +251,7 @@ export default function TechnicianAssignments() {
               status: status,
               taskAssignmentId: firstAssignment?.id,
               bookingType: so.appointment?.booking_type || "WALK_IN",
+              taskType: so.tasks?.[0]?.type,
             };
           });
           setAssignments(mappedData);
@@ -262,17 +265,20 @@ export default function TechnicianAssignments() {
     fetchAssignments();
   }, [fetchPrivate, refreshKey]);
 
-  const handleStartTask = async (
-    taskAssignmentId: string | number | undefined,
-  ) => {
-    if (!taskAssignmentId) {
+  const handleStartTask = async (asg: Assignment) => {
+    if (!asg.taskAssignmentId) {
       alert("Không tìm thấy thông tin phân công.");
       return;
     }
     try {
       await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.START_TASK, "PUT", {
-        taskAssignmentId,
+        taskAssignmentId: asg.taskAssignmentId,
       });
+      // Task sửa chữa -> vào thẳng màn cập nhật tiến độ
+      if (asg.taskType === "REPAIR") {
+        navigate(`/technician/progress/${asg.serviceOrderId}`);
+        return;
+      }
       setRefreshKey((prev) => prev + 1);
     } catch (error: any) {
       console.error("Lỗi khi bắt đầu công việc:", error);
@@ -649,33 +655,32 @@ export default function TechnicianAssignments() {
                         <div className="flex items-center justify-center gap-2 whitespace-nowrap">
                           {asg.status === "ASSIGNED" ? (
                             <button
-                              onClick={() =>
-                                handleStartTask(asg.taskAssignmentId)
-                              }
+                              onClick={() => handleStartTask(asg)}
                               className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] transition-colors"
                             >
                               <PlayCircle size={13} />
                               Bắt đầu làm
                             </button>
                           ) : asg.status === "IN_PROGRESS" ? (
-                            asg.bookingType === "RECEPTIONIST_REPAIR" ||
-                            asg.bookingType === "CUSTOMER_REPAIR" ? (
+                            asg.taskType === "REPAIR" ? (
+                              <button
+                                onClick={() =>
+                                  navigate(
+                                    `/technician/progress/${asg.serviceOrderId}`,
+                                  )
+                                }
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] transition-colors"
+                              >
+                                <Wrench size={13} />
+                                Cập nhật tiến độ
+                              </button>
+                            ) : (
                               <button
                                 onClick={() => openIssueReportModal(asg)}
                                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
                               >
                                 <ClipboardList size={13} />
                                 Tạo báo cáo sự cố
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() =>
-                                  handleCompleteTask(asg.taskAssignmentId)
-                                }
-                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] transition-colors"
-                              >
-                                <CheckCircle2 size={13} />
-                                Hoàn thành
                               </button>
                             )
                           ) : (
