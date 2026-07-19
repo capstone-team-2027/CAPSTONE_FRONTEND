@@ -59,6 +59,11 @@ const TechnicianUpdateProgress = lazy(() => import("./pages/technician/progress/
 const TechnicianMyShifts = lazy(() => import("./pages/technician/my-shifts/TechnicianMyShifts"));
 const TechnicianIssuesReportHistory = lazy(() => import("./pages/technician/assignments/IssuesReportHistory"));
 
+// Technician Leader Page Imports
+const LeaderLayout = lazy(() => import("./pages/leader/LeaderLayout"));
+const LeaderDashboard = lazy(() => import("./pages/leader/LeaderDashboard"));
+const LeaderAssignments = lazy(() => import("./pages/leader/LeaderAssignments"));
+
 const LoadingScreen = () => (
   <div className="fixed inset-0 bg-slate-50/50 backdrop-blur-xs flex flex-col items-center justify-center z-50">
     <div className="relative w-16 h-16">
@@ -78,6 +83,7 @@ function App() {
     location.pathname.startsWith("/inventory") ||
     location.pathname.startsWith("/reception") ||
     location.pathname.startsWith("/technician") ||
+    location.pathname.startsWith("/leader") ||
     location.pathname.startsWith("/video-call");
   return (
     <Suspense fallback={<LoadingScreen />}>
@@ -149,6 +155,12 @@ function App() {
           <Route path="quotes" element={<ReceptionQuoteList />} />
           <Route path="quotes/:id" element={<ReceptionQuoteDetail />} />
           <Route path="issues" element={<ReceptionIssueReports />} />
+        </Route>
+
+        {/* Technician Leader Dashboard */}
+        <Route path="/leader" element={<LeaderLayout />}>
+          <Route path="" element={<LeaderDashboard />} />
+          <Route path="assignments" element={<LeaderAssignments />} />
         </Route>
       </Routes>
       {!isAdminPath && (
