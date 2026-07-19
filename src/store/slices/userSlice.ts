@@ -4,6 +4,7 @@ import type { UserModel } from "../../model/User";
 export interface User {
     id: number;
     fullName: string;
+    email?: string;
     phoneNumber: string;
     avatar: string;
     role: string;

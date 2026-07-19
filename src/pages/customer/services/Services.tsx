@@ -3,14 +3,29 @@ import {
     Settings, Wrench, Zap, Car, ShieldCheck,
     Droplets, Plus, Package, Wallet, UserCheck, Search, X, Clock
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../../components/share/Color';
 import { Button } from '../../../components/share/Button';
 import { useNavigate } from 'react-router-dom';
-import { useFetchClient } from '../../../hook/useFetchClient';
+import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { SERVICE_API_ENDPOINTS } from '../../../constants/customer/serviceApiEndpoints';
 
+interface DbCategory {
+    id: number;
+    category_name: string;
+}
+
+interface DbService {
+    id: number;
+    service_name: string;
+    description?: string;
+    category_id?: number | string;
+    category?: {
+        category_name: string;
+    };
+    estimated_duration?: number;
+}
 
 interface ServiceCombo {
     id: number;
@@ -26,7 +41,7 @@ interface ServiceItem {
     id: number;
     title: string;
     desc: string;
-    icon: React.ReactNode;
+    icon: ReactNode;
     price: string;
     category: string;
     image: string;
@@ -36,8 +51,6 @@ interface ServiceItem {
     discountPercentage?: number;
     promoText?: string;
 }
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 const getCategoryIcon = (categoryName: string) => {
     const lower = (categoryName || "").toLowerCase();
@@ -54,29 +67,67 @@ const getCategoryIcon = (categoryName: string) => {
 export default function Services() {
     const { t } = useTranslation();
     const navigate = useNavigate();
-    const { fetchPublic } = useFetchClient();
+    const { fetchPublic } = useFetchClient_v2();
     const [activeTab, setActiveTab] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedService, setSelectedService] = useState<ServiceItem | null>(null);
-    const [combos, setCombos] = useState<ServiceCombo[]>([]);
-    const [dbServices, setDbServices] = useState<any[]>([]);
-    const [dbCategories, setDbCategories] = useState<any[]>([]);
-    const [_, setIsLoading] = useState(true);
+    const [combos, setCombos] = useState<ServiceCombo[]>(() => {
+        try {
+            const stored = localStorage.getItem('service_combos');
+            if (stored) {
+                return JSON.parse(stored);
+            }
+        } catch {
+            // ignore
+        }
+        return [
+            {
+                id: 10001,
+                combo_name: "Combo Bảo dưỡng Định kỳ Cơ bản",
+                category_id: 1,
+                service_ids: [1, 2, 3],
+                discount_percentage: 10,
+                is_active: true,
+                createdAt: new Date().toISOString(),
+            },
+            {
+                id: 10002,
+                combo_name: "Combo Chăm sóc & Làm đẹp Toàn diện",
+                category_id: 4,
+                service_ids: [3, 4],
+                discount_percentage: 15,
+                is_active: true,
+                createdAt: new Date().toISOString(),
+            },
+        ];
+    });
+    const [dbServices, setDbServices] = useState<DbService[]>([]);
+    const [dbCategories, setDbCategories] = useState<DbCategory[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [isSearchFocused, setIsSearchFocused] = useState(false);
     const itemsPerPage = 8;
 
     useEffect(() => {
-        setCurrentPage(1);
-    }, [searchQuery, activeTab]);
-
-    useEffect(() => {
         const loadDbData = async () => {
-            setIsLoading(true);
             try {
-                const catRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_CATEGORIES);
-                const svcRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_SERVICES);
-                const comboRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_COMBOS);
+                        const categoryParams = new URLSearchParams();
+                if (searchQuery.trim()) categoryParams.set('q', searchQuery.trim());
+                const categoriesUrl = `${SERVICE_API_ENDPOINTS.GET_CATEGORIES}${categoryParams.toString() ? `?${categoryParams.toString()}` : ''}`;
+                const catRes = await fetchPublic(categoriesUrl);
+
+                const serviceParams = new URLSearchParams();
+                if (searchQuery.trim()) serviceParams.set('q', searchQuery.trim());
+                if (activeTab !== 'all' && !Number.isNaN(Number(activeTab))) {
+                    serviceParams.set('category_id', activeTab);
+                }
+                const serviceUrl = `${SERVICE_API_ENDPOINTS.GET_SERVICES}${serviceParams.toString() ? `?${serviceParams.toString()}` : ''}`;
+                const svcRes = await fetchPublic(serviceUrl);
+
+                const comboParams = new URLSearchParams();
+                if (searchQuery.trim()) comboParams.set('q', searchQuery.trim());
+                const comboUrl = `${SERVICE_API_ENDPOINTS.GET_COMBOS}${comboParams.toString() ? `?${comboParams.toString()}` : ''}`;
+                const comboRes = await fetchPublic(comboUrl);
+
                 if (catRes && catRes.data) {
                     setDbCategories(catRes.data);
                 }
@@ -84,58 +135,36 @@ export default function Services() {
                     setDbServices(svcRes.data);
                 }
                 if (comboRes && comboRes.data && comboRes.data.length > 0) {
-                    const mappedCombos = comboRes.data.map((c: any) => ({
-                        id: c.id,
-                        combo_name: c.combo_name,
-                        category_id: c.catalogs?.[0]?.category_id || 1,
-                        service_ids: c.catalogs?.map((cat: any) => cat.id) || [],
-                        discount_percentage: c.discount_percentage || 10,
-                        is_active: c.is_active,
-                        createdAt: c.createdAt,
-                    }));
+                    const mappedCombos = comboRes.data.map((c: unknown) => {
+                        const combo = c as {
+                            id: number;
+                            combo_name: string;
+                            catalogs?: Array<{ id: number; category_id?: number }>;
+                            discount_percentage?: number;
+                            is_active: boolean;
+                            createdAt: string;
+                        };
+                        return {
+                            id: combo.id,
+                            combo_name: combo.combo_name,
+                            category_id: combo.catalogs?.[0]?.category_id || 1,
+                            service_ids: combo.catalogs?.map((cat) => cat.id) || [],
+                            discount_percentage: combo.discount_percentage || 10,
+                            is_active: combo.is_active,
+                            createdAt: combo.createdAt,
+                        };
+                    });
                     setCombos(mappedCombos);
                 }
             } catch (error) {
                 console.error("Lỗi khi tải dữ liệu dịch vụ từ backend:", error);
-            } finally {
-                setIsLoading(false);
             }
         };
-        loadDbData();
-    }, []);
 
-    useEffect(() => {
-        try {
-            const stored = localStorage.getItem("service_combos");
-            if (stored) {
-                setCombos(JSON.parse(stored));
-            } else {
-                const defaultCombos: ServiceCombo[] = [
-                    {
-                        id: 10001,
-                        combo_name: "Combo Bảo dưỡng Định kỳ Cơ bản",
-                        category_id: 1,
-                        service_ids: [1, 2, 3],
-                        discount_percentage: 10,
-                        is_active: true,
-                        createdAt: new Date().toISOString(),
-                    },
-                    {
-                        id: 10002,
-                        combo_name: "Combo Chăm sóc & Làm đẹp Toàn diện",
-                        category_id: 4,
-                        service_ids: [3, 4],
-                        discount_percentage: 15,
-                        is_active: true,
-                        createdAt: new Date().toISOString(),
-                    },
-                ];
-                setCombos(defaultCombos);
-            }
-        } catch (e) {
-            console.error(e);
-        }
-    }, []);
+        const timer = window.setTimeout(loadDbData, 300);
+        return () => window.clearTimeout(timer);
+    }, [fetchPublic, searchQuery, activeTab]);
+
 
     const getServicePriceValue = (id: number): number => {
         try {
@@ -144,7 +173,9 @@ export default function Services() {
                 const prices = JSON.parse(storedPrices);
                 if (prices[id] !== undefined) return prices[id];
             }
-        } catch (e) { }
+        } catch {
+            // Ignore parse errors and use fallback prices.
+        }
 
         const priceMap: Record<number, number> = {
             1: 500000,
@@ -175,18 +206,19 @@ export default function Services() {
         return 0;
     };
 
-    const getServiceIcon = (serviceName: string, categoryName: string) => {
+    const getServicePromoText = (serviceName: string, categoryName: string): string => {
         const lowerS = serviceName.toLowerCase();
         const lowerC = (categoryName || "").toLowerCase();
-        if (lowerS.includes("cứu hộ") || lowerS.includes("kích bình") || lowerS.includes("lốp dự phòng")) return <Zap size={18} />;
-        if (lowerC.includes("lốp") || lowerC.includes("phanh") || lowerS.includes("lốp") || lowerS.includes("phanh")) return <Car size={18} />;
-        if (lowerC.includes("nội thất") || lowerS.includes("nội thất") || lowerS.includes("khử mùi") || lowerS.includes("ozon")) return <Droplets size={18} />;
-        if (lowerC.includes("chẩn đoán") || lowerC.includes("điện") || lowerS.includes("obd") || lowerS.includes("điều hòa")) return <Zap size={18} />;
-        if (lowerC.includes("sửa chữa") || lowerS.includes("sửa chữa") || lowerS.includes("động cơ") || lowerS.includes("kim phun") || lowerS.includes("curoa")) return <Wrench size={18} />;
-        return <Settings size={18} />;
+        if (lowerC.includes("bảo dưỡng")) return 'Tặng các kiểm tra miễn phí và ưu đãi bảo dưỡng định kỳ.';
+        if (lowerC.includes("động cơ") || lowerC.includes("sửa chữa")) return 'Ưu tiên xử lý nhanh cùng kỹ thuật viên chuyên sâu.';
+        if (lowerC.includes("lốp") || lowerC.includes("phanh")) return 'Tặng cân chỉnh 3D khi đặt lịch ngay hôm nay.';
+        if (lowerC.includes("nội thất")) return 'Khử mùi và dưỡng nội thất cao cấp miễn phí.';
+        if (lowerC.includes("điện") || lowerC.includes("chẩn đoán")) return 'Quét lỗi OBD chính xác và bảo hành kỹ thuật.';
+        if (lowerS.includes("cứu hộ") || lowerS.includes("kích bình")) return 'Hỗ trợ khẩn cấp 24/7 với đội ngũ sẵn sàng.';
+        return 'Đội ngũ chuyên nghiệp, bảo hành kỹ thuật dài hạn.';
     };
 
-    const getServiceImage = (serviceName: string, categoryName: string) => {
+    const getServiceImage = (serviceName: string, categoryName: string): string => {
         const lowerS = serviceName.toLowerCase();
         const lowerC = (categoryName || "").toLowerCase();
         if (lowerS.includes("cứu hộ") || lowerS.includes("kích bình") || lowerS.includes("lốp dự phòng")) return '/images/Performance Tuning.png';
@@ -197,17 +229,15 @@ export default function Services() {
         return '/images/Precision Maintenance (1).png';
     };
 
-    const getServicePromoText = (serviceName: string, _categoryName: string): string => {
+    const getServiceIcon = (serviceName: string, categoryName: string) => {
         const lowerS = serviceName.toLowerCase();
-        if (lowerS.includes("cấp 1")) return "Tặng nước rửa kính cao cấp & kiểm tra lốp miễn phí";
-        if (lowerS.includes("cấp 2")) return "Tặng nước rửa kính cao cấp & vệ sinh lọc gió động cơ";
-        if (lowerS.includes("cấp 3")) return "Tặng nước rửa kính cao cấp & cân bằng động bánh xe miễn phí";
-        if (lowerS.includes("kim phun")) return "Giảm 15% gói vệ sinh kim phun buồng đốt đi kèm";
-        if (lowerS.includes("lốp") || lowerS.includes("bánh xe")) return "Miễn phí cân bằng động khi thay từ 2 lốp Michelin";
-        if (lowerS.includes("nội thất")) return "Tặng gói khử mùi cabin Ozon trị giá 200.000đ";
-        if (lowerS.includes("obd") || lowerS.includes("mã lỗi")) return "Miễn phí chẩn đoán lỗi OBD nhanh bằng máy chuyên dụng";
-        if (lowerS.includes("cứu hộ")) return "Hỗ trợ khẩn cấp 24/7 toàn khu vực nội thành";
-        return "";
+        const lowerC = (categoryName || "").toLowerCase();
+        if (lowerS.includes("cứu hộ") || lowerS.includes("kích bình") || lowerS.includes("lốp dự phòng")) return <Zap size={18} />;
+        if (lowerC.includes("lốp") || lowerC.includes("phanh") || lowerS.includes("lốp") || lowerS.includes("phanh")) return <Car size={18} />;
+        if (lowerC.includes("nội thất") || lowerS.includes("nội thất") || lowerS.includes("khử mùi") || lowerS.includes("ozon")) return <Droplets size={18} />;
+        if (lowerC.includes("chẩn đoán") || lowerC.includes("điện") || lowerS.includes("obd") || lowerS.includes("điều hòa")) return <Zap size={18} />;
+        if (lowerC.includes("sửa chữa") || lowerS.includes("sửa chữa") || lowerS.includes("động cơ") || lowerS.includes("kim phun") || lowerS.includes("curoa")) return <Wrench size={18} />;
+        return <Settings size={18} />;
     };
 
     const getServiceDetails = (serviceName: string): string[] => {
@@ -291,7 +321,7 @@ export default function Services() {
         ];
 
     const services: ServiceItem[] = dbServices.length > 0
-        ? dbServices.map((s: any) => {
+        ? dbServices.map((s) => {
             const categoryName = s.category?.category_name || "";
             const discountPercent = getServiceDiscount(s.service_name, categoryName);
             const priceValue = getServicePriceValue(s.id);
@@ -524,7 +554,10 @@ export default function Services() {
                             type="text"
                             placeholder={t('services.searchPlaceholder', 'Tìm kiếm dịch vụ bảo dưỡng...')}
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                setCurrentPage(1);
+                            }}
                             onFocus={() => setIsSearchFocused(true)}
                             onBlur={() => setIsSearchFocused(false)}
                             className="w-full pl-10 pr-10 py-3 rounded-2xl border border-gray-200 bg-slate-50/50 text-sm text-brand-blue placeholder-gray-400 focus:outline-none focus:border-[#F9A11B] focus:bg-white focus:ring-4 focus:ring-[#F9A11B]/10 shadow-xs hover:border-gray-300 transition-all duration-300"
@@ -549,7 +582,10 @@ export default function Services() {
                             return (
                                 <button
                                     key={cat.id}
-                                    onClick={() => setActiveTab(cat.id)}
+                                    onClick={() => {
+                                setActiveTab(cat.id);
+                                setCurrentPage(1);
+                            }}
                                     className={`relative px-4 py-2.5 rounded-2xl font-bold text-xs md:text-sm transition-colors duration-300 flex items-center gap-2 z-10 shrink-0 select-none ${isActive
                                             ? 'text-white'
                                             : 'text-brand-blue/70 bg-white border border-gray-200/80 hover:border-brand-blue/30 hover:bg-brand-blue/5'

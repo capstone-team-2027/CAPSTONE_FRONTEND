@@ -40,6 +40,7 @@ const MENU_ITEMS = [
 ] as const;
 
 type TabId = typeof MENU_ITEMS[number]['id'];
+type ContactField = 'email' | 'phone';
 
 export default function UserProfile() {
     const { t } = useTranslation();
@@ -64,6 +65,19 @@ export default function UserProfile() {
     const [showToast, setShowToast] = useState(false);
     const [toastMessage, setToastMessage] = useState(t('profile.updateSuccess', 'Cập nhật thông tin thành công!'));
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [contactFlow, setContactFlow] = useState<{
+        type: ContactField | null;
+        value: string;
+        otpCode: string;
+        step: 'idle' | 'otpRequested';
+        isSubmitting: boolean;
+    }>({
+        type: null,
+        value: '',
+        otpCode: '',
+        step: 'idle',
+        isSubmitting: false,
+    });
 
     // =====================================================
     // FORM DATA — derived từ Redux + editOverrides
@@ -80,7 +94,7 @@ export default function UserProfile() {
 
     const formData = {
         fullName: editOverrides.fullName ?? user?.fullName ?? '',
-        email: editOverrides.email ?? '',
+        email: editOverrides.email ?? user?.email ?? '',
         phone: editOverrides.phone ?? user?.phoneNumber ?? '',
         address: editOverrides.address ?? '',
     };
@@ -145,6 +159,7 @@ export default function UserProfile() {
         dispatch(loginSuccess({
             id: userData.id,
             fullName: userData.fullName,
+            email: userData.email,
             phoneNumber: userData.phoneNumber,
             avatar: userData.avatar,
             role: userData.role,
@@ -185,6 +200,92 @@ export default function UserProfile() {
     const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setEditOverrides((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleContactStart = (type: ContactField) => {
+        setContactFlow({
+            type,
+            value: '',
+            otpCode: '',
+            step: 'idle',
+            isSubmitting: false,
+        });
+    };
+
+    const handleContactValueChange = (value: string) => {
+        setContactFlow((prev) => ({ ...prev, value }));
+    };
+
+    const handleContactOtpChange = (value: string) => {
+        setContactFlow((prev) => ({ ...prev, otpCode: value }));
+    };
+
+    const handleContactSubmit = async () => {
+        if (!contactFlow.type) return;
+
+        const trimmedValue = contactFlow.value.trim();
+        if (!trimmedValue) {
+            alert(t('profile.contactRequired', 'Vui lòng nhập giá trị trước khi gửi OTP.'));
+            return;
+        }
+
+        setContactFlow((prev) => ({ ...prev, isSubmitting: true }));
+        try {
+            const response = await fetchPrivate(
+                PROFILE_API_ENDPOINTS.UPDATE_PROFILE,
+                'PUT',
+                { [contactFlow.type]: trimmedValue },
+            );
+
+            setContactFlow((prev) => ({ ...prev, step: 'otpRequested', isSubmitting: false }));
+            showSuccessToast(response.message || t('profile.otpSent', 'Đã gửi mã OTP. Vui lòng kiểm tra hộp thư.'));
+        } catch (error: any) {
+            alert(error.message || t('profile.contactUpdateFail', 'Không thể gửi mã OTP, vui lòng thử lại.'));
+            setContactFlow((prev) => ({ ...prev, isSubmitting: false }));
+        }
+    };
+
+    const handleContactVerify = async () => {
+        if (!contactFlow.type) return;
+
+        const trimmedValue = contactFlow.value.trim();
+        const otpCode = contactFlow.otpCode.trim();
+        if (!trimmedValue || !otpCode) {
+            alert(t('profile.otpRequired', 'Vui lòng nhập mã OTP để xác thực.'));
+            return;
+        }
+
+        setContactFlow((prev) => ({ ...prev, isSubmitting: true }));
+        try {
+            const response = await fetchPrivate(
+                PROFILE_API_ENDPOINTS.UPDATE_PROFILE,
+                'PUT',
+                { [contactFlow.type]: trimmedValue, otpCode },
+            );
+
+            syncUserToRedux(response.data);
+            setContactFlow({
+                type: null,
+                value: '',
+                otpCode: '',
+                step: 'idle',
+                isSubmitting: false,
+            });
+            showSuccessToast(response.message || t('profile.contactUpdateSuccess', 'Xác thực thành công.'));
+        } catch (error: any) {
+            alert(error.message || t('profile.contactVerifyFail', 'Xác thực thất bại, vui lòng thử lại.'));
+            setContactFlow((prev) => ({ ...prev, isSubmitting: false }));
+        }
+    };
+
+    const handleContactCancel = () => {
+        setContactFlow({
+            type: null,
+            value: '',
+            otpCode: '',
+            step: 'idle',
+            isSubmitting: false,
+        });
     };
 
     // =====================================================
@@ -363,6 +464,13 @@ export default function UserProfile() {
                         onAvatarSave={handleAvatarSave}
                         onAvatarCancel={handleAvatarCancel}
                         onViewAllHistory={() => setActiveTab('history')}
+                        contactFlow={contactFlow}
+                        onContactStart={handleContactStart}
+                        onContactValueChange={handleContactValueChange}
+                        onContactOtpChange={handleContactOtpChange}
+                        onContactSubmit={handleContactSubmit}
+                        onContactVerify={handleContactVerify}
+                        onContactCancel={handleContactCancel}
                     />
                 );
 

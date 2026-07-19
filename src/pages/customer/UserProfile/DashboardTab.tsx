@@ -24,6 +24,14 @@ interface FormData {
   address: string;
 }
 
+interface ContactFlowState {
+  type: 'email' | 'phone' | null;
+  value: string;
+  otpCode: string;
+  step: 'idle' | 'otpRequested';
+  isSubmitting: boolean;
+}
+
 interface DashboardTabProps {
   avatarUrl: string;
   formData: FormData;
@@ -37,6 +45,13 @@ interface DashboardTabProps {
   onAvatarSave?: () => void;
   onAvatarCancel?: () => void;
   onViewAllHistory?: () => void;
+  contactFlow: ContactFlowState;
+  onContactStart: (type: 'email' | 'phone') => void;
+  onContactValueChange: (value: string) => void;
+  onContactOtpChange: (value: string) => void;
+  onContactSubmit: () => void;
+  onContactVerify: () => void;
+  onContactCancel: () => void;
 }
 
 export default function DashboardTab({
@@ -52,6 +67,13 @@ export default function DashboardTab({
   onAvatarSave,
   onAvatarCancel,
   onViewAllHistory,
+  contactFlow,
+  onContactStart,
+  onContactValueChange,
+  onContactOtpChange,
+  onContactSubmit,
+  onContactVerify,
+  onContactCancel,
 }: DashboardTabProps) {
   const { t } = useTranslation();
   const inputClass = (editing: boolean, isPhone = false) =>
@@ -219,24 +241,115 @@ export default function DashboardTab({
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { label: t('profile.fullName', 'Họ và Tên'), name: 'fullName', type: 'text' },
-                  { label: t('profile.phone', 'Số điện thoại'), name: 'phone', type: 'text' },
-                ].map((field) => (
-                  <div key={field.name} className="space-y-1.5">
-                    <label className="text-xs font-medium text-gray-500 block">{field.label}</label>
-                    <input
-                      type={field.type}
-                      name={field.name}
-                      value={formData[field.name as keyof FormData]}
-                      onChange={onInputChange}
-                      disabled={field.name === 'phone' || !isEditing || isSubmitting}
-                      readOnly={field.name === 'phone'}
-                      className={inputClass(isEditing, field.name === 'phone')}
-                    />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-gray-500 block">{t('profile.fullName', 'Họ và Tên')}</label>
+                  <input
+                    type="text"
+                    name="fullName"
+                    value={formData.fullName}
+                    onChange={onInputChange}
+                    disabled={!isEditing || isSubmitting}
+                    className={inputClass(isEditing)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-gray-500 block">{t('profile.phone', 'Số điện thoại')}</label>
+                  <div className="w-full px-3 py-2 text-sm rounded-lg font-medium bg-slate-50 border border-slate-200 text-brand-blue/70">
+                    {formData.phone || t('profile.notSet', 'Chưa thiết lập')}
                   </div>
-                ))}
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                  {t('profile.contactVerification', 'Thông tin liên hệ')}
+                </div>
+
+                {[
+                  { key: 'email' as const, label: t('profile.email', 'Email'), value: formData.email },
+                  { key: 'phone' as const, label: t('profile.phone', 'Số điện thoại'), value: formData.phone },
+                ].map((field) => {
+                  const hasValue = Boolean(field.value?.trim());
+                  const isActive = contactFlow.type === field.key;
+
+                  return (
+                    <div key={field.key} className="rounded-xl border border-gray-100 bg-gray-50/70 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-semibold text-gray-500">{field.label}</div>
+                          {hasValue ? (
+                            <div className="text-sm font-semibold text-brand-blue">{field.value}</div>
+                          ) : (
+                            <div className="text-xs text-gray-400">{t('profile.notSet', 'Chưa thiết lập')}</div>
+                          )}
+                        </div>
+
+                        {!hasValue && (
+                          <button
+                            type="button"
+                            onClick={() => (isActive ? onContactCancel() : onContactStart(field.key))}
+                            disabled={contactFlow.isSubmitting}
+                            className="px-3 py-1.5 rounded-lg border border-brand-blue/20 text-brand-blue hover:bg-brand-blue/5 text-xs font-bold transition-all disabled:opacity-60"
+                          >
+                            {isActive ? t('common.cancel', 'Hủy') : t('profile.add', 'Thêm')}
+                          </button>
+                        )}
+                      </div>
+
+                      {isActive && (
+                        <div className="mt-3 space-y-2">
+                          {contactFlow.step === 'idle' ? (
+                            <>
+                              <input
+                                type={field.key === 'email' ? 'email' : 'text'}
+                                value={contactFlow.value}
+                                onChange={(e) => onContactValueChange(e.target.value)}
+                                disabled={contactFlow.isSubmitting}
+                                placeholder={field.key === 'email' ? 'name@example.com' : '0987654321'}
+                                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white text-brand-blue focus:outline-none focus:border-brand-blue"
+                              />
+                              <button
+                                type="button"
+                                onClick={onContactSubmit}
+                                disabled={contactFlow.isSubmitting}
+                                className="w-full px-3 py-2 rounded-lg bg-brand-blue text-white text-xs font-bold hover:bg-brand-blue/90 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                              >
+                                {contactFlow.isSubmitting ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : null}
+                                {t('profile.sendOtp', 'Gửi mã OTP')}
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <input
+                                type="text"
+                                value={contactFlow.otpCode}
+                                onChange={(e) => onContactOtpChange(e.target.value)}
+                                disabled={contactFlow.isSubmitting}
+                                placeholder="Nhập mã OTP"
+                                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white text-brand-blue focus:outline-none focus:border-brand-blue"
+                              />
+                              <button
+                                type="button"
+                                onClick={onContactVerify}
+                                disabled={contactFlow.isSubmitting}
+                                className="w-full px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                              >
+                                {contactFlow.isSubmitting ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : null}
+                                {t('profile.verifyOtp', 'Xác nhận OTP')}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
