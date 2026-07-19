@@ -1,42 +1,49 @@
 import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Wrench, History } from 'lucide-react';
+import { Plus, Wrench, History, Loader2 } from 'lucide-react';
 
-export default function VehiclesTab() {
+interface VehicleItem {
+  id: number;
+  license_plate?: string;
+  vin_number?: string;
+  color?: string;
+  year?: number;
+  model?: {
+    model_name?: string;
+    make?: {
+      make_name?: string;
+    };
+  };
+}
+
+interface VehiclesTabProps {
+  vehicles: VehicleItem[];
+  isLoading?: boolean;
+}
+
+export default function VehiclesTab({ vehicles, isLoading = false }: VehiclesTabProps) {
   const { t } = useTranslation();
 
-  const vehicleStats = [
-    { label: t('vehicles.oilLevel', 'Mức dầu'), value: '85%', width: 'w-[85%]', color: 'bg-brand-blue' },
-    { label: t('vehicles.tirePressure', 'Áp suất lốp'), value: '32 PSI', width: 'w-[90%]', color: 'bg-brand-orange' },
-    { label: t('vehicles.brakePads', 'Má phanh'), value: '60%', width: 'w-[60%]', color: 'bg-brand-blue' },
-    { label: t('vehicles.batteryStatus', 'Tình trạng ắc quy'), value: t('profile.good', 'Tốt'), width: 'w-full', color: 'bg-brand-blue' },
-  ];
-
-  const bmwStats = [
-    { label: t('vehicles.oilLevel', 'Mức dầu'), value: '15%', width: 'w-[15%]', color: 'bg-red-600', valueClass: 'text-red-600' },
-    { label: t('vehicles.tirePressure', 'Áp suất lốp'), value: '30 PSI', width: 'w-[85%]', color: 'bg-brand-orange' },
-    { label: t('vehicles.brakePads', 'Má phanh'), value: '45%', width: 'w-[45%]', color: 'bg-brand-blue' },
-    { label: t('vehicles.batteryStatus', 'Tình trạng ắc quy'), value: t('vehicles.fair', 'Trung bình'), width: 'w-[60%]', color: 'bg-brand-orange' },
-  ];
-
-  const renderStatBar = (
-    stats: typeof vehicleStats,
-    defaultValueClass = 'text-brand-blue'
-  ) => (
+  const renderStatBar = () => (
     <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-      {stats.map((stat) => (
-        <div key={stat.label}>
-          <div className="flex justify-between items-center text-[10px] mb-1">
-            <span className="text-gray-500 truncate mr-1">{stat.label}</span>
-            <span className={`font-bold ${'valueClass' in stat ? (stat as any).valueClass : defaultValueClass}`}>
-              {stat.value}
-            </span>
-          </div>
-          <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-            <div className={`${stat.width} h-full ${stat.color} rounded-full`} />
-          </div>
+      <div>
+        <div className="flex justify-between items-center text-[10px] mb-1">
+          <span className="text-gray-500 truncate mr-1">{t('vehicles.plate', 'Biển số')}</span>
+          <span className="font-bold text-brand-blue">{t('profile.good', 'Tốt')}</span>
         </div>
-      ))}
+        <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className="w-full h-full bg-brand-blue rounded-full" />
+        </div>
+      </div>
+      <div>
+        <div className="flex justify-between items-center text-[10px] mb-1">
+          <span className="text-gray-500 truncate mr-1">{t('vehicles.engine', 'Động cơ')}</span>
+          <span className="font-bold text-brand-blue">{t('profile.good', 'Tốt')}</span>
+        </div>
+        <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className="w-full h-full bg-brand-orange rounded-full" />
+        </div>
+      </div>
     </div>
   );
 
@@ -66,111 +73,79 @@ export default function VehiclesTab() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        {/* Porsche Card */}
-        <motion.div
-          whileHover={{ y: -6, boxShadow: '0 20px 40px rgba(10,35,87,0.14)', borderColor: 'rgba(10,35,87,0.2)' }}
-          transition={{ type: 'spring', stiffness: 280, damping: 18 }}
-          className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden flex flex-col cursor-pointer"
-        >
-          <div className="w-full relative shrink-0 aspect-[16/10] bg-[#050B18]">
-            <img
-              src="/images/Porsche911.png"
-              alt="Porsche 911 Carrera"
-              className="w-full h-full object-cover mix-blend-lighten absolute inset-0"
-            />
-            <div className="absolute top-3 left-3 bg-brand-blue text-white px-3 py-1 rounded-lg font-mono font-bold text-xs tracking-wider shadow-md">
-              29A-123.45
-            </div>
+        {isLoading ? (
+          <div className="sm:col-span-2 flex items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white p-10 text-sm text-gray-500">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            {t('vehicles.loading', 'Đang tải thông tin xe...')}
           </div>
-
-          <div className="flex-1 p-5 flex flex-col justify-between">
-            <div>
-              <div className="flex justify-between items-center gap-2 mb-1">
-                <h3 className="text-lg font-display font-bold text-brand-blue truncate">Porsche 911 Carrera</h3>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-bold text-[10px] border border-emerald-100 shrink-0">
-                  {t('vehicles.statusGood', 'Hoạt động tốt')}
-                </span>
-              </div>
-              <p className="text-[10px] text-gray-500 font-medium mb-3">
-                {t('vehicles.detailsPorsche', 'Đời xe: 2023 • Màu: Bạc GT Silver')}
-              </p>
-              <div className="border-t border-gray-100 my-3" />
-              <div className="flex items-center gap-1.5 text-brand-blue font-bold text-xs mb-2">
-                <Wrench className="w-3.5 h-3.5 text-brand-blue" />
-                <span>{t('vehicles.partsStatus', 'Tình trạng linh kiện')}</span>
-              </div>
-              {renderStatBar(vehicleStats)}
-            </div>
-
-            <div className="flex items-center gap-2 mt-5 pt-3 border-t border-gray-100/80">
-              <button
-                onClick={(e) => { e.stopPropagation(); alert(t('vehicles.loadingHistory', 'Đang tải dữ liệu toàn bộ lịch sử bảo trì...')); }}
-                className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-2 bg-blue-50 text-brand-blue hover:bg-blue-100 font-bold text-[10px] rounded-xl transition-all"
-              >
-                <History className="w-3 h-3" /> {t('profile.tabs.history', 'Lịch sử')}
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); alert(t('vehicles.loadingDetails', 'Hiển thị trang thông số kỹ thuật chi tiết của xe...')); }}
-                className="flex-1 py-2 border border-gray-200 text-gray-700 hover:bg-gray-50 font-bold text-[10px] rounded-xl transition-all text-center"
-              >
-                {t('common.details', 'Chi tiết')}
-              </button>
-            </div>
+        ) : vehicles.length === 0 ? (
+          <div className="sm:col-span-2 rounded-2xl border border-dashed border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
+            {t('vehicles.empty', 'Bạn chưa có xe nào trong hồ sơ.')}
           </div>
-        </motion.div>
+        ) : (
+          vehicles.map((vehicle) => {
+            const modelName = vehicle.model?.model_name || t('vehicles.unknownModel', 'Không xác định');
+            const makeName = vehicle.model?.make?.make_name || t('vehicles.unknownMake', 'Không xác định');
+            const plate = vehicle.license_plate || t('vehicles.noPlate', 'Chưa có biển số');
+            const yearText = vehicle.year ? `${vehicle.year}` : t('vehicles.noYear', 'Năm không xác định');
+            const colorText = vehicle.color || t('vehicles.noColor', 'Màu không xác định');
 
-        {/* BMW Card */}
-        <motion.div
-          whileHover={{ y: -6, boxShadow: '0 20px 40px rgba(10,35,87,0.14)', borderColor: 'rgba(10,35,87,0.2)' }}
-          transition={{ type: 'spring', stiffness: 280, damping: 18 }}
-          className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden flex flex-col cursor-pointer"
-        >
-          <div className="w-full relative shrink-0 aspect-[16/10] bg-[#050B18]">
-            <img
-              src="/images/BMWM4.png"
-              alt="BMW M4"
-              className="w-full h-full object-cover mix-blend-lighten absolute inset-0"
-            />
-            <div className="absolute top-3 left-3 bg-brand-blue text-white px-3 py-1 rounded-lg font-mono font-bold text-xs tracking-wider shadow-md">
-              30H-999.88
-            </div>
-          </div>
-
-          <div className="flex-1 p-5 flex flex-col justify-between">
-            <div>
-              <div className="flex justify-between items-center gap-2 mb-1">
-                <h3 className="text-lg font-display font-bold text-brand-blue truncate">BMW M4</h3>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-[#D97706] font-bold text-[10px] border border-amber-100 shrink-0">
-                  {t('vehicles.statusPending', 'Cần bảo trì sớm')}
-                </span>
-              </div>
-              <p className="text-[10px] text-gray-500 font-medium mb-3">
-                {t('vehicles.detailsBMW', 'Đời xe: 2022 • Màu: Xanh Portimao Blue')}
-              </p>
-              <div className="border-t border-gray-100 my-3" />
-              <div className="flex items-center gap-1.5 text-brand-blue font-bold text-xs mb-2">
-                <Wrench className="w-3.5 h-3.5 text-brand-blue" />
-                <span>{t('vehicles.partsStatus', 'Tình trạng linh kiện')}</span>
-              </div>
-              {renderStatBar(bmwStats)}
-            </div>
-
-            <div className="flex items-center gap-2 mt-5 pt-3 border-t border-gray-100/80">
-              <button
-                onClick={(e) => { e.stopPropagation(); alert(t('vehicles.loadingHistory', 'Đang tải dữ liệu toàn bộ lịch sử bảo trì...')); }}
-                className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-2 bg-blue-50 text-brand-blue hover:bg-blue-100 font-bold text-[10px] rounded-xl transition-all"
+            return (
+              <motion.div
+                key={vehicle.id}
+                whileHover={{ y: -6, boxShadow: '0 20px 40px rgba(10,35,87,0.14)', borderColor: 'rgba(10,35,87,0.2)' }}
+                transition={{ type: 'spring', stiffness: 280, damping: 18 }}
+                className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden flex flex-col cursor-pointer"
               >
-                <History className="w-3 h-3" /> {t('profile.tabs.history', 'Lịch sử')}
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); alert(t('vehicles.bookingRedirect', 'Hệ thống chuyển sang quy trình đặt lịch trực tuyến nhanh...')); }}
-                className="flex-1 py-2 bg-brand-blue text-white hover:bg-brand-blue/90 font-bold text-[10px] rounded-xl transition-all shadow-sm text-center"
-              >
-                {t('nav.booking', 'Đặt lịch')}
-              </button>
-            </div>
-          </div>
-        </motion.div>
+                <div className="w-full relative shrink-0 aspect-[16/10] bg-[#050B18]">
+                  <img
+                    src="/images/Porsche911.png"
+                    alt={modelName}
+                    className="w-full h-full object-cover mix-blend-lighten absolute inset-0"
+                  />
+                  <div className="absolute top-3 left-3 bg-brand-blue text-white px-3 py-1 rounded-lg font-mono font-bold text-xs tracking-wider shadow-md">
+                    {plate}
+                  </div>
+                </div>
+
+                <div className="flex-1 p-5 flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-center gap-2 mb-1">
+                      <h3 className="text-lg font-display font-bold text-brand-blue truncate">{`${makeName} ${modelName}`}</h3>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-bold text-[10px] border border-emerald-100 shrink-0">
+                        {t('vehicles.statusGood', 'Hoạt động tốt')}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 font-medium mb-3">
+                      {t('vehicles.details', 'Năm sản xuất: {{year}} • Màu: {{color}}', { year: yearText, color: colorText })}
+                    </p>
+                    <div className="border-t border-gray-100 my-3" />
+                    <div className="flex items-center gap-1.5 text-brand-blue font-bold text-xs mb-2">
+                      <Wrench className="w-3.5 h-3.5 text-brand-blue" />
+                      <span>{t('vehicles.partsStatus', 'Tình trạng linh kiện')}</span>
+                    </div>
+                    {renderStatBar()}
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-5 pt-3 border-t border-gray-100/80">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); alert(t('vehicles.loadingHistory', 'Đang tải dữ liệu toàn bộ lịch sử bảo trì...')); }}
+                      className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-2 bg-blue-50 text-brand-blue hover:bg-blue-100 font-bold text-[10px] rounded-xl transition-all"
+                    >
+                      <History className="w-3 h-3" /> {t('profile.tabs.history', 'Lịch sử')}
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); alert(t('vehicles.loadingDetails', 'Hiển thị trang thông số kỹ thuật chi tiết của xe...')); }}
+                      className="flex-1 py-2 border border-gray-200 text-gray-700 hover:bg-gray-50 font-bold text-[10px] rounded-xl transition-all text-center"
+                    >
+                      {t('common.details', 'Chi tiết')}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })
+        )}
       </div>
     </motion.div>
   );

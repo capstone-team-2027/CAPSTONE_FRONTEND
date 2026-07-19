@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -42,6 +42,29 @@ const MENU_ITEMS = [
 type TabId = typeof MENU_ITEMS[number]['id'];
 type ContactField = 'email' | 'phone';
 
+interface ProfileVehicleItem {
+    id: number;
+    license_plate?: string;
+    vin_number?: string;
+    color?: string;
+    year?: number;
+    model?: {
+        model_name?: string;
+        make?: {
+            make_name?: string;
+        };
+    };
+}
+
+interface ProfileUserPayload {
+    id?: number;
+    fullName?: string;
+    email?: string;
+    phoneNumber?: string;
+    avatar?: string;
+    role?: string;
+}
+
 export default function UserProfile() {
     const { t } = useTranslation();
 
@@ -51,6 +74,7 @@ export default function UserProfile() {
 
     const dispatch = useDispatch();
     const { fetchPrivate, fetchPrivateForm } = useFetchClient();
+    const fetchPrivateRef = useRef(fetchPrivate);
 
     const user = useSelector(
         (state: RootState) => state.user.user as UserModel | null
@@ -91,6 +115,8 @@ export default function UserProfile() {
     }>>({});
 
     const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
+    const [profileVehicles, setProfileVehicles] = useState<ProfileVehicleItem[]>([]);
+    const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
 
     const formData = {
         fullName: editOverrides.fullName ?? user?.fullName ?? '',
@@ -140,6 +166,29 @@ export default function UserProfile() {
     const [avatarPreview, setAvatarPreview] = useState<string>('');
     const avatarUrl: string = avatarPreview || user?.avatar || '';
 
+    useEffect(() => {
+        fetchPrivateRef.current = fetchPrivate;
+    }, [fetchPrivate]);
+
+    useEffect(() => {
+        const loadProfileVehicles = async () => {
+            if (!user?.id) return;
+
+            setIsLoadingVehicles(true);
+            try {
+                const response = await fetchPrivateRef.current(PROFILE_API_ENDPOINTS.GET_PROFILE, 'GET');
+                const vehicles = response?.data?.vehicles ?? [];
+                setProfileVehicles(Array.isArray(vehicles) ? vehicles : []);
+            } catch (error) {
+                console.error('Failed to load profile vehicles:', error);
+                setProfileVehicles([]);
+            } finally {
+                setIsLoadingVehicles(false);
+            }
+        };
+
+        loadProfileVehicles();
+    }, [user?.id]);
 
     // =====================================================
     // HELPER: Hiện toast
@@ -155,14 +204,22 @@ export default function UserProfile() {
     // HELPER: Cập nhật Redux store sau khi API thành công
     // =====================================================
 
-    const syncUserToRedux = (userData: any) => {
-        dispatch(loginSuccess({
-            id: userData.id,
-            fullName: userData.fullName,
-            email: userData.email,
-            phoneNumber: userData.phoneNumber,
-            avatar: userData.avatar,
-            role: userData.role,
+    const syncUserToRedux = (userData: ProfileUserPayload) => {
+        const normalizedUserData = {
+            id: userData?.id ?? user?.id ?? 0,
+            fullName: userData?.fullName ?? user?.fullName ?? '',
+            email: userData?.email ?? user?.email ?? '',
+            phoneNumber: userData?.phoneNumber ?? user?.phoneNumber ?? '',
+            avatar: userData?.avatar ?? user?.avatar ?? '',
+            role: userData?.role ?? user?.role ?? '',
+        };
+
+        dispatch(loginSuccess(normalizedUserData));
+
+        setEditOverrides((prev) => ({
+            ...prev,
+            ...(userData?.email !== undefined ? { email: userData.email ?? '' } : {}),
+            ...(userData?.phoneNumber !== undefined ? { phone: userData.phoneNumber ?? '' } : {}),
         }));
     };
 
@@ -239,8 +296,9 @@ export default function UserProfile() {
 
             setContactFlow((prev) => ({ ...prev, step: 'otpRequested', isSubmitting: false }));
             showSuccessToast(response.message || t('profile.otpSent', 'Đã gửi mã OTP. Vui lòng kiểm tra hộp thư.'));
-        } catch (error: any) {
-            alert(error.message || t('profile.contactUpdateFail', 'Không thể gửi mã OTP, vui lòng thử lại.'));
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : t('profile.contactUpdateFail', 'Không thể gửi mã OTP, vui lòng thử lại.');
+            alert(message);
             setContactFlow((prev) => ({ ...prev, isSubmitting: false }));
         }
     };
@@ -271,9 +329,14 @@ export default function UserProfile() {
                 step: 'idle',
                 isSubmitting: false,
             });
+            setEditOverrides((prev) => ({
+                ...prev,
+                [contactFlow.type === 'email' ? 'email' : 'phone']: contactFlow.value.trim(),
+            }));
             showSuccessToast(response.message || t('profile.contactUpdateSuccess', 'Xác thực thành công.'));
-        } catch (error: any) {
-            alert(error.message || t('profile.contactVerifyFail', 'Xác thực thất bại, vui lòng thử lại.'));
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : t('profile.contactVerifyFail', 'Xác thực thất bại, vui lòng thử lại.');
+            alert(message);
             setContactFlow((prev) => ({ ...prev, isSubmitting: false }));
         }
     };
@@ -325,8 +388,9 @@ export default function UserProfile() {
 
             setIsEditing(false);
             showSuccessToast(t('profile.updateSuccess', 'Cập nhật thông tin thành công!'));
-        } catch (error: any) {
-            alert(error.message || t('profile.updateFail', 'Cập nhật thất bại, vui lòng thử lại.'));
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : t('profile.updateFail', 'Cập nhật thất bại, vui lòng thử lại.');
+            alert(message);
         } finally {
             setIsSubmitting(false);
         }
@@ -360,8 +424,9 @@ export default function UserProfile() {
             setPendingAvatarFile(null);
             setAvatarPreview('');
             showSuccessToast(t('profile.avatarUpdateSuccess', 'Cập nhật ảnh đại diện thành công!'));
-        } catch (error: any) {
-            alert(error.message || t('profile.avatarUpdateFail', 'Cập nhật ảnh đại diện thất bại, vui lòng thử lại.'));
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : t('profile.avatarUpdateFail', 'Cập nhật ảnh đại diện thất bại, vui lòng thử lại.');
+            alert(message);
         } finally {
             setIsSubmitting(false);
         }
@@ -419,8 +484,9 @@ export default function UserProfile() {
             setAvatarPreview('');
 
             showSuccessToast(t('settings.updateSuccess', 'Đã lưu cài đặt thành công!'));
-        } catch (error: any) {
-            alert(error.message || t('profile.updateFail', 'Cập nhật thất bại, vui lòng thử lại.'));
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : t('profile.updateFail', 'Cập nhật thất bại, vui lòng thử lại.');
+            alert(message);
         } finally {
             setIsSubmitting(false);
         }
@@ -429,7 +495,7 @@ export default function UserProfile() {
     // =====================================================
     // HANDLE CHANGE PASSWORD
     // =====================================================
-    const handleChangePassword = async (data: any) => {
+    const handleChangePassword = async (data: Record<string, string>) => {
         await fetchPrivate(
             PROFILE_API_ENDPOINTS.CHANGE_PASSWORD,
             'PUT',
@@ -475,7 +541,7 @@ export default function UserProfile() {
                 );
 
             case 'vehicles':
-                return <VehiclesTab />;
+                return <VehiclesTab vehicles={profileVehicles} isLoading={isLoadingVehicles} />;
 
             case 'appointments':
                 return <AppointmentsTab />;
