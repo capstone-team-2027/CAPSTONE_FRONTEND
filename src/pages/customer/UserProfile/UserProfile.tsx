@@ -418,51 +418,47 @@ export default function UserProfile() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 {/* SIDEBAR */}
-                <div className="lg:col-span-3 flex flex-col gap-2 md:gap-3">
-                    <div className="hidden lg:block px-4 py-1">
-                        <h2 className="text-gray-400 font-bold text-base tracking-wide">
-                            {t('profile.title', 'Thông tin cá nhân')}
-                        </h2>
-                    </div>
-
+                <div className="lg:col-span-3 lg:sticky lg:top-24">
                     <motion.div
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="bg-[#F1F5F9] rounded-2xl p-3 md:p-4 flex flex-col justify-between border border-gray-200/60 shadow-sm min-h-auto lg:min-h-[580px]"
+                        className="bg-white rounded-2xl p-3 md:p-4 flex flex-col border border-gray-200/70 shadow-xs"
                     >
-                        <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-col lg:space-y-2 pt-1 lg:pt-2">
+                        <span className="hidden lg:block px-2 pt-1 pb-3 text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                            {t('profile.title', 'Thông tin cá nhân')}
+                        </span>
+
+                        <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-col lg:space-y-1">
                             {MENU_ITEMS.map((item) => {
                                 const IconComponent = item.icon;
                                 const isActive = activeTab === item.id;
 
                                 return (
-                                    <motion.button
+                                    <button
                                         key={item.id}
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
                                         onClick={() => setActiveTab(item.id)}
-                                        className={`w-full flex items-center gap-2.5 md:gap-3 px-3 py-2.5 md:px-4 md:py-3.5 rounded-xl font-bold text-xs md:text-sm transition-all text-left ${isActive
-                                            ? 'bg-[#F9A11B] text-brand-blue shadow-md shadow-orange-500/10'
-                                            : 'text-brand-blue/70 hover:bg-white/60 hover:text-brand-blue'
+                                        className={`w-full flex items-center gap-2.5 md:gap-3 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-semibold text-xs md:text-sm transition-colors text-left ${isActive
+                                            ? 'bg-[#F9A11B]/15 text-brand-blue'
+                                            : 'text-slate-500 hover:bg-slate-50 hover:text-brand-blue'
                                             }`}
                                     >
                                         <IconComponent
-                                            className={`w-4 h-4 md:w-5 md:h-5 shrink-0 ${isActive ? 'text-brand-blue' : 'text-brand-blue/60'
+                                            className={`w-4 h-4 md:w-[18px] md:h-[18px] shrink-0 ${isActive ? 'text-[#F9A11B]' : 'text-slate-400'
                                                 }`}
                                         />
                                         <span className="truncate">{t(`profile.tabs.${item.id}`, item.label)}</span>
-                                    </motion.button>
+                                    </button>
                                 );
                             })}
                         </div>
 
-                        <div className="pt-3 lg:pt-4 border-t border-gray-200/80 grid grid-cols-2 gap-2 lg:flex lg:flex-col lg:space-y-2 mt-3 lg:mt-auto">
+                        <div className="pt-2 mt-2 border-t border-gray-100 grid grid-cols-2 gap-2 lg:flex lg:flex-col lg:space-y-1">
                             <button
                                 onClick={() => alert(t('profile.supportMessage', 'Hệ thống hỗ trợ trực tuyến đang kết nối...'))}
-                                className="w-full flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-xl font-medium text-xs md:text-sm text-brand-blue/70 hover:bg-white/60 hover:text-brand-blue transition-all text-left bg-white/40 lg:bg-transparent"
+                                className="w-full flex items-center gap-2.5 md:gap-3 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-semibold text-xs md:text-sm text-slate-500 hover:bg-slate-50 hover:text-brand-blue transition-colors text-left"
                             >
-                                <HelpCircle className="w-4 h-4 md:w-5 md:h-5 text-brand-blue/60 shrink-0" />
+                                <HelpCircle className="w-4 h-4 md:w-[18px] md:h-[18px] text-slate-400 shrink-0" />
                                 <span className="truncate">{t('profile.support', 'Trợ giúp & Hỗ trợ')}</span>
                             </button>
 
@@ -475,9 +471,9 @@ export default function UserProfile() {
                                         window.location.href = '/login';
                                     }
                                 }}
-                                className="w-full flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-xl font-bold text-xs md:text-sm text-red-600 hover:bg-red-50 transition-all text-left group bg-red-50/30 lg:bg-transparent"
+                                className="w-full flex items-center gap-2.5 md:gap-3 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-semibold text-xs md:text-sm text-rose-600 hover:bg-rose-50 transition-colors text-left"
                             >
-                                <LogOut className="w-4 h-4 md:w-5 md:h-5 text-red-600 group-hover:translate-x-1 transition-transform shrink-0" />
+                                <LogOut className="w-4 h-4 md:w-[18px] md:h-[18px] text-rose-500 shrink-0" />
                                 <span className="truncate">{t('profile.logout', 'Đăng xuất')}</span>
                             </button>
                         </div>
@@ -486,17 +482,6 @@ export default function UserProfile() {
 
                 {/* MAIN CONTENT */}
                 <div className="lg:col-span-9 flex flex-col gap-6">
-                    <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.4 }}
-                        className="pt-1"
-                    >
-                        <h1 className="text-2xl font-display font-bold text-brand-blue">
-                            {t('profile.userProfile', 'Hồ sơ người dùng')}
-                        </h1>
-                    </motion.div>
-
                     {renderTabContent()}
                 </div>
             </div>
