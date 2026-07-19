@@ -1,19 +1,11 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  ArrowLeft,
-  Car,
-  Activity,
   CheckCircle2,
   Loader2,
   AlertCircle,
-  Clock,
-  Wrench,
-  MessageSquare,
   Save,
   ChevronDown,
-  Timer,
-  BarChart3,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -91,75 +83,53 @@ export default function TechnicianUpdateProgress() {
   const [estimatedCompletion, setEstimatedCompletion] = useState('2026-06-05T16:00');
   const [overallNotes, setOverallNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [expandedTask, setExpandedTask] = useState<string | null>(INITIAL_TASKS[0]?.id || null);
 
   // Overall progress
   const overallProgress = Math.round(tasks.reduce((sum, t) => sum + t.progress, 0) / tasks.length);
 
-  // Overall status derived from tasks
-  const getOverallStatus = () => {
-    if (tasks.every(t => t.status === 'completed')) return { label: 'Hoàn thành', color: '#10B981', bg: '#ECFDF5' };
-    if (tasks.some(t => t.status === 'blocked')) return { label: 'Có công việc bị chặn', color: '#EF4444', bg: '#FEF2F2' };
-    if (tasks.some(t => t.status === 'in_progress')) return { label: 'Đang sửa chữa', color: '#3B82F6', bg: '#EFF6FF' };
-    return { label: 'Chưa bắt đầu', color: '#6B7280', bg: '#F3F4F6' };
-  };
+  // Chỉ cho chốt công việc khi mọi hạng mục đã hoàn thành
+  const canComplete =
+    tasks.length > 0 && tasks.every(t => t.status === 'completed');
 
-  const overallStatus = getOverallStatus();
-
-  // Update task handlers
-  const updateTaskProgress = (taskId: string, progress: number) => {
-    const clamped = Math.min(100, Math.max(0, progress));
-    setTasks(prev => prev.map(t => {
-      if (t.id !== taskId) return t;
-      // Auto-set status based on progress
-      let newStatus = t.status;
-      if (clamped === 100) newStatus = 'completed';
-      else if (clamped > 0 && t.status !== 'blocked') newStatus = 'in_progress';
-      else if (clamped === 0 && t.status !== 'blocked') newStatus = 'not_started';
-      return { ...t, progress: clamped, status: newStatus };
-    }));
-    setErrors({});
-  };
-
-  const updateTaskStatus = (taskId: string, status: string) => {
-    setTasks(prev => prev.map(t => {
-      if (t.id !== taskId) return t;
-      let newProgress = t.progress;
-      if (status === 'completed') newProgress = 100;
-      else if (status === 'not_started') newProgress = 0;
-      return { ...t, status: status as RepairTask['status'], progress: newProgress };
-    }));
-    setErrors({});
+  // Đánh dấu 1 công việc đã xong -> tiến độ 100%
+  const completeTask = (taskId: string) => {
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === taskId ? { ...t, status: 'completed', progress: 100 } : t,
+      ),
+    );
   };
 
   const updateTaskNotes = (taskId: string, notes: string) => {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, techNotes: notes } : t));
   };
 
-  // Validation
-  const validate = (): boolean => {
-    const newErrors: Record<string, string> = {};
-
-    tasks.forEach(t => {
-      if (t.progress < 0 || t.progress > 100) {
-        newErrors[t.id] = `Tiến độ phải từ 0% đến 100%.`;
-      }
-    });
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
   // Submit
   const handleSubmit = async () => {
-    if (!validate()) return;
-
     setIsSubmitting(true);
     await new Promise(resolve => setTimeout(resolve, 1000));
     setIsSubmitting(false);
     setSubmitSuccess(true);
+  };
+
+  // Chốt cả phân công sau khi mọi hạng mục đã xong
+  const handleCompleteAssignment = async () => {
+    if (!canComplete) return;
+    if (!confirm('Bạn có chắc chắn muốn HOÀN THÀNH công việc này?')) return;
+
+    setIsCompleting(true);
+    try {
+      // TODO: nối API hoàn thành phân công (COMPLETE_TASK)
+      await new Promise(resolve => setTimeout(resolve, 800));
+      navigate('/technician/assignments');
+    } catch (error) {
+      console.error('Lỗi khi hoàn thành công việc:', error);
+    } finally {
+      setIsCompleting(false);
+    }
   };
 
   const formatPrice = (price: number) => price.toLocaleString('vi-VN') + ' đ';
@@ -203,320 +173,253 @@ export default function TechnicianUpdateProgress() {
   }
 
   return (
-    <div className="flex-1 p-4 md:p-8 space-y-6 max-w-5xl w-full mx-auto">
-      {/* BACK + HEADER */}
-      <div className="flex flex-col gap-4">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#00285E] transition-colors self-start"
-        >
-          <ArrowLeft size={16} />
-          Quay lại
-        </button>
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
-            <Activity className="text-amber-500" size={28} />
+    <div className="flex-1 p-4 md:p-8 space-y-4 max-w-4xl w-full mx-auto">
+      <style>{`
+        @keyframes progressStripes {
+          from { background-position: 1rem 0; }
+          to { background-position: 0 0; }
+        }
+        /* Sọc chạy trên thanh tiến độ khi công việc đang thực hiện */
+        .bar-running {
+          background-image: linear-gradient(
+            45deg,
+            rgba(255,255,255,0.3) 25%, transparent 25%,
+            transparent 50%, rgba(255,255,255,0.3) 50%,
+            rgba(255,255,255,0.3) 75%, transparent 75%, transparent
+          );
+          background-size: 1rem 1rem;
+          animation: progressStripes 0.7s linear infinite;
+        }
+      `}</style>
+
+      {/* HERO: thông tin xe + tiến độ tổng */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
+        <div className="p-6 pb-5">
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight mb-4">
             Cập nhật tiến độ sửa chữa
           </h1>
-          <p className="text-slate-500 text-sm">
-            Cập nhật trạng thái và tiến độ của các công việc sửa chữa được phân công.
-          </p>
-        </div>
-      </div>
 
-      {/* VEHICLE INFO BANNER */}
-      <div className="bg-gradient-to-r from-[#EDF3FF] to-[#DCE8FF] p-5 rounded-2xl border border-[#DCE8FF]">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Mã lệnh sửa chữa</p>
-            <p className="font-bold text-[#00285E]">{MOCK_VEHICLE_INFO.repairOrderId}</p>
-          </div>
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Biển số xe</p>
-            <p className="font-semibold text-slate-700">{MOCK_VEHICLE_INFO.vehiclePlate}</p>
-          </div>
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Dòng xe</p>
-            <p className="font-semibold text-slate-700">{MOCK_VEHICLE_INFO.vehicleModel}</p>
-          </div>
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Khách hàng</p>
-            <p className="font-semibold text-slate-700">{MOCK_VEHICLE_INFO.customerName}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* OVERALL PROGRESS CARD */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="relative w-20 h-20">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                <path
-                  className="text-slate-100"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                />
-                <path
-                  className="text-[#00285E]"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeDasharray={`${overallProgress}, 100`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-lg font-bold text-[#00285E]">{overallProgress}%</span>
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Khách hàng */}
+            <div className="rounded-xl border border-[#DCE8FF] bg-[#EDF3FF]/60 p-4">
+              <span className="block text-[11px] font-bold text-[#00285E]/50 uppercase tracking-widest mb-1.5">
+                Khách hàng
+              </span>
+              <span className="block text-lg font-bold text-[#00285E] leading-tight truncate">
+                {MOCK_VEHICLE_INFO.customerName}
+              </span>
             </div>
-            <div>
-              <h3 className="font-bold text-slate-800 text-lg">Tiến độ tổng quan</h3>
-              <div className="flex items-center gap-2 mt-1">
-                <span
-                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold"
-                  style={{ backgroundColor: overallStatus.bg, color: overallStatus.color }}
+            {/* Phương tiện */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+              <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                Phương tiện
+              </span>
+              <span className="block text-lg font-bold text-slate-800 leading-tight truncate">
+                {MOCK_VEHICLE_INFO.vehiclePlate}
+              </span>
+              <span className="block text-xs text-slate-400 mt-0.5 truncate">
+                {MOCK_VEHICLE_INFO.vehicleModel} · {MOCK_VEHICLE_INFO.vehicleColor}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Tiến độ tổng */}
+        <div className="px-6 py-5 border-t border-slate-100 bg-slate-50/40">
+          <div className="flex items-baseline justify-between gap-4 mb-2.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+              Tiến độ tổng quan
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xs text-slate-400 font-medium">
+                {tasks.filter(t => t.status === 'completed').length}/{tasks.length} công việc
+              </span>
+              <span className="text-2xl font-bold text-[#00285E] tabular-nums leading-none">
+                {overallProgress}%
+              </span>
+            </div>
+          </div>
+          <div className="h-2.5 w-full rounded-full bg-slate-200/70 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-[#00285E] bar-running transition-all duration-500"
+              style={{ width: `${overallProgress}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* DANH SÁCH CÔNG VIỆC */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+            Danh sách công việc
+          </span>
+          <span className="text-xs font-semibold text-slate-400">
+            {tasks.length} hạng mục
+          </span>
+        </div>
+
+        <div className="divide-y divide-slate-100">
+          {tasks.map((task) => {
+            const isExpanded = expandedTask === task.id;
+            const statusOpt = TASK_STATUS_OPTIONS.find(o => o.value === task.status)!;
+            const isDone = task.status === 'completed';
+            return (
+              <div key={task.id}>
+                {/* Task Header (collapsible) */}
+                <button
+                  onClick={() => setExpandedTask(isExpanded ? null : task.id)}
+                  className="w-full flex items-center gap-3 px-6 py-4 text-left hover:bg-slate-50/70 transition-colors"
                 >
-                  {overallStatus.label}
-                </span>
-                <span className="text-xs text-slate-400 font-medium">
-                  {tasks.filter(t => t.status === 'completed').length}/{tasks.length} công việc hoàn thành
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="grid grid-cols-4 gap-3">
-            {TASK_STATUS_OPTIONS.map(opt => {
-              const count = tasks.filter(t => t.status === opt.value).length;
-              return (
-                <div key={opt.value} className="text-center">
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-1 text-sm font-bold"
-                    style={{ backgroundColor: opt.bg, color: opt.color }}
-                  >
-                    {count}
-                  </div>
-                  <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">{opt.label}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* REPAIR TASK LIST */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 px-1">
-          <BarChart3 size={18} className="text-[#00285E]" />
-          <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Danh sách công việc</h3>
-        </div>
-
-        {tasks.map((task) => {
-          const isExpanded = expandedTask === task.id;
-          const statusOpt = TASK_STATUS_OPTIONS.find(o => o.value === task.status)!;
-          return (
-            <div key={task.id} className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
-              {/* Task Header (collapsible) */}
-              <button
-                onClick={() => setExpandedTask(isExpanded ? null : task.id)}
-                className="w-full flex items-center justify-between p-5 text-left hover:bg-slate-50/50 transition-colors"
-              >
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                  {/* Progress mini-circle */}
-                  <div className="relative w-10 h-10 shrink-0">
-                    <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                      <path
-                        className="text-slate-100"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none"
-                        stroke={statusOpt.color}
-                        strokeWidth="4"
-                        strokeDasharray={`${task.progress}, 100`}
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-[9px] font-bold" style={{ color: statusOpt.color }}>{task.progress}%</span>
-                    </div>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-bold text-slate-800 text-sm truncate">{task.name}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="px-2 py-0.5 bg-slate-100 rounded-md text-[10px] font-medium text-slate-500">{task.category}</span>
-                      <span className="text-[10px] text-slate-400">⏱ {task.estimatedTime}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
+                  {/* Chấm trạng thái */}
                   <span
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold"
-                    style={{ backgroundColor: statusOpt.bg, color: statusOpt.color }}
-                  >
-                    {statusOpt.label}
-                  </span>
-                  <ChevronDown
-                    size={16}
-                    className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: statusOpt.color }}
                   />
-                </div>
-              </button>
 
-              {/* Task Expanded Content */}
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="px-5 pb-5 pt-2 border-t border-slate-100 space-y-4">
-                      {/* Status selector */}
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                          Trạng thái
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                          {TASK_STATUS_OPTIONS.map(opt => (
-                            <button
-                              key={opt.value}
-                              onClick={() => updateTaskStatus(task.id, opt.value)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${
-                                task.status === opt.value
-                                  ? 'shadow-sm'
-                                  : 'border-transparent opacity-60 hover:opacity-100'
-                              }`}
-                              style={{
-                                backgroundColor: opt.bg,
-                                color: opt.color,
-                                borderColor: task.status === opt.value ? opt.color : 'transparent',
-                              }}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+                  <div className="min-w-0 flex-1">
+                    <p className={`font-semibold text-sm truncate ${isDone ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                      {task.name}
+                    </p>
+                    <span className="text-xs text-slate-400">
+                      {task.category} · {task.estimatedTime}
+                    </span>
+                  </div>
 
-                      {/* Progress slider */}
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                          Tiến độ: <span className="text-[#00285E]">{task.progress}%</span>
-                        </label>
-                        <div className="flex items-center gap-4">
-                          <input
-                            type="range"
-                            min={0}
-                            max={100}
-                            value={task.progress}
-                            onChange={(e) => updateTaskProgress(task.id, parseInt(e.target.value))}
-                            className="flex-1 h-2 rounded-full appearance-none cursor-pointer"
-                            style={{
-                              background: `linear-gradient(to right, #00285E ${task.progress}%, #E2E8F0 ${task.progress}%)`,
-                            }}
-                          />
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            value={task.progress}
-                            onChange={(e) => updateTaskProgress(task.id, parseInt(e.target.value) || 0)}
-                            className="w-16 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-center text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E]"
-                          />
-                          <span className="text-xs text-slate-400 font-medium">%</span>
-                        </div>
-                        {errors[task.id] && (
-                          <p className="text-xs text-rose-500 font-semibold mt-1.5 flex items-center gap-1">
-                            <AlertCircle size={12} />
-                            {errors[task.id]}
-                          </p>
-                        )}
-                      </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold"
+                      style={{ backgroundColor: statusOpt.bg, color: statusOpt.color }}
+                    >
+                      {statusOpt.label}
+                    </span>
+                    {!isDone && (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          completeTask(task.id);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.stopPropagation();
+                            completeTask(task.id);
+                          }
+                        }}
+                        title="Đánh dấu hoàn thành"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 active:scale-[0.97] transition-all cursor-pointer"
+                      >
+                        <CheckCircle2 size={13} />
+                        Hoàn thành
+                      </span>
+                    )}
+                    <ChevronDown
+                      size={16}
+                      className={`text-slate-300 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                    />
+                  </div>
+                </button>
 
-                      {/* Task notes */}
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                          Ghi chú kỹ thuật viên
-                        </label>
+                {/* Task Expanded Content */}
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-6 pb-5 pl-11">
                         <textarea
                           value={task.techNotes}
                           onChange={(e) => updateTaskNotes(task.id, e.target.value)}
-                          placeholder="Mô tả tình trạng, vấn đề gặp phải..."
+                          placeholder="Ghi chú của kỹ thuật viên: tình trạng, vấn đề gặp phải..."
                           rows={3}
                           className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all resize-none"
                         />
                       </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          );
-        })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* ESTIMATED COMPLETION TIME */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-lg bg-[#EDF3FF] flex items-center justify-center">
-            <Timer size={16} className="text-[#00285E]" />
-          </div>
-          <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Thời gian hoàn thành dự kiến</h3>
+      {/* THỜI GIAN DỰ KIẾN + GHI CHÚ TỔNG */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-5">
+        <div>
+          <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+            Thời gian hoàn thành dự kiến
+          </label>
+          <input
+            type="datetime-local"
+            value={estimatedCompletion}
+            onChange={(e) => setEstimatedCompletion(e.target.value)}
+            className="w-full md:w-auto bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+          />
         </div>
-        <input
-          type="datetime-local"
-          value={estimatedCompletion}
-          onChange={(e) => setEstimatedCompletion(e.target.value)}
-          className="w-full md:w-auto bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-        />
-      </div>
-
-      {/* OVERALL NOTES */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-            <MessageSquare size={16} className="text-amber-600" />
-          </div>
-          <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Ghi chú tổng quan</h3>
+        <div>
+          <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+            Ghi chú tổng quan
+          </label>
+          <textarea
+            value={overallNotes}
+            onChange={(e) => setOverallNotes(e.target.value)}
+            placeholder="Ghi chú chung về tiến độ sửa chữa..."
+            rows={3}
+            className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all resize-none"
+          />
         </div>
-        <textarea
-          value={overallNotes}
-          onChange={(e) => setOverallNotes(e.target.value)}
-          placeholder="Ghi chú chung về tiến độ sửa chữa..."
-          rows={4}
-          className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all resize-none"
-        />
       </div>
 
       {/* ACTION BUTTONS */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        {!canComplete && (
+          <p className="flex items-center gap-1.5 text-xs text-slate-400 sm:mr-auto">
+            <AlertCircle size={13} className="shrink-0" />
+            Còn {tasks.filter((t) => t.status !== 'completed').length} hạng mục
+            chưa hoàn thành
+          </p>
+        )}
         <button
           onClick={() => navigate(-1)}
-          className="flex-1 px-6 py-3.5 bg-white border-2 border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors"
+          className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all"
         >
           Hủy
         </button>
         <button
           onClick={handleSubmit}
           disabled={isSubmitting}
-          className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 bg-[#00285E] hover:bg-[#0a3a30] text-white rounded-xl text-sm font-bold shadow-md transition-all disabled:opacity-50"
+          className="h-11 flex items-center justify-center gap-2 px-5 rounded-xl text-sm font-semibold text-[#00285E] bg-[#EDF3FF] border border-[#00285E]/15 hover:bg-[#DCE8FF] active:scale-[0.98] transition-all disabled:opacity-50"
         >
           {isSubmitting ? (
             <Loader2 size={16} className="animate-spin" />
           ) : (
             <Save size={16} />
           )}
-          {isSubmitting ? 'Đang cập nhật...' : 'Cập nhật'}
+          {isSubmitting ? 'Đang lưu...' : 'Lưu tiến độ'}
+        </button>
+        {/* Hành động chính: chốt cả phân công khi mọi hạng mục đã xong */}
+        <button
+          onClick={handleCompleteAssignment}
+          disabled={!canComplete || isCompleting}
+          title={
+            canComplete
+              ? undefined
+              : 'Hoàn thành tất cả hạng mục trước khi chốt công việc'
+          }
+          className="h-11 flex items-center justify-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-600/25 hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+        >
+          {isCompleting ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <CheckCircle2 size={16} />
+          )}
+          {isCompleting ? 'Đang hoàn thành...' : 'Hoàn thành công việc'}
         </button>
       </div>
     </div>

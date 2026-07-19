@@ -37,6 +37,7 @@ type PhoneInputProps = {
     enableSearch?: boolean;
     searchPlaceholder?: string;
     inputProps?: { name?: string };
+    countryCodeEditable?: boolean;
 };
 const PhoneInput = resolveDefault<React.ComponentType<PhoneInputProps>>(PhoneInputLib);
 
@@ -555,6 +556,7 @@ export default function ForgotPassword() {
                                             enableSearch
                                             searchPlaceholder={isVi ? 'Tìm quốc gia...' : 'Search country...'}
                                             inputProps={{ name: 'phone' }}
+                                            countryCodeEditable={false}
                                         />
                                     </div>
                                     {errors.phone && (

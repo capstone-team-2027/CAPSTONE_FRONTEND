@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { useState, useMemo, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import {
   CalendarCheck,
   ClipboardPlus,
@@ -19,17 +19,17 @@ import {
   Wrench,
   Settings,
   Video,
-  PhoneCall
-} from 'lucide-react';
-import { useNavigate, useLocation, Outlet } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
-import type { RootState } from '../../store/store';
-import type { UserModel } from '../../model/User';
-import { useFetchClient_v2 as useFetchClient } from '../../hook/useFetchClient';
-import { loginSuccess, logout } from '../../store/slices/userSlice';
-import { PROFILE_API_ENDPOINTS } from '../../constants/common/profileEndpoints';
-import { NOTIFICATION_API_ENDPOINTS } from '../../constants/reception/notificationEndpoints';
-import { useSocket } from '../../hook/useSocket';
+  PhoneCall,
+} from "lucide-react";
+import { useNavigate, useLocation, Outlet } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import type { RootState } from "../../store/store";
+import type { UserModel } from "../../model/User";
+import { useFetchClient_v2 as useFetchClient } from "../../hook/useFetchClient";
+import { loginSuccess, logout } from "../../store/slices/userSlice";
+import { PROFILE_API_ENDPOINTS } from "../../constants/common/profileEndpoints";
+import { NOTIFICATION_API_ENDPOINTS } from "../../constants/reception/notificationEndpoints";
+import { useSocket } from "../../hook/useSocket";
 
 export default function ReceptionLayout() {
   const navigate = useNavigate();
@@ -37,18 +37,27 @@ export default function ReceptionLayout() {
   const dispatch = useDispatch();
   const { fetchPrivate } = useFetchClient();
 
-  const user = useSelector((state: RootState) => state.user.user as UserModel | null);
+  const user = useSelector(
+    (state: RootState) => state.user.user as UserModel | null,
+  );
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'info' | 'warning'; text: string } | null>(null);
-  
+  const [toastMessage, setToastMessage] = useState<{
+    type: "success" | "info" | "warning";
+    text: string;
+  } | null>(null);
+
   // State nhận cuộc gọi Video
-  const [incomingCall, setIncomingCall] = useState<{roomId: string, timestamp: any} | null>(null);
+  const [incomingCall, setIncomingCall] = useState<{
+    roomId: string;
+    timestamp: any;
+  } | null>(null);
 
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
+  const [showNotificationDropdown, setShowNotificationDropdown] =
+    useState(false);
   const desktopNotifRef = useRef<HTMLDivElement>(null);
   const mobileNotifRef = useRef<HTMLDivElement>(null);
 
@@ -56,9 +65,11 @@ export default function ReceptionLayout() {
     const handleClickOutside = (event: MouseEvent) => {
       if (showNotificationDropdown) {
         const target = event.target as Node;
-        const isOutsideDesktop = desktopNotifRef.current && !desktopNotifRef.current.contains(target);
-        const isOutsideMobile = mobileNotifRef.current && !mobileNotifRef.current.contains(target);
-        
+        const isOutsideDesktop =
+          desktopNotifRef.current && !desktopNotifRef.current.contains(target);
+        const isOutsideMobile =
+          mobileNotifRef.current && !mobileNotifRef.current.contains(target);
+
         // If clicked outside both the desktop and mobile dropdown containers
         if (isOutsideDesktop !== false && isOutsideMobile !== false) {
           setShowNotificationDropdown(false);
@@ -66,13 +77,16 @@ export default function ReceptionLayout() {
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showNotificationDropdown]);
 
-  const showToast = (text: string, type: 'success' | 'info' | 'warning' = 'success') => {
+  const showToast = (
+    text: string,
+    type: "success" | "info" | "warning" = "success",
+  ) => {
     setToastMessage({ text, type });
     setTimeout(() => {
       setToastMessage(null);
@@ -91,15 +105,18 @@ export default function ReceptionLayout() {
             fullName: userData.fullName,
             phoneNumber: userData.phoneNumber,
             avatar: userData.avatar,
-            role: typeof userData.role === 'object' ? userData.role?.roleCode : userData.role,
-          })
+            role:
+              typeof userData.role === "object"
+                ? userData.role?.roleCode
+                : userData.role,
+          }),
         );
       } catch (error) {
-        console.error('Không lấy được thông tin user:', error);
+        console.error("Không lấy được thông tin user:", error);
       }
     };
 
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (token && !user) fetchUserProfile();
   }, [dispatch, fetchPrivate, user]);
 
@@ -108,7 +125,9 @@ export default function ReceptionLayout() {
   useEffect(() => {
     const loadNotifications = async () => {
       try {
-        const response = await fetchPrivate(NOTIFICATION_API_ENDPOINTS.GET_NOTIFICATIONS);
+        const response = await fetchPrivate(
+          NOTIFICATION_API_ENDPOINTS.GET_NOTIFICATIONS,
+        );
         if (Array.isArray(response)) {
           setNotifications(response);
         }
@@ -119,8 +138,10 @@ export default function ReceptionLayout() {
 
     const loadUnreadCount = async () => {
       try {
-        const response = await fetchPrivate(NOTIFICATION_API_ENDPOINTS.GET_UNREAD_COUNT);
-        if (response && typeof response.count === 'number') {
+        const response = await fetchPrivate(
+          NOTIFICATION_API_ENDPOINTS.GET_UNREAD_COUNT,
+        );
+        if (response && typeof response.count === "number") {
           setUnreadCount(response.count);
         }
       } catch (error) {
@@ -135,19 +156,19 @@ export default function ReceptionLayout() {
 
     if (socket) {
       const handleNewNotification = (data: any) => {
-        showToast(data.message || 'Bạn có thông báo mới', 'info');
+        showToast(data.message || "Bạn có thông báo mới", "info");
         loadNotifications(); // Tải lại danh sách thông báo để update đỏ
         loadUnreadCount();
       };
 
       const handleIncomingCall = (data: any) => {
         setIncomingCall(data);
-        showToast('Có cuộc gọi Video khẩn cấp từ khách hàng!', 'warning');
+        showToast("Có cuộc gọi Video khẩn cấp từ khách hàng!", "warning");
       };
 
       const handleCallAnswered = (data: any) => {
         // Nếu 1 lễ tân khác đã bấm nghe, thì tắt chuông ở máy của các lễ tân còn lại
-        setIncomingCall(current => {
+        setIncomingCall((current) => {
           if (current && current.roomId === data.roomId) {
             return null;
           }
@@ -157,53 +178,77 @@ export default function ReceptionLayout() {
 
       const handleCallEnded = (data: any) => {
         // Nếu khách hàng dập máy hoặc quá giờ, tự tắt chuông
-        setIncomingCall(current => {
+        setIncomingCall((current) => {
           if (current && current.roomId === data.roomId) {
-            showToast('Khách hàng đã kết thúc cuộc gọi', 'info');
+            showToast("Khách hàng đã kết thúc cuộc gọi", "info");
             return null;
           }
           return current;
         });
       };
 
-      socket.on('new_notification', handleNewNotification);
-      socket.on('incoming-video-call', handleIncomingCall);
-      socket.on('call-answered', handleCallAnswered);
-      socket.on('end-video-call', handleCallEnded);
+      socket.on("new_notification", handleNewNotification);
+      socket.on("incoming-video-call", handleIncomingCall);
+      socket.on("call-answered", handleCallAnswered);
+      socket.on("end-video-call", handleCallEnded);
 
       return () => {
-        socket.off('new_notification', handleNewNotification);
-        socket.off('incoming-video-call', handleIncomingCall);
-        socket.off('call-answered', handleCallAnswered);
-        socket.off('end-video-call', handleCallEnded);
+        socket.off("new_notification", handleNewNotification);
+        socket.off("incoming-video-call", handleIncomingCall);
+        socket.off("call-answered", handleCallAnswered);
+        socket.off("end-video-call", handleCallEnded);
       };
     }
   }, [user, fetchPrivate, socket]);
 
-  const avatarUrl = user?.avatar?.trim() || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=256&auto=format&fit=crop';
-  const displayName = user?.fullName || 'Lễ tân viên';
-  const displayRole = user?.role?.toUpperCase() === 'RECEPTIONIST' ? 'Lễ tân' : (user?.role || 'Lễ tân');
+  const avatarUrl =
+    user?.avatar?.trim() ||
+    "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=256&auto=format&fit=crop";
+  const displayName = user?.fullName || "Lễ tân viên";
+  const displayRole =
+    user?.role?.toUpperCase() === "RECEPTIONIST"
+      ? "Lễ tân"
+      : user?.role || "Lễ tân";
 
   // Menu items for the sidebar
   const menuItems = [
-    { name: 'Danh sách lịch hẹn', icon: CalendarCheck, path: '/reception/appointments' },
-    { name: 'Quản lý hóa đơn dịch vụ', icon: ClipboardPlus, path: '/reception/service-orders' },
-    { name: 'Quản lý báo giá', icon: FileText, path: '/reception/quotes' },
-    { name: 'Thanh toán', icon: CreditCard, path: '/reception/payments' },
-    { name: 'Phản hồi khách hàng', icon: MessageSquare, path: '/reception/feedback' },
-    { name: 'Lịch sử dịch vụ', icon: History, path: '/reception/service-history' },
+    { name: "Lịch hẹn", icon: CalendarCheck, path: "/reception/appointments" },
+    { name: "Báo cáo lỗi", icon: FileText, path: "/reception/issues" },
+    {
+      name: "Lịch sử dịch vụ",
+      icon: History,
+      path: "/reception/service-history",
+    },
+    { name: "Quản lý báo giá", icon: FileText, path: "/reception/quotes" },
+    {
+      name: "Thanh toán dịch vụ",
+      icon: CreditCard,
+      path: "/reception/payments",
+    },
+    {
+      name: "Phản hồi khách hàng",
+      icon: MessageSquare,
+      path: "/reception/feedback",
+    },
+    {
+      name: "Quản lý hóa đơn dịch vụ",
+      icon: ClipboardPlus,
+      path: "/reception/service-orders",
+    },
   ];
 
   // Dynamic active menu item based on current URL path
   const activeMenu = useMemo(() => {
     const path = location.pathname;
-    if (path.includes('/appointments')) return 'Danh sách lịch hẹn';
-    if (path.includes('/service-orders')) return 'Quản lý hóa đơn dịch vụ';
-    if (path.includes('/quotes')) return 'Quản lý báo giá';
-    if (path.includes('/payments')) return 'Thanh toán';
-    if (path.includes('/feedback')) return 'Phản hồi khách hàng';
-    if (path.includes('/service-history')) return 'Lịch sử dịch vụ';
-    return 'Danh sách lịch hẹn';
+    if (path.includes("/appointments")) return "Lịch hẹn";
+    if (path.includes("/issues")) return "Báo cáo lỗi";
+    if (path.includes("/service-history")) return "Lịch sử dịch vụ";
+    if (path.includes("/quotes")) return "Quản lý báo giá";
+    if (path.includes("/payments")) return "Thanh toán dịch vụ";
+    if (path.includes("/feedback")) return "Phản hồi khách hàng";
+    if (path.includes("/service-orders")) return "Quản lý hóa đơn dịch vụ";
+
+    return "Danh sách lịch hẹn";
   }, [location.pathname]);
 
   const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => (
@@ -215,8 +260,12 @@ export default function ReceptionLayout() {
             <Wrench size={20} className="text-white" />
           </div>
           <div className="flex flex-col">
-            <span className="font-bold text-[#00285E] uppercase tracking-wider text-base">AGM Intelligent</span>
-            <span className="text-[10px] text-slate-500 font-semibold tracking-widest uppercase">Lễ tân tiếp nhận</span>
+            <span className="font-bold text-[#00285E] uppercase tracking-wider text-base">
+              AGM Intelligent
+            </span>
+            <span className="text-[10px] text-slate-500 font-semibold tracking-widest uppercase">
+              Lễ tân tiếp nhận
+            </span>
           </div>
         </div>
         <button
@@ -244,14 +293,19 @@ export default function ReceptionLayout() {
                     navigate(item.path);
                     onNavigate?.();
                   }}
-                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all group ${isActive
-                    ? 'bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15'
-                    : 'text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E]'
-                    }`}
+                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all group ${
+                    isActive
+                      ? "bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15"
+                      : "text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E]"
+                  }`}
                 >
                   <Icon
                     size={18}
-                    className={isActive ? 'text-[#F9A11B]' : 'text-slate-500 group-hover:text-[#00285E]'}
+                    className={
+                      isActive
+                        ? "text-[#F9A11B]"
+                        : "text-slate-500 group-hover:text-[#00285E]"
+                    }
                   />
                   <span>{item.name}</span>
                 </button>
@@ -264,7 +318,9 @@ export default function ReceptionLayout() {
       {/* Sidebar Footer */}
       <div className="p-4 border-t border-[#D2E2FF] space-y-1">
         <button
-          onClick={() => showToast('Chức năng hỗ trợ đang được kết nối...', 'info')}
+          onClick={() =>
+            showToast("Chức năng hỗ trợ đang được kết nối...", "info")
+          }
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E] transition-colors"
         >
           <HelpCircle size={18} className="text-slate-500" />
@@ -272,13 +328,13 @@ export default function ReceptionLayout() {
         </button>
         <button
           onClick={() => {
-            if (confirm('Bạn có chắc chắn muốn đăng xuất?')) {
-              showToast('Đang đăng xuất tài khoản...', 'warning');
-              localStorage.removeItem('token');
-              localStorage.removeItem('userAvatar');
+            if (confirm("Bạn có chắc chắn muốn đăng xuất?")) {
+              showToast("Đang đăng xuất tài khoản...", "warning");
+              localStorage.removeItem("token");
+              localStorage.removeItem("userAvatar");
               dispatch(logout());
               setTimeout(() => {
-                window.location.href = '/login';
+                window.location.href = "/login";
               }, 1000);
             }
           }}
@@ -302,22 +358,34 @@ export default function ReceptionLayout() {
         >
           <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             <h3 className="font-bold text-slate-800">Thông báo</h3>
-            <span className="text-xs font-semibold bg-[#E0ECFF] text-[#00285E] px-2.5 py-1 rounded-md">{unreadCount} mới</span>
+            <span className="text-xs font-semibold bg-[#E0ECFF] text-[#00285E] px-2.5 py-1 rounded-md">
+              {unreadCount} mới
+            </span>
           </div>
           <div className="max-h-[360px] overflow-y-auto">
             {notifications.length > 0 ? (
               notifications.map((notif) => (
-                <div 
-                  key={notif.id} 
-                  className={`p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer ${!notif.isRead ? 'bg-blue-50/30' : ''}`}
+                <div
+                  key={notif.id}
+                  className={`p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer ${!notif.isRead ? "bg-blue-50/30" : ""}`}
                   onClick={async () => {
                     if (!notif.isRead) {
                       try {
-                        await fetchPrivate(NOTIFICATION_API_ENDPOINTS.MARK_AS_READ(notif.id), 'PUT');
-                        setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, isRead: true } : n));
-                        setUnreadCount(prev => Math.max(0, prev - 1));
+                        await fetchPrivate(
+                          NOTIFICATION_API_ENDPOINTS.MARK_AS_READ(notif.id),
+                          "PUT",
+                        );
+                        setNotifications((prev) =>
+                          prev.map((n) =>
+                            n.id === notif.id ? { ...n, isRead: true } : n,
+                          ),
+                        );
+                        setUnreadCount((prev) => Math.max(0, prev - 1));
                       } catch (error) {
-                        console.error('Lỗi khi đánh dấu thông báo đã đọc:', error);
+                        console.error(
+                          "Lỗi khi đánh dấu thông báo đã đọc:",
+                          error,
+                        );
                       }
                     }
                     if (notif.link) {
@@ -327,12 +395,18 @@ export default function ReceptionLayout() {
                   }}
                 >
                   <div className="flex justify-between items-start mb-1.5">
-                    <h4 className={`text-sm ${!notif.isRead ? 'font-bold text-slate-800' : 'font-semibold text-slate-600'}`}>{notif.title}</h4>
+                    <h4
+                      className={`text-sm ${!notif.isRead ? "font-bold text-slate-800" : "font-semibold text-slate-600"}`}
+                    >
+                      {notif.title}
+                    </h4>
                     <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap ml-2">
-                      {new Date(notif.createdAt).toLocaleDateString('vi-VN')}
+                      {new Date(notif.createdAt).toLocaleDateString("vi-VN")}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{notif.content}</p>
+                  <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                    {notif.content}
+                  </p>
                 </div>
               ))
             ) : (
@@ -344,7 +418,9 @@ export default function ReceptionLayout() {
           </div>
           {notifications.length > 0 && (
             <div className="p-3 border-t border-slate-100 text-center bg-slate-50/50">
-              <button className="text-xs font-semibold text-[#00285E] hover:text-[#F9A11B] transition-colors">Đánh dấu tất cả đã đọc</button>
+              <button className="text-xs font-semibold text-[#00285E] hover:text-[#F9A11B] transition-colors">
+                Đánh dấu tất cả đã đọc
+              </button>
             </div>
           )}
         </motion.div>
@@ -354,19 +430,24 @@ export default function ReceptionLayout() {
 
   return (
     <div className="min-h-screen bg-[#F4F7FC] font-sans antialiased text-slate-800 flex flex-col md:flex-row relative">
-
       {/* Dynamic Toast Notifications */}
       <AnimatePresence>
         {toastMessage && (
           <motion.div
-            initial={{ opacity: 0, y: -50, x: '-50%' }}
-            animate={{ opacity: 1, y: 16, x: '-50%' }}
-            exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className="fixed top-0 left-1/2 z-50 transform -translate-x-1/2 flex items-center gap-2.5 px-5 py-3.5 bg-slate-900 text-white rounded-2xl shadow-xl border border-slate-800 text-sm font-semibold"
+            initial={{ opacity: 0, y: -50, x: "-50%" }}
+            animate={{ opacity: 1, y: 16, x: "-50%" }}
+            exit={{ opacity: 0, y: -20, x: "-50%" }}
+            className="fixed top-0 left-1/2 z-[200] transform -translate-x-1/2 flex items-center gap-2.5 px-5 py-3.5 bg-slate-900 text-white rounded-2xl shadow-xl border border-slate-800 text-sm font-semibold"
           >
-            {toastMessage.type === 'success' && <CheckCircle size={18} className="text-emerald-400" />}
-            {toastMessage.type === 'info' && <Info size={18} className="text-blue-400" />}
-            {toastMessage.type === 'warning' && <AlertTriangle size={18} className="text-amber-400" />}
+            {toastMessage.type === "success" && (
+              <CheckCircle size={18} className="text-emerald-400" />
+            )}
+            {toastMessage.type === "info" && (
+              <Info size={18} className="text-blue-400" />
+            )}
+            {toastMessage.type === "warning" && (
+              <AlertTriangle size={18} className="text-amber-400" />
+            )}
             <span>{toastMessage.text}</span>
           </motion.div>
         )}
@@ -383,20 +464,26 @@ export default function ReceptionLayout() {
           >
             <div className="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl flex flex-col items-center text-center relative overflow-hidden">
               <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-rose-500/20 to-transparent"></div>
-              
+
               <div className="w-24 h-24 bg-rose-100 rounded-full flex items-center justify-center mb-6 relative animate-bounce">
                 <div className="absolute inset-0 bg-rose-500 rounded-full animate-ping opacity-20"></div>
                 <Video size={40} className="text-rose-600 relative z-10" />
               </div>
-              
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">Cuộc gọi khẩn cấp</h3>
-              <p className="text-slate-500 mb-8">Một Khách hàng đang gọi Video (SOS) cho Lễ tân...</p>
-              
+
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">
+                Cuộc gọi khẩn cấp
+              </h3>
+              <p className="text-slate-500 mb-8">
+                Một Khách hàng đang gọi Video (SOS) cho Lễ tân...
+              </p>
+
               <div className="flex items-center gap-4 w-full">
                 <button
                   onClick={() => {
                     if (incomingCall?.roomId) {
-                      socket?.emit('end-video-call', { roomId: incomingCall.roomId });
+                      socket?.emit("end-video-call", {
+                        roomId: incomingCall.roomId,
+                      });
                     }
                     setIncomingCall(null);
                   }}
@@ -409,7 +496,7 @@ export default function ReceptionLayout() {
                     const roomId = incomingCall.roomId;
                     setIncomingCall(null);
                     // Báo cho Server biết "TÔI ĐÃ NGHE", hãy bảo các Lễ tân khác tắt chuông đi
-                    socket?.emit('accept-video-call', { roomId });
+                    socket?.emit("accept-video-call", { roomId });
                     navigate(`/video-call/${roomId}`);
                   }}
                   className="flex-1 py-3 px-4 rounded-xl font-bold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2"
@@ -433,19 +520,23 @@ export default function ReceptionLayout() {
             <Menu size={24} />
           </button>
           <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-800 uppercase tracking-tight text-sm">AGM Intelligent</span>
+            <span className="font-bold text-slate-800 uppercase tracking-tight text-sm">
+              AGM Intelligent
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative" ref={mobileNotifRef}>
             <button
-              onClick={() => setShowNotificationDropdown(!showNotificationDropdown)}
+              onClick={() =>
+                setShowNotificationDropdown(!showNotificationDropdown)
+              }
               className="p-1.5 rounded-full hover:bg-slate-100 transition-colors text-slate-600 relative"
             >
               <Bell size={20} />
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full ring-2 ring-white">
-                  {unreadCount > 99 ? '99+' : unreadCount}
+                  {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
             </button>
@@ -462,7 +553,7 @@ export default function ReceptionLayout() {
       {/* SIDEBAR ON DESKTOP */}
       <aside
         className="fixed inset-y-0 left-0 bg-[#EDF3FF] border-r border-[#D2E2FF] w-72 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:sticky md:h-screen md:flex md:flex-col shrink-0 hidden md:block"
-        style={{ height: '100vh' }}
+        style={{ height: "100vh" }}
       >
         <SidebarContent />
       </aside>
@@ -475,19 +566,21 @@ export default function ReceptionLayout() {
             onClick={() => setIsMobileSidebarOpen(false)}
           ></div>
           <aside className="relative flex flex-col w-72 bg-[#EDF3FF] border-r border-[#D2E2FF] h-full p-0">
-            <SidebarContent onNavigate={() => setIsMobileSidebarOpen(false)} />
+            <SidebarContent onNavigate={() => setIsMobileSidebarOpen(false)} />                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
           </aside>
         </div>
       )}
 
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col min-w-0 pb-16">
-
         {/* DESKTOP HEADER BAR */}
         <header className="hidden md:flex bg-white h-20 px-8 items-center justify-between border-b border-slate-100 shadow-xs sticky top-0 z-25">
           {/* Search bar */}
           <div className="relative w-80">
-            <Search size={16} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
+            <Search
+              size={16}
+              className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400"
+            />
             <input
               type="text"
               placeholder="Tìm kiếm lịch hẹn, khách hàng..."
@@ -503,26 +596,28 @@ export default function ReceptionLayout() {
             <div className="flex items-center gap-2">
               <div className="relative" ref={desktopNotifRef}>
                 <button
-                  onClick={() => setShowNotificationDropdown(!showNotificationDropdown)}
+                  onClick={() =>
+                    setShowNotificationDropdown(!showNotificationDropdown)
+                  }
                   className="p-2.5 rounded-full hover:bg-slate-50 border border-slate-100 transition-colors text-slate-600 relative group"
                 >
                   <Bell size={18} />
                   {unreadCount > 0 && (
                     <span className="absolute top-0 right-0 flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full ring-2 ring-white">
-                      {unreadCount > 99 ? '99+' : unreadCount}
+                      {unreadCount > 99 ? "99+" : unreadCount}
                     </span>
                   )}
                 </button>
                 <NotificationDropdown />
               </div>
               <button
-                onClick={() => showToast('Mở cài đặt nhanh...', 'info')}
+                onClick={() => showToast("Mở cài đặt nhanh...", "info")}
                 className="p-2.5 rounded-full hover:bg-slate-50 border border-slate-100 transition-colors text-slate-600"
               >
                 <Settings size={18} />
               </button>
               <button
-                onClick={() => showToast('Mở trung tâm trợ giúp...', 'info')}
+                onClick={() => showToast("Mở trung tâm trợ giúp...", "info")}
                 className="p-2.5 rounded-full hover:bg-slate-50 border border-slate-100 transition-colors text-slate-600"
               >
                 <HelpCircle size={18} />
@@ -535,8 +630,12 @@ export default function ReceptionLayout() {
             {/* User detail */}
             <div className="flex items-center gap-3">
               <div className="flex flex-col text-right">
-                <span className="font-bold text-slate-800 text-sm tracking-tight leading-tight">{displayName}</span>
-                <span className="text-[11px] text-slate-400 font-semibold tracking-wide uppercase">{displayRole}</span>
+                <span className="font-bold text-slate-800 text-sm tracking-tight leading-tight">
+                  {displayName}
+                </span>
+                <span className="text-[11px] text-slate-400 font-semibold tracking-wide uppercase">
+                  {displayRole}
+                </span>
               </div>
               <div className="relative">
                 <img
@@ -556,17 +655,23 @@ export default function ReceptionLayout() {
         {/* PAGE FOOTER */}
         <footer className="mt-auto px-8 py-6 border-t border-slate-200/50 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-semibold text-slate-400">
           <div>
-            © 2024 <span className="text-slate-500 font-bold">AGM Intelligent</span> - Hệ thống quản lý gara chuyên nghiệp
+            © 2024{" "}
+            <span className="text-slate-500 font-bold">AGM Intelligent</span> -
+            Hệ thống quản lý gara chuyên nghiệp
           </div>
           <div className="flex items-center gap-6">
-            <a href="#" className="hover:text-slate-600 transition-colors">Điều khoản</a>
-            <a href="#" className="hover:text-slate-600 transition-colors">Bảo mật</a>
-            <a href="#" className="hover:text-slate-600 transition-colors">Liên hệ</a>
+            <a href="#" className="hover:text-slate-600 transition-colors">
+              Điều khoản
+            </a>
+            <a href="#" className="hover:text-slate-600 transition-colors">
+              Bảo mật
+            </a>
+            <a href="#" className="hover:text-slate-600 transition-colors">
+              Liên hệ
+            </a>
           </div>
         </footer>
-
       </main>
-
     </div>
   );
 }
