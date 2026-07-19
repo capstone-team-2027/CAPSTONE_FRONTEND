@@ -29,8 +29,9 @@ export default function TrackingTab() {
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('ACTIVE');
   const [selectedOrderIndex, setSelectedOrderIndex] = useState<number>(0);
 
-  const loadData = async () => {
-    setIsLoading(true);
+  // silent = true: nạp ngầm khi có cập nhật realtime, không nháy màn loading
+  const loadData = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     setError(null);
     try {
       const res = await fetchPrivate<GetRepairProgressResponse[]>(
@@ -39,9 +40,9 @@ export default function TrackingTab() {
       setOrders(res?.data ?? []);
     } catch (err: any) {
       console.error('Lỗi khi tải thông tin theo dõi:', err);
-      setError(err.message || 'Đã xảy ra lỗi khi kết nối với máy chủ.');
+      if (!silent) setError(err.message || 'Đã xảy ra lỗi khi kết nối với máy chủ.');
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
@@ -49,19 +50,25 @@ export default function TrackingTab() {
     loadData();
   }, []);
 
-  // Realtime: join room từng đơn dịch vụ, BE emit khi task đổi trạng thái
+  // Realtime: join room từng đơn dịch vụ, BE emit khi task đổi trạng thái.
+  // BE nhận id đơn (tự ghép thành room `service-order-{id}`).
   useEffect(() => {
     if (!socket || orders.length === 0) return;
 
-    const rooms = orders.map((o) => `service-order-${o.id}`);
-    rooms.forEach((room) => socket.emit('join-room', room));
+    const orderIds = orders.map((o) => o.id);
+    orderIds.forEach((orderId) =>
+      socket.emit('join-vehicle-tracking', orderId),
+    );
 
-    const handleProgress = () => loadData();
+    // Nạp ngầm để không nháy màn loading mỗi lần thợ hoàn thành 1 hạng mục
+    const handleProgress = () => loadData(true);
     socket.on('progress-updated', handleProgress);
 
     return () => {
       socket.off('progress-updated', handleProgress);
-      rooms.forEach((room) => socket.emit('leave-room', room));
+      orderIds.forEach((orderId) =>
+        socket.emit('leave-vehicle-tracking', orderId),
+      );
     };
   }, [socket, orders]);
 
@@ -119,14 +126,16 @@ export default function TrackingTab() {
 
   const currentOrder = filteredOrders[selectedOrderIndex];
 
-  // Tiến độ = tỉ lệ hạng mục đã làm xong. PENDING_QC là thợ đã sửa xong,
-  // chỉ còn chờ kiểm định nên vẫn tính vào tiến độ.
+  // Tiến độ = tỉ lệ hạng mục đã làm xong. Trạng thái lấy từ Task_Assignment vì
+  // BE chỉ đổi assignment.status khi thợ hoàn thành, task.status giữ nguyên.
+  // PENDING_QC nghĩa là thợ sửa xong, chờ kiểm định -> vẫn tính vào tiến độ.
   const taskTotal = currentOrder?.tasks?.length ?? 0;
   const doneCount = useMemo(
     () =>
-      (currentOrder?.tasks ?? []).filter(
-        (t) => t.status === 'COMPLETED' || t.status === 'PENDING_QC',
-      ).length,
+      (currentOrder?.tasks ?? []).filter((t) => {
+        const status = t.assignments?.[0]?.status ?? t.status;
+        return status === 'COMPLETED' || status === 'PENDING_QC';
+      }).length,
     [currentOrder],
   );
   const orderProgress = useMemo(
@@ -191,7 +200,7 @@ export default function TrackingTab() {
           <h3 className="font-bold text-sm text-[#00285E]">Không thể tải dữ liệu</h3>
           <p className="text-xs text-gray-400 mt-1 max-w-xs">{error}</p>
           <button
-            onClick={loadData}
+            onClick={() => loadData()}
             className="mt-5 px-5 py-2 bg-[#00285E] text-white rounded-xl text-xs font-bold shadow-md hover:brightness-110 transition-all cursor-pointer"
           >
             Thử lại
