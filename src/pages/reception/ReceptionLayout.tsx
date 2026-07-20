@@ -19,7 +19,8 @@ import {
   Wrench,
   Settings,
   Video,
-  PhoneCall
+  PhoneCall,
+  Users
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -184,12 +185,13 @@ export default function ReceptionLayout() {
   const displayName = user?.fullName || 'Lễ tân viên';
   const displayRole = user?.role?.toUpperCase() === 'RECEPTIONIST' ? 'Lễ tân' : (user?.role || 'Lễ tân');
 
-  // Menu items for the sidebar
   const menuItems = [
     { name: 'Danh sách lịch hẹn', icon: CalendarCheck, path: '/reception/appointments' },
     { name: 'Quản lý hóa đơn dịch vụ', icon: ClipboardPlus, path: '/reception/service-orders' },
     { name: 'Quản lý báo giá', icon: FileText, path: '/reception/quotes' },
     { name: 'Thanh toán', icon: CreditCard, path: '/reception/payments' },
+    { name: 'Khách hàng & Cứu hộ', icon: Users, path: '/reception/customers' },
+    { name: 'Kỹ thuật viên hôm nay', icon: Wrench, path: '/reception/technicians' },
     { name: 'Phản hồi khách hàng', icon: MessageSquare, path: '/reception/feedback' },
     { name: 'Lịch sử dịch vụ', icon: History, path: '/reception/service-history' },
   ];
@@ -201,6 +203,8 @@ export default function ReceptionLayout() {
     if (path.includes('/service-orders')) return 'Quản lý hóa đơn dịch vụ';
     if (path.includes('/quotes')) return 'Quản lý báo giá';
     if (path.includes('/payments')) return 'Thanh toán';
+    if (path.includes('/customers')) return 'Khách hàng & Cứu hộ';
+    if (path.includes('/technicians')) return 'Kỹ thuật viên hôm nay';
     if (path.includes('/feedback')) return 'Phản hồi khách hàng';
     if (path.includes('/service-history')) return 'Lịch sử dịch vụ';
     return 'Danh sách lịch hẹn';
@@ -394,9 +398,10 @@ export default function ReceptionLayout() {
               
               <div className="flex items-center gap-4 w-full">
                 <button
+                  type="button"
                   onClick={() => {
                     if (incomingCall?.roomId) {
-                      socket?.emit('end-video-call', { roomId: incomingCall.roomId });
+                      socket?.emit('end-video-call', { roomId: incomingCall.roomId, reason: 'rejected' });
                     }
                     setIncomingCall(null);
                   }}
@@ -405,6 +410,7 @@ export default function ReceptionLayout() {
                   Từ chối
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     const roomId = incomingCall.roomId;
                     setIncomingCall(null);

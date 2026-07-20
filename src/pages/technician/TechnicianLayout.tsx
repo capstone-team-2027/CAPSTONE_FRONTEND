@@ -17,12 +17,14 @@ import {
   AlertTriangle,
   Settings,
   Calendar,
+  Siren,
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '../../store/store';
 import type { UserModel } from '../../model/User';
 import { useFetchClient } from '../../hook/useFetchClient';
+import { useSocket } from '../../hook/useSocket';
 import { loginSuccess, logout } from '../../store/slices/userSlice';
 import { PROFILE_API_ENDPOINTS } from '../../constants/common/profileEndpoints';
 import { NOTIFICATION_API_ENDPOINTS } from '../../constants/technician/notificationEndpoints';
@@ -32,6 +34,7 @@ export default function TechnicianLayout() {
   const location = useLocation();
   const dispatch = useDispatch();
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
 
   const user = useSelector((state: RootState) => state.user.user as UserModel | null);
 
@@ -127,21 +130,40 @@ export default function TechnicianLayout() {
     }
   }, [dispatch, fetchPrivate, user]);
 
+  useEffect(() => {
+    if (socket && user?.id) {
+      const room = `technician_${user.id}`;
+      socket.emit('join-room', room);
+
+      socket.on('incoming-rescue-task', (data) => {
+        showToast('🚨 BẠN CÓ YÊU CẦU CỨU HỘ KHẨN CẤP MỚI!', 'warning');
+        // Play sound if possible, or just navigate
+        setTimeout(() => {
+          navigate('/technician/rescue');
+        }, 1500);
+      });
+
+      return () => {
+        socket.off('incoming-rescue-task');
+      };
+    }
+  }, [socket, user, navigate]);
+
   const avatarUrl = user?.avatar?.trim() || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=256&auto=format&fit=crop';
   const displayName = user?.fullName || 'Kỹ thuật viên';
   const displayRole = 'Kỹ thuật viên';
 
-  // Menu items for the sidebar
   const menuItems = [
+    { name: 'Cứu hộ khẩn cấp', icon: Siren, path: '/technician/rescue' },
     { name: 'Phân công', icon: CheckSquare, path: '/technician/assignments' },
     { name: 'Lịch làm việc', icon: Calendar, path: '/technician/my-shifts' },
     { name: 'Yêu cầu phụ tùng', icon: PackagePlus, path: '/technician/parts-request' },
     { name: 'Cập nhật tiến độ', icon: Activity, path: '/technician/progress' },
   ];
 
-  // Dynamic active menu item based on current URL path
   const activeMenu = useMemo(() => {
     const path = location.pathname;
+    if (path.includes('/rescue')) return 'Cứu hộ khẩn cấp';
     if (path.includes('/assignments')) return 'Phân công';
     if (path.includes('/my-shifts')) return 'Lịch làm việc';
     if (path.includes('/parts-request')) return 'Yêu cầu phụ tùng';
@@ -194,7 +216,7 @@ export default function TechnicianLayout() {
                 >
                   <Icon
                     size={18}
-                    className={isActive ? 'text-[#F9A11B]' : 'text-slate-500 group-hover:text-[#00285E]'}
+                    className={isActive ? (item.name === 'Cứu hộ khẩn cấp' ? 'text-rose-400' : 'text-[#F9A11B]') : (item.name === 'Cứu hộ khẩn cấp' ? 'text-rose-500 group-hover:text-rose-600' : 'text-slate-500 group-hover:text-[#00285E]')}
                   />
                   <span>{item.name}</span>
                 </button>

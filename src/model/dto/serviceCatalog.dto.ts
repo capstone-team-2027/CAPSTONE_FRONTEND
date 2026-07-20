@@ -11,4 +11,8 @@ export interface ServiceCatalog {
     category_id: number;
     category: { category_name: string };
     is_active: boolean;
+    labor_price?: string | number;
+    spare_part_id?: number | null;
+    sparePart?: { id: number; name: string; retail_price: string };
+    total_price?: number;
 }

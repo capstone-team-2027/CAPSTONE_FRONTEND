@@ -15,6 +15,9 @@ const Team = lazy(() => import("./pages/customer/team/Team"));
 const OtpVerification = lazy(() => import("./pages/customer/home/verify-otp"));
 const VerifyPhone = lazy(() => import("./pages/customer/home/verify-phone"));
 
+// Import component MapTracking để test
+const MapTrackingTest = lazy(() => import("./components/share/MapTracking").then(m => ({ default: m.MapTracking })));
+
 const VideoCallRoom = lazy(() => import("./pages/common/VideoCallRoom"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminSettings = lazy(() => import("./pages/admin/settings/AdminSettings"));
@@ -48,6 +51,8 @@ const ReceptionServiceHistory = lazy(() => import("./pages/reception/service-his
 const ReceptionProcessPayment = lazy(() => import("./pages/reception/payments/ReceptionProcessPayment"));
 const ReceptionQuoteList = lazy(() => import("./pages/reception/quotes/ReceptionQuoteList"));
 const ReceptionQuoteDetail = lazy(() => import("./pages/reception/quotes/ReceptionQuoteDetail"));
+const ReceptionCustomerList = lazy(() => import("./pages/reception/customers/ReceptionCustomerList"));
+const ReceptionTechnicianList = lazy(() => import("./pages/reception/technicians/ReceptionTechnicianList"));
 
 // Technician Page Imports
 const TechnicianLayout = lazy(() => import("./pages/technician/TechnicianLayout"));
@@ -56,6 +61,8 @@ const TechnicianAssignmentsDetail = lazy(() => import("./pages/technician/assign
 const TechnicianRequestParts = lazy(() => import("./pages/technician/parts-request/TechnicianRequestParts"));
 const TechnicianUpdateProgress = lazy(() => import("./pages/technician/progress/TechnicianUpdateProgress"));
 const TechnicianMyShifts = lazy(() => import("./pages/technician/my-shifts/TechnicianMyShifts"));
+const TechnicianRescuePage = lazy(() => import("./pages/technician/rescue/TechnicianRescuePage"));
+
 const LoadingScreen = () => (
   <div className="fixed inset-0 bg-slate-50/50 backdrop-blur-xs flex flex-col items-center justify-center z-50">
     <div className="relative w-16 h-16">
@@ -92,6 +99,9 @@ function App() {
           <Route path="team" element={<Team />} />
           <Route path="otp-verification" element={<OtpVerification />} />
           <Route path="verify-phone" element={<VerifyPhone />} />
+
+          {/* Route test bản đồ */}
+          <Route path="test-map" element={<div className="container mx-auto p-4 md:p-10"><MapTrackingTest /></div>} />
         </Route>
 
         <Route path="/video-call/:roomId" element={<VideoCallRoom />} />
@@ -129,6 +139,7 @@ function App() {
           <Route path="progress" element={<TechnicianUpdateProgress />} />
           <Route path="progress/:id" element={<TechnicianUpdateProgress />} />
           <Route path="my-shifts" element={<TechnicianMyShifts />} />
+          <Route path="rescue" element={<TechnicianRescuePage />} />
         </Route>
 
         {/* Reception Dashboard */}
@@ -139,11 +150,13 @@ function App() {
           <Route path="service-orders" element={<ReceptionServiceOrderList />} />
           <Route path="service-orders/:id" element={<ReceptionServiceOrderDetail />} />
           <Route path="service-orders/create" element={<ReceptionCreateServiceOrder />} />
+          <Route path="customers" element={<ReceptionCustomerList />} />
           <Route path="feedback" element={<ReceptionReceiveFeedback />} />
           <Route path="service-history" element={<ReceptionServiceHistory />} />
           <Route path="payments" element={<ReceptionProcessPayment />} />
           <Route path="quotes" element={<ReceptionQuoteList />} />
           <Route path="quotes/:id" element={<ReceptionQuoteDetail />} />
+          <Route path="technicians" element={<ReceptionTechnicianList />} />
         </Route>
       </Routes>
       {!isAdminPath && (

@@ -17,6 +17,7 @@ import { VEHICLE_MAKE_MODEL_API_ENDPOINTS } from '../../../constants/customer/ve
 import { useSocket } from '../../../hook/useSocket';
 import SingleServicesSelector from './SingleServicesSelector';
 import ComboServicesSelector from './ComboServicesSelector';
+import InlineCalendar from './InlineCalendar';
 import type { ServiceCombo, ServiceItem } from '../../../model/Service';
 
 
@@ -138,6 +139,7 @@ export default function BookingPage() {
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [isPendingPayment, setIsPendingPayment] = useState(false);
 
     // Dynamic Data States
     const [dbServices, setDbServices] = useState<any[]>([]);
@@ -150,8 +152,8 @@ export default function BookingPage() {
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
-    // Generate random booking code once per submission success
-    const bookingCode = useMemo(() => Math.floor(100000 + Math.random() * 900000), [isSuccess]);
+    // Booking code will be the service_order_id from backend
+    const [bookingCode, setBookingCode] = useState<string | null>(null);
 
     const minDateStr = useMemo(() => {
         const today = new Date();
@@ -185,6 +187,10 @@ export default function BookingPage() {
         }
     }, [bookingFlow, t]);
 
+    const [serviceSearch, setServiceSearch] = useState('');
+    const [serviceTotalPages, setServiceTotalPages] = useState(1);
+    const [currentPageServices, setCurrentPageServices] = useState<any[]>([]);
+
     // Load dynamic categories & services from backend
     useEffect(() => {
         const loadDbData = async () => {
@@ -200,20 +206,39 @@ export default function BookingPage() {
                 console.error("Lỗi khi tải dữ liệu categories từ backend:", error);
             }
 
-            try {
-                // Fetch Services (Catalogs)
-                const svcRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.GET_SERVICES}?lang=${currentLang}`);
-                if (svcRes && svcRes.data) {
-                    setDbServices(svcRes.data);
-                }
-            } catch (error) {
-                console.error("Lỗi khi tải dữ liệu services từ backend:", error);
-            } finally {
-                setIsLoading(false);
-            }
         };
         loadDbData();
     }, [i18n.language]);
+
+    // Fetch Services on page/search/category change
+    useEffect(() => {
+        const fetchServices = async () => {
+            const currentLang = i18n.language || 'vi';
+            try {
+                const query = `lang=${currentLang}&page=${servicePage}&limit=16&search=${encodeURIComponent(serviceSearch)}&category_id=${selectedCategoryId || ''}`;
+                const svcRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.GET_SERVICES}?${query}`);
+                if (svcRes && svcRes.data) {
+                    const newItems = svcRes.data.items || [];
+                    setCurrentPageServices(newItems);
+                    
+                    setDbServices(prev => {
+                        const map = new Map(prev.map((item: any) => [item.id, item]));
+                        newItems.forEach((item: any) => map.set(item.id, item));
+                        return Array.from(map.values());
+                    });
+                    setServiceTotalPages(svcRes.data.totalPages || 1);
+                }
+            } catch (error) {
+                console.error("Lỗi khi tải dữ liệu services từ backend:", error);
+            }
+        };
+
+        const timer = setTimeout(() => {
+            fetchServices();
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [i18n.language, servicePage, serviceSearch, selectedCategoryId, fetchPublic]);
 
     // Load garage configuration data (shifts & buffer time)
     useEffect(() => {
@@ -351,6 +376,20 @@ export default function BookingPage() {
         };
         loadProfileAndVehicles();
     }, []);
+
+
+    // Auto redirect to home after 5 seconds of success
+    useEffect(() => {
+        let timer: any;
+        if (isSuccess) {
+            timer = setTimeout(() => {
+                navigate('/');
+            }, 5000);
+        }
+        return () => {
+            if (timer) clearTimeout(timer);
+        };
+    }, [isSuccess, navigate]);
 
     const handleColorImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
@@ -512,7 +551,7 @@ export default function BookingPage() {
     // Map dbServices to ServiceItem list
     const mappedServices: ServiceItem[] = useMemo(() => {
         return activeDbServices.map((s: any) => {
-            const priceValue = s.price || s.base_price || 0;
+            const priceValue = s.total_price || s.labor_price || s.price || s.base_price || 0;
             const discountPercent = s.discount_percentage || 0;
             const originalPriceValue = discountPercent > 0 && priceValue > 0 ? Math.round(priceValue / (1 - discountPercent / 100)) : 0;
             const originalPriceStr = originalPriceValue > 0 ? `Từ ${originalPriceValue.toLocaleString("vi-VN")}đ` : "";
@@ -532,7 +571,7 @@ export default function BookingPage() {
                 id: s.id,
                 title: s.service_name,
                 desc: s.description || "",
-                price: priceValue > 0 ? `Từ ${priceValue.toLocaleString("vi-VN")}đ` : "Liên hệ",
+                price: priceValue > 0 ? `Từ ${priceValue.toLocaleString("vi-VN")}đ` : "Miễn phí",
                 numericPrice: priceValue,
                 originalPrice: originalPriceStr || undefined,
                 discountPercentage: discountPercent > 0 ? discountPercent : undefined,
@@ -541,10 +580,49 @@ export default function BookingPage() {
                 reviewCount: reviewVal,
                 badge: s.badge || undefined,
                 details: detailsList,
-                category_id: s.category_id
+                category_id: s.category_id,
+                sparePartName: s.sparePart ? s.sparePart.name : undefined
             };
         });
     }, [activeDbServices]);
+
+    // Map current page services to ServiceItem list for rendering
+    const mappedCurrentPageServices: ServiceItem[] = useMemo(() => {
+        return currentPageServices.filter((s: any) => s.is_active !== false).map((s: any) => {
+            const priceValue = s.total_price || s.labor_price || s.price || s.base_price || 0;
+            const discountPercent = s.discount_percentage || 0;
+            const originalPriceValue = discountPercent > 0 && priceValue > 0 ? Math.round(priceValue / (1 - discountPercent / 100)) : 0;
+            const originalPriceStr = originalPriceValue > 0 ? `Từ ${originalPriceValue.toLocaleString("vi-VN")}đ` : "";
+
+            const ratingVal = s.rating || 5.0;
+            const reviewVal = s.review_count || 0;
+
+            let detailsList = s.details || [];
+            if (!Array.isArray(detailsList)) {
+                detailsList = [detailsList];
+            }
+            if (detailsList.length === 0) {
+                detailsList = [s.description || "Chi tiết dịch vụ chưa được cập nhật."];
+            }
+
+            return {
+                id: s.id,
+                title: s.service_name,
+                desc: s.description || "",
+                price: priceValue > 0 ? `Từ ${priceValue.toLocaleString("vi-VN")}đ` : "Miễn phí",
+                numericPrice: priceValue,
+                originalPrice: originalPriceStr || undefined,
+                discountPercentage: discountPercent > 0 ? discountPercent : undefined,
+                promoText: s.promo_text || "",
+                rating: ratingVal,
+                reviewCount: reviewVal,
+                badge: s.badge || undefined,
+                details: detailsList,
+                category_id: s.category_id,
+                sparePartName: s.sparePart ? s.sparePart.name : undefined
+            };
+        });
+    }, [currentPageServices]);
 
 
 
@@ -624,22 +702,18 @@ export default function BookingPage() {
             const c = dbCombos.find(x => x.id === selectedComboId);
             if (!c) return null;
             const serviceIds = c.service_ids || [];
-            const original = serviceIds.reduce((sum, id) => {
-                const s = mappedServices.find(x => x.id === id);
-                return sum + (s?.numericPrice || 0);
-            }, 0);
-            const discounted = Math.round(original * (1 - c.discount_percentage / 100));
+            const original = (c as any).originalPrice || 0;
             const subNames = serviceIds.map(id => {
                 const s = mappedServices.find(x => x.id === id);
                 return s ? s.title : "Dịch vụ của gara";
             });
             return {
                 title: c.combo_name,
-                price: `Từ ${discounted.toLocaleString("vi-VN")}đ`,
-                numericPrice: discounted,
-                originalPrice: `Từ ${original.toLocaleString("vi-VN")}đ`,
-                discountPercentage: c.discount_percentage,
-                promoText: `Tiết kiệm ${c.discount_percentage}% khi đặt theo gói combo`,
+                price: original > 0 ? `Từ ${original.toLocaleString("vi-VN")}đ` : `Miễn phí`,
+                numericPrice: original,
+                originalPrice: undefined,
+                discountPercentage: undefined,
+                promoText: undefined,
                 subItems: subNames,
             };
         }
@@ -665,6 +739,33 @@ export default function BookingPage() {
     }, [bookingFlow, serviceCategoryMode, serviceSubtype, selectedServiceIds, mappedServices, selectedSubItems]);
 
     const timeSlots = useMemo(() => {
+        // Tính tổng thời gian dự kiến
+        let totalDurationMinutes = 0;
+        if (bookingFlow === 'SPECIFIC') {
+            if (serviceSubtype === 'service') {
+                selectedServiceIds.forEach(id => {
+                    const service = dbServices.find(s => s.id === id);
+                    if (service && service.estimated_duration) {
+                        totalDurationMinutes += parseInt(service.estimated_duration, 10);
+                    } else {
+                        totalDurationMinutes += 30; // Mặc định 30p
+                    }
+                });
+            } else if (serviceSubtype === 'combo' && selectedComboId) {
+                const combo = dbCombos.find(c => c.id === selectedComboId);
+                if (combo && combo.service_ids) {
+                    combo.service_ids.forEach(catalogId => {
+                        const service = dbServices.find(s => s.id === catalogId);
+                        if (service && service.estimated_duration) {
+                            totalDurationMinutes += parseInt(service.estimated_duration, 10);
+                        } else {
+                            totalDurationMinutes += 30; // Mặc định 30p
+                        }
+                    });
+                }
+            }
+        }
+
         const slots: { time: string; label: string; isFull: boolean }[] = [];
         shifts.forEach(shift => {
             const [startH, startM] = (shift.start_time || "").split(':').map(Number);
@@ -680,28 +781,49 @@ export default function BookingPage() {
                 const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
                 const label = h < 12 ? t('booking.timeSlots.morning', 'Sáng') : t('booking.timeSlots.afternoon', 'Chiều');
 
-                // Calculate UTC hour for bookedCounts matching
-                const utcHour = (h - 7 + 24) % 24;
-                const isFull = (bookedCounts[utcHour] || 0) >= garageCapacity;
+                let isFull = false;
+
+                if (totalDurationMinutes === 0) {
+                    const utcHour = (h - 7 + 24) % 24;
+                    isFull = (bookedCounts[utcHour] || 0) >= garageCapacity;
+                } else {
+                    const endTotalMinutes = currentMinutes + totalDurationMinutes;
+                    let calculatedEndH = Math.floor(endTotalMinutes / 60);
+
+                    if (endTotalMinutes % 60 === 0 && calculatedEndH > h) {
+                        calculatedEndH -= 1;
+                    }
+
+                    for (let checkH = h; checkH <= calculatedEndH; checkH++) {
+                        const utcHour = (checkH - 7 + 24) % 24;
+                        if ((bookedCounts[utcHour] || 0) >= garageCapacity) {
+                            isFull = true;
+                            break;
+                        }
+                    }
+                }
 
                 slots.push({ time: timeStr, label, isFull });
                 currentMinutes += bufferMinutes;
             }
         });
 
-        // Filter slots if booking date is today to only show slots at least 30 minutes in the future
+        // Nếu là ngày hôm nay, đánh dấu những khung giờ đã qua (hoặc sắp tới trong vòng 30 phút) là Kín lịch thay vì ẩn đi
         if (bookingDate === minDateStr) {
             const now = new Date();
             const nowMinutes = now.getHours() * 60 + now.getMinutes();
-            return slots.filter(slot => {
+            return slots.map(slot => {
                 const [slotH, slotM] = slot.time.split(':').map(Number);
                 const slotMinutes = slotH * 60 + slotM;
-                return slotMinutes >= nowMinutes + 30;
+                if (slotMinutes < nowMinutes + 30) {
+                    return { ...slot, isFull: true };
+                }
+                return slot;
             });
         }
 
         return slots;
-    }, [shifts, bufferMinutes, t, bookingDate, minDateStr, bookedCounts, garageCapacity]);
+    }, [shifts, bufferMinutes, t, bookingDate, minDateStr, bookedCounts, garageCapacity, bookingFlow, serviceSubtype, selectedServiceIds, selectedComboId, dbServices, dbCombos]);
 
     // Reset bookingTime if it becomes invalid under new date or current time constraints
     useEffect(() => {
@@ -775,7 +897,7 @@ export default function BookingPage() {
         }
     };
 
-    const handleSubmit = async () => {
+    const submitToBackend = async () => {
         setIsSubmitting(true);
         try {
             let finalNotes = notes;
@@ -813,11 +935,19 @@ export default function BookingPage() {
                 vehicle_plate: bookingFlow === 'SPECIFIC' && vehicleInputMode === 'NEW' ? vehiclePlate : null,
                 vehicle_year: bookingFlow === 'SPECIFIC' && vehicleInputMode === 'NEW' ? parseInt(vehicleYear, 10) : null,
                 vehicle_color: bookingFlow === 'SPECIFIC' && vehicleInputMode === 'NEW' ? (vehicleColor.trim() || null) : null,
+                payment_amount: activeSelection?.numericPrice || 0,
             };
 
             const response = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.CREATE_APPOINTMENT, 'POST', payload);
             if (response && response.success) {
-                setIsSuccess(true);
+                const amount = activeSelection?.numericPrice || 0;
+                if (amount > 0 && response.data?.serviceOrder?.id) {
+                    setBookingCode(response.data.serviceOrder.id.toString());
+                    setIsPendingPayment(true);
+                } else {
+                    setIsPendingPayment(false);
+                    setIsSuccess(true);
+                }
             } else {
                 alert(response.message || "Đặt lịch thất bại. Vui lòng thử lại.");
             }
@@ -828,8 +958,76 @@ export default function BookingPage() {
             setIsSubmitting(false);
         }
     };
+    // Poll payment status every 5 seconds
+    useEffect(() => {
+        let intervalId: ReturnType<typeof setInterval>;
+        if (isPendingPayment && bookingCode) {
+            intervalId = setInterval(async () => {
+                try {
+                    const amount = activeSelection?.numericPrice || 0;
+                    const res = await fetchPublic(`${API_BASE_URL}/api/payment/check-status?bookingCode=${bookingCode}&amount=${amount}`);
+                    if (res && res.success && res.isPaid) {
+                        clearInterval(intervalId);
+                        setIsPendingPayment(false);
+                        setIsSuccess(true);
+                    }
+                } catch (error) {
+                    console.error("Lỗi khi kiểm tra thanh toán:", error);
+                }
+            }, 5000);
+        }
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [isPendingPayment, bookingCode, fetchPublic, API_BASE_URL, activeSelection]);
+
+    const handleSubmit = async () => {
+        await submitToBackend();
+    };
 
     const inputClass = 'w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl md:rounded-2xl p-2.5 md:p-4 text-xs md:text-sm outline-none transition-all focus:border-amber-400 focus:bg-white text-brand-blue';
+
+    if (isPendingPayment) {
+        const amount = activeSelection?.numericPrice || 0;
+        const qrUrl = amount > 0
+            ? `https://vietqr.app/img?acc=${import.meta.env.VITE_SEPAY_ACC}&bank=${import.meta.env.VITE_SEPAY_BANK}&amount=${amount}&template=compact&showinfo=true&addInfo=AGM-${bookingCode}`
+            : null;
+
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 text-left">
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="max-w-md w-full space-y-8 bg-white p-8 md:p-12 rounded-[2.5rem] shadow-xl border border-gray-100 text-center"
+                >
+                    <div>
+                        <h2 className="mt-6 text-3xl font-extrabold text-brand-blue font-display">Thanh toán đơn hàng</h2>
+                        <p className="mt-3 text-sm text-gray-500 leading-relaxed text-center">
+                            Đơn đặt lịch của bạn đã được ghi nhận. Vui lòng thanh toán để hoàn tất.
+                        </p>
+                    </div>
+
+                    {qrUrl && (
+                        <div className="mt-6 flex flex-col items-center justify-center border-t border-slate-100 pt-6">
+                            <img src={qrUrl} alt="VietQR Payment" className="w-56 h-56 rounded-xl shadow-md border border-slate-200" />
+                            <p className="text-[10px] text-gray-400 mt-2 text-center leading-relaxed">Sử dụng App Ngân hàng hoặc Ví điện tử để quét mã.<br />Nội dung chuyển khoản mặc định sẽ bao gồm mã đặt lịch của bạn.</p>
+                        </div>
+                    )}
+
+                    <div className="pt-4 flex flex-col gap-2">
+                        <button
+                            onClick={() => submitToBackend()}
+                            disabled={isSubmitting}
+                            className={`w-full py-3 rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer ${isSubmitting ? 'bg-slate-300 text-slate-500' : 'bg-[#F9A11B] text-[#00285E] hover:bg-[#E08F12]'}`}
+                        >
+                            {isSubmitting ? 'Đang xử lý...' : 'Tôi đã thanh toán'}
+                        </button>
+                    </div>
+                </motion.div>
+            </div>
+        );
+    }
 
     if (isSuccess) {
         return (
@@ -846,6 +1044,9 @@ export default function BookingPage() {
                         <h2 className="mt-6 text-3xl font-extrabold text-brand-blue font-display">{t('booking.success.title', 'Đặt lịch thành công!')}</h2>
                         <p className="mt-3 text-sm text-gray-500 leading-relaxed text-center">
                             {t('booking.success.desc', 'Mã đặt lịch của bạn là {{code}}. Chúng tôi đã gửi email xác nhận chi tiết lịch hẹn của bạn. Bộ phận chăm sóc khách hàng sẽ liên hệ với bạn trong vòng 15 phút.', { code: `AGM-${bookingCode}` })}
+                        </p>
+                        <p className="text-xs text-amber-500 font-bold mt-2">
+                            Tự động chuyển về trang chủ trong 5 giây...
                         </p>
                     </div>
 
@@ -927,6 +1128,7 @@ export default function BookingPage() {
                                 setVehicleColor('');
                                 setNotes('');
                                 setIsSuccess(false);
+                                setBookingCode(null);
                             }}
                             className="w-full py-3 bg-slate-50 border border-slate-200 text-gray-700 hover:bg-slate-100 rounded-xl text-xs font-bold transition-all cursor-pointer"
                         >
@@ -1010,15 +1212,24 @@ export default function BookingPage() {
                                     </div>
 
                                     {/* Flow Switcher (Consultation vs Specific Service) */}
-                                    <div className="flex p-1 bg-slate-100/80 rounded-2xl mb-8 max-w-xl border border-slate-200/40">
+                                    <div className="flex flex-col sm:flex-row p-1 bg-slate-100/80 rounded-2xl mb-8 max-w-2xl border border-slate-200/40 gap-1">
                                         <button
                                             type="button"
-                                            onClick={() => { setBookingFlow('CONSULTATION'); }}
-                                            className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${bookingFlow === 'CONSULTATION' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'
+                                            onClick={() => { setBookingFlow('CONSULTATION'); setConsultationType('AI_DIAGNOSIS'); }}
+                                            className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${bookingFlow === 'CONSULTATION' && consultationType === 'AI_DIAGNOSIS' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'
                                                 }`}
                                         >
                                             <Sparkles size={14} />
                                             {t('booking.aiConsultation', 'Tham khảo tư vấn AI')}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setBookingFlow('CONSULTATION'); setConsultationType('CALL_BACK'); }}
+                                            className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${bookingFlow === 'CONSULTATION' && consultationType === 'CALL_BACK' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'
+                                                }`}
+                                        >
+                                            <Phone size={14} />
+                                            Gọi điện tư vấn
                                         </button>
                                         <button
                                             type="button"
@@ -1034,31 +1245,6 @@ export default function BookingPage() {
                                     {/* CONSULTATION FLOW */}
                                     {bookingFlow === 'CONSULTATION' && (
                                         <div className="space-y-6">
-                                            {/* Subtype Switcher: AI Diagnosis vs Call Consultation */}
-                                            <div className="flex gap-2 p-1 bg-slate-100/60 rounded-xl max-w-lg border border-slate-200/20">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setConsultationType('AI_DIAGNOSIS')}
-                                                    className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 border-none cursor-pointer ${consultationType === 'AI_DIAGNOSIS'
-                                                        ? 'bg-[#00285E] text-white shadow-xs'
-                                                        : 'text-slate-500 hover:text-slate-800 bg-transparent'
-                                                        }`}
-                                                >
-                                                    <Sparkles size={12} className={consultationType === 'AI_DIAGNOSIS' ? 'text-amber-300' : 'text-amber-500'} />
-                                                    AI nhận diện lỗi
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setConsultationType('CALL_BACK')}
-                                                    className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 border-none cursor-pointer ${consultationType === 'CALL_BACK'
-                                                        ? 'bg-[#00285E] text-white shadow-xs'
-                                                        : 'text-slate-500 hover:text-slate-800 bg-transparent'
-                                                        }`}
-                                                >
-                                                    <Phone size={12} />
-                                                    Gọi điện tư vấn
-                                                </button>
-                                            </div>
 
                                             {/* Option 1: AI Diagnosis */}
                                             {consultationType === 'AI_DIAGNOSIS' && (
@@ -1328,9 +1514,9 @@ export default function BookingPage() {
                                                                 setVehicleColor(v.color || '');
                                                             }}
                                                             className={`p-4 rounded-2xl border-2 transition-all relative overflow-hidden ${v.isDisabled ? 'opacity-60 cursor-not-allowed border-slate-200 bg-slate-50' :
-                                                                    selectedCustomerVehicleId === v.id
-                                                                        ? 'border-amber-400 bg-amber-50/30 shadow-md cursor-pointer'
-                                                                        : 'border-slate-100 bg-white hover:border-amber-200 hover:bg-slate-50 cursor-pointer'
+                                                                selectedCustomerVehicleId === v.id
+                                                                    ? 'border-amber-400 bg-amber-50/30 shadow-md cursor-pointer'
+                                                                    : 'border-slate-100 bg-white hover:border-amber-200 hover:bg-slate-50 cursor-pointer'
                                                                 }`}
                                                         >
                                                             <div className="flex justify-between items-start mb-2">
@@ -1665,7 +1851,7 @@ export default function BookingPage() {
                                             {/* List Display according to type */}
                                             {serviceSubtype === 'service' && (
                                                 <SingleServicesSelector
-                                                    mappedServices={mappedServices}
+                                                    mappedServices={mappedCurrentPageServices}
                                                     activeCategories={activeCategories}
                                                     selectedServiceIds={selectedServiceIds}
                                                     setSelectedServiceIds={setSelectedServiceIds}
@@ -1675,84 +1861,87 @@ export default function BookingPage() {
                                                     setSelectedCategoryId={setSelectedCategoryId}
                                                     servicePage={servicePage}
                                                     setServicePage={setServicePage}
+                                                    serviceTotalPages={serviceTotalPages}
+                                                    searchText={serviceSearch}
+                                                    setSearchText={setServiceSearch}
                                                     dbCombos={dbCombos}
                                                     selectedComboId={selectedComboId}
                                                 />
                                             )}
 
-                                    {serviceSubtype === 'combo' && (
-                                        <ComboServicesSelector
-                                            dbCombos={dbCombos}
-                                            setDbCombos={setDbCombos}
-                                            selectedComboId={selectedComboId}
-                                            setSelectedComboId={setSelectedComboId}
-                                            mappedServices={mappedServices}
-                                            COLORS={COLORS}
-                                            selectedServiceIds={selectedServiceIds}
-                                            setSelectedServiceIds={setSelectedServiceIds}
-                                        />
-                                    )}
+                                            {serviceSubtype === 'combo' && (
+                                                <ComboServicesSelector
+                                                    dbCombos={dbCombos}
+                                                    setDbCombos={setDbCombos}
+                                                    selectedComboId={selectedComboId}
+                                                    setSelectedComboId={setSelectedComboId}
+                                                    mappedServices={mappedServices}
+                                                    COLORS={COLORS}
+                                                    selectedServiceIds={selectedServiceIds}
+                                                    setSelectedServiceIds={setSelectedServiceIds}
+                                                />
+                                            )}
 
-                                    {serviceSubtype === 'service' && selectedServiceIds.length > 0 && activeSelection && (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            className="mt-8 pt-8 border-t border-gray-100 text-left"
-                                        >
-                                            <div className="flex items-center justify-between mb-3">
-                                                <h4 className="text-xs font-bold text-[#00285E] uppercase tracking-wider">
-                                                    {t('booking.step1.customizeTasks', 'Tùy chỉnh hạng mục công việc')}
-                                                </h4>
-                                                <span className="text-[9px] bg-amber-50 border border-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-lg">
-                                                    {selectedSubItems.length} hạng mục
-                                                </span>
-                                            </div>
-                                            <p className="text-[11px] text-gray-400 mb-4">
-                                                {t('booking.step1.customizeTasksDesc', 'Chọn hoặc bỏ chọn các hạng mục cụ thể bạn mong muốn thực hiện trong gói dịch vụ.')}
-                                            </p>
-                                            <div className="space-y-2">
-                                                {/* Merge & dedupe details across all selected services */}
-                                                {[...new Set(
-                                                    selectedServiceIds.flatMap(id => {
-                                                        const s = mappedServices.find(x => x.id === id);
-                                                        return s?.details ?? [];
-                                                    })
-                                                )].map((detail, index) => {
-                                                    const isChecked = selectedSubItems.includes(detail);
-                                                    return (
-                                                        <label
-                                                            key={index}
-                                                            className="flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none hover:bg-slate-50/50"
-                                                            style={{
-                                                                borderColor: isChecked ? 'rgba(249,161,27,0.3)' : '#F1F5F9',
-                                                                backgroundColor: isChecked ? 'rgba(249,161,27,0.02)' : 'transparent',
-                                                            }}
-                                                        >
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={isChecked}
-                                                                onChange={() => {
-                                                                    if (isChecked) {
-                                                                        if (selectedSubItems.length > 1) {
-                                                                            setSelectedSubItems(prev => prev.filter(item => item !== detail));
-                                                                        } else {
-                                                                            alert(t('booking.alerts.minOneTask', 'Bạn phải chọn ít nhất một hạng mục công việc.'));
-                                                                        }
-                                                                    } else {
-                                                                        setSelectedSubItems(prev => [...prev, detail]);
-                                                                    }
-                                                                }}
-                                                                className="mt-0.5 accent-[#F9A11B] rounded cursor-pointer shrink-0"
-                                                            />
-                                                            <span className="text-xs text-slate-700 leading-relaxed">
-                                                                {detail}
-                                                            </span>
-                                                        </label>
-                                                    );
-                                                })}
-                                            </div>
-                                        </motion.div>
-                                    )}
+                                            {serviceSubtype === 'service' && selectedServiceIds.length > 0 && activeSelection && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    className="mt-8 pt-8 border-t border-gray-100 text-left"
+                                                >
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <h4 className="text-xs font-bold text-[#00285E] uppercase tracking-wider">
+                                                            {t('booking.step1.customizeTasks', 'Tùy chỉnh hạng mục công việc')}
+                                                        </h4>
+                                                        <span className="text-[9px] bg-amber-50 border border-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-lg">
+                                                            {selectedSubItems.length} hạng mục
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[11px] text-gray-400 mb-4">
+                                                        {t('booking.step1.customizeTasksDesc', 'Chọn hoặc bỏ chọn các hạng mục cụ thể bạn mong muốn thực hiện trong gói dịch vụ.')}
+                                                    </p>
+                                                    <div className="space-y-2">
+                                                        {/* Merge & dedupe details across all selected services */}
+                                                        {[...new Set(
+                                                            selectedServiceIds.flatMap(id => {
+                                                                const s = mappedServices.find(x => x.id === id);
+                                                                return s?.details ?? [];
+                                                            })
+                                                        )].map((detail, index) => {
+                                                            const isChecked = selectedSubItems.includes(detail);
+                                                            return (
+                                                                <label
+                                                                    key={index}
+                                                                    className="flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none hover:bg-slate-50/50"
+                                                                    style={{
+                                                                        borderColor: isChecked ? 'rgba(249,161,27,0.3)' : '#F1F5F9',
+                                                                        backgroundColor: isChecked ? 'rgba(249,161,27,0.02)' : 'transparent',
+                                                                    }}
+                                                                >
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={isChecked}
+                                                                        onChange={() => {
+                                                                            if (isChecked) {
+                                                                                if (selectedSubItems.length > 1) {
+                                                                                    setSelectedSubItems(prev => prev.filter(item => item !== detail));
+                                                                                } else {
+                                                                                    alert(t('booking.alerts.minOneTask', 'Bạn phải chọn ít nhất một hạng mục công việc.'));
+                                                                                }
+                                                                            } else {
+                                                                                setSelectedSubItems(prev => [...prev, detail]);
+                                                                            }
+                                                                        }}
+                                                                        className="mt-0.5 accent-[#F9A11B] rounded cursor-pointer shrink-0"
+                                                                    />
+                                                                    <span className="text-xs text-slate-700 leading-relaxed">
+                                                                        {detail}
+                                                                    </span>
+                                                                </label>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </motion.div>
+                                            )}
                                         </>
                                     ) : (
                                         <div className="space-y-4">
@@ -1793,19 +1982,14 @@ export default function BookingPage() {
                                             <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 px-1 text-left">
                                                 {t('booking.step2.dateLabel', 'Chọn ngày hẹn')}
                                             </label>
-                                            <input
-                                                type={isDateFocused ? 'date' : 'text'}
-                                                value={isDateFocused ? bookingDate : (bookingDate ? `${bookingDate.split('-')[2]}/${bookingDate.split('-')[1]}/${bookingDate.split('-')[0]}` : '')}
-                                                onFocus={() => setIsDateFocused(true)}
-                                                onBlur={(e) => {
-                                                    if (!e.target.value) setBookingDate(getTodayString());
-                                                    setIsDateFocused(false);
-                                                }}
-                                                onChange={(e) => setBookingDate(e.target.value)}
-                                                min={minDateStr}
-                                                max={maxDateStr}
-                                                className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl md:rounded-2xl p-4 text-xs md:text-sm outline-none transition-all focus:border-amber-400 focus:bg-white text-brand-blue"
-                                            />
+                                            <div className="relative w-full">
+                                                <InlineCalendar 
+                                                    selectedDate={bookingDate}
+                                                    onChange={setBookingDate}
+                                                    minDate={minDateStr}
+                                                    maxDate={maxDateStr}
+                                                />
+                                            </div>
                                         </div>
 
                                         <div className="space-y-3">
@@ -2012,11 +2196,13 @@ export default function BookingPage() {
                                     <span>{t('booking.sidebar.servicePrice', 'Giá dịch vụ')}</span>
                                     <span className="font-mono text-white">{activeSelection ? activeSelection.price : '0đ'}</span>
                                 </div>
-                                <div className="flex justify-between text-xs text-white/60">
-                                    <span>{t('booking.sidebar.installationFee', 'Công lắp đặt / kiểm tra')}</span>
-                                    <span className="font-mono text-white">{t('booking.sidebar.free', 'Miễn phí')}</span>
-                                </div>
-
+                                {serviceCategoryMode === 'REPAIR' && (
+                                    <div className="flex justify-between text-xs text-white/60 mt-1">
+                                        <span>{t('booking.sidebar.installationFee', 'Công lắp đặt / kiểm tra')}</span>
+                                        <span className="font-mono text-white">{t('booking.sidebar.free', 'Miễn phí')}</span>
+                                    </div>
+                                )}
+                                
                                 {activeSelection && activeSelection.promoText && (
                                     <div className="p-2.5 bg-white/5 rounded-xl border border-white/5 text-[10px] text-[#F9A11B] font-semibold leading-relaxed flex items-start gap-1.5">
                                         <span className="shrink-0 mt-0.5">🎁</span>

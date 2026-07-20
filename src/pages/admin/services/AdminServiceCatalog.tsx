@@ -26,6 +26,7 @@ import { SERVICE_CATALOG_API_ENDPOINTS } from '../../../constants/admin/serviceC
 import { SERVICE_CATEGORY_API_ENDPOINTS } from '../../../constants/admin/serviceCategoriesApiEndPoint';
 import { type ServiceCombo, ComboFormModal } from "./AdminServiceCombo";
 import { SERVICE_COMBOS_API_ENDPOINTS } from "../../../constants/admin/serviceCombosApiEndPoint";
+import { SPARE_PART_API_ENDPOINTS } from '../../../constants/inventory/sparePartApiEnPoint';
 
 // LocalStorage helpers for prices and combos persistence
 const getServicePrices = (): Record<number, number> => {
@@ -79,6 +80,7 @@ export default function AdminServiceManagement() {
   const [services, setServices] = useState<ServiceCatalog[]>([]);
   const [categoryList, setCategoryList] = useState<Category[]>([]);
   const [combos, setCombos] = useState<ServiceCombo[]>([]);
+  const [spareParts, setSpareParts] = useState<any[]>([]);
 
   const [activeTab, setActiveTab] = useState<"services" | "combos" | "categories">("services");
   const [searchQueryLocal, setSearchQueryLocal] = useState("");
@@ -179,53 +181,23 @@ export default function AdminServiceManagement() {
     }
   };
 
+  const handleGetSpareParts = async () => {
+    try {
+      const result = await fetchPrivate(`${SPARE_PART_API_ENDPOINTS.SPARE_PART}?page=1&limit=1000`);
+      setSpareParts(result.data?.items || []);
+    } catch (error) {
+      console.error("Lỗi lấy danh sách phụ tùng", error);
+    }
+  };
+
   useEffect(() => {
     handleGetServiceCatalog();
     handleGetCategory();
     handleGetServiceCombos();
+    handleGetSpareParts();
   }, []);
 
-  // Prepopulate mock service prices and combos if empty
-  useEffect(() => {
-    if (services.length > 0) {
-      const currentPrices = getServicePrices();
-      let pricesUpdated = false;
-      services.forEach((s) => {
-        const name = s.service_name;
-        let expectedPrice = currentPrices[s.id];
 
-        // Map exact matching names to their correct prices matching the screenshot
-        if (name.includes("cấp 1")) expectedPrice = 500000;
-        else if (name.includes("cấp 2")) expectedPrice = 800000;
-        else if (name.includes("cấp 3")) expectedPrice = 1500000;
-        else if (name.includes("Thay dầu động cơ")) expectedPrice = 650000;
-        else if (name.includes("Vệ sinh kim phun")) expectedPrice = 1200000;
-        else if (name.includes("dây curoa cam")) expectedPrice = 2500000;
-        else if (name.includes("nắp giàn cò")) expectedPrice = 1800000;
-        else if (name.includes("Cân bằng động")) expectedPrice = 400000;
-        else if (name.includes("Cân chỉnh góc đặt")) expectedPrice = 600000;
-        else if (name.includes("má phanh trước")) expectedPrice = 850000;
-        else if (name.includes("Vệ sinh & dưỡng nội thất")) expectedPrice = 800000;
-        else if (name.includes("Khử mùi diệt khuẩn")) expectedPrice = 200000;
-        else if (name.includes("OBD2")) expectedPrice = 300000;
-        else if (name.includes("chẩn đoán hệ thống điều hòa")) expectedPrice = 400000;
-        else if (name.includes("kích bình")) expectedPrice = 200000;
-        else if (name.includes("lốp dự phòng")) expectedPrice = 250000;
-        else if (name.includes("cẩu kéo xe")) expectedPrice = 1200000;
-
-        if (expectedPrice !== undefined && currentPrices[s.id] !== expectedPrice) {
-          currentPrices[s.id] = expectedPrice;
-          pricesUpdated = true;
-        } else if (currentPrices[s.id] === undefined) {
-          currentPrices[s.id] = expectedPrice || 350000;
-          pricesUpdated = true;
-        }
-      });
-      if (pricesUpdated) {
-        localStorage.setItem("service_prices", JSON.stringify(currentPrices));
-      }
-    }
-  }, [services, categoryList]);
 
   useEffect(() => {
     if (activeTab === "categories") {
@@ -338,9 +310,9 @@ export default function AdminServiceManagement() {
   };
 
   const calculateComboPrice = (serviceIds: number[]) => {
-    const servicePrices = getServicePrices();
     const total = serviceIds.reduce((sum, id) => {
-      const price = servicePrices[id] ?? 300000;
+      const s = services.find(x => x.id === id);
+      const price = s ? (s.total_price || Number(s.labor_price) || 0) : 0;
       return sum + price;
     }, 0);
     return total;
@@ -359,7 +331,6 @@ export default function AdminServiceManagement() {
     c.category_name.toLowerCase().includes(categorySearchQuery.toLowerCase())
   );
 
-  const servicePrices = getServicePrices();
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
@@ -665,7 +636,7 @@ export default function AdminServiceManagement() {
                       </td>
 
                       <td className="py-4 px-4 text-slate-900 font-bold text-sm">
-                        {(servicePrices[s.id] ?? 300000).toLocaleString("vi-VN")} đ
+                        {((s.total_price != null ? s.total_price : Number(s.labor_price)) || 0).toLocaleString("vi-VN")} đ
                       </td>
                       <td className="py-4 px-4 text-slate-600 text-sm font-semibold">
                         {s.estimated_duration} phút
@@ -883,6 +854,7 @@ export default function AdminServiceManagement() {
         <ServiceFormModal
           initial={editingService}
           categoryList={categoryList}
+          spareParts={spareParts}
           onClose={() => {
             setIsModalOpen(false);
             setEditingService(null);
@@ -943,12 +915,13 @@ export default function AdminServiceManagement() {
 interface ServiceFormModalProps {
   initial: ServiceCatalog | null;
   categoryList: Category[];
+  spareParts: any[];
   onClose: () => void;
   onRefresh: () => void;
   showToast: (text: string, type?: "success" | "info" | "warning") => void;
 }
 
-function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast }: ServiceFormModalProps) {
+function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefresh, showToast }: ServiceFormModalProps) {
   const isEdit = !!initial;
   const { fetchPrivate } = useFetchClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -967,8 +940,9 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast
   });
 
   // Set price state and load it from persistence if editing
-  const initialPrice = initial ? (getServicePrices()[initial.id] ?? 300000) : 300000;
+  const initialPrice = initial ? (Number(initial.labor_price) || 0) : 0;
   const [price, setPrice] = useState<number>(initialPrice);
+  const [sparePartId, setSparePartId] = useState<number | ''>(initial?.spare_part_id || '');
 
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -1015,13 +989,14 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast
           service_name: name,
           description: description,
           estimated_duration: durationMinutes,
-          is_active: isActive
+          is_active: isActive,
+          labor_price: price,
+          spare_part_id: sparePartId || null
         }
       );
 
       const newService = response.data;
       if (newService && newService.id) {
-        saveServicePrice(newService.id, price);
         if (imageUrl !== "/images/Service-Image.png") {
           saveServiceImage(newService.id, imageUrl);
         }
@@ -1046,11 +1021,12 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast
           service_name: name,
           description: description,
           estimated_duration: durationMinutes,
-          is_active: isActive
+          is_active: isActive,
+          labor_price: price,
+          spare_part_id: sparePartId || null
         }
       );
       if (initial?.id) {
-        saveServicePrice(initial.id, price);
         if (imageUrl !== "/images/Service-Image.png") {
           saveServiceImage(initial.id, imageUrl);
         }
@@ -1198,7 +1174,7 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                  Giá dịch vụ
+                  Giá công dịch vụ
                 </label>
                 <div className="relative">
                   <input
@@ -1215,6 +1191,27 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">VND</span>
                 </div>
               </div>
+              
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                  Phụ tùng kèm theo (Tùy chọn)
+                </label>
+                <select
+                  value={sparePartId}
+                  onChange={(e) => setSparePartId(e.target.value ? Number(e.target.value) : '')}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+                >
+                  <option value="">-- Không có --</option>
+                  {spareParts.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} - {Number(p.retail_price).toLocaleString("vi-VN")}đ
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div className="flex items-end pb-2.5">
                 <label className="flex items-center gap-2.5 cursor-pointer select-none">
                   <input

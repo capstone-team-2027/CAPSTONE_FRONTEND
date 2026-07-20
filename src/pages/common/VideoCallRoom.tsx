@@ -4,15 +4,22 @@ import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store/store';
 import { useSocket } from '../../hook/useSocket';
+import { Menu, MapPin, X } from 'lucide-react';
 
 export default function VideoCallRoom() {
     const { roomId } = useParams();
     const navigate = useNavigate();
     const containerRef = useRef<HTMLDivElement>(null);
     const zpRef = useRef<any>(null);
+    const callTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const user = useSelector((state: RootState) => state.user.user as any);
     const socket = useSocket();
+
+    const roleCodeStr = (typeof user?.role === 'object' ? user?.role?.roleCode : user?.role)?.toLowerCase();
+    const isCustomer = roleCodeStr === 'customer';
+
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     useEffect(() => {
         if (!socket || !roomId) return;
@@ -39,16 +46,33 @@ export default function VideoCallRoom() {
 
         const handleCallEnded = (data: any) => {
             if (data.roomId === roomId) {
-                showGlobalToast('Bên kia đã kết thúc cuộc gọi!');
+                if (data.reason === 'rejected') {
+                    showGlobalToast('Lễ tân đã từ chối cuộc gọi!');
+                } else {
+                    showGlobalToast('Bên kia đã kết thúc cuộc gọi!');
+                }
                 forceStopMedia();
                 navigate(-1);
             }
         };
 
+        const handleCallAnswered = (data: any) => {
+            if (data.roomId === roomId) {
+                // Trạng thái: Lễ tân ĐÃ NHẬN cuộc gọi.
+                // Lập tức hủy đếm ngược 30 giây để không bị báo "Lễ tân bận" oan.
+                if (callTimeoutRef.current) {
+                    clearTimeout(callTimeoutRef.current);
+                    callTimeoutRef.current = null;
+                }
+            }
+        };
+
         socket.on('end-video-call', handleCallEnded);
+        socket.on('call-answered', handleCallAnswered);
 
         return () => {
             socket.off('end-video-call', handleCallEnded);
+            socket.off('call-answered', handleCallAnswered);
         };
     }, [socket, roomId, navigate]);
 
@@ -95,9 +119,6 @@ export default function VideoCallRoom() {
                 const zp = ZegoUIKitPrebuilt.create(kitToken);
                 zpRef.current = zp;
 
-                // Biến lưu trữ hẹn giờ
-                let callTimeout: ReturnType<typeof setTimeout> | null = null;
-
                 // Cấu hình UI và tham gia phòng
                 if (isMounted) {
                     zp.joinRoom({
@@ -116,27 +137,36 @@ export default function VideoCallRoom() {
                         turnOnMicrophoneWhenJoining: true,
                         showLeaveRoomConfirmDialog: false,
                         onJoinRoom: () => {
-                            // Bắt đầu đếm ngược 30 giây khi vào phòng
-                            callTimeout = setTimeout(() => {
-                                socket?.emit('end-video-call', { roomId });
-                                // Tự render toast bằng DOM
-                                const toast = document.createElement('div');
-                                toast.className = "fixed top-10 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-4 bg-rose-600 text-white rounded-2xl shadow-2xl font-bold transition-all duration-500";
-                                toast.innerText = "Lễ tân hiện đang bận. Vui lòng thử lại sau!";
-                                document.body.appendChild(toast);
-                                setTimeout(() => toast.remove(), 5000);
+                            if (!isMounted) return; // Tránh rò rỉ bộ nhớ nếu component đã unmount
+                            
+                            // Bắt đầu đếm ngược 30 giây khi vào phòng (chỉ áp dụng cho Khách hàng)
+                            const roleCodeStr = (typeof user?.role === 'object' ? user?.role?.roleCode : user?.role)?.toLowerCase();
+                            const isReceptionist = roleCodeStr === 'receptionist';
+                            
+                            if (!isReceptionist) {
+                                callTimeoutRef.current = setTimeout(() => {
+                                    if (!isMounted) return;
+                                    socket?.emit('end-video-call', { roomId });
+                                    // Tự render toast bằng DOM
+                                    const toast = document.createElement('div');
+                                    toast.className = "fixed top-10 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-4 bg-rose-600 text-white rounded-2xl shadow-2xl font-bold transition-all duration-500";
+                                    toast.innerText = "Lễ tân hiện đang bận. Vui lòng thử lại sau!";
+                                    document.body.appendChild(toast);
+                                    setTimeout(() => toast.remove(), 5000);
 
-                                navigate(-1);
-                            }, 30000);
+                                    navigate(-1);
+                                }, 30000);
+                            }
                         },
                         onUserJoin: () => {
                             // Có người (Lễ tân/Khách) vào phòng -> Hủy đếm ngược
-                            if (callTimeout) {
-                                clearTimeout(callTimeout);
-                                callTimeout = null;
+                            if (callTimeoutRef.current) {
+                                clearTimeout(callTimeoutRef.current);
+                                callTimeoutRef.current = null;
                             }
                         },
                         onLeaveRoom: () => {
+                            if (!isMounted) return;
                             // Báo cho phía bên kia biết mình đã thoát
                             socket?.emit('end-video-call', { roomId });
                             // Khi khách hàng/lễ tân bấm nút đỏ "Kết thúc cuộc gọi"
@@ -156,6 +186,12 @@ export default function VideoCallRoom() {
 
         return () => {
             isMounted = false;
+            
+            if (callTimeoutRef.current) {
+                clearTimeout(callTimeoutRef.current);
+                callTimeoutRef.current = null;
+            }
+
             if (zpRef.current) {
                 try {
                     zpRef.current.destroy();
@@ -183,6 +219,35 @@ export default function VideoCallRoom() {
                 className="w-full h-full"
                 style={{ width: '100vw', height: '100vh' }}
             />
+
+            {/* Menu chức năng mở rộng cho Customer */}
+            {isCustomer && (
+                <div className="absolute top-4 left-4 z-[10000]">
+                    <button
+                        onClick={() => setIsMenuOpen(!isMenuOpen)}
+                        className="p-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-white hover:bg-white/20 transition-all shadow-lg"
+                    >
+                        {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                    </button>
+
+                    {isMenuOpen && (
+                        <div className="absolute top-14 left-0 w-64 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-2 shadow-2xl flex flex-col gap-2">
+                            <button 
+                                className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-white/20 text-white transition-all text-left"
+                                onClick={() => {
+                                    // Handle cập nhật vị trí logic here
+                                    alert("Chức năng cập nhật vị trí đang được phát triển!");
+                                    setIsMenuOpen(false);
+                                }}
+                            >
+                                <MapPin size={20} />
+                                <span className="font-medium text-sm">Cập nhật vị trí</span>
+                            </button>
+                            {/* Có thể thêm các tính năng khác tại đây */}
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

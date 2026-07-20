@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, Sparkles } from 'lucide-react';
-import { useFetchClient } from '../../../hook/useFetchClient';
+import { Check, Sparkles, Search } from 'lucide-react';
+import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { SERVICE_API_ENDPOINTS } from '../../../constants/customer/serviceApiEndpoints';
 import type { ServiceCombo, ServiceItem } from '../../../model/Service';
 
@@ -26,15 +26,21 @@ export default function ComboServicesSelector({
     selectedServiceIds = [],
     setSelectedServiceIds,
 }: ComboServicesSelectorProps) {
-    const { fetchPublic } = useFetchClient();
-    const { t } = useTranslation();
+    const { fetchPublic } = useFetchClient_v2();
+    const { t, i18n } = useTranslation();
+    const currentLang = i18n.language || 'vi';
+
+    const [page, setPage] = useState(1);
+    const [searchText, setSearchText] = useState('');
+    const [totalPages, setTotalPages] = useState(1);
+    const [currentPageCombos, setCurrentPageCombos] = useState<ServiceCombo[]>([]);
 
     useEffect(() => {
         const fetchCombos = async () => {
             try {
-                const res = await fetchPublic(SERVICE_API_ENDPOINTS.GET_COMBOS);
-                if (res && res.data && res.data.length > 0) {
-                    const mapped = res.data.map((c: any) => {
+                const res = await fetchPublic(`${SERVICE_API_ENDPOINTS.GET_COMBOS}?lang=${currentLang}&page=${page}&limit=4&search=${encodeURIComponent(searchText)}`);
+                if (res && res.data && res.data.items) {
+                    const mapped = res.data.items.map((c: any) => {
                         const serviceIds = (c.catalogs || []).map((cat: any) => cat.id);
                         return {
                             id: c.id,
@@ -44,44 +50,58 @@ export default function ComboServicesSelector({
                             discount_percentage: 10,
                             is_active: c.is_active,
                             createdAt: c.createdAt || new Date().toISOString(),
+                            originalPrice: (c.catalogs || []).reduce((sum: number, cat: any) => {
+                                const priceVal = cat.total_price !== undefined && cat.total_price !== null ? cat.total_price : (cat.labor_price || 0);
+                                return sum + (parseFloat(priceVal) || 0);
+                            }, 0),
+                            catalogs: c.catalogs || []
                         };
                     });
-                    setDbCombos(mapped);
-                } else {
-                    const stored = localStorage.getItem("service_combos");
-                    if (stored) {
-                        setDbCombos(JSON.parse(stored));
-                    }
+                    setCurrentPageCombos(mapped);
+                    setDbCombos(prev => {
+                        const map = new Map(prev.map(item => [item.id, item]));
+                        mapped.forEach((item: any) => map.set(item.id, item));
+                        return Array.from(map.values());
+                    });
+                    setTotalPages(res.data.totalPages || 1);
                 }
             } catch (err) {
                 console.error("Lỗi khi tải combos:", err);
-                const stored = localStorage.getItem("service_combos");
-                if (stored) {
-                    setDbCombos(JSON.parse(stored));
-                }
             }
         };
 
-        if (dbCombos.length === 0) {
+        const timer = setTimeout(() => {
             fetchCombos();
-        }
-    }, [dbCombos.length, setDbCombos, fetchPublic]);
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [currentLang, page, searchText, setDbCombos, fetchPublic]);
+
+    useEffect(() => {
+        setPage(1);
+    }, [searchText]);
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
-            {dbCombos.filter(c => c.is_active).map((combo) => {
+        <div className="animate-fadeIn">
+            {/* Search Input */}
+            <div className="mb-4 relative max-w-md">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                    type="text"
+                    placeholder="Tìm kiếm combo..."
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-xs outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all shadow-sm text-brand-blue"
+                />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {currentPageCombos.map((combo) => {
                 const isSelected = selectedComboId === combo.id;
                 const serviceIds = combo.service_ids || [];
-                const discountPercentage = combo.discount_percentage ?? 10;
-
-                const original = serviceIds.reduce((sum, id) => {
-                    const s = mappedServices.find(x => x.id === id);
-                    return sum + (s?.numericPrice || 0);
-                }, 0);
-                const discounted = Math.round(original * (1 - discountPercentage / 100));
-                const comboServiceNames = serviceIds.map(id => {
-                    const s = mappedServices.find(x => x.id === id);
-                    return s ? s.title : "Dịch vụ bảo dưỡng";
+                const original = (combo as any).originalPrice || 0;
+                const comboServiceNames = ((combo as any).catalogs || []).map((cat: any) => {
+                    return cat.translations?.[0]?.name || cat.service_name || "Dịch vụ bảo dưỡng";
                 });
 
                 return (
@@ -113,9 +133,7 @@ export default function ComboServicesSelector({
                     >
                         <div>
                             <div className="absolute top-4 right-4 flex items-center gap-1.5 flex-wrap justify-end">
-                                <div className="bg-red-100 text-red-600 text-[10px] font-black uppercase px-2 py-0.5 rounded-lg shadow-xs shrink-0">
-                                    {t('booking.discountText', 'Giảm {{percent}}%', { percent: discountPercentage })}
-                                </div>
+
                                 <div className="text-[9px] font-bold px-2 py-0.5 rounded-lg shrink-0 bg-brand-orange text-brand-blue">
                                     {t('booking.comboBadge', 'Combo')}
                                 </div>
@@ -128,8 +146,8 @@ export default function ComboServicesSelector({
                             <h3 className="text-base font-bold mb-1 text-brand-blue">{combo.combo_name}</h3>
 
                             <div className="my-3 space-y-1.5 pl-2 border-l-2 border-amber-400/50">
-                                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block font-display">Dịch vụ đi kèm:</span>
-                                {comboServiceNames.map((name, idx) => (
+                                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block font-display">{t('booking.includedServices', 'Dịch vụ đi kèm:')}</span>
+                                {comboServiceNames.map((name: string, idx: number) => (
                                     <div key={idx} className="text-[11px] text-slate-500 leading-snug flex items-center gap-1">
                                         <span className="text-[#F9A11B] shrink-0">•</span>
                                         <span>{name}</span>
@@ -140,10 +158,13 @@ export default function ComboServicesSelector({
 
                         <div className="flex justify-between items-end mt-4 pt-4 border-t border-slate-50">
                             <div>
-                                <div className="text-[9px] font-bold uppercase mb-0.5 text-gray-400">{t('booking.comboPromoPrice', 'Giá combo ưu đãi')}</div>
+                                <div className="text-[9px] font-bold uppercase mb-0.5 text-gray-400">{t('booking.comboPrice', 'Giá combo')}</div>
                                 <div className="flex items-baseline gap-1.5">
-                                    <span className="text-xs text-gray-400 line-through font-medium">Từ {original.toLocaleString("vi-VN")}đ</span>
-                                    <span className="text-base font-bold text-brand-orange">Từ {discounted.toLocaleString("vi-VN")}đ</span>
+                                    {original > 0 ? (
+                                        <span className="text-base font-bold text-brand-orange">{t('booking.fromPrice', 'Từ {{price}}đ', { price: original.toLocaleString("vi-VN") })}</span>
+                                    ) : (
+                                        <span className="text-base font-bold text-brand-orange">Miễn phí</span>
+                                    )}
                                 </div>
                             </div>
                             <div
@@ -160,6 +181,51 @@ export default function ComboServicesSelector({
                     </div>
                 );
             })}
+            </div>
+
+            {/* Combo Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-1.5 mt-8">
+                    <button
+                        type="button"
+                        onClick={() => setPage(prev => Math.max(prev - 1, 1))}
+                        disabled={page === 1}
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all ${page === 1
+                            ? 'text-gray-300 bg-gray-50/50 border border-gray-100 cursor-not-allowed'
+                            : 'text-brand-blue bg-white border border-gray-200 hover:bg-gray-50'
+                            }`}
+                    >
+                        Trước
+                    </button>
+                    {Array.from({ length: totalPages }).map((_, index) => {
+                        const pageNumber = index + 1;
+                        return (
+                            <button
+                                type="button"
+                                key={pageNumber}
+                                onClick={() => setPage(pageNumber)}
+                                className={`w-7 h-7 rounded-xl text-[10px] font-bold transition-all ${page === pageNumber
+                                    ? 'bg-brand-blue text-white shadow-md shadow-blue-900/10'
+                                    : 'bg-white text-brand-blue border border-gray-200 hover:bg-gray-50'
+                                    }`}
+                            >
+                                {pageNumber}
+                            </button>
+                        );
+                    })}
+                    <button
+                        type="button"
+                        onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={page === totalPages}
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all ${page === totalPages
+                            ? 'text-gray-300 bg-gray-50/50 border border-gray-100 cursor-not-allowed'
+                            : 'text-brand-blue bg-white border border-gray-200 hover:bg-gray-50'
+                            }`}
+                    >
+                        Sau
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

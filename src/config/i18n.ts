@@ -602,6 +602,8 @@ const resources = {
         comboBadge: "Combo",
         comboPromoPrice: "Giá combo ưu đãi",
         comboOverlapWarning: "Gói Combo này bao gồm các dịch vụ bạn đã chọn lẻ. Các dịch vụ lẻ trùng lặp sẽ tự động được bỏ chọn để tránh trùng lặp!",
+        includedServices: "Dịch vụ đi kèm:",
+        fromPrice: "Từ {{price}}đ",
         steps: {
           service: "Dịch vụ",
           time: "Thời gian",
@@ -1444,6 +1446,8 @@ const resources = {
         comboBadge: "Combo",
         comboPromoPrice: "Special Combo Price",
         comboOverlapWarning: "This Combo package includes single services you have already selected. The duplicate single services will be automatically unselected to avoid redundancy!",
+        includedServices: "INCLUDED SERVICES:",
+        fromPrice: "From {{price}} VND",
         steps: {
           service: "SERVICE",
           time: "TIME",
