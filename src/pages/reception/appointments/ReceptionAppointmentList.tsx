@@ -17,6 +17,7 @@ import {
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import type { AppointmentModel } from '../../../model/Appointment';
 import { useFetchClient } from '../../../hook/useFetchClient';
+import { useSocket } from '../../../hook/useSocket';
 import { APPOINTMENT_API_ENDPOINTS, SERVICE_ORDER_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
@@ -50,6 +51,7 @@ export default function AppointmentList() {
   }>();
 
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
   const [appointments, setAppointments] = useState<AppointmentModel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -227,6 +229,18 @@ export default function AppointmentList() {
   useEffect(() => {
     loadAppointments();
   }, []);
+
+  // Có lịch hẹn mới -> BE emit new_notification -> tự tải lại danh sách
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      loadAppointments();
+    };
+    socket.on('new_notification', handleNewNotification);
+    return () => {
+      socket.off('new_notification', handleNewNotification);
+    };
+  }, [socket]);
 
   // Filtered data
   const filteredAppointments = useMemo(() => {

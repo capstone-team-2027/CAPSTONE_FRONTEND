@@ -60,6 +60,8 @@ export default function ReceptionLayout() {
     useState(false);
   const desktopNotifRef = useRef<HTMLDivElement>(null);
   const mobileNotifRef = useRef<HTMLDivElement>(null);
+  // Hẹn giờ tự đóng dropdown khi mở do có thông báo mới
+  const autoCloseNotifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -155,10 +157,25 @@ export default function ReceptionLayout() {
     }
 
     if (socket) {
-      const handleNewNotification = (data: any) => {
-        showToast(data.message || "Bạn có thông báo mới", "info");
-        loadNotifications(); // Tải lại danh sách thông báo để update đỏ
+      // Vào room theo role để nhận thông báo BE emit tới role-RECEPTIONIST.
+      // Join ngay và join lại mỗi khi socket reconnect.
+      const roleCode = user?.role;
+      const joinRole = () => {
+        if (roleCode) socket.emit("join-role", roleCode);
+      };
+      joinRole();
+      socket.on("connect", joinRole);
+
+      const handleNewNotification = () => {
+        // Tải lại danh sách + số chưa đọc, rồi bật dropdown chuông vài giây
+        loadNotifications();
         loadUnreadCount();
+        setShowNotificationDropdown(true);
+        if (autoCloseNotifTimer.current)
+          clearTimeout(autoCloseNotifTimer.current);
+        autoCloseNotifTimer.current = setTimeout(() => {
+          setShowNotificationDropdown(false);
+        }, 4000);
       };
 
       const handleIncomingCall = (data: any) => {
@@ -193,6 +210,7 @@ export default function ReceptionLayout() {
       socket.on("end-video-call", handleCallEnded);
 
       return () => {
+        socket.off("connect", joinRole);
         socket.off("new_notification", handleNewNotification);
         socket.off("incoming-video-call", handleIncomingCall);
         socket.off("call-answered", handleCallAnswered);
@@ -204,11 +222,11 @@ export default function ReceptionLayout() {
   const avatarUrl =
     user?.avatar?.trim() ||
     "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=256&auto=format&fit=crop";
-  const displayName = user?.fullName || "Lễ tân viên";
+  const displayName = user?.fullName || "Nhân viên tiếp nhận";
   const displayRole =
     user?.role?.toUpperCase() === "RECEPTIONIST"
-      ? "Lễ tân"
-      : user?.role || "Lễ tân";
+      ? "Nhân viên tiếp nhận"
+      : user?.role || "Nhân viên tiếp nhận";
 
   // Menu items for the sidebar
   const menuItems = [
@@ -264,7 +282,7 @@ export default function ReceptionLayout() {
               AGM Intelligent
             </span>
             <span className="text-[10px] text-slate-500 font-semibold tracking-widest uppercase">
-              Lễ tân tiếp nhận
+              Nhân viên tiếp nhận
             </span>
           </div>
         </div>
@@ -354,7 +372,7 @@ export default function ReceptionLayout() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 10 }}
-          className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50 origin-top-right"
+          className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-[60] origin-top-right"
         >
           <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             <h3 className="font-bold text-slate-800">Thông báo</h3>
@@ -416,13 +434,6 @@ export default function ReceptionLayout() {
               </div>
             )}
           </div>
-          {notifications.length > 0 && (
-            <div className="p-3 border-t border-slate-100 text-center bg-slate-50/50">
-              <button className="text-xs font-semibold text-[#00285E] hover:text-[#F9A11B] transition-colors">
-                Đánh dấu tất cả đã đọc
-              </button>
-            </div>
-          )}
         </motion.div>
       )}
     </AnimatePresence>
@@ -430,28 +441,60 @@ export default function ReceptionLayout() {
 
   return (
     <div className="min-h-screen bg-[#F4F7FC] font-sans antialiased text-slate-800 flex flex-col md:flex-row relative">
-      {/* Dynamic Toast Notifications */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -50, x: "-50%" }}
-            animate={{ opacity: 1, y: 16, x: "-50%" }}
-            exit={{ opacity: 0, y: -20, x: "-50%" }}
-            className="fixed top-0 left-1/2 z-[200] transform -translate-x-1/2 flex items-center gap-2.5 px-5 py-3.5 bg-slate-900 text-white rounded-2xl shadow-xl border border-slate-800 text-sm font-semibold"
-          >
-            {toastMessage.type === "success" && (
-              <CheckCircle size={18} className="text-emerald-400" />
-            )}
-            {toastMessage.type === "info" && (
-              <Info size={18} className="text-blue-400" />
-            )}
-            {toastMessage.type === "warning" && (
-              <AlertTriangle size={18} className="text-amber-400" />
-            )}
-            <span>{toastMessage.text}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Dynamic Toast Notifications - card góc phải màn hình */}
+      <div className="fixed top-5 right-5 z-[200] flex flex-col gap-3 w-[min(360px,calc(100vw-2.5rem))]">
+        <AnimatePresence>
+          {toastMessage && (
+            <motion.div
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ type: "spring", stiffness: 300, damping: 26 }}
+              className="relative flex items-start gap-3 bg-white rounded-2xl shadow-xl border border-slate-100 pl-5 pr-3 py-4 overflow-hidden"
+            >
+              {/* Thanh màu bên trái theo loại */}
+              <span
+                className={`absolute left-0 top-0 h-full w-1.5 rounded-r ${
+                  toastMessage.type === "success"
+                    ? "bg-emerald-500"
+                    : toastMessage.type === "warning"
+                      ? "bg-amber-500"
+                      : "bg-blue-500"
+                }`}
+              />
+              <span className="shrink-0 mt-0.5">
+                {toastMessage.type === "success" && (
+                  <CheckCircle size={18} className="text-emerald-500" />
+                )}
+                {toastMessage.type === "info" && (
+                  <Info size={18} className="text-blue-500" />
+                )}
+                {toastMessage.type === "warning" && (
+                  <AlertTriangle size={18} className="text-amber-500" />
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-slate-800 leading-tight">
+                  {toastMessage.type === "success"
+                    ? "Thành công"
+                    : toastMessage.type === "warning"
+                      ? "Cảnh báo"
+                      : "Thông báo"}
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                  {toastMessage.text}
+                </p>
+              </div>
+              <button
+                onClick={() => setToastMessage(null)}
+                className="shrink-0 p-1 rounded-lg text-slate-300 hover:text-slate-500 hover:bg-slate-50 transition-colors"
+              >
+                <X size={15} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* Màn hình hiển thị cuộc gọi đến (Video Call Ringing) */}
       <AnimatePresence>
@@ -574,7 +617,7 @@ export default function ReceptionLayout() {
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col min-w-0 pb-16">
         {/* DESKTOP HEADER BAR */}
-        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-between border-b border-slate-100 shadow-xs sticky top-0 z-25">
+        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-between border-b border-slate-100 shadow-xs sticky top-0 z-30">
           {/* Search bar */}
           <div className="relative w-80">
             <Search
