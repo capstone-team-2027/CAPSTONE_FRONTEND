@@ -45,7 +45,7 @@ function NavLink({ item, active, mobile = false, onClick }: NavLinkProps) {
             <Link
                 to={item.path}
                 onClick={onClick}
-                className={`text-base font-semibold transition-colors duration-200 ${active ? 'text-white' : 'text-white/60 hover:text-white'
+                className={`text-[15px] font-semibold transition-colors duration-200 ${active ? 'text-white' : 'text-white/60 hover:text-white'
                     }`}
             >
                 {item.name}
@@ -346,8 +346,8 @@ export default function Navbar() {
                 style={{ backgroundColor: `${COLORS.navy}F2` }}
             >
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="h-20 flex items-center justify-between">
-                        <Logo size="md" />
+                    <div className="h-20 flex items-center ">
+                        <Logo size="md" className="mt-4 -translate-x-20" />
 
                         <nav className="hidden md:flex items-center gap-10 ml-12 mr-auto">
                             {currentNavItems.map((item) => (

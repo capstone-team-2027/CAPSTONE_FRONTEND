@@ -1,49 +1,48 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
-  Clock,
   Car,
   CheckCircle2,
   AlertCircle,
-  Wrench,
   ShieldCheck,
-  Timer,
-  ClipboardList
+  ClipboardList,
+  CalendarClock,
 } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
+import { useSocket } from '../../../hook/useSocket';
 import { WAITING_TIME_API_ENDPOINTS } from '../../../constants/customer/waitingTimeApiEndpoint';
 
-import type { TrackingData, FilterCategory } from '../../../model/Tracking';
+import type { GetRepairProgressResponse } from '../../../model/dto/repairProgress.dto';
+
+type FilterCategory = 'ACTIVE' | 'COMPLETED';
 
 export default function TrackingTab() {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
 
-  const [data, setData] = useState<TrackingData | null>(null);
+  const [orders, setOrders] = useState<GetRepairProgressResponse[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('ACTIVE');
   const [selectedOrderIndex, setSelectedOrderIndex] = useState<number>(0);
 
-  const loadData = async () => {
-    setIsLoading(true);
+  // silent = true: nạp ngầm khi có cập nhật realtime, không nháy màn loading
+  const loadData = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     setError(null);
     try {
-      const res = await fetchPrivate(WAITING_TIME_API_ENDPOINTS.GET_WAITING_TIME);
-      if (res && res.success) {
-        setData(res.data);
-      } else {
-        setError("Không thể lấy thông tin theo dõi xe.");
-      }
+      const res = await fetchPrivate<GetRepairProgressResponse[]>(
+        WAITING_TIME_API_ENDPOINTS.GET_REPAIR_PROGRESS,
+      );
+      setOrders(res?.data ?? []);
     } catch (err: any) {
-      console.error("Lỗi khi tải thông tin theo dõi:", err);
-      setError(err.message || "Đã xảy ra lỗi khi kết nối với máy chủ.");
+      console.error('Lỗi khi tải thông tin theo dõi:', err);
+      if (!silent) setError(err.message || 'Đã xảy ra lỗi khi kết nối với máy chủ.');
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
@@ -51,31 +50,62 @@ export default function TrackingTab() {
     loadData();
   }, []);
 
-  // Reset selected car index when changing filter tabs
+  // Realtime: join room từng đơn dịch vụ, BE emit khi task đổi trạng thái.
+  // BE nhận id đơn (tự ghép thành room `service-order-{id}`).
+  useEffect(() => {
+    if (!socket || orders.length === 0) return;
+
+    const orderIds = orders.map((o) => o.id);
+    orderIds.forEach((orderId) =>
+      socket.emit('join-vehicle-tracking', orderId),
+    );
+
+    // Nạp ngầm để không nháy màn loading mỗi lần thợ hoàn thành 1 hạng mục
+    const handleProgress = () => loadData(true);
+    socket.on('progress-updated', handleProgress);
+
+    return () => {
+      socket.off('progress-updated', handleProgress);
+      orderIds.forEach((orderId) =>
+        socket.emit('leave-vehicle-tracking', orderId),
+      );
+    };
+  }, [socket, orders]);
+
   useEffect(() => {
     setSelectedOrderIndex(0);
   }, [filterCategory]);
 
-  const activeOrders = data?.activeOrders || [];
+  const isOrderDone = (o: GetRepairProgressResponse) =>
+    o.status === 'COMPLETED' || !!o.actual_finish_time;
 
-  const activeCount = useMemo(() => activeOrders.filter(o => o.orderStatus !== 'COMPLETED').length, [activeOrders]);
-  const completedCount = useMemo(() => activeOrders.filter(o => o.orderStatus === 'COMPLETED').length, [activeOrders]);
+  const activeCount = useMemo(
+    () => orders.filter((o) => !isOrderDone(o)).length,
+    [orders],
+  );
+  const completedCount = useMemo(
+    () => orders.filter((o) => isOrderDone(o)).length,
+    [orders],
+  );
 
-  const filteredOrders = useMemo(() => {
-    if (filterCategory === 'COMPLETED') {
-      return activeOrders.filter(o => o.orderStatus === 'COMPLETED');
-    }
-    return activeOrders.filter(o => o.orderStatus !== 'COMPLETED');
-  }, [activeOrders, filterCategory]);
+  const filteredOrders = useMemo(
+    () =>
+      filterCategory === 'COMPLETED'
+        ? orders.filter(isOrderDone)
+        : orders.filter((o) => !isOrderDone(o)),
+    [orders, filterCategory],
+  );
 
-  const formatTime = (minutes: number) => {
-    if (!minutes || minutes === 0) return '0 phút';
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    if (h > 0 && m > 0) return `${h} giờ ${m} phút`;
-    if (h > 0) return `${h} giờ`;
-    return `${m} phút`;
-  };
+  const formatDateTime = (d?: string | null) =>
+    d
+      ? new Date(d).toLocaleString('vi-VN', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '—';
 
   const getOrderStatusDisplay = (status?: string) => {
     switch (status) {
@@ -85,6 +115,8 @@ export default function TrackingTab() {
         return { label: 'Chờ phụ tùng', color: 'text-rose-600 bg-rose-50 border-rose-200' };
       case 'IN_PROGRESS':
         return { label: 'Đang sửa chữa', color: 'text-blue-600 bg-blue-50 border-blue-200' };
+      case 'PENDING_QC':
+        return { label: 'Chờ kiểm định', color: 'text-violet-600 bg-violet-50 border-violet-200' };
       case 'COMPLETED':
         return { label: 'Đã hoàn thành', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' };
       default:
@@ -94,6 +126,33 @@ export default function TrackingTab() {
 
   const currentOrder = filteredOrders[selectedOrderIndex];
 
+  // Tiến độ = tỉ lệ hạng mục đã làm xong. Trạng thái lấy từ Task_Assignment vì
+  // BE chỉ đổi assignment.status khi thợ hoàn thành, task.status giữ nguyên.
+  // PENDING_QC nghĩa là thợ sửa xong, chờ kiểm định -> vẫn tính vào tiến độ.
+  const taskTotal = currentOrder?.tasks?.length ?? 0;
+  const doneCount = useMemo(
+    () =>
+      (currentOrder?.tasks ?? []).filter((t) => {
+        const status = t.assignments?.[0]?.status ?? t.status;
+        return status === 'COMPLETED' || status === 'PENDING_QC';
+      }).length,
+    [currentOrder],
+  );
+  const orderProgress = useMemo(
+    () => (taskTotal === 0 ? 0 : Math.round((doneCount / taskTotal) * 100)),
+    [doneCount, taskTotal],
+  );
+
+  // Xong hết hạng mục nhưng đơn chưa đóng -> đang nghiệm thu trước khi giao xe
+  const isAwaitingHandover = useMemo(
+    () =>
+      !!currentOrder &&
+      taskTotal > 0 &&
+      orderProgress === 100 &&
+      !isOrderDone(currentOrder),
+    [currentOrder, taskTotal, orderProgress],
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -101,46 +160,58 @@ export default function TrackingTab() {
       transition={{ duration: 0.4 }}
       className="flex flex-col gap-6 text-left"
     >
+      <style>{`
+        @keyframes trackStripes {
+          from { background-position: 1rem 0; }
+          to { background-position: 0 0; }
+        }
+        .bar-running {
+          background-image: linear-gradient(
+            45deg,
+            rgba(255,255,255,0.3) 25%, transparent 25%,
+            transparent 50%, rgba(255,255,255,0.3) 50%,
+            rgba(255,255,255,0.3) 75%, transparent 75%, transparent
+          );
+          background-size: 1rem 1rem;
+          animation: trackStripes 0.7s linear infinite;
+        }
+      `}</style>
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-5">
-        <div>
-          <h2 className="text-2xl font-display font-bold text-brand-blue tracking-tight">
-            Theo dõi tiến độ sửa chữa
-          </h2>
-          <p className="text-xs text-gray-500 mt-1">
-            Cập nhật trạng thái sửa chữa xe của bạn theo thời gian thực.
-          </p>
-        </div>
+      <div className="border-b border-gray-100 pb-5">
+        <h2 className="text-2xl font-display font-bold text-[#00285E] tracking-tight">
+          Theo dõi tiến độ sửa chữa
+        </h2>
+        <p className="text-xs text-gray-500 mt-1">
+          Cập nhật trạng thái sửa chữa xe của bạn theo thời gian thực.
+        </p>
       </div>
 
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-gray-100 shadow-xs">
-          <div className="w-10 h-10 border-4 border-brand-orange border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-200/70 shadow-xs">
+          <div className="w-10 h-10 border-4 border-brand-orange border-t-transparent rounded-full animate-spin" />
           <span className="text-xs text-gray-400 mt-4">Đang tải dữ liệu theo dõi...</span>
         </div>
       ) : error ? (
-        <div className="flex flex-col items-center justify-center py-16 bg-white rounded-3xl border border-gray-100 shadow-xs text-center px-4">
+        <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-gray-200/70 shadow-xs text-center px-4">
           <div className="w-16 h-16 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-600 mb-4">
             <AlertCircle className="w-8 h-8 opacity-80" />
           </div>
-          <h3 className="font-bold text-sm text-brand-blue">
-            Không thể tải dữ liệu
-          </h3>
+          <h3 className="font-bold text-sm text-[#00285E]">Không thể tải dữ liệu</h3>
           <p className="text-xs text-gray-400 mt-1 max-w-xs">{error}</p>
           <button
-            onClick={loadData}
-            className="mt-5 px-5 py-2 bg-brand-blue text-white rounded-xl text-xs font-bold shadow-md hover:bg-brand-blue/95 transition-all cursor-pointer"
+            onClick={() => loadData()}
+            className="mt-5 px-5 py-2 bg-[#00285E] text-white rounded-xl text-xs font-bold shadow-md hover:brightness-110 transition-all cursor-pointer"
           >
             Thử lại
           </button>
         </div>
-      ) : !data?.hasActiveOrder && activeOrders.length === 0 ? (
-        // TRƯỜNG HỢP KHÔNG CÓ BẤT KỲ XE NÀO
-        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-gray-100 shadow-xs text-center px-4">
-          <div className="w-20 h-20 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 mb-4 shadow-inner border border-slate-100">
+      ) : orders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-200/70 shadow-xs text-center px-4">
+          <div className="w-20 h-20 rounded-full bg-slate-50 flex items-center justify-center mb-4 border border-slate-100">
             <CheckCircle2 className="w-10 h-10 text-emerald-500 opacity-80" />
           </div>
-          <h3 className="font-bold text-base text-brand-blue">
+          <h3 className="font-bold text-base text-[#00285E]">
             Không có xe nào đang ở trong xưởng
           </h3>
           <p className="text-xs text-gray-500 mt-2 max-w-md">
@@ -148,7 +219,7 @@ export default function TrackingTab() {
           </p>
           <button
             onClick={() => navigate('/phone-service')}
-            className="mt-6 px-6 py-2.5 bg-brand-orange text-brand-blue rounded-xl text-xs font-bold shadow-md shadow-brand-orange/20 hover:bg-brand-orange/90 transition-all cursor-pointer"
+            className="mt-6 px-6 py-2.5 bg-brand-orange text-[#00285E] rounded-xl text-xs font-bold shadow-md shadow-brand-orange/20 hover:brightness-105 transition-all cursor-pointer"
           >
             Đặt lịch bảo dưỡng ngay
           </button>
@@ -159,10 +230,11 @@ export default function TrackingTab() {
           <div className="flex border-b border-gray-100 -mt-2 mb-2">
             <button
               onClick={() => setFilterCategory('ACTIVE')}
-              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 relative ${filterCategory === 'ACTIVE'
-                ? 'text-brand-orange border-brand-orange'
-                : 'text-gray-400 border-transparent hover:text-brand-blue'
-                }`}
+              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 ${
+                filterCategory === 'ACTIVE'
+                  ? 'text-brand-orange border-brand-orange'
+                  : 'text-gray-400 border-transparent hover:text-[#00285E]'
+              }`}
             >
               <span>Đang tiến hành</span>
               {activeCount > 0 && (
@@ -173,10 +245,11 @@ export default function TrackingTab() {
             </button>
             <button
               onClick={() => setFilterCategory('COMPLETED')}
-              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 relative ${filterCategory === 'COMPLETED'
-                ? 'text-brand-orange border-brand-orange'
-                : 'text-gray-400 border-transparent hover:text-brand-blue'
-                }`}
+              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 ${
+                filterCategory === 'COMPLETED'
+                  ? 'text-brand-orange border-brand-orange'
+                  : 'text-gray-400 border-transparent hover:text-[#00285E]'
+              }`}
             >
               <span>Đã hoàn thành</span>
               {completedCount > 0 && (
@@ -187,15 +260,12 @@ export default function TrackingTab() {
             </button>
           </div>
 
-          {filteredOrders.length === 0 ? (
-            // TRƯỜNG HỢP KHÔNG CÓ XE NÀO Ở TRẠNG THÁI NÀY
-            <div className="flex flex-col items-center justify-center py-16 bg-white rounded-3xl border border-gray-100 shadow-xs text-center px-4">
-              <div className="w-16 h-16 rounded-2xl bg-blue-50/50 flex items-center justify-center text-brand-blue mb-4">
+          {filteredOrders.length === 0 || !currentOrder ? (
+            <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-gray-200/70 shadow-xs text-center px-4">
+              <div className="w-16 h-16 rounded-2xl bg-blue-50/50 flex items-center justify-center text-[#00285E] mb-4">
                 <ClipboardList className="w-8 h-8 opacity-60" />
               </div>
-              <h3 className="font-bold text-sm text-brand-blue">
-                Không tìm thấy xe
-              </h3>
+              <h3 className="font-bold text-sm text-[#00285E]">Không tìm thấy xe</h3>
               <p className="text-xs text-gray-400 mt-1 max-w-xs">
                 {filterCategory === 'ACTIVE'
                   ? 'Tuyệt vời! Bạn không có chiếc xe nào đang phải sửa chữa.'
@@ -204,163 +274,153 @@ export default function TrackingTab() {
             </div>
           ) : (
             <>
-              {/* Menu chọn xe (nếu có nhiều hơn 1 xe đang cùng trạng thái) */}
+              {/* Chọn xe khi có nhiều đơn cùng trạng thái */}
               {filteredOrders.length > 1 && (
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                <div className="flex gap-2 overflow-x-auto pb-2">
                   {filteredOrders.map((order, idx) => {
                     const isActive = idx === selectedOrderIndex;
-                    const statusDisp = getOrderStatusDisplay(order.orderStatus);
                     return (
                       <button
-                        key={order.serviceOrderId}
+                        key={order.id}
                         onClick={() => setSelectedOrderIndex(idx)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 ${isActive
-                          ? 'bg-brand-blue text-white border-brand-blue shadow-md'
-                          : 'bg-white text-gray-500 border-gray-200 hover:border-brand-blue/50'
-                          }`}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 ${
+                          isActive
+                            ? 'bg-[#00285E] text-white border-[#00285E] shadow-md'
+                            : 'bg-white text-gray-500 border-gray-200 hover:border-[#00285E]/40'
+                        }`}
                       >
                         <Car className={`w-4 h-4 ${isActive ? 'text-brand-orange' : 'text-gray-400'}`} />
                         <span>{order.vehicle?.license_plate || 'Xe không rõ'}</span>
-                        <span className={`px-1.5 py-0.5 rounded-md text-[9px] ${isActive ? 'bg-white/20 text-white' : statusDisp.color
-                          }`}>
-                          {statusDisp.label}
-                        </span>
                       </button>
                     );
                   })}
                 </div>
               )}
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Cột trái: Tổng quan thời gian & Xe */}
-                <div className="lg:col-span-1 space-y-6">
-                  <motion.div
-                    key={`timer-${currentOrder.serviceOrderId}`}
-                    initial={{ scale: 0.95, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.1 }}
-                    className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 flex flex-col items-center text-center relative overflow-hidden"
-                  >
-                    <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-orange" />
-
-                    <div className="w-16 h-16 rounded-2xl bg-brand-orange/10 flex items-center justify-center mb-4">
-                      {filterCategory === 'COMPLETED' ? (
-                        <CheckCircle2 className="w-8 h-8 text-emerald-500" />
-                      ) : (
-                        <Timer className="w-8 h-8 text-brand-orange" />
-                      )}
-                    </div>
-
-                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">
-                      {filterCategory === 'COMPLETED' ? 'Trạng thái xe' : 'Thời gian chờ dự kiến'}
-                    </h3>
-                    <div className={`text-3xl font-display font-bold mb-1 ${filterCategory === 'COMPLETED' ? 'text-emerald-500' : 'text-brand-blue'}`}>
-                      {filterCategory === 'COMPLETED' ? 'Đã xong' : formatTime(currentOrder.totalRemainingTimeMinutes)}
-                    </div>
-                    {filterCategory !== 'COMPLETED' && (
-                      <p className="text-[10px] text-gray-400 mt-2 italic">
-                        *Thời gian mang tính chất ước tính dựa trên các hạng mục công việc
-                      </p>
-                    )}
-                  </motion.div>
-
-                  <motion.div
-                    key={`info-${currentOrder.serviceOrderId}`}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 space-y-4"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shadow-inner">
-                        <Car className="w-5 h-5 text-brand-blue" />
+              {/* Phương tiện + tiến độ */}
+              <motion.div
+                key={`hero-${currentOrder.id}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-2xl border border-gray-200/70 shadow-xs overflow-hidden"
+              >
+                <div className="p-5 sm:p-6 flex flex-wrap items-start justify-between gap-5">
+                  <div className="min-w-0">
+                    <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2.5">
+                      Phương tiện
+                    </span>
+                    <div className="space-y-1.5">
+                      <div className="flex items-baseline gap-3">
+                        <span className="w-16 shrink-0 text-xs text-gray-400">Biển số</span>
+                        <span className="text-sm font-bold text-[#00285E] truncate">
+                          {currentOrder.vehicle?.license_plate || '—'}
+                        </span>
                       </div>
-                      <div>
-                        <div className="text-xs text-gray-400 font-bold uppercase">Phương tiện</div>
-                        <div className="font-bold text-brand-blue text-sm">{currentOrder.vehicle?.license_plate || 'N/A'}</div>
+                      <div className="flex items-baseline gap-3">
+                        <span className="w-16 shrink-0 text-xs text-gray-400">Tên xe</span>
+                        <span className="text-sm font-bold text-[#00285E] truncate">
+                          {[currentOrder.vehicle?.model?.model_name, currentOrder.vehicle?.color]
+                            .filter(Boolean)
+                            .join(' · ') || '—'}
+                        </span>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="pt-3 border-t border-gray-100 flex justify-between items-center">
-                      <span className="text-xs font-bold text-gray-500">Trạng thái chung:</span>
-                      <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold border ${getOrderStatusDisplay(currentOrder.orderStatus).color}`}>
-                        {getOrderStatusDisplay(currentOrder.orderStatus).label}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-gray-500">Mã Lệnh SC:</span>
-                      <span className="text-xs font-mono font-bold text-brand-blue">#{currentOrder.serviceOrderId}</span>
-                    </div>
-                  </motion.div>
-                </div>
-
-                {/* Cột phải: Danh sách Task */}
-                <div className="lg:col-span-2">
-                  <motion.div
-                    key={`tasks-${currentOrder.serviceOrderId}`}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col h-full"
-                  >
-                    <div className="p-5 border-b border-gray-100 bg-slate-50/50 flex justify-between items-center">
-                      <h3 className="font-bold text-brand-blue text-sm flex items-center gap-2">
-                        <Wrench className="w-4 h-4 text-brand-orange" />
-                        Tiến độ các hạng mục
-                      </h3>
-                      <span className="text-xs font-bold bg-brand-blue/10 text-brand-blue px-2 py-1 rounded-lg">
-                        {currentOrder.tasks?.length || 0} công việc
-                      </span>
-                    </div>
-
-                    <div className="p-5 divide-y divide-gray-100 flex-grow">
-                      {currentOrder.tasks && currentOrder.tasks.length > 0 ? (
-                        currentOrder.tasks.map((task, idx) => (
-                          <motion.div
-                            key={task.taskId}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.1 * idx }}
-                            className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 first:pt-0 last:pb-0"
-                          >
-                            <div className="flex items-start gap-3">
-                              <div className={`mt-0.5 shrink-0 ${task.status === 'COMPLETED' ? 'text-emerald-500' :
-                                task.status === 'IN_PROGRESS' ? 'text-blue-500 animate-pulse' :
-                                  'text-gray-300'
-                                }`}>
-                                {task.status === 'COMPLETED' ? <CheckCircle2 className="w-5 h-5" /> :
-                                  task.status === 'IN_PROGRESS' ? <Timer className="w-5 h-5" /> :
-                                    <Clock className="w-5 h-5" />}
-                              </div>
-                              <div>
-                                <div className={`font-bold text-sm ${task.status === 'COMPLETED' ? 'text-slate-500 line-through' : 'text-brand-blue'}`}>
-                                  {task.serviceName || 'Công việc không xác định'}
-                                </div>
-                                <div className="text-[10px] text-gray-400 font-semibold mt-1 flex items-center gap-1">
-                                  <Clock className="w-3 h-3" /> Dự kiến: {task.estimatedDuration || 0} phút
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="sm:text-right shrink-0">
-                              {task.status === 'COMPLETED' ? (
-                                <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">Đã xong</span>
-                              ) : task.status === 'IN_PROGRESS' ? (
-                                <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100">Đang thực hiện</span>
-                              ) : (
-                                <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-500 border border-gray-200">Đang chờ</span>
-                              )}
-                            </div>
-                          </motion.div>
-                        ))
-                      ) : (
-                        <div className="py-10 text-center text-gray-400 text-xs italic">
-                          Chưa có hạng mục công việc cụ thể.
-                        </div>
+                  <div className="text-right">
+                    <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                      {isOrderDone(currentOrder) ? 'Đã trả xe' : 'Dự kiến trả xe'}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-base font-bold text-[#00285E] leading-none">
+                      <CalendarClock size={16} className="text-brand-orange shrink-0" />
+                      {formatDateTime(
+                        isOrderDone(currentOrder)
+                          ? currentOrder.actual_finish_time
+                          : currentOrder.promised_finish_time,
                       )}
-                    </div>
-                  </motion.div>
+                    </span>
+                  </div>
                 </div>
-              </div>
+
+                {/* Tiến độ công việc */}
+                <div className="px-5 sm:px-6 py-5 border-t border-gray-100 bg-slate-50/50">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                    <span className="text-[11px] font-bold text-[#00285E] uppercase tracking-widest">
+                      Tiến độ công việc
+                    </span>
+                    <span
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${
+                        isAwaitingHandover
+                          ? 'text-violet-600 bg-violet-50 border-violet-200'
+                          : getOrderStatusDisplay(currentOrder.status).color
+                      }`}
+                    >
+                      {isAwaitingHandover
+                        ? 'Đang kiểm tra trước khi giao xe'
+                        : getOrderStatusDisplay(currentOrder.status).label}
+                    </span>
+                  </div>
+                  <div className="h-2.5 w-full rounded-full bg-slate-200/70 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full bg-[#00285E] transition-all duration-700 ${
+                        orderProgress < 100 || isAwaitingHandover ? 'bar-running' : ''
+                      }`}
+                      style={{ width: `${orderProgress}%` }}
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
+                    <span className="text-[11px] font-semibold text-[#00285E]">
+                      {doneCount}/{taskTotal} hạng mục hoàn tất
+                    </span>
+                    <span className="text-[11px] font-bold text-[#00285E] tabular-nums">
+                      {orderProgress}%
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Mốc thời gian */}
+              <motion.div
+                key={`time-${currentOrder.id}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className="bg-white rounded-2xl border border-gray-200/70 shadow-xs p-5 sm:p-6"
+              >
+                <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4">
+                  Mốc thời gian
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                      Tiếp nhận xe
+                    </span>
+                    <span className="block text-sm font-semibold text-[#00285E]">
+                      {formatDateTime(currentOrder.entry_time)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                      Hẹn trả xe
+                    </span>
+                    <span className="block text-sm font-semibold text-[#00285E]">
+                      {formatDateTime(currentOrder.promised_finish_time)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                      Hoàn tất thực tế
+                    </span>
+                    <span
+                      className={`block text-sm font-semibold ${
+                        currentOrder.actual_finish_time ? 'text-emerald-600' : 'text-gray-300'
+                      }`}
+                    >
+                      {formatDateTime(currentOrder.actual_finish_time)}
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
             </>
           )}
         </>

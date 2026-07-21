@@ -2,14 +2,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   LayoutDashboard,
-  Boxes,
-  Tags,
-  ArrowDownToLine,
-  ArrowUpFromLine,
   ClipboardCheck,
-  Truck,
-  BarChart3,
-  FileCheck2,
+  ShieldCheck,
   HelpCircle,
   LogOut,
   Search,
@@ -19,7 +13,6 @@ import {
   CheckCircle,
   Info,
   AlertTriangle,
-  Warehouse,
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -29,7 +22,7 @@ import { useFetchClient } from '../../hook/useFetchClient';
 import { loginSuccess, logout } from '../../store/slices/userSlice';
 import { PROFILE_API_ENDPOINTS } from '../../constants/common/profileEndpoints';
 
-export default function InventoryLayout() {
+export default function LeaderLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
@@ -73,34 +66,20 @@ export default function InventoryLayout() {
   }, [dispatch, fetchPrivate, user]);
 
   const avatarUrl = user?.avatar?.trim() || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=256&auto=format&fit=crop';
-  const displayName = user?.fullName || 'Nguyễn Văn Kho';
-  const displayRole = 'Quản lý kho';
+  const displayName = user?.fullName || 'Tổ trưởng kỹ thuật';
+  const displayRole = 'Phân công kỹ thuật';
 
-  // Sidebar menu items for inventory management
+  // Sidebar menu items for team leader
   const menuItems = [
-    { name: 'Tổng quan', icon: LayoutDashboard, path: '/inventory' },
-    { name: 'Phụ tùng', icon: Boxes, path: '/inventory/parts' },
-    { name: 'Danh mục phụ tùng', icon: Tags, path: '/inventory/categories' },
-    { name: 'Lịch sử nhập kho', icon: ArrowDownToLine, path: '/inventory/import' },
-    { name: 'Lịch sử xuất kho', icon: ArrowUpFromLine, path: '/inventory/export' },
-    { name: 'Kiểm kê', icon: ClipboardCheck, path: '/inventory/stocktake' },
-    { name: 'Báo giá đã duyệt', icon: FileCheck2, path: '/inventory/approved-quotes' },
-    { name: 'Nhà cung cấp', icon: Truck, path: '/inventory/suppliers' },
-    { name: 'Báo cáo kho', icon: BarChart3, path: '/inventory/reports' },
+    { name: 'Tổng quan', icon: LayoutDashboard, path: '/leader' },
+    { name: 'Phân công kỹ thuật', icon: ClipboardCheck, path: '/leader/assignments' },
   ];
 
   // Dynamic active menu item based on current URL path
   const activeMenu = useMemo(() => {
     const path = location.pathname;
-    if (path === '/inventory' || path === '/inventory/') return 'Tổng quan';
-    if (path.includes('/parts')) return 'Phụ tùng';
-    if (path.includes('/categories')) return 'Danh mục phụ tùng';
-    if (path.includes('/import')) return 'Lịch sử nhập kho';
-    if (path.includes('/export')) return 'Lịch sử xuất kho';
-    if (path.includes('/stocktake')) return 'Kiểm kê';
-    if (path.includes('/approved-quotes')) return 'Báo giá đã duyệt';
-    if (path.includes('/suppliers')) return 'Nhà cung cấp';
-    if (path.includes('/reports')) return 'Báo cáo kho';
+    if (path === '/leader' || path === '/leader/') return 'Tổng quan';
+    if (path.includes('/assignments')) return 'Phân công kỹ thuật';
     return 'Tổng quan';
   }, [location.pathname]);
 
@@ -115,7 +94,6 @@ export default function InventoryLayout() {
             onClick={() => {
               navigate(item.path);
               setIsMobileSidebarOpen(false);
-              showToast(`Đã chuyển sang màn hình: ${item.name}`, 'info');
             }}
             className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all group ${isActive
               ? 'bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15'
@@ -176,7 +154,7 @@ export default function InventoryLayout() {
             <Menu size={24} />
           </button>
           <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-800 uppercase tracking-tight text-sm">AGM · Kho</span>
+            <span className="font-bold text-slate-800 uppercase tracking-tight text-sm">AGM · Leader</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -189,7 +167,7 @@ export default function InventoryLayout() {
           </button>
           <img
             src={avatarUrl}
-            alt="Inventory Manager Profile"
+            alt="Team Leader Profile"
             className="w-9 h-9 rounded-full object-cover border border-slate-200"
           />
         </div>
@@ -204,11 +182,11 @@ export default function InventoryLayout() {
         <div className="p-6 border-b border-[#D2E2FF] flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#00285E] flex items-center justify-center shadow-md">
-              <Warehouse size={20} className="text-white" />
+              <ShieldCheck size={20} className="text-white" />
             </div>
             <div className="flex flex-col">
               <span className="font-bold text-[#00285E] uppercase tracking-wider text-base">AGM Intelligent</span>
-              <span className="text-[10px] text-slate-500 font-semibold tracking-widest uppercase">Quản lý kho</span>
+              <span className="text-[10px] text-slate-500 font-semibold tracking-widest uppercase">Phân công kỹ thuật</span>
             </div>
           </div>
         </div>
@@ -217,7 +195,7 @@ export default function InventoryLayout() {
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-7 scrollbar-none">
           <div>
             <span className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
-              Nghiệp vụ kho
+              Nghiệp vụ phân công
             </span>
             {renderNav()}
           </div>
@@ -253,11 +231,11 @@ export default function InventoryLayout() {
             <div className="p-6 border-b border-[#D2E2FF] flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-[#00285E] flex items-center justify-center shadow-md">
-                  <Warehouse size={20} className="text-white" />
+                  <ShieldCheck size={20} className="text-white" />
                 </div>
                 <div className="flex flex-col">
                   <span className="font-bold text-[#00285E] uppercase tracking-wider text-sm">AGM Intelligent</span>
-                  <span className="text-[9px] text-slate-500 font-semibold tracking-widest uppercase">Quản lý kho</span>
+                  <span className="text-[9px] text-slate-500 font-semibold tracking-widest uppercase">Phân công kỹ thuật</span>
                 </div>
               </div>
               <button
@@ -271,7 +249,7 @@ export default function InventoryLayout() {
             <div className="flex-1 overflow-y-auto px-4 py-6 space-y-7 scrollbar-none">
               <div>
                 <span className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
-                  Nghiệp vụ kho
+                  Nghiệp vụ phân công
                 </span>
                 {renderNav()}
               </div>
@@ -310,7 +288,7 @@ export default function InventoryLayout() {
             <Search size={16} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Tìm phụ tùng, mã phiếu..."
+              placeholder="Tìm phiếu kiểm định, mã đơn..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200/80 rounded-full pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
@@ -345,7 +323,7 @@ export default function InventoryLayout() {
               <div className="relative">
                 <img
                   src={avatarUrl}
-                  alt="Inventory Manager Avatar"
+                  alt="Team Leader Avatar"
                   className="w-10 h-10 rounded-full object-cover border-2 border-[#EDF3FF] shadow-sm"
                 />
                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
@@ -360,7 +338,7 @@ export default function InventoryLayout() {
         {/* PAGE FOOTER */}
         <footer className="mt-auto px-8 py-6 border-t border-slate-200/50 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-semibold text-slate-400">
           <div>
-            © 2024 <span className="text-slate-500 font-bold">AGM Intelligent</span> - Hệ thống quản lý kho phụ tùng
+            © 2024 <span className="text-slate-500 font-bold">AGM Intelligent</span> - Hệ thống phân công kỹ thuật
           </div>
           <div className="flex items-center gap-6">
             <a href="#" className="hover:text-slate-600 transition-colors">Điều khoản</a>

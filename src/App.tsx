@@ -51,8 +51,10 @@ const ReceptionServiceHistory = lazy(() => import("./pages/reception/service-his
 const ReceptionProcessPayment = lazy(() => import("./pages/reception/payments/ReceptionProcessPayment"));
 const ReceptionQuoteList = lazy(() => import("./pages/reception/quotes/ReceptionQuoteList"));
 const ReceptionQuoteDetail = lazy(() => import("./pages/reception/quotes/ReceptionQuoteDetail"));
+const ReceptionIssueReports = lazy(() => import("./pages/reception/issues-report/ReceptionIssuesReportHistory"));
 const ReceptionCustomerList = lazy(() => import("./pages/reception/customers/ReceptionCustomerList"));
 const ReceptionTechnicianList = lazy(() => import("./pages/reception/technicians/ReceptionTechnicianList"));
+
 
 // Technician Page Imports
 const TechnicianLayout = lazy(() => import("./pages/technician/TechnicianLayout"));
@@ -61,7 +63,13 @@ const TechnicianAssignmentsDetail = lazy(() => import("./pages/technician/assign
 const TechnicianRequestParts = lazy(() => import("./pages/technician/parts-request/TechnicianRequestParts"));
 const TechnicianUpdateProgress = lazy(() => import("./pages/technician/progress/TechnicianUpdateProgress"));
 const TechnicianMyShifts = lazy(() => import("./pages/technician/my-shifts/TechnicianMyShifts"));
+const TechnicianIssuesReportHistory = lazy(() => import("./pages/technician/assignments/IssuesReportHistory"));
 const TechnicianRescuePage = lazy(() => import("./pages/technician/rescue/TechnicianRescuePage"));
+
+// Technician Leader Page Imports
+const LeaderLayout = lazy(() => import("./pages/leader/LeaderLayout"));
+const LeaderDashboard = lazy(() => import("./pages/leader/LeaderDashboard"));
+const LeaderAssignments = lazy(() => import("./pages/leader/LeaderAssignments"));
 
 const LoadingScreen = () => (
   <div className="fixed inset-0 bg-slate-50/50 backdrop-blur-xs flex flex-col items-center justify-center z-50">
@@ -82,6 +90,7 @@ function App() {
     location.pathname.startsWith("/inventory") ||
     location.pathname.startsWith("/reception") ||
     location.pathname.startsWith("/technician") ||
+    location.pathname.startsWith("/leader") ||
     location.pathname.startsWith("/video-call");
   return (
     <Suspense fallback={<LoadingScreen />}>
@@ -139,6 +148,7 @@ function App() {
           <Route path="progress" element={<TechnicianUpdateProgress />} />
           <Route path="progress/:id" element={<TechnicianUpdateProgress />} />
           <Route path="my-shifts" element={<TechnicianMyShifts />} />
+          <Route path="issues-reports" element={<TechnicianIssuesReportHistory />} />
           <Route path="rescue" element={<TechnicianRescuePage />} />
         </Route>
 
@@ -156,7 +166,12 @@ function App() {
           <Route path="payments" element={<ReceptionProcessPayment />} />
           <Route path="quotes" element={<ReceptionQuoteList />} />
           <Route path="quotes/:id" element={<ReceptionQuoteDetail />} />
+          <Route path="issues" element={<ReceptionIssueReports />} />
           <Route path="technicians" element={<ReceptionTechnicianList />} />
+        </Route>
+        <Route path="/leader" element={<LeaderLayout />}>
+          <Route path="" element={<LeaderDashboard />} />
+          <Route path="assignments" element={<LeaderAssignments />} />
         </Route>
       </Routes>
       {!isAdminPath && (
