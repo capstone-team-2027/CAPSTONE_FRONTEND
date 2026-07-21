@@ -73,6 +73,7 @@ export default function LeaderLayout() {
   const menuItems = [
     { name: 'Tổng quan', icon: LayoutDashboard, path: '/leader' },
     { name: 'Phân công kỹ thuật', icon: ClipboardCheck, path: '/leader/assignments' },
+    { name: 'Nghiệm thu tổng thể', icon: ShieldCheck, path: '/leader/final-qc' },
   ];
 
   // Dynamic active menu item based on current URL path
@@ -80,6 +81,7 @@ export default function LeaderLayout() {
     const path = location.pathname;
     if (path === '/leader' || path === '/leader/') return 'Tổng quan';
     if (path.includes('/assignments')) return 'Phân công kỹ thuật';
+    if (path.includes('/final-qc')) return 'Nghiệm thu tổng thể';
     return 'Tổng quan';
   }, [location.pathname]);
 

@@ -63,6 +63,7 @@ const TechnicianIssuesReportHistory = lazy(() => import("./pages/technician/assi
 const LeaderLayout = lazy(() => import("./pages/leader/LeaderLayout"));
 const LeaderDashboard = lazy(() => import("./pages/leader/LeaderDashboard"));
 const LeaderAssignments = lazy(() => import("./pages/leader/LeaderAssignments"));
+const LeaderFinalQc = lazy(() => import("./pages/leader/LeaderFinalQc"));
 
 const LoadingScreen = () => (
   <div className="fixed inset-0 bg-slate-50/50 backdrop-blur-xs flex flex-col items-center justify-center z-50">
@@ -161,6 +162,7 @@ function App() {
         <Route path="/leader" element={<LeaderLayout />}>
           <Route path="" element={<LeaderDashboard />} />
           <Route path="assignments" element={<LeaderAssignments />} />
+          <Route path="final-qc" element={<LeaderFinalQc />} />
         </Route>
       </Routes>
       {!isAdminPath && (
