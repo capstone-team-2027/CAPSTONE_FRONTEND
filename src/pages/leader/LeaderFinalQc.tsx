@@ -12,6 +12,7 @@ import {
   Eye,
   Calendar,
   RotateCcw,
+  Check,
 } from "lucide-react";
 import { useOutletContext } from "react-router-dom";
 import { useFetchClient } from "../../hook/useFetchClient";
@@ -35,20 +36,21 @@ const formatDateTime = (d?: string | null) =>
       })
     : "—";
 
-const TASK_STATUS_LABEL: Record<string, { label: string; className: string }> = {
-  COMPLETED: {
-    label: "Hoàn thành",
-    className: "bg-emerald-50 text-emerald-600 border-emerald-200",
-  },
-  PENDING_QC: {
-    label: "Chờ kiểm định",
-    className: "bg-violet-50 text-violet-600 border-violet-200",
-  },
-  IN_PROGRESS: {
-    label: "Đang thực hiện",
-    className: "bg-blue-50 text-blue-600 border-blue-200",
-  },
-};
+const TASK_STATUS_LABEL: Record<string, { label: string; className: string }> =
+  {
+    COMPLETED: {
+      label: "Hoàn thành",
+      className: "bg-emerald-50 text-emerald-600 border-emerald-200",
+    },
+    PENDING_QC: {
+      label: "Chờ kiểm định",
+      className: "bg-violet-50 text-violet-600 border-violet-200",
+    },
+    IN_PROGRESS: {
+      label: "Đang thực hiện",
+      className: "bg-blue-50 text-blue-600 border-blue-200",
+    },
+  };
 
 const getTaskStatus = (status?: string) =>
   (status && TASK_STATUS_LABEL[status]) || {
@@ -57,16 +59,17 @@ const getTaskStatus = (status?: string) =>
   };
 
 // Trạng thái đơn (lấy từ DB)
-const ORDER_STATUS_LABEL: Record<string, { label: string; className: string }> = {
-  PENDING_FINAL_QC: {
-    label: "Chờ nghiệm thu",
-    className: "bg-amber-50 text-amber-600 border-amber-200",
-  },
-  COMPLETED: {
-    label: "Đã nghiệm thu",
-    className: "bg-emerald-50 text-emerald-600 border-emerald-200",
-  },
-};
+const ORDER_STATUS_LABEL: Record<string, { label: string; className: string }> =
+  {
+    PENDING_FINAL_QC: {
+      label: "Chờ nghiệm thu",
+      className: "bg-amber-50 text-amber-600 border-amber-200",
+    },
+    COMPLETED: {
+      label: "Đã nghiệm thu",
+      className: "bg-emerald-50 text-emerald-600 border-emerald-200",
+    },
+  };
 
 const getOrderStatus = (status?: string) =>
   (status && ORDER_STATUS_LABEL[status]) || {
@@ -110,10 +113,12 @@ export default function LeaderFinalQc() {
   const [localSearch, setLocalSearch] = useState("");
   const effectiveSearch = (searchQuery || localSearch).toLowerCase();
 
-  const [selected, setSelected] = useState<GetFinalQcOrderResponse | null>(null);
+  const [selected, setSelected] = useState<GetFinalQcOrderResponse | null>(
+    null,
+  );
   const [isApproving, setIsApproving] = useState(false);
 
-  // Trả về làm lại
+  // Yêu cầu sửa lại
   const [rejectMode, setRejectMode] = useState(false);
   const [rejectTaskIds, setRejectTaskIds] = useState<number[]>([]);
   const [rejectReason, setRejectReason] = useState("");
@@ -181,29 +186,25 @@ export default function LeaderFinalQc() {
   const handleReject = async () => {
     if (!selected) return;
     if (rejectTaskIds.length === 0) {
-      showToast("Chọn ít nhất một công việc cần làm lại", "warning");
-      return;
-    }
-    if (!rejectReason.trim()) {
-      showToast("Nhập lý do trả về làm lại", "warning");
+      showToast("Chọn ít nhất một công việc cần sửa lại", "warning");
       return;
     }
     setIsRejecting(true);
     try {
       const body: RejectFinalInspectionRequest = {
         taskIds: rejectTaskIds,
-        reason: rejectReason.trim(),
+        ...(rejectReason.trim() ? { reason: rejectReason.trim() } : {}),
       };
       await fetchPrivate(
         TECHNICIAN_LEADER_TASK_ENDPOINTS.REJECT_FINAL_QC(selected.id),
         "PATCH",
         body,
       );
-      showToast("Đã trả về làm lại", "success");
+      showToast("Đã gửi yêu cầu sửa lại cho kỹ thuật viên", "success");
       closeDetail();
       handleGetOrders();
     } catch (error: any) {
-      showToast(error?.message ?? "Trả về làm lại thất bại", "warning");
+      showToast(error?.message ?? "Gửi yêu cầu sửa lại thất bại", "warning");
     } finally {
       setIsRejecting(false);
     }
@@ -383,7 +384,7 @@ export default function LeaderFinalQc() {
                               e.stopPropagation();
                               openDetail(o);
                             }}
-                            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] active:scale-[0.98] transition-all"
+                            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] transition-colors"
                           >
                             <Eye size={14} />
                             Xem chi tiết
@@ -516,12 +517,15 @@ export default function LeaderFinalQc() {
                     <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
                       <Wrench size={14} className="text-slate-500" />
                       {rejectMode
-                        ? "Chọn công việc cần làm lại"
+                        ? "Chọn công việc chưa đạt"
                         : "Công việc trong đơn"}
                     </label>
                     <span
-                      className="text-xs font-semibold px-2.5 py-1 rounded-full"
-                      style={{ backgroundColor: "#00285E", color: "#fff" }}
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                        rejectMode
+                          ? "bg-rose-50 text-rose-600 border border-rose-200"
+                          : "bg-[#EDF3FF] text-[#00285E]"
+                      }`}
                     >
                       {rejectMode
                         ? `${rejectTaskIds.length} đã chọn`
@@ -544,7 +548,9 @@ export default function LeaderFinalQc() {
                           className={`flex items-center gap-3 px-4 py-3.5 ${
                             rejectMode
                               ? `cursor-pointer transition-colors ${
-                                  checked ? "bg-rose-50/70" : "hover:bg-slate-50"
+                                  checked
+                                    ? "bg-rose-50/70"
+                                    : "hover:bg-slate-50"
                                 }`
                               : ""
                           }`}
@@ -557,12 +563,13 @@ export default function LeaderFinalQc() {
                                   : "border-slate-300 bg-white"
                               }`}
                             >
-                              {checked && <CheckCircle2 size={13} />}
+                              {checked && <Check size={13} strokeWidth={3} />}
                             </span>
                           )}
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-semibold text-slate-800 truncate">
-                              {task.catalog?.service_name ?? `Công việc #${task.id}`}
+                              {task.catalog?.service_name ??
+                                `Công việc #${task.id}`}
                             </p>
                             {tech && (
                               <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
@@ -587,19 +594,22 @@ export default function LeaderFinalQc() {
                   )}
                 </div>
 
-                {/* Lý do trả về làm lại */}
+                {/* Ghi chú cho kỹ thuật viên */}
                 {rejectMode && (
                   <div>
                     <label className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-2 px-1">
                       <RotateCcw size={14} className="text-rose-500" />
-                      Lý do trả về làm lại
+                      Ghi chú cho kỹ thuật viên
+                      <span className="text-xs font-medium text-slate-400">
+                        (không bắt buộc)
+                      </span>
                     </label>
                     <textarea
                       value={rejectReason}
                       onChange={(e) => setRejectReason(e.target.value)}
                       rows={3}
-                      placeholder="Mô tả lý do các công việc cần làm lại..."
-                      className="w-full rounded-2xl border border-slate-200/70 bg-white px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300 resize-none"
+                      placeholder="Nêu điểm chưa đạt để kỹ thuật viên nắm..."
+                      className="w-full rounded-2xl border border-slate-200/70 bg-white px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all resize-none"
                     />
                   </div>
                 )}
@@ -622,22 +632,18 @@ export default function LeaderFinalQc() {
                     </button>
                     <button
                       onClick={handleReject}
-                      disabled={
-                        rejectTaskIds.length === 0 ||
-                        !rejectReason.trim() ||
-                        isRejecting
-                      }
-                      className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-rose-500 to-rose-600 shadow-lg shadow-rose-600/25 hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+                      disabled={rejectTaskIds.length === 0 || isRejecting}
+                      className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-rose-600 shadow-lg shadow-rose-600/25 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
                     >
                       {isRejecting ? (
                         <>
-                          <Loader2 size={16} className="animate-spin" />
+                          <Loader2 size={15} className="animate-spin" />
                           Đang gửi...
                         </>
                       ) : (
                         <>
-                          <RotateCcw size={16} />
-                          Xác nhận trả về
+                          <RotateCcw size={15} />
+                          Gửi yêu cầu
                         </>
                       )}
                     </button>
@@ -645,19 +651,12 @@ export default function LeaderFinalQc() {
                 ) : (
                   <>
                     <button
-                      onClick={closeDetail}
-                      disabled={isApproving}
-                      className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-40"
-                    >
-                      Đóng
-                    </button>
-                    <button
                       onClick={() => setRejectMode(true)}
                       disabled={isApproving}
-                      className="h-11 flex items-center gap-2 px-5 rounded-xl text-sm font-semibold text-rose-600 border border-rose-200 bg-rose-50 hover:bg-rose-100 active:scale-[0.98] transition-all disabled:opacity-40"
+                      className="h-11 flex items-center gap-2 px-5 rounded-xl text-sm font-semibold text-rose-600 border border-slate-200/60 bg-white hover:bg-rose-50 hover:border-rose-200 active:scale-[0.98] transition-all disabled:opacity-40"
                     >
-                      <RotateCcw size={16} />
-                      Trả về làm lại
+                      <RotateCcw size={15} />
+                      Kiểm định thất bại
                     </button>
                     <button
                       onClick={handleApprove}
@@ -667,16 +666,16 @@ export default function LeaderFinalQc() {
                           ? undefined
                           : "Hoàn thành tất cả công việc trước khi nghiệm thu"
                       }
-                      className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-600/25 hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+                      className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/25 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
                     >
                       {isApproving ? (
                         <>
-                          <Loader2 size={16} className="animate-spin" />
+                          <Loader2 size={15} className="animate-spin" />
                           Đang nghiệm thu...
                         </>
                       ) : (
                         <>
-                          <CheckCircle2 size={16} />
+                          <CheckCircle2 size={15} />
                           Nghiệm thu & hoàn tất
                         </>
                       )}

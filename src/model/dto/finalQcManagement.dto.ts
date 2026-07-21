@@ -50,10 +50,10 @@ export interface FinalQcTask {
   assignments?: FinalQcAssignment[];
 }
 
-// Trả về làm lại: chọn các task cần sửa lại + lý do
+// Yêu cầu sửa lại: chọn các task chưa đạt, lý do không bắt buộc
 export interface RejectFinalInspectionRequest {
   taskIds: number[];
-  reason: string;
+  reason?: string;
 }
 
 // 1 lệnh sửa chữa đang chờ nghiệm thu tổng thể
