@@ -643,7 +643,7 @@ export default function LeaderFinalQc() {
                       ) : (
                         <>
                           <RotateCcw size={15} />
-                          Gửi yêu cầu
+                          Xác nhận
                         </>
                       )}
                     </button>
@@ -653,7 +653,7 @@ export default function LeaderFinalQc() {
                     <button
                       onClick={() => setRejectMode(true)}
                       disabled={isApproving}
-                      className="h-11 flex items-center gap-2 px-5 rounded-xl text-sm font-semibold text-rose-600 border border-slate-200/60 bg-white hover:bg-rose-50 hover:border-rose-200 active:scale-[0.98] transition-all disabled:opacity-40"
+                      className="h-11 flex items-center gap-2 px-5 rounded-xl text-sm font-semibold text-rose-700 border border-rose-200 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 active:scale-[0.98] transition-all disabled:opacity-40"
                     >
                       <RotateCcw size={15} />
                       Kiểm định thất bại

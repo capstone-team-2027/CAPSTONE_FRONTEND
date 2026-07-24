@@ -23,6 +23,8 @@ import type {
   GetLeaderTasksResponse,
   GetTechniciansResponse,
   AssignTaskRequest,
+  GetAssignmentHistoryResponse,
+  UpdateAssignmentRequest,
 } from "../../model/dto/leaderTaskManagement.dto";
 
 const TASK_STATUS_CONFIG: Record<
@@ -36,6 +38,30 @@ const TASK_STATUS_CONFIG: Record<
   IN_PROGRESS: {
     label: "Đang thực hiện",
     className: "bg-blue-50 text-blue-600 border border-blue-200",
+  },
+};
+
+// Task ở tab lịch sử đã có người nhận, nên PENDING là "chưa bắt đầu làm"
+// chứ không phải "chờ phân công" như ở tab chờ phân công
+const HISTORY_TASK_STATUS_CONFIG: Record<
+  string,
+  { label: string; className: string }
+> = {
+  PENDING: {
+    label: "Chưa bắt đầu",
+    className: "bg-slate-50 text-slate-600 border border-slate-200",
+  },
+  IN_PROGRESS: {
+    label: "Đang thực hiện",
+    className: "bg-blue-50 text-blue-600 border border-blue-200",
+  },
+  PENDING_QC: {
+    label: "Chờ kiểm tra",
+    className: "bg-violet-50 text-violet-600 border border-violet-200",
+  },
+  COMPLETED: {
+    label: "Hoàn thành",
+    className: "bg-emerald-50 text-emerald-600 border border-emerald-200",
   },
 };
 
@@ -81,6 +107,125 @@ const buildOrderCode = (
   return codes;
 };
 
+// Trạng thái công việc kỹ thuật viên đang gánh
+const ASSIGNMENT_STATUS_DOT: Record<string, string> = {
+  IN_PROGRESS: "bg-blue-500",
+  ASSIGNED: "bg-amber-500",
+  PAUSED: "bg-slate-400",
+};
+
+const ASSIGNMENT_STATUS_LABEL: Record<string, string> = {
+  IN_PROGRESS: "Đang làm",
+  ASSIGNED: "Chờ làm",
+  PAUSED: "Tạm dừng",
+};
+
+// Nhãn tay nghề kỹ thuật viên
+const SKILL_LEVEL_LABEL: Record<string, string> = {
+  JUNIOR: "Sơ cấp",
+  INTERMEDIATE: "Trung cấp",
+  SENIOR: "Cao cấp",
+  EXPERT: "Chuyên gia",
+};
+
+// Thẻ chọn kỹ thuật viên — dùng chung cho modal phân công và modal đổi KTV
+const TechnicianCard = ({
+  tech,
+  picked,
+  onPick,
+  onViewDetail,
+}: {
+  tech: GetTechniciansResponse;
+  picked: boolean;
+  onPick: () => void;
+  onViewDetail: () => void;
+}) => {
+  const busy = tech.remaining_count > 0;
+  return (
+    <div
+      onClick={onPick}
+      className={`w-full rounded-xl border px-3 py-3 cursor-pointer transition-all ${
+        picked
+          ? "border-[#00285E] bg-white ring-1 ring-[#00285E]"
+          : "border-slate-200 bg-white hover:border-slate-300"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="w-9 h-9 rounded-full bg-[#EDF3FF] flex items-center justify-center shrink-0">
+            <User size={15} className="text-[#00285E]" />
+          </span>
+          <div className="min-w-0">
+            <span className="text-sm font-semibold text-slate-800 block truncate">
+              {tech.fullName}
+            </span>
+            {tech.skill_level && (
+              <span className="text-[11px] text-slate-400">
+                {SKILL_LEVEL_LABEL[tech.skill_level] ?? tech.skill_level}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold ${
+              busy
+                ? "bg-amber-50 text-amber-600"
+                : "bg-emerald-50 text-emerald-600"
+            }`}
+          >
+            {busy ? `${tech.remaining_count} việc` : "Đang rảnh"}
+          </span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewDetail();
+            }}
+            title="Xem chi tiết khối lượng công việc"
+            className="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+          >
+            <Eye size={13} />
+          </button>
+          {picked && (
+            <CheckCircle2 size={18} className="text-[#00285E] shrink-0" />
+          )}
+        </div>
+      </div>
+
+      {/* Việc đang làm dở */}
+      {busy && (
+        <div className="mt-2.5 pt-2.5 border-t border-slate-100 space-y-1">
+          {(tech.assignments ?? []).slice(0, 3).map((a) => (
+            <div
+              key={a.id}
+              className="flex items-center gap-2 text-[11px] text-slate-500"
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  ASSIGNMENT_STATUS_DOT[a.status] ?? "bg-slate-300"
+                }`}
+              />
+              <span className="truncate">
+                {a.task?.catalog?.service_name ?? `Công việc #${a.task_id}`}
+              </span>
+              {a.task?.serviceOrder?.vehicle?.license_plate && (
+                <span className="text-slate-400 shrink-0">
+                  · {a.task.serviceOrder.vehicle.license_plate}
+                </span>
+              )}
+            </div>
+          ))}
+          {(tech.assignments ?? []).length > 3 && (
+            <span className="text-[11px] text-slate-400 block">
+              +{(tech.assignments ?? []).length - 3} việc khác
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function LeaderAssignments() {
   const { searchQuery, showToast } = useOutletContext<{
     searchQuery: string;
@@ -105,6 +250,26 @@ export default function LeaderAssignments() {
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [pickedTechId, setPickedTechId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Tab: chờ phân công / lịch sử đã phân công
+  const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
+  const [history, setHistory] = useState<GetAssignmentHistoryResponse[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+
+  // Modal chi tiết đơn đã phân công
+  const [historySelected, setHistorySelected] =
+    useState<GetAssignmentHistoryResponse | null>(null);
+  // Các assignment được tích chọn để đổi kỹ thuật viên hàng loạt
+  const [pickedAssignmentIds, setPickedAssignmentIds] = useState<number[]>([]);
+  // Bật màn chọn kỹ thuật viên sau khi bấm nút "Đổi kỹ thuật viên"
+  const [isPickingTech, setIsPickingTech] = useState(false);
+  const [replaceTechId, setReplaceTechId] = useState<number | null>(null);
+  const [isReplacing, setIsReplacing] = useState(false);
+
+  // Xem chi tiết khối lượng công việc của 1 kỹ thuật viên
+  const [techDetail, setTechDetail] = useState<GetTechniciansResponse | null>(
+    null,
+  );
 
   useEffect(() => {
     handleGetTasks();
@@ -160,6 +325,110 @@ export default function LeaderAssignments() {
       showToast(error?.message ?? "Phân công thất bại", "warning");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Sau khi refetch, cập nhật lại đơn đang mở để modal hiện KTV mới
+  useEffect(() => {
+    if (!historySelected) return;
+    const fresh = history.find((o) => o.id === historySelected.id);
+    if (fresh && fresh !== historySelected) setHistorySelected(fresh);
+  }, [history]);
+
+  const handleGetHistory = async () => {
+    setIsHistoryLoading(true);
+    try {
+      const result = await fetchPrivate<GetAssignmentHistoryResponse[]>(
+        TECHNICIAN_LEADER_TASK_ENDPOINTS.GET_ASSIGNMENT_HISTORY,
+        "GET",
+      );
+      setHistory(result.data ?? []);
+    } catch (error) {
+      console.error("Lỗi lấy lịch sử phân công", error);
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  };
+
+  // Lấy lịch sử lần đầu mở tab, các lần sau dùng lại dữ liệu đã tải
+  const handleTabChange = (tab: "pending" | "history") => {
+    setActiveTab(tab);
+    if (tab === "history" && history.length === 0) handleGetHistory();
+  };
+
+  const openHistoryDetail = (order: GetAssignmentHistoryResponse) => {
+    setHistorySelected(order);
+    setPickedAssignmentIds([]);
+    setIsPickingTech(false);
+    setReplaceTechId(null);
+  };
+
+  const closeHistoryDetail = () => {
+    setHistorySelected(null);
+    setPickedAssignmentIds([]);
+    setIsPickingTech(false);
+    setReplaceTechId(null);
+  };
+
+  const openReplaceTech = () => {
+    setReplaceTechId(null);
+    setIsPickingTech(true);
+  };
+
+  const closeReplaceTech = () => {
+    setIsPickingTech(false);
+    setReplaceTechId(null);
+  };
+
+  const toggleAssignment = (assignmentId: number) =>
+    setPickedAssignmentIds((prev) =>
+      prev.includes(assignmentId)
+        ? prev.filter((id) => id !== assignmentId)
+        : [...prev, assignmentId],
+    );
+
+  const handleReplaceTech = async () => {
+    if (pickedAssignmentIds.length === 0 || !replaceTechId) return;
+    setIsReplacing(true);
+    try {
+      const payload: UpdateAssignmentRequest = {
+        technician_id: replaceTechId,
+      };
+      // BE nhận từng assignment một, gọi lần lượt để lỗi của cái này
+      // không nuốt mất kết quả của cái kia
+      const results = await Promise.allSettled(
+        pickedAssignmentIds.map((id) =>
+          fetchPrivate(
+            TECHNICIAN_LEADER_TASK_ENDPOINTS.UPDATE_ASSIGNMENT(id),
+            "PATCH",
+            payload,
+          ),
+        ),
+      );
+      const failed = results.filter((r) => r.status === "rejected");
+      if (failed.length === 0) {
+        showToast(
+          `Đã đổi kỹ thuật viên cho ${pickedAssignmentIds.length} công việc`,
+          "success",
+        );
+      } else {
+        const firstError = (failed[0] as PromiseRejectedResult).reason;
+        showToast(
+          failed.length === results.length
+            ? (firstError?.message ?? "Đổi kỹ thuật viên thất bại")
+            : `${results.length - failed.length}/${results.length} công việc đã đổi, ${failed.length} thất bại`,
+          "warning",
+        );
+      }
+      setPickedAssignmentIds([]);
+      setIsPickingTech(false);
+      setReplaceTechId(null);
+      await handleGetHistory();
+      handleGetTasks();
+    } catch (error: any) {
+      showToast(error?.message ?? "Đổi kỹ thuật viên thất bại", "warning");
+    } finally {
+      setIsReplacing(false);
     }
   };
 
@@ -224,6 +493,32 @@ export default function LeaderAssignments() {
     [serviceOrders],
   );
 
+  // Mã đơn + lọc riêng cho danh sách lịch sử phân công
+  const historyCodes = useMemo(() => buildOrderCode(history), [history]);
+
+  const filteredHistory = useMemo(() => {
+    const keyword = effectiveSearch;
+    if (!keyword) return history;
+    return history.filter((order) => {
+      const plate = order.vehicle?.license_plate?.toLowerCase() ?? "";
+      const model = order.vehicle?.model?.model_name?.toLowerCase() ?? "";
+      return (
+        (historyCodes[order.id] ?? "").toLowerCase().includes(keyword) ||
+        plate.includes(keyword) ||
+        model.includes(keyword) ||
+        (order.tasks ?? []).some(
+          (task) =>
+            (task.catalog?.service_name ?? "")
+              .toLowerCase()
+              .includes(keyword) ||
+            (task.assignments ?? []).some((a) =>
+              (a.technician?.fullName ?? "").toLowerCase().includes(keyword),
+            ),
+        )
+      );
+    });
+  }, [history, historyCodes, effectiveSearch]);
+
   const stats = useMemo(() => {
     const allTasks = serviceOrders.flatMap((o) => o.tasks ?? []);
     const assigned = allTasks.filter(
@@ -237,7 +532,9 @@ export default function LeaderAssignments() {
   }, [serviceOrders]);
 
   // Thống kê nhanh cho 1 đơn
-  const orderSummary = (order: GetLeaderTasksResponse) => {
+  const orderSummary = (order: {
+    tasks?: { assignments?: unknown[] }[];
+  }) => {
     const tasks = order.tasks ?? [];
     const unassigned = tasks.filter(
       (t) => (t.assignments ?? []).length === 0,
@@ -308,15 +605,42 @@ export default function LeaderAssignments() {
         </div>
       </div>
 
+      {/* TABS SWITCHER */}
+      <div className="flex border-b border-slate-200/60">
+        <button
+          onClick={() => handleTabChange("pending")}
+          className={`px-6 py-3 font-bold text-sm border-b-2 transition-all ${
+            activeTab === "pending"
+              ? "border-[#00285E] text-[#00285E]"
+              : "border-transparent text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          Chờ phân công
+        </button>
+        <button
+          onClick={() => handleTabChange("history")}
+          className={`px-6 py-3 font-bold text-sm border-b-2 transition-all ${
+            activeTab === "history"
+              ? "border-[#00285E] text-[#00285E]"
+              : "border-transparent text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          Lịch sử phân công
+        </button>
+      </div>
+
       {/* TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
           <div className="flex items-center gap-2.5">
             <h2 className="text-lg font-bold text-slate-800 tracking-tight">
-              Danh sách đơn dịch vụ
+              {activeTab === "pending"
+                ? "Danh sách đơn dịch vụ"
+                : "Đơn đã phân công"}
             </h2>
             <span className="bg-[#EDF3FF] text-[#00285E] px-2.5 py-0.5 rounded-full text-xs font-bold">
-              {filtered.length} đơn
+              {activeTab === "pending" ? filtered.length : filteredHistory.length}{" "}
+              đơn
             </span>
           </div>
           <div className="relative">
@@ -334,6 +658,114 @@ export default function LeaderAssignments() {
           </div>
         </div>
 
+        {activeTab === "history" ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[720px]">
+              <thead>
+                <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
+                  <th className="py-4 px-6">Đơn dịch vụ</th>
+                  <th className="py-4 px-4">Xe</th>
+                  <th className="py-4 px-4">Công việc</th>
+                  <th className="py-4 px-4">Ngày tạo</th>
+                  <th className="py-4 px-4">Trạng thái</th>
+                  <th className="py-4 px-6 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {isHistoryLoading ? (
+                  <tr>
+                    <td colSpan={6} className="py-14 text-center">
+                      <span className="inline-flex items-center gap-2 text-slate-400 text-sm">
+                        <Loader2 size={16} className="animate-spin" />
+                        Đang tải lịch sử...
+                      </span>
+                    </td>
+                  </tr>
+                ) : filteredHistory.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="py-14 text-center text-slate-400 text-sm"
+                    >
+                      Chưa có công việc nào được phân công...
+                    </td>
+                  </tr>
+                ) : (
+                  filteredHistory.map((order) => {
+                    const sum = orderSummary(order);
+                    return (
+                      <tr
+                        key={order.id}
+                        onClick={() => openHistoryDetail(order)}
+                        className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors cursor-pointer group"
+                      >
+                        <td className="py-4 px-6">
+                          <span className="font-bold text-[#00285E] text-sm">
+                            {historyCodes[order.id] ?? `#${order.id}`}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                            <Car
+                              size={13}
+                              className="text-slate-400 shrink-0"
+                            />
+                            {order.vehicle?.license_plate ?? "—"}
+                          </span>
+                          <span className="text-[11px] text-slate-400 block">
+                            {order.vehicle?.model?.model_name ?? ""}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md text-xs font-bold">
+                            <ClipboardList
+                              size={11}
+                              className="text-slate-400"
+                            />
+                            {sum.total} công việc
+                          </span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500">
+                            <Calendar size={13} className="text-slate-400" />
+                            {formatDate(order.createdAt)}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4">
+                          {sum.unassigned > 0 ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200 whitespace-nowrap">
+                              <AlertCircle size={11} />
+                              Còn {sum.unassigned} chưa gán
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 whitespace-nowrap">
+                              <CheckCircle2 size={11} />
+                              Đã phân công đủ
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-4 px-6">
+                          <div className="flex justify-end">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openHistoryDetail(order);
+                              }}
+                              title="Xem chi tiết"
+                              className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                            >
+                              <Eye size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[720px]">
             <thead>
@@ -434,6 +866,7 @@ export default function LeaderAssignments() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* ── MODAL CHI TIẾT ĐƠN ── */}
@@ -638,6 +1071,7 @@ export default function LeaderAssignments() {
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5">
                               <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
                                 <Clock size={11} />
+                                Ước tính{" "}
                                 {formatDuration(
                                   task.catalog?.estimated_duration,
                                 )}
@@ -744,35 +1178,15 @@ export default function LeaderAssignments() {
                     Không có kỹ thuật viên nào đang hoạt động.
                   </p>
                 ) : (
-                  technicians.map((tech) => {
-                    const picked = pickedTechId === tech.id;
-                    return (
-                      <button
-                        key={tech.id}
-                        onClick={() => setPickedTechId(tech.id)}
-                        className={`w-full flex items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition-all ${
-                          picked
-                            ? "border-[#00285E] bg-white ring-1 ring-[#00285E]"
-                            : "border-slate-200 bg-white hover:border-slate-300"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="w-9 h-9 rounded-full bg-[#EDF3FF] flex items-center justify-center shrink-0">
-                            <User size={15} className="text-[#00285E]" />
-                          </span>
-                          <span className="text-sm font-semibold text-slate-800">
-                            {tech.fullName}
-                          </span>
-                        </div>
-                        {picked && (
-                          <CheckCircle2
-                            size={18}
-                            className="text-[#00285E] shrink-0"
-                          />
-                        )}
-                      </button>
-                    );
-                  })
+                  technicians.map((tech) => (
+                    <TechnicianCard
+                      key={tech.id}
+                      tech={tech}
+                      picked={pickedTechId === tech.id}
+                      onPick={() => setPickedTechId(tech.id)}
+                      onViewDetail={() => setTechDetail(tech)}
+                    />
+                  ))
                 )}
               </div>
 
@@ -801,6 +1215,566 @@ export default function LeaderAssignments() {
                     </>
                   )}
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── MODAL CHI TIẾT KỸ THUẬT VIÊN ── */}
+      <AnimatePresence>
+        {techDetail && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setTechDetail(null)}
+              className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5"
+            >
+              <div
+                className="flex items-center justify-between px-6 py-4 shrink-0"
+                style={{ backgroundColor: "#00285E" }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-white/10 text-white flex items-center justify-center">
+                    <User size={16} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white leading-tight">
+                      {techDetail.fullName}
+                    </h3>
+                    <span className="text-xs font-semibold text-white/60">
+                      {techDetail.skill_level
+                        ? (SKILL_LEVEL_LABEL[techDetail.skill_level] ??
+                          techDetail.skill_level)
+                        : "Kỹ thuật viên"}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setTechDetail(null)}
+                  className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5 bg-slate-50/50">
+                {/* Thống kê khối lượng */}
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div className="bg-white rounded-xl border border-slate-200/70 p-3 text-center">
+                    <div className="text-xl font-bold text-slate-900">
+                      {techDetail.remaining_count}
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                      Việc còn lại
+                    </p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-slate-200/70 p-3 text-center">
+                    <div className="text-xl font-bold text-emerald-600">
+                      {techDetail.completed_count}
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                      Đã hoàn thành
+                    </p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-slate-200/70 p-3 text-center">
+                    <div className="text-xl font-bold text-slate-900">
+                      {techDetail.total_assigned}
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                      Tổng được giao
+                    </p>
+                  </div>
+                </div>
+
+                {/* Phân bổ trạng thái */}
+                <div className="bg-white rounded-2xl border border-slate-200/70 p-4 space-y-2.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                    Việc chưa xong
+                  </span>
+                  {(
+                    [
+                      ["IN_PROGRESS", techDetail.in_progress_count],
+                      ["ASSIGNED", techDetail.pending_count],
+                      ["PAUSED", techDetail.paused_count],
+                    ] as const
+                  ).map(([status, count]) => (
+                    <div
+                      key={status}
+                      className="flex items-center justify-between"
+                    >
+                      <span className="inline-flex items-center gap-2 text-sm text-slate-600">
+                        <span
+                          className={`w-2 h-2 rounded-full ${ASSIGNMENT_STATUS_DOT[status]}`}
+                        />
+                        {ASSIGNMENT_STATUS_LABEL[status]}
+                      </span>
+                      <span className="text-sm font-bold text-slate-800">
+                        {count}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Danh sách việc đang gánh */}
+                <div>
+                  <div className="flex items-center justify-between mb-3 px-1">
+                    <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                      <Wrench size={14} className="text-slate-500" />
+                      Công việc đang đảm nhận
+                    </label>
+                    <span className="bg-[#EDF3FF] text-[#00285E] px-2.5 py-1 rounded-full text-xs font-bold">
+                      {techDetail.assignments?.length ?? 0} việc
+                    </span>
+                  </div>
+                  {(techDetail.assignments ?? []).length === 0 ? (
+                    <p className="text-xs text-slate-400 italic px-1 py-6 text-center bg-white rounded-2xl border border-slate-200/70">
+                      Kỹ thuật viên đang rảnh, không có việc nào chưa xong.
+                    </p>
+                  ) : (
+                    <div className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden divide-y divide-slate-100">
+                      {(techDetail.assignments ?? []).map((a) => (
+                        <div key={a.id} className="px-4 py-3">
+                          <div className="flex items-center justify-between gap-3 mb-1">
+                            <p className="text-sm font-semibold text-slate-800 truncate">
+                              {a.task?.catalog?.service_name ??
+                                `Công việc #${a.task_id}`}
+                            </p>
+                            <span className="shrink-0 inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500">
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  ASSIGNMENT_STATUS_DOT[a.status] ??
+                                  "bg-slate-300"
+                                }`}
+                              />
+                              {ASSIGNMENT_STATUS_LABEL[a.status] ?? a.status}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                            {a.task?.serviceOrder?.vehicle?.license_plate && (
+                              <span className="inline-flex items-center gap-1">
+                                <Car size={10} />
+                                {a.task.serviceOrder.vehicle.license_plate}
+                              </span>
+                            )}
+                            {a.task?.catalog?.estimated_duration ? (
+                              <span className="inline-flex items-center gap-1">
+                                <Clock size={10} />
+                                Ước tính{" "}
+                                {formatDuration(
+                                  a.task.catalog.estimated_duration,
+                                )}
+                              </span>
+                            ) : null}
+                            <span className="inline-flex items-center gap-1">
+                              <Calendar size={10} />
+                              Phân công {formatDateTime(a.createdAt)}
+                            </span>
+                            {a.actual_start_time && (
+                              <span className="inline-flex items-center gap-1">
+                                <Clock size={10} />
+                                Bắt đầu {formatDateTime(a.actual_start_time)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end px-6 py-4 border-t border-slate-200 shrink-0 bg-white">
+                <button
+                  onClick={() => setTechDetail(null)}
+                  className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all"
+                >
+                  Đóng
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── MODAL ĐỔI KỸ THUẬT VIÊN ── */}
+      <AnimatePresence>
+        {isPickingTech && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={closeReplaceTech}
+              className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5"
+            >
+              <div
+                className="flex items-center justify-between px-6 py-4 shrink-0"
+                style={{ backgroundColor: "#00285E" }}
+              >
+                <div>
+                  <h3 className="text-base font-bold text-white leading-tight">
+                    Đổi kỹ thuật viên
+                  </h3>
+                  <span className="text-xs font-semibold text-white/60">
+                    {pickedAssignmentIds.length} công việc được chọn
+                  </span>
+                </div>
+                <button
+                  onClick={closeReplaceTech}
+                  className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 p-4 space-y-2 bg-slate-50/50">
+                {technicians.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic px-1 py-6 text-center">
+                    Không có kỹ thuật viên nào đang hoạt động.
+                  </p>
+                ) : (
+                  technicians.map((tech) => (
+                    <TechnicianCard
+                      key={tech.id}
+                      tech={tech}
+                      picked={replaceTechId === tech.id}
+                      onPick={() => setReplaceTechId(tech.id)}
+                      onViewDetail={() => setTechDetail(tech)}
+                    />
+                  ))
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 px-6 py-4 border-t border-slate-200 shrink-0 bg-white">
+                <button
+                  onClick={closeReplaceTech}
+                  disabled={isReplacing}
+                  className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-40"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleReplaceTech}
+                  disabled={replaceTechId == null || isReplacing}
+                  className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/25 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isReplacing ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" />
+                      Đang lưu...
+                    </>
+                  ) : (
+                    <>
+                      <Users size={15} />
+                      Xác nhận
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── MODAL CHI TIẾT ĐƠN ĐÃ PHÂN CÔNG ── */}
+      <AnimatePresence>
+        {historySelected && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={closeHistoryDetail}
+              className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5"
+            >
+              {/* Header */}
+              <div
+                className="flex items-center justify-between px-7 py-5 shrink-0"
+                style={{ backgroundColor: "#00285E" }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center">
+                    <Car size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white leading-tight">
+                      Đơn dịch vụ{" "}
+                      {historyCodes[historySelected.id] ??
+                        `#${historySelected.id}`}
+                    </h3>
+                    <span className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 rounded-md bg-white/10 text-xs font-bold text-[#F9A11B]">
+                      <Calendar size={11} />
+                      {formatDateTime(historySelected.createdAt)}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={closeHistoryDetail}
+                  className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 px-7 py-6 space-y-5 bg-slate-50/50">
+                {/* Khách hàng & phương tiện */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
+                      Khách hàng
+                    </span>
+                    <div className="space-y-2">
+                      <div className="flex items-baseline gap-3">
+                        <span className="w-14 shrink-0 text-xs text-slate-400">
+                          Tên
+                        </span>
+                        <span className="text-sm font-semibold text-slate-800 truncate">
+                          {historySelected.vehicle?.customer?.name ||
+                            historySelected.vehicle?.customer?.user?.fullName ||
+                            "Khách vãng lai"}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-3">
+                        <span className="w-14 shrink-0 text-xs text-slate-400">
+                          SĐT
+                        </span>
+                        <span className="text-sm font-semibold text-slate-800 truncate">
+                          {historySelected.vehicle?.customer?.phone ||
+                            historySelected.vehicle?.customer?.user
+                              ?.phoneNumber ||
+                            "—"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
+                      Phương tiện
+                    </span>
+                    <div className="space-y-2">
+                      <div className="flex items-baseline gap-3">
+                        <span className="w-14 shrink-0 text-xs text-slate-400">
+                          Biển số
+                        </span>
+                        <span className="text-sm font-semibold text-slate-800 truncate">
+                          {historySelected.vehicle?.license_plate ?? "—"}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-3">
+                        <span className="w-14 shrink-0 text-xs text-slate-400">
+                          Tên xe
+                        </span>
+                        <span className="text-sm font-semibold text-slate-800 truncate">
+                          {historySelected.vehicle?.model?.make?.make_name
+                            ? `${historySelected.vehicle.model.make.make_name} `
+                            : ""}
+                          {historySelected.vehicle?.model?.model_name ?? "—"}
+                          {historySelected.vehicle?.color
+                            ? ` · ${historySelected.vehicle.color}`
+                            : ""}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tình trạng phân công */}
+                <div className="bg-white rounded-2xl border border-slate-200/70 p-4 flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Tình trạng phân công
+                  </span>
+                  {orderSummary(historySelected).unassigned > 0 ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+                      <AlertCircle size={11} />
+                      Còn {orderSummary(historySelected).unassigned} chưa gán
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+                      <CheckCircle2 size={11} />
+                      Đã phân công đủ
+                    </span>
+                  )}
+                </div>
+
+                {/* Danh sách công việc + kỹ thuật viên */}
+                <div>
+                  <div className="flex items-center justify-between mb-3 px-1">
+                    <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                      <Wrench size={14} className="text-slate-500" />
+                      Công việc đã phân công
+                    </label>
+                    <span className="bg-[#EDF3FF] text-[#00285E] px-2.5 py-1 rounded-full text-xs font-bold">
+                      {historySelected.tasks?.length ?? 0} công việc
+                    </span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {(historySelected.tasks ?? []).map((task) => {
+                      const cfg = HISTORY_TASK_STATUS_CONFIG[task.status];
+                      return (
+                        <div
+                          key={task.id}
+                          className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden"
+                        >
+                          {/* Tên công việc */}
+                          <div className="px-4 py-3 border-b border-slate-100">
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-800 min-w-0">
+                                <Wrench
+                                  size={13}
+                                  className="text-slate-400 shrink-0"
+                                />
+                                <span className="truncate">
+                                  {task.catalog?.service_name ??
+                                    `Công việc #${task.id}`}
+                                </span>
+                              </span>
+                              <span
+                                className={`shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${
+                                  cfg?.className ??
+                                  "bg-slate-50 text-slate-500 border border-slate-200"
+                                }`}
+                              >
+                                {cfg?.label ?? task.status}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5">
+                              <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+                                <Clock size={11} />
+                                Ước tính{" "}
+                                {formatDuration(
+                                  task.catalog?.estimated_duration,
+                                )}
+                              </span>
+                              <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+                                <Calendar size={11} />
+                                Tạo {formatDate(task.createdAt)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Kỹ thuật viên phụ trách — tích chọn để đổi */}
+                          <div className="divide-y divide-slate-100">
+                            {(task.assignments ?? []).map((a) => {
+                              const picked = pickedAssignmentIds.includes(a.id);
+                              const isDone = a.status === "COMPLETED";
+                              return (
+                                <div
+                                  key={a.id}
+                                  onClick={
+                                    isDone ? undefined : () => toggleAssignment(a.id)
+                                  }
+                                  title={
+                                    isDone
+                                      ? "Phân công đã hoàn thành, không thể đổi người"
+                                      : undefined
+                                  }
+                                  className={`px-4 py-3 flex items-center gap-3 transition-colors ${
+                                    isDone
+                                      ? "opacity-50"
+                                      : `cursor-pointer ${
+                                          picked
+                                            ? "bg-[#EDF3FF]"
+                                            : "hover:bg-slate-50"
+                                        }`
+                                  }`}
+                                >
+                                  <span
+                                    className={`shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
+                                      picked
+                                        ? "bg-[#00285E] border-[#00285E] text-white"
+                                        : "border-slate-300 bg-white"
+                                    }`}
+                                  >
+                                    {picked && (
+                                      <CheckCircle2 size={13} />
+                                    )}
+                                  </span>
+                                  <div className="w-7 h-7 rounded-lg bg-[#EDF3FF] text-[#00285E] flex items-center justify-center shrink-0">
+                                    <User size={13} />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold text-slate-800 truncate">
+                                      {a.technician?.fullName ?? "—"}
+                                    </p>
+                                    {(a.actual_start_time || a.remarks) && (
+                                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
+                                        {a.actual_start_time && (
+                                          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+                                            <Clock size={10} />
+                                            Bắt đầu{" "}
+                                            {formatDateTime(a.actual_start_time)}
+                                          </span>
+                                        )}
+                                        {a.remarks && (
+                                          <span className="text-[11px] text-slate-400 truncate">
+                                            {a.remarks}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {isDone && (
+                                    <span className="shrink-0 text-[10px] font-bold text-emerald-600">
+                                      Đã xong
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-slate-400">
+                    {pickedAssignmentIds.length > 0
+                      ? `Đã chọn ${pickedAssignmentIds.length} công việc`
+                      : "Tích chọn công việc để đổi kỹ thuật viên"}
+                  </span>
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      onClick={closeHistoryDetail}
+                      className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all"
+                    >
+                      Đóng
+                    </button>
+                    <button
+                      onClick={openReplaceTech}
+                      disabled={pickedAssignmentIds.length === 0}
+                      className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/25 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+                    >
+                      <Users size={15} />
+                      Đổi kỹ thuật viên
+                    </button>
+                  </div>
+                </div>
               </div>
             </motion.div>
           </div>

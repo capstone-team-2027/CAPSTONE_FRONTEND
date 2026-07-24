@@ -63,3 +63,44 @@ export interface GetIssuesReportItemResponse {
     task?: IssueHistoryTask;
     component?: IssueHistoryComponent | null;
 }
+
+// ===== Tra cứu chẩn đoán (Diagnostic Knowledge) =====
+
+export interface DiagnosticVehicleModel {
+    id: number;
+    model_name: string;
+}
+export interface DiagnosticVehicleMake {
+    id: number;
+    make_name: string;
+}
+export interface DiagnosticKnowledge {
+    id: number;
+    symptom: string;
+    possible_causes: string | null;
+    model_id: number | null;
+    make_id: number | null;
+    model?: DiagnosticVehicleModel | null;
+    make?: DiagnosticVehicleMake | null;
+}
+
+export interface VehicleMake {
+    id: number;
+    make_name: string;
+}
+export interface VehicleModel {
+    id: number;
+    make_id: number;
+    model_name: string;
+}
+
+// Gợi ý nguyên nhân từ AI
+export interface AiSuggestCausesRequest {
+    symptom: string;
+    modelName?: string;
+}
+export interface AiSuggestCausesResponse {
+    symptom: string;
+    ai_suggestion: string;
+    disclaimer: string;
+}

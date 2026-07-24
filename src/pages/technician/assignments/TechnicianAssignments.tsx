@@ -14,22 +14,35 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
   ChevronDown,
   Loader2,
   X,
   Wrench,
   ClipboardList,
+  Sparkles,
+  Send,
 } from "lucide-react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { useFetchClient_v2 as useFetchClient } from "../../../hook/useFetchClient";
 import { TASK_ASSIGNMENT_ENDPOINTS } from "../../../constants/technician/taskAssignmentEndpoint";
-import type { CreateIssueReportRequest, GetComponentsResponse } from "../../../model/dto/taskAssignment.dto";
+import type {
+  CreateIssueReportRequest,
+  GetComponentsResponse,
+  DiagnosticKnowledge,
+  VehicleMake,
+  VehicleModel,
+  AiSuggestCausesRequest,
+  AiSuggestCausesResponse,
+} from "../../../model/dto/taskAssignment.dto";
 
 // ========== TYPES ==========
 interface AssignmentTask {
   taskId: number;
   serviceName: string;
+  // Dùng cho modal tiến độ công việc
+  taskAssignmentId?: number;
+  status?: string;
+  estimatedDuration?: number | null;
 }
 
 interface Assignment {
@@ -40,17 +53,22 @@ interface Assignment {
   customerPhone: string;
   vehiclePlate: string;
   vehicleModel: string;
+  vehicleColor: string;
   services: string[];
   tasks: AssignmentTask[];
   appointmentDate: string;
   appointmentTime: string;
   assignedAt: string;
   status: "ASSIGNED" | "IN_PROGRESS" | "PAUSED" | "PENDING_QC" | "COMPLETED";
+  // Trạng thái của service order (khác assignment status) — quyết định luồng báo cáo
+  orderStatus?: string;
   rejectedAt?: string;
   taskAssignmentId?: string | number;
   bookingType: string;
   // INSPECTION: kiểm tra rồi tạo báo cáo sự cố | REPAIR: sửa chữa, cập nhật tiến độ
   taskType?: string;
+  // Mô tả lỗi khách báo lúc lễ tân tiếp nhận xe
+  symptom?: string;
 }
 
 interface IssueChecklistItem {
@@ -60,6 +78,90 @@ interface IssueChecklistItem {
   checked: boolean;
   description: string;
 }
+
+interface ApiEnvelope<T> {
+  data: T;
+}
+
+interface TaskAssignmentApi {
+  id: number;
+  technician_id?: number;
+  status?: string;
+  createdAt?: string;
+}
+
+interface ServiceTaskApi {
+  id: number;
+  type?: string;
+  status?: string;
+  catalog?: {
+    service_name?: string;
+    estimated_duration?: number | null;
+  };
+  assignments?: TaskAssignmentApi[];
+}
+
+interface ServiceOrderApi {
+  id: number;
+  status?: string;
+  symptoms?: string;
+  createdAt: string;
+  appointment?: {
+    scheduled_time?: string;
+    booking_type?: string;
+  };
+  vehicle?: {
+    license_plate?: string;
+    color?: string;
+    model?: {
+      model_name?: string;
+      make?: { make_name?: string };
+    };
+    customer?: {
+      name?: string;
+      phone?: string;
+      user?: { fullName?: string; phoneNumber?: string };
+    };
+  };
+  tasks?: ServiceTaskApi[];
+}
+
+interface RepairHistoryTask {
+  id: number;
+  createdAt?: string;
+  catalog?: {
+    service_name?: string;
+  } | null;
+  repairNotes?: Array<{
+    id: number;
+    content?: string;
+    createdAt?: string;
+  }>;
+}
+
+interface InspectionHistoryItem {
+  id: number;
+  error_description?: string | null;
+  component?: {
+    name?: string | null;
+  } | null;
+  task?: {
+    serviceOrder?: {
+      symptoms?: string | null;
+    } | null;
+  } | null;
+}
+
+const ASSIGNMENT_STATUSES: Assignment["status"][] = [
+  "ASSIGNED",
+  "IN_PROGRESS",
+  "PAUSED",
+  "PENDING_QC",
+  "COMPLETED",
+];
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
 
 const ASSIGNMENT_STATUS_CONFIG: Record<
   string,
@@ -118,9 +220,94 @@ export default function TechnicianAssignments() {
   );
   const [issueNote, setIssueNote] = useState("");
   const [isSubmittingIssueReport, setIsSubmittingIssueReport] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState<
-    Record<string, boolean>
+  const [pickedCategories, setPickedCategories] = useState<string[]>([]);
+  const [catDropdownOpen, setCatDropdownOpen] = useState(false);
+  const [catSearch, setCatSearch] = useState("");
+  const [lookupOpen, setLookupOpen] = useState(false);
+  const [lookupView, setLookupView] = useState<"common" | "garage">("common");
+  const [lookupTerm, setLookupTerm] = useState("");
+  const [diagnostics, setDiagnostics] = useState<DiagnosticKnowledge[]>([]);
+  const [inspectionDiagnostics, setInspectionDiagnostics] = useState<
+    InspectionHistoryItem[]
+  >([]);
+  const [, setIsDiagLoading] = useState(false);
+  const [diagMakes, setDiagMakes] = useState<VehicleMake[]>([]);
+  const [diagModels, setDiagModels] = useState<VehicleModel[]>([]);
+  const [diagMakeId, setDiagMakeId] = useState<number | "">("");
+  const [diagModelId, setDiagModelId] = useState<number | "">("");
+  // Tra cứu kinh nghiệm sửa lỗi (Inspection History) — task REPAIR
+  const [repairLookupOpen, setRepairLookupOpen] = useState(false);
+  const [repairLookupTerm, setRepairLookupTerm] = useState("");
+  const [inspectionHistory, setInspectionHistory] = useState<
+    RepairHistoryTask[]
+  >([]);
+  const [isRepairLoading, setIsRepairLoading] = useState(false);
+  const [showRepairFilter, setShowRepairFilter] = useState(false);
+  const [repairMakeId, setRepairMakeId] = useState<number | "">("");
+  const [repairModelId, setRepairModelId] = useState<number | "">("");
+  const [repairModels, setRepairModels] = useState<VehicleModel[]>([]);
+  // Khung chat tham khảo AI
+  const [aiChatOpen, setAiChatOpen] = useState(false);
+  const [aiInput, setAiInput] = useState("");
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiMessages, setAiMessages] = useState<
+    { role: "user" | "ai"; text: string; disclaimer?: string }[]
+  >([]);
+  const [repairExperienceByTask, setRepairExperienceByTask] = useState<
+    Record<number, string>
   >({});
+  const [confirmTask, setConfirmTask] = useState<AssignmentTask | null>(null);
+  const [completingTaskId, setCompletingTaskId] = useState<number | null>(null);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const completeTaskInModal = async (task: AssignmentTask) => {
+    if (!task.taskAssignmentId) {
+      showToast("Không tìm thấy thông tin phân công của công việc này.", "warning");
+      return;
+    }
+    setConfirmTask(null);
+    setCompletingTaskId(task.taskId);
+    try {
+      await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.COMPLETE_TASK, "PATCH", {
+        taskAssignmentId: task.taskAssignmentId,
+        content: repairExperienceByTask[task.taskId] ?? "",
+      });
+      const markDone = (t: AssignmentTask) =>
+        t.taskId === task.taskId ? { ...t, status: "COMPLETED" } : t;
+      // Danh sách task sau khi đánh dấu xong, để kiểm tra đã hết chưa
+      const updatedTasks = (issueReportAssignment?.tasks ?? []).map(markDone);
+      setIssueReportAssignment((prev) =>
+        prev ? { ...prev, tasks: prev.tasks.map(markDone) } : prev,
+      );
+      setAssignments((prev) =>
+        prev.map((a) =>
+          a.serviceOrderId === issueReportAssignment?.serviceOrderId
+            ? { ...a, tasks: a.tasks.map(markDone) }
+            : a,
+        ),
+      );
+      showToast("Đã hoàn thành công việc!", "success");
+      // Xong hết mọi công việc -> đóng modal + refetch để lấy orderStatus mới
+      // (BE chuyển order sang PENDING_QUOTATION / PENDING_FINAL_QC)
+      const allDone = updatedTasks.every(
+        (t) => t.status === "COMPLETED" || t.status === "PENDING_QC",
+      );
+      if (allDone) {
+        setIssueReportOpen(false);
+        setRefreshKey((prev) => prev + 1);
+      }
+    } catch (error: unknown) {
+      console.error("Lỗi khi hoàn thành công việc:", error);
+      showToast(
+        getErrorMessage(
+          error,
+          "Đã xảy ra lỗi khi hoàn thành công việc.",
+        ),
+        "warning",
+      );
+    } finally {
+      setCompletingTaskId(null);
+    }
+  };
   const openIssueReportModal = (assignment: Assignment) => {
     setIssueReportAssignment(assignment);
     setIssueTaskId(assignment.tasks[0]?.taskId ?? null);
@@ -142,7 +329,11 @@ export default function TechnicianAssignments() {
         })),
     );
     setIssueNote("");
-    setExpandedCategories({});
+    setPickedCategories([]);
+    setCatDropdownOpen(false);
+    setCatSearch("");
+    setLookupTerm("");
+    setRepairExperienceByTask({});
     setIssueReportOpen(true);
   };
 
@@ -165,9 +356,6 @@ export default function TechnicianAssignments() {
       ),
     );
 
-  const toggleCategoryExpanded = (category: string) =>
-    setExpandedCategories((prev) => ({ ...prev, [category]: !prev[category] }));
-
   const checkedIssueItems = issueChecklist.filter((item) => item.checked);
 
   const checklistByCategory = useMemo(() => {
@@ -183,18 +371,102 @@ export default function TechnicianAssignments() {
     return groups;
   }, [issueChecklist]);
 
+  // Thêm/bỏ 1 nhóm lỗi từ dropdown (cộng dồn danh sách bên dưới)
+  const toggleCategory = (category: string) => {
+    setPickedCategories((prev) =>
+      prev.includes(category)
+        ? prev.filter((c) => c !== category)
+        : [...prev, category],
+    );
+  };
+
+  // Bỏ 1 nhóm + gỡ tích các lỗi thuộc nhóm đó
+  const removeCategory = (category: string) => {
+    setPickedCategories((prev) => prev.filter((c) => c !== category));
+    setIssueChecklist((prev) =>
+      prev.map((item) =>
+        item.category === category
+          ? { ...item, checked: false, description: "" }
+          : item,
+      ),
+    );
+  };
+
+  // Nhóm hiện trong dropdown, lọc theo search (khớp tên nhóm hoặc tên lỗi con)
+  const categoryOptions = useMemo(() => {
+    const kw = catSearch.trim().toLowerCase();
+    return checklistByCategory.filter((g) => {
+      if (!kw) return true;
+      return (
+        g.category.toLowerCase().includes(kw) ||
+        g.items.some((i) => i.component_name.toLowerCase().includes(kw))
+      );
+    });
+  }, [checklistByCategory, catSearch]);
+
+  // Các nhóm đã chọn, kèm item — để render list lỗi bên dưới
+  const pickedGroups = useMemo(
+    () =>
+      checklistByCategory.filter((g) => pickedCategories.includes(g.category)),
+    [checklistByCategory, pickedCategories],
+  );
+
+  const repairHistoryRows = useMemo(
+    () =>
+      inspectionHistory.flatMap((task) => {
+        const content = task.catalog?.service_name || `Công việc #${task.id}`;
+        if (!task.repairNotes?.length) {
+          return [
+            {
+              key: `task-${task.id}-empty`,
+              content,
+              guide: "Chưa có hướng dẫn",
+            },
+          ];
+        }
+        return task.repairNotes.map((note) => ({
+          key: `task-${task.id}-note-${note.id}`,
+          content,
+          guide: note.content?.trim() || "Chưa có hướng dẫn",
+        }));
+      }),
+    [inspectionHistory],
+  );
+
+  const lookupRows = useMemo(() => {
+    if (lookupView === "common") {
+      return diagnostics.map((item) => ({
+        id: `common-${item.id}`,
+        issue: item.symptom || "—",
+        cause: item.possible_causes || "—",
+      }));
+    }
+    return inspectionDiagnostics.map((item) => {
+      const componentName = item.component?.name?.trim() ?? "";
+      const errorDescription = item.error_description?.trim() ?? "";
+      return {
+        id: `garage-${item.id}`,
+        issue: item.task?.serviceOrder?.symptoms?.trim() || "—",
+        cause:
+          componentName && errorDescription
+            ? `${componentName} - ${errorDescription}`
+            : componentName || errorDescription || "—",
+      };
+    });
+  }, [diagnostics, inspectionDiagnostics, lookupView]);
+
   useEffect(() => {
     const fetchAssignments = async () => {
       try {
         setIsLoading(true);
-        const response = await fetchPrivate(
+        const response = (await fetchPrivate<ServiceOrderApi[]>(
           TASK_ASSIGNMENT_ENDPOINTS.GET_MY_ASSIGNMENTS,
-        );
+        )) as ServiceOrderApi[];
         if (Array.isArray(response)) {
-          const mappedData: Assignment[] = response.map((so: any) => {
+          const mappedData: Assignment[] = response.map((so) => {
             const services = (
-              so.tasks?.map((t: any) => t.catalog?.service_name) || []
-            ).filter(Boolean);
+              so.tasks?.map((t) => t.catalog?.service_name) || []
+            ).filter((service): service is string => Boolean(service));
             if (
               services.length === 0 &&
               so.appointment?.booking_type &&
@@ -202,20 +474,23 @@ export default function TechnicianAssignments() {
             ) {
               services.push("Kiểm tra");
             }
-            const firstAssignment = so.tasks?.[0]?.assignments?.[0];
+            const allAssignments =
+              so.tasks?.flatMap((task) => task.assignments ?? []) ?? [];
+            const selectedAssignment =
+              allAssignments.find((item) => item.status === "IN_PROGRESS") ??
+              allAssignments.find((item) => item.status === "PAUSED") ??
+              allAssignments.find((item) => item.status === "ASSIGNED") ??
+              allAssignments.find((item) => item.status === "PENDING_QC") ??
+              allAssignments[0];
 
             let status: Assignment["status"] = "ASSIGNED";
             if (
-              firstAssignment &&
-              [
-                "ASSIGNED",
-                "IN_PROGRESS",
-                "PAUSED",
-                "PENDING_QC",
-                "COMPLETED",
-              ].includes(firstAssignment.status)
+              selectedAssignment?.status &&
+              ASSIGNMENT_STATUSES.includes(
+                selectedAssignment.status as Assignment["status"],
+              )
             ) {
-              status = firstAssignment.status as Assignment["status"];
+              status = selectedAssignment.status as Assignment["status"];
             }
 
             const aptDate = so.appointment?.scheduled_time
@@ -225,7 +500,8 @@ export default function TechnicianAssignments() {
             return {
               id: `SO-${so.id}`,
               serviceOrderId: so.id.toString(),
-              technicianId: firstAssignment?.technician_id?.toString() || "",
+              technicianId:
+                selectedAssignment?.technician_id?.toString() || "",
               customerName:
                 so.vehicle?.customer?.name ||
                 so.vehicle?.customer?.user?.fullName ||
@@ -237,21 +513,33 @@ export default function TechnicianAssignments() {
               vehiclePlate: so.vehicle?.license_plate || "",
               vehicleModel:
                 `${so.vehicle?.model?.make?.make_name || ""} ${so.vehicle?.model?.model_name || ""}`.trim(),
+              vehicleColor: so.vehicle?.color || "",
               services,
-              tasks: (so.tasks || []).map((t: any) => ({
+              tasks: (so.tasks || []).map((t) => {
+                const taskAssignment =
+                  t.assignments?.find(
+                    (item) => item.id === selectedAssignment?.id,
+                  ) ?? t.assignments?.[0];
+                return {
                 taskId: t.id,
                 serviceName: t.catalog?.service_name || `Task #${t.id}`,
-              })),
+                taskAssignmentId: taskAssignment?.id,
+                status: taskAssignment?.status ?? t.status,
+                estimatedDuration: t.catalog?.estimated_duration ?? null,
+                };
+              }),
               appointmentDate: aptDate.toISOString(),
               appointmentTime: aptDate.toLocaleTimeString("vi-VN", {
                 hour: "2-digit",
                 minute: "2-digit",
               }),
-              assignedAt: firstAssignment?.createdAt || so.createdAt,
+              assignedAt: selectedAssignment?.createdAt || so.createdAt,
               status: status,
-              taskAssignmentId: firstAssignment?.id,
+              orderStatus: so.status,
+              taskAssignmentId: selectedAssignment?.id,
               bookingType: so.appointment?.booking_type || "WALK_IN",
               taskType: so.tasks?.[0]?.type,
+              symptom: so.symptoms ?? "",
             };
           });
           setAssignments(mappedData);
@@ -274,55 +562,320 @@ export default function TechnicianAssignments() {
       await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.START_TASK, "PUT", {
         taskAssignmentId: asg.taskAssignmentId,
       });
-      // Task sửa chữa -> vào thẳng màn cập nhật tiến độ
-      if (asg.taskType === "REPAIR") {
-        navigate(`/technician/progress/${asg.serviceOrderId}`);
-        return;
-      }
+      const startedAssignment: Assignment = {
+        ...asg,
+        status: "IN_PROGRESS",
+        tasks: asg.tasks.map((task) =>
+          task.taskAssignmentId === asg.taskAssignmentId
+            ? { ...task, status: "IN_PROGRESS" }
+            : task,
+        ),
+      };
+      setAssignments((current) =>
+        current.map((item) =>
+          item.id === asg.id ? startedAssignment : item,
+        ),
+      );
+      // Mở modal bằng trạng thái mới, đồng thời refetch để đồng bộ dữ liệu từ BE.
+      openIssueReportModal(startedAssignment);
       setRefreshKey((prev) => prev + 1);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Lỗi khi bắt đầu công việc:", error);
-      alert(error.message || "Đã xảy ra lỗi khi bắt đầu công việc.");
-    }
-  };
-
-  const handleCompleteTask = async (
-    taskAssignmentId: string | number | undefined,
-  ) => {
-    if (!taskAssignmentId) {
-      alert("Không tìm thấy thông tin phân công.");
-      return;
-    }
-    if (!confirm("Bạn có chắc chắn muốn HOÀN THÀNH công việc này?")) return;
-
-    try {
-      await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.COMPLETE_TASK, "PUT", {
-        taskAssignmentId,
-      });
-      setRefreshKey((prev) => prev + 1);
-      alert("Đã hoàn thành công việc thành công!");
-    } catch (error: any) {
-      console.error("Lỗi khi hoàn thành công việc:", error);
-      alert(error.message || "Đã xảy ra lỗi khi hoàn thành công việc.");
+      alert(getErrorMessage(error, "Đã xảy ra lỗi khi bắt đầu công việc."));
     }
   };
 
   useEffect(() => {
-    handleGetComponent();
-  },[])
+    const handleGetComponent = async () => {
+      try {
+        const result = await fetchPrivate<
+          ApiEnvelope<GetComponentsResponse[]>
+        >(TASK_ASSIGNMENT_ENDPOINTS.GET_COMPONENTS, "GET");
+        setComponents(result.data ?? []);
+      } catch (error) {
+        console.error("Lỗi khi lấy components", error);
+      }
+    };
+    void handleGetComponent();
+  }, [fetchPrivate]);
 
-  const handleGetComponent = async () => {
-    try {
-      const result = await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.GET_COMPONENTS,'GET');
-      setComponents(result.data);
-    } catch (error) {
-      console.error("Lỗi khi lấy components", error);
+  // ===== Tra cứu chẩn đoán =====
+
+  // Mở modal tra cứu: điền sẵn symptom của đơn, tự tìm nếu có; nếu trống thì
+  // load toàn bộ lỗi. Luôn load danh sách hãng xe cho filter.
+  const openLookup = () => {
+    const symptom = issueReportAssignment?.symptom?.trim() ?? "";
+    setLookupView("common");
+    setLookupTerm(symptom);
+    setDiagMakeId("");
+    setDiagModelId("");
+    setLookupOpen(true);
+    if (symptom) {
+      searchDiagnostics(symptom);
+    } else {
+      loadAllDiagnostics();
     }
-  }
-  
+    loadMakes();
+  };
+
+  const loadAllDiagnostics = async () => {
+    setIsDiagLoading(true);
+    try {
+      const result = await fetchPrivate<DiagnosticKnowledge[]>(
+        TASK_ASSIGNMENT_ENDPOINTS.GET_ALL_DIAGNOSTICS,
+        "GET",
+      );
+      setDiagnostics(result.data ?? []);
+    } catch (error) {
+      console.error("Lỗi khi lấy danh sách chẩn đoán", error);
+    } finally {
+      setIsDiagLoading(false);
+    }
+  };
+
+  const loadMakes = async () => {
+    try {
+      const result = await fetchPrivate<VehicleMake[]>(
+        TASK_ASSIGNMENT_ENDPOINTS.GET_VEHICLE_MAKES,
+        "GET",
+      );
+      setDiagMakes(result.data ?? []);
+    } catch (error) {
+      console.error("Lỗi khi lấy hãng xe", error);
+    }
+  };
+
+  const loadModels = async (makeId: number) => {
+    try {
+      const result = await fetchPrivate<VehicleModel[]>(
+        TASK_ASSIGNMENT_ENDPOINTS.GET_VEHICLE_MODELS(makeId),
+        "GET",
+      );
+      setDiagModels(result.data ?? []);
+    } catch (error) {
+      console.error("Lỗi khi lấy dòng xe", error);
+    }
+  };
+
+  const loadModelsForRepair = async (makeId: number) => {
+    try {
+      const result = await fetchPrivate<ApiEnvelope<VehicleModel[]>>(
+        TASK_ASSIGNMENT_ENDPOINTS.GET_VEHICLE_MODELS(makeId),
+        "GET",
+      );
+      setRepairModels(result.data ?? []);
+    } catch (error) {
+      console.error("Lỗi khi lấy dòng xe cho tra cứu sửa chữa", error);
+      setRepairModels([]);
+    }
+  };
+
+  const searchDiagnostics = async (keyword: string) => {
+    setIsDiagLoading(true);
+    try {
+      const result = await fetchPrivate<DiagnosticKnowledge[]>(
+        TASK_ASSIGNMENT_ENDPOINTS.SEARCH_DIAGNOSTICS(keyword),
+        "GET",
+      );
+      setDiagnostics(result.data ?? []);
+    } catch (error) {
+      console.error("Lỗi khi tìm kiếm chẩn đoán", error);
+    } finally {
+      setIsDiagLoading(false);
+    }
+  };
+
+  const filterDiagnostics = async (makeId?: number, modelId?: number) => {
+    setIsDiagLoading(true);
+    try {
+      const result = await fetchPrivate<DiagnosticKnowledge[]>(
+        TASK_ASSIGNMENT_ENDPOINTS.FILTER_DIAGNOSTICS({ makeId, modelId }),
+        "GET",
+      );
+      setDiagnostics(result.data ?? []);
+    } catch (error) {
+      console.error("Lỗi khi lọc chẩn đoán", error);
+    } finally {
+      setIsDiagLoading(false);
+    }
+  };
+
+  const loadAllInspectionDiagnostics = async () => {
+    setIsDiagLoading(true);
+    try {
+      const result = await fetchPrivate<ApiEnvelope<InspectionHistoryItem[]>>(
+        TASK_ASSIGNMENT_ENDPOINTS.GET_ALL_INSPECTION_HISTORY,
+        "GET",
+      );
+      setInspectionDiagnostics(result.data ?? []);
+    } catch (error) {
+      console.error("Lỗi khi lấy các lỗi đã gặp tại garage", error);
+    } finally {
+      setIsDiagLoading(false);
+    }
+  };
+
+  const searchInspectionDiagnostics = async (keyword: string) => {
+    setIsDiagLoading(true);
+    try {
+      const result = await fetchPrivate<ApiEnvelope<InspectionHistoryItem[]>>(
+        TASK_ASSIGNMENT_ENDPOINTS.SEARCH_INSPECTION_HISTORY(keyword),
+        "GET",
+      );
+      setInspectionDiagnostics(result.data ?? []);
+    } catch (error) {
+      console.error("Lỗi khi tìm các lỗi đã gặp tại garage", error);
+    } finally {
+      setIsDiagLoading(false);
+    }
+  };
+
+  const filterInspectionDiagnostics = async (
+    makeId?: number,
+    modelId?: number,
+  ) => {
+    setIsDiagLoading(true);
+    try {
+      const result = await fetchPrivate<ApiEnvelope<InspectionHistoryItem[]>>(
+        TASK_ASSIGNMENT_ENDPOINTS.FILTER_INSPECTION_HISTORY({
+          makeId,
+          modelId,
+        }),
+        "GET",
+      );
+      setInspectionDiagnostics(result.data ?? []);
+    } catch (error) {
+      console.error("Lỗi khi lọc các lỗi đã gặp tại garage", error);
+    } finally {
+      setIsDiagLoading(false);
+    }
+  };
+
+  const changeLookupView = (view: "common" | "garage") => {
+    setLookupView(view);
+    setLookupTerm("");
+    setDiagMakeId("");
+    setDiagModelId("");
+    setDiagModels([]);
+    setShowFilterPanel(false);
+    if (view === "common") {
+      loadAllDiagnostics();
+    } else {
+      loadAllInspectionDiagnostics();
+    }
+  };
+
+  // Mở khung chat AI, điền sẵn symptom của đơn
+  const openAiChat = () => {
+    setAiMessages([]);
+    setAiInput(issueReportAssignment?.symptom?.trim() ?? "");
+    setAiChatOpen(true);
+  };
+
+  // ===== Tra cứu kinh nghiệm sửa lỗi (Inspection History) =====
+
+  const openRepairLookup = () => {
+    setRepairLookupTerm("");
+    setRepairMakeId("");
+    setRepairModelId("");
+    setShowRepairFilter(false);
+    setRepairLookupOpen(true);
+    loadAllInspectionHistory();
+    loadMakes();
+  };
+
+  const loadAllInspectionHistory = async () => {
+    setIsRepairLoading(true);
+    try {
+      const result = await fetchPrivate<ApiEnvelope<RepairHistoryTask[]>>(
+        TASK_ASSIGNMENT_ENDPOINTS.GET_ALL_REPAIR_HISTORY,
+        "GET",
+      );
+      setInspectionHistory(result.data ?? []);
+    } catch (error) {
+      console.error("Lỗi khi lấy kinh nghiệm sửa lỗi", error);
+    } finally {
+      setIsRepairLoading(false);
+    }
+  };
+
+  const searchInspectionHistory = async (keyword: string) => {
+    setIsRepairLoading(true);
+    try {
+      const result = await fetchPrivate<ApiEnvelope<RepairHistoryTask[]>>(
+        TASK_ASSIGNMENT_ENDPOINTS.SEARCH_REPAIR_HISTORY(keyword),
+        "GET",
+      );
+      setInspectionHistory(result.data ?? []);
+    } catch (error) {
+      console.error("Lỗi khi tìm kinh nghiệm sửa lỗi", error);
+    } finally {
+      setIsRepairLoading(false);
+    }
+  };
+
+  const filterInspectionHistory = async (makeId?: number, modelId?: number) => {
+    setIsRepairLoading(true);
+    try {
+      const result = await fetchPrivate<ApiEnvelope<RepairHistoryTask[]>>(
+        TASK_ASSIGNMENT_ENDPOINTS.FILTER_REPAIR_HISTORY({ makeId, modelId }),
+        "GET",
+      );
+      setInspectionHistory(result.data ?? []);
+    } catch (error) {
+      console.error("Lỗi khi lọc kinh nghiệm sửa lỗi", error);
+    } finally {
+      setIsRepairLoading(false);
+    }
+  };
+
+  // Gửi 1 câu hỏi tới AI (mỗi lượt độc lập, không giữ context — khớp BE)
+  const sendAiMessage = async () => {
+    const symptom = aiInput.trim();
+    if (!symptom || isAiLoading) return;
+    setAiMessages((prev) => [...prev, { role: "user", text: symptom }]);
+    setAiInput("");
+    setIsAiLoading(true);
+    try {
+      const payload: AiSuggestCausesRequest = {
+        symptom,
+        modelName: issueReportAssignment?.vehicleModel || undefined,
+      };
+      const result = await fetchPrivate<AiSuggestCausesResponse>(
+        TASK_ASSIGNMENT_ENDPOINTS.AI_SUGGEST_CAUSES,
+        "POST",
+        payload,
+      );
+      const data = result.data;
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          role: "ai",
+          text: data?.ai_suggestion ?? "Không có phản hồi từ AI.",
+          disclaimer: data?.disclaimer,
+        },
+      ]);
+    } catch (error: unknown) {
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          role: "ai",
+          text: getErrorMessage(error, "Không lấy được gợi ý từ AI."),
+        },
+      ]);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+
   const handleCreateIssuesReport = async () => {
     if (!issueTaskId) {
-      alert("Không tìm thấy thông tin công việc.");
+      showToast("Không tìm thấy thông tin công việc.", "warning");
+      return;
+    }
+    if (checkedIssueItems.length === 0) {
+      showToast("Chọn ít nhất một hạng mục lỗi để báo cáo.", "warning");
       return;
     }
     const payload: CreateIssueReportRequest = {
@@ -331,22 +884,25 @@ export default function TechnicianAssignments() {
         component_id: item.component_id,
         description: item.description,
       })),
-      note: issueNote || undefined,
+      note: issueNote.trim() || undefined,
     };
     try {
       setIsSubmittingIssueReport(true);
-      const data = await fetchPrivate(
+      await fetchPrivate(
         TASK_ASSIGNMENT_ENDPOINTS.ISSUES_REPORT,
         "POST",
         payload,
       );
-      console.error("data test: ", data)
+      // BE tự complete task + chuyển order sang PENDING_QUOTATION
       setIssueReportOpen(false);
-      showToast("Đã tạo báo cáo sự cố thành công!", "success");
+      showToast("Đã hoàn tất kiểm tra và gửi báo cáo!", "success");
       setRefreshKey((prev) => prev + 1);
-    } catch (error: any) {
-      console.error("Lỗi khi tạo báo cáo sự cố:", error);
-      alert(error.message || "Đã xảy ra lỗi khi tạo báo cáo sự cố.");
+    } catch (error: unknown) {
+      console.error("Lỗi khi tạo báo cáo:", error);
+      showToast(
+        getErrorMessage(error, "Đã xảy ra lỗi khi tạo báo cáo."),
+        "warning",
+      );
     } finally {
       setIsSubmittingIssueReport(false);
     }
@@ -368,6 +924,10 @@ export default function TechnicianAssignments() {
   }, [searchTerm, statusFilter, assignments]);
 
   const totalPages = Math.ceil(filteredAssignments.length / ITEMS_PER_PAGE);
+  useEffect(() => {
+    const lastPage = Math.max(1, totalPages);
+    setCurrentPage((page) => Math.min(page, lastPage));
+  }, [totalPages]);
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
     return filteredAssignments.slice(start, start + ITEMS_PER_PAGE);
@@ -661,28 +1221,19 @@ export default function TechnicianAssignments() {
                               <PlayCircle size={13} />
                               Bắt đầu làm
                             </button>
+                          ) : asg.orderStatus === "PENDING_QUOTATION" ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200">
+                              <CheckCircle2 size={13} />
+                              Đã báo cáo
+                            </span>
                           ) : asg.status === "IN_PROGRESS" ? (
-                            asg.taskType === "REPAIR" ? (
-                              <button
-                                onClick={() =>
-                                  navigate(
-                                    `/technician/progress/${asg.serviceOrderId}`,
-                                  )
-                                }
-                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] transition-colors"
-                              >
-                                <Wrench size={13} />
-                                Cập nhật tiến độ
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => openIssueReportModal(asg)}
-                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
-                              >
-                                <ClipboardList size={13} />
-                                Tạo báo cáo sự cố
-                              </button>
-                            )
+                            <button
+                              onClick={() => openIssueReportModal(asg)}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] transition-colors"
+                            >
+                              <ClipboardList size={13} />
+                              Tiến độ công việc
+                            </button>
                           ) : (
                             <button
                               onClick={() =>
@@ -754,9 +1305,41 @@ export default function TechnicianAssignments() {
         )}
       </div>
 
-      {/* MODAL TẠO BÁO CÁO SỰ CỐ */}
+      {/* MODAL TIẾN ĐỘ CÔNG VIỆC */}
       {issueReportOpen && issueReportAssignment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <style>{`
+            @keyframes progressShimmer {
+              0% { transform: translateX(-100%); }
+              100% { transform: translateX(100%); }
+            }
+            .progress-shimmer::after {
+              content: "";
+              position: absolute;
+              inset: 0;
+              background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(0,40,94,0.12),
+                transparent
+              );
+              animation: progressShimmer 1.6s ease-in-out infinite;
+            }
+            @keyframes progressStripes {
+              from { background-position: 1rem 0; }
+              to { background-position: 0 0; }
+            }
+            .progress-stripes {
+              background-image: linear-gradient(
+                45deg,
+                rgba(255,255,255,0.25) 25%, transparent 25%,
+                transparent 50%, rgba(255,255,255,0.25) 50%,
+                rgba(255,255,255,0.25) 75%, transparent 75%, transparent
+              );
+              background-size: 1rem 1rem;
+              animation: progressStripes 0.7s linear infinite;
+            }
+          `}</style>
           <div
             className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
             onClick={() => setIssueReportOpen(false)}
@@ -773,14 +1356,11 @@ export default function TechnicianAssignments() {
                   className="flex items-center justify-center w-12 h-12 rounded-2xl shrink-0"
                   style={{ backgroundColor: "#F9A11B" }}
                 >
-                  <AlertCircle size={24} className="text-white" />
+                  <Wrench size={22} className="text-white" />
                 </div>
-                <div className="space-y-1">
-                  <p className="text-[11px] font-bold text-white/80 uppercase tracking-widest">
-                    Đơn DV #{issueReportAssignment.serviceOrderId}
-                  </p>
+                <div>
                   <h3 className="text-xl font-bold text-white leading-none">
-                    Báo cáo sự cố
+                    Tiến độ công việc
                   </h3>
                 </div>
               </div>
@@ -795,129 +1375,373 @@ export default function TechnicianAssignments() {
             <div className="overflow-y-auto flex-1 px-7 py-6 space-y-6 bg-slate-50/50">
               {/* SECTION: Thông tin khách hàng & xe */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Users size={13} className="text-slate-400" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                <div className="bg-[#EDF3FF] rounded-2xl border border-[#c7d7f0] p-4">
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <Users size={13} className="text-[#00285E]" />
+                    <span className="text-[10px] font-bold text-[#00285E] uppercase tracking-widest">
                       Khách hàng
                     </span>
                   </div>
-                  <p className="font-semibold text-slate-800 text-sm truncate">
-                    {issueReportAssignment.customerName}
-                  </p>
-                  <p className="text-xs text-slate-400 mt-0.5 truncate">
-                    {issueReportAssignment.customerPhone}
-                  </p>
+                  <div className="space-y-1.5">
+                    <div className="flex items-baseline gap-2">
+                      <span className="w-14 shrink-0 text-xs text-slate-500">
+                        Tên
+                      </span>
+                      <span className="text-sm font-semibold text-slate-800 truncate">
+                        {issueReportAssignment.customerName}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="w-14 shrink-0 text-xs text-slate-500">
+                        SĐT
+                      </span>
+                      <span className="text-sm font-semibold text-slate-800 truncate">
+                        {issueReportAssignment.customerPhone || "—"}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Car size={13} className="text-slate-400" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                <div className="bg-[#EDF3FF] rounded-2xl border border-[#c7d7f0] p-4">
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <Car size={13} className="text-[#00285E]" />
+                    <span className="text-[10px] font-bold text-[#00285E] uppercase tracking-widest">
                       Phương tiện
                     </span>
                   </div>
-                  <p className="font-semibold text-slate-800 text-sm truncate">
-                    {issueReportAssignment.vehiclePlate}
-                  </p>
-                  <p className="text-xs text-slate-400 mt-0.5 truncate">
-                    {issueReportAssignment.vehicleModel}
-                  </p>
+                  <div className="space-y-1.5">
+                    <div className="flex items-baseline gap-2">
+                      <span className="w-16 shrink-0 text-xs text-slate-500">
+                        Biển số
+                      </span>
+                      <span className="text-sm font-semibold text-slate-800 truncate">
+                        {issueReportAssignment.vehiclePlate || "—"}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="w-16 shrink-0 text-xs text-slate-500">
+                        Loại xe
+                      </span>
+                      <span className="text-sm font-semibold text-slate-800 truncate">
+                        {issueReportAssignment.vehicleModel || "—"}
+                        {issueReportAssignment.vehicleColor
+                          ? ` · ${issueReportAssignment.vehicleColor}`
+                          : ""}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* SECTION: Chọn công việc (task) */}
-              {issueReportAssignment.tasks.length > 1 && (
-                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
-                    Công việc liên quan
-                  </label>
-                  <select
-                    value={issueTaskId ?? ""}
-                    onChange={(e) =>
-                      setIssueTaskId(
-                        e.target.value ? Number(e.target.value) : null,
-                      )
-                    }
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-800 bg-slate-50 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
-                  >
-                    {issueReportAssignment.tasks.map((t) => (
-                      <option key={t.taskId} value={t.taskId}>
-                        {t.serviceName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* SECTION: Checklist hạng mục kiểm tra (nhóm theo danh mục) */}
-              <div>
-                <div className="flex items-center justify-between mb-3 px-1">
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm font-bold text-slate-700">
-                      Hạng mục kiểm tra
-                    </label>
-                  </div>
-                  {checkedIssueItems.length > 0 && (
-                    <span
-                      className="text-xs font-semibold px-2.5 py-1 rounded-full"
-                      style={{ backgroundColor: "#00285E", color: "#fff" }}
-                    >
-                      {checkedIssueItems.length} mục đã chọn
+              {/* SECTION: Mô tả lỗi từ lễ tân + tra cứu lỗi */}
+              <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <ClipboardList size={13} className="text-slate-400" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      Mô tả lỗi tiếp nhận từ nhân viên
                     </span>
-                  )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={
+                        issueReportAssignment.taskType === "REPAIR"
+                          ? openRepairLookup
+                          : openLookup
+                      }
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] active:scale-[0.97] transition-all"
+                    >
+                      <Search size={13} />
+                      {issueReportAssignment.taskType === "REPAIR"
+                        ? "Tra cứu sửa lỗi"
+                        : "Tra cứu lỗi"}
+                    </button>
+                    <button
+                      onClick={openAiChat}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:brightness-110 active:scale-[0.97] transition-all"
+                    >
+                      <Sparkles size={13} />
+                      Tham khảo AI
+                    </button>
+                  </div>
                 </div>
-                <div className="space-y-2.5">
-                  {checklistByCategory.map((group) => {
-                    const isExpanded = !!expandedCategories[group.category];
-                    const checkedInGroup = group.items.filter(
-                      (i) => i.checked,
-                    ).length;
-                    return (
-                      <div
-                        key={group.category}
-                        className="bg-white rounded-2xl border overflow-hidden transition-colors"
-                        style={{
-                          borderColor:
-                            checkedInGroup > 0 ? "#00285E" : "#e2e8f0",
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => toggleCategoryExpanded(group.category)}
-                          className="w-full flex items-center justify-between gap-2 px-4 py-3.5 text-left hover:bg-slate-50 transition-colors"
-                        >
-                          <span
-                            className="text-sm font-semibold transition-colors"
-                            style={{
-                              color: checkedInGroup > 0 ? "#00285E" : "#334155",
-                            }}
+                <p className="text-sm text-slate-700 leading-relaxed">
+                  {issueReportAssignment.symptom?.trim() ||
+                    "Nhân viên chưa ghi mô tả lỗi."}
+                </p>
+              </div>
+
+              {/* SECTION: Tiến độ công việc */}
+              {(() => {
+                const modalTasks = issueReportAssignment.tasks;
+                const doneCount = modalTasks.filter(
+                  (t) => t.status === "COMPLETED" || t.status === "PENDING_QC",
+                ).length;
+                const overall =
+                  modalTasks.length === 0
+                    ? 0
+                    : Math.round((doneCount / modalTasks.length) * 100);
+                return (
+                  <div className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden">
+                    {/* Tiến độ tổng */}
+                    <div className="px-4 py-4 border-b border-slate-100">
+                      <div className="flex items-baseline justify-between gap-4 mb-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          Tiến độ công việc
+                        </span>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xs text-slate-400 font-medium">
+                            {doneCount}/{modalTasks.length} công việc
+                          </span>
+                          <span className="text-xl font-bold text-[#00285E] tabular-nums leading-none">
+                            {overall}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="relative h-2.5 w-full rounded-full bg-slate-200/70 overflow-hidden">
+                        {/* Shimmer nền chạy khi chưa hoàn tất, để thanh đỡ trống */}
+                        {overall < 100 && (
+                          <div className="absolute inset-0 progress-shimmer" />
+                        )}
+                        <div
+                          className={`relative h-full rounded-full bg-[#00285E] transition-all duration-700 ease-out ${
+                            overall > 0 && overall < 100 ? "progress-stripes" : ""
+                          }`}
+                          style={{ width: `${overall}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Danh sách công việc + nút hoàn thành */}
+                    <div className="divide-y divide-slate-100">
+                      {modalTasks.map((t) => {
+                        const isDone =
+                          t.status === "COMPLETED" ||
+                          t.status === "PENDING_QC";
+                        const isSending = completingTaskId === t.taskId;
+                        return (
+                          <div
+                            key={t.taskId}
+                            className="px-4 py-4"
                           >
-                            {group.category}
-                          </span>
-                          <span className="flex items-center gap-3">
-                            {checkedInGroup > 0 && (
-                              <span
-                                className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                                style={{
-                                  backgroundColor: "#FEF3C7",
-                                  color: "#B45309",
-                                }}
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                              <div
+                                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                                  isDone
+                                    ? "bg-emerald-50 text-emerald-600"
+                                    : "bg-[#EDF3FF] text-[#00285E]"
+                                }`}
                               >
-                                {checkedInGroup} sự cố
-                              </span>
+                                <Wrench size={15} />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-slate-800 truncate">
+                                  {t.serviceName}
+                                </p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span
+                                    className={`inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded ${
+                                      isDone
+                                        ? "bg-emerald-50 text-emerald-600"
+                                        : "bg-blue-50 text-blue-600"
+                                    }`}
+                                  >
+                                    {isDone ? "Đã xong" : "Đang thực hiện"}
+                                  </span>
+                                  {t.estimatedDuration ? (
+                                    <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+                                      <Clock size={10} />
+                                      {t.estimatedDuration} phút
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                              {isDone ? (
+                                <span className="inline-flex self-start sm:self-auto items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200">
+                                  <CheckCircle2 size={13} />
+                                  Hoàn thành
+                                </span>
+                              ) : issueReportAssignment.taskType ===
+                                "INSPECTION" ? (
+                                // Task kiểm tra: hoàn tất bằng cách gửi báo cáo lỗi bên dưới
+                                <span className="inline-flex self-start sm:self-auto items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200">
+                                  Đang kiểm tra
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => setConfirmTask(t)}
+                                  disabled={isSending}
+                                  className="inline-flex self-start sm:self-auto items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 active:scale-[0.97] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {isSending ? (
+                                    <Loader2 size={13} className="animate-spin" />
+                                  ) : (
+                                    <CheckCircle2 size={13} />
+                                  )}
+                                  {isSending ? "Đang gửi..." : "Hoàn thành"}
+                                </button>
+                              )}
+                            </div>
+                            {issueReportAssignment.taskType === "REPAIR" && (
+                              <div className="mt-3 sm:pl-12">
+                                <label className="text-xs font-semibold text-slate-600 block mb-1.5">
+                                  Kinh nghiệm sửa chữa
+                                </label>
+                                <textarea
+                                  rows={3}
+                                  value={
+                                    repairExperienceByTask[t.taskId] ?? ""
+                                  }
+                                  onChange={(event) =>
+                                    setRepairExperienceByTask((current) => ({
+                                      ...current,
+                                      [t.taskId]: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="Nhập kinh nghiệm sửa chữa cho công việc này..."
+                                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors resize-none"
+                                />
+                              </div>
                             )}
-                            {isExpanded ? (
-                              <ChevronUp size={16} className="text-slate-400" />
-                            ) : (
-                              <ChevronDown
-                                size={16}
-                                className="text-slate-400"
-                              />
-                            )}
-                          </span>
-                        </button>
-                        {isExpanded && (
-                          <div className="px-3 pb-3 pt-0.5 space-y-2 border-t border-slate-100">
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* SECTION: Ghi nhận lỗi (chỉ task kiểm tra) */}
+              {issueReportAssignment.taskType === "INSPECTION" && (
+                <div>
+                  <div className="flex items-center justify-between mb-3 px-1">
+                    <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                      <AlertCircle size={14} className="text-slate-500" />
+                      Ghi nhận lỗi phát hiện
+                    </label>
+                    {checkedIssueItems.length > 0 && (
+                      <span
+                        className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                        style={{ backgroundColor: "#00285E", color: "#fff" }}
+                      >
+                        {checkedIssueItems.length} lỗi đã chọn
+                      </span>
+                    )}
+                  </div>
+                  {/* Dropdown chọn nhóm lỗi (search bên trong, chọn xong đóng) */}
+                  <div className="relative mb-3">
+                    <button
+                      type="button"
+                      onClick={() => setCatDropdownOpen((v) => !v)}
+                      className="w-full flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-left text-sm text-slate-700 hover:border-slate-300 focus:outline-none focus:border-[#00285E] transition-colors"
+                    >
+                      <span
+                        className={
+                          pickedCategories.length === 0 ? "text-slate-400" : ""
+                        }
+                      >
+                        {pickedCategories.length === 0
+                          ? "Chọn nhóm lỗi cần ghi nhận..."
+                          : `Đã chọn ${pickedCategories.length} nhóm`}
+                      </span>
+                      <ChevronDown
+                        size={16}
+                        className={`text-slate-400 shrink-0 transition-transform ${
+                          catDropdownOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    {catDropdownOpen && (
+                      <div className="absolute z-10 mt-1.5 w-full rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+                        <div className="p-2 border-b border-slate-100">
+                          <div className="relative">
+                            <Search
+                              size={14}
+                              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                            />
+                            <input
+                              autoFocus
+                              type="text"
+                              value={catSearch}
+                              onChange={(e) => setCatSearch(e.target.value)}
+                              placeholder="Tìm nhóm hoặc tên lỗi..."
+                              className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-2.5 py-1.5 text-sm focus:outline-none focus:border-[#00285E] transition-colors"
+                            />
+                          </div>
+                        </div>
+                        <div className="max-h-56 overflow-y-auto py-1">
+                          {categoryOptions.length === 0 ? (
+                            <p className="px-3 py-4 text-center text-xs text-slate-400">
+                              Không tìm thấy nhóm lỗi phù hợp.
+                            </p>
+                          ) : (
+                            categoryOptions.map((g) => {
+                              const picked = pickedCategories.includes(
+                                g.category,
+                              );
+                              return (
+                                <button
+                                  key={g.category}
+                                  type="button"
+                                  onClick={() => {
+                                    toggleCategory(g.category);
+                                    setCatSearch("");
+                                    setCatDropdownOpen(false);
+                                  }}
+                                  className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-slate-50 transition-colors"
+                                >
+                                  <span className="min-w-0">
+                                    <span className="text-sm text-slate-700 block truncate">
+                                      {g.category}
+                                    </span>
+                                    <span className="text-[11px] text-slate-400">
+                                      {g.items.length} lỗi
+                                    </span>
+                                  </span>
+                                  <span
+                                    className={`shrink-0 w-4 h-4 rounded flex items-center justify-center border transition-colors ${
+                                      picked
+                                        ? "bg-[#00285E] border-[#00285E] text-white"
+                                        : "border-slate-300"
+                                    }`}
+                                  >
+                                    {picked && <CheckCircle2 size={11} />}
+                                  </span>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* List lỗi của các nhóm đã chọn */}
+                  {pickedGroups.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic px-1 py-4 text-center bg-white rounded-2xl border border-dashed border-slate-200">
+                      Chọn nhóm lỗi ở trên để hiển thị danh sách lỗi.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {pickedGroups.map((group) => (
+                        <div
+                          key={group.category}
+                          className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden"
+                        >
+                          <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
+                            <span className="text-sm font-semibold text-[#00285E]">
+                              {group.category}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeCategory(group.category)}
+                              className="text-slate-400 hover:text-rose-500 transition-colors"
+                              title="Bỏ nhóm này"
+                            >
+                              <X size={15} />
+                            </button>
+                          </div>
+                          <div className="p-2 space-y-1.5">
                             {group.items.map((item) => (
                               <div
                                 key={item.component_id}
@@ -940,23 +1764,15 @@ export default function TechnicianAssignments() {
                                         item.component_id,
                                       )
                                     }
-                                    className="w-4 h-4 rounded border-slate-300 focus:ring-2"
-                                    style={{ accentColor: "#00285E" }}
+                                    className="accent-[#00285E] shrink-0"
                                   />
-                                  <span
-                                    className="text-sm font-medium transition-colors"
-                                    style={{
-                                      color: item.checked
-                                        ? "#00285E"
-                                        : "#475569",
-                                    }}
-                                  >
+                                  <span className="text-sm text-slate-700">
                                     {item.component_name}
                                   </span>
                                 </label>
                                 {item.checked && (
-                                  <textarea
-                                    rows={2}
+                                  <input
+                                    type="text"
                                     value={item.description}
                                     onChange={(e) =>
                                       updateIssueChecklistDescription(
@@ -964,62 +1780,595 @@ export default function TechnicianAssignments() {
                                         e.target.value,
                                       )
                                     }
-                                    placeholder={`Mô tả sự cố với "${item.component_name}"...`}
-                                    className="mt-2 ml-7 w-[calc(100%-1.75rem)] bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-all resize-none"
+                                    placeholder="Mô tả chi tiết lỗi..."
+                                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-[#00285E] transition-colors"
                                   />
                                 )}
                               </div>
                             ))}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-              {/* Ghi chú chung */}
-              <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <ClipboardList size={15} className="text-slate-400" />
-                  <label className="text-sm font-bold text-slate-700">
-                    Ghi chú chung
-                  </label>
+                  {/* Ghi chú chung cho báo cáo */}
+                  <div className="mt-3">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2 px-1">
+                      Ghi chú
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={issueNote}
+                      onChange={(e) => setIssueNote(e.target.value)}
+                      placeholder="Ghi chú thêm cho báo cáo (không bắt buộc)..."
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors resize-none"
+                    />
+                  </div>
                 </div>
-                <textarea
-                  rows={3}
-                  value={issueNote}
-                  onChange={(e) => setIssueNote(e.target.value)}
-                  placeholder="Ghi chú thêm cho báo cáo sự cố..."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors resize-none"
-                />
-              </div>
+              )}
+
             </div>
 
+            {/* Footer */}
             <div className="flex items-center justify-between gap-3 px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
-              <span className="text-xs text-slate-400">
-                {checkedIssueItems.length > 0
-                  ? `${checkedIssueItems.length} sự cố sẽ được báo cáo`
-                  : "Chọn hạng mục gặp sự cố"}
-              </span>
-              <div className="flex items-center gap-2.5">
+              {issueReportAssignment.taskType === "INSPECTION" ? (
+                <>
+                  <span className="text-xs text-slate-400">
+                    {checkedIssueItems.length > 0
+                      ? `${checkedIssueItems.length} lỗi sẽ được báo cáo`
+                      : "Chọn lỗi phát hiện để hoàn tất kiểm tra"}
+                  </span>
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      onClick={() => setIssueReportOpen(false)}
+                      disabled={isSubmittingIssueReport}
+                      className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-40"
+                    >
+                      Đóng
+                    </button>
+                    <button
+                      onClick={handleCreateIssuesReport}
+                      disabled={
+                        isSubmittingIssueReport ||
+                        checkedIssueItems.length === 0
+                      }
+                      className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/25 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {isSubmittingIssueReport ? (
+                        <>
+                          <Loader2 size={15} className="animate-spin" />
+                          Đang gửi...
+                        </>
+                      ) : (
+                        <>
+                          <ClipboardList size={15} />
+                          Hoàn tất & gửi báo cáo
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
                 <button
                   onClick={() => setIssueReportOpen(false)}
-                  className="px-5 py-2.5 rounded-full text-sm font-semibold text-slate-500 hover:bg-slate-100 transition-colors"
+                  className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all ml-auto"
                 >
-                  Hủy
+                  Đóng
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL TRA CỨU LỖI */}
+      {lookupOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div
+            onClick={() => setLookupOpen(false)}
+            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+          />
+<div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5">            <div
+              className="flex items-center justify-between px-6 py-4 shrink-0"
+              style={{ backgroundColor: "#00285E" }}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center">
+                  <Search size={16} />
+                </div>
+                <h3 className="text-base font-bold text-white leading-tight">
+                  Tra cứu các lỗi thường gặp
+                </h3>
+              </div>
+              <button
+                onClick={() => setLookupOpen(false)}
+                className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="px-6 py-4 border-b border-slate-100 shrink-0 space-y-3">
+              <div className="inline-flex rounded-xl bg-slate-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => changeLookupView("common")}
+                  className={`rounded-lg px-4 py-2 text-xs font-bold transition-colors ${
+                    lookupView === "common"
+                      ? "bg-white text-[#00285E] shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Các lỗi thường gặp
                 </button>
                 <button
-                  onClick={handleCreateIssuesReport}
-                  disabled={
-                    isSubmittingIssueReport || checkedIssueItems.length === 0
-                  }
-                  style={{ backgroundColor: "#00285E" }}
-                  className="px-6 py-2.5 rounded-full text-sm font-semibold text-white shadow-lg shadow-[#00285E]/20 hover:brightness-125 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  type="button"
+                  onClick={() => changeLookupView("garage")}
+                  className={`rounded-lg px-4 py-2 text-xs font-bold transition-colors ${
+                    lookupView === "garage"
+                      ? "bg-white text-[#00285E] shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
                 >
-                  {isSubmittingIssueReport ? "Đang tạo..." : "Tạo báo cáo"}
+                  Lỗi đã gặp tại garage
                 </button>
               </div>
+
+              {/* Ô search + nút Hỏi AI */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search
+                    size={15}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    type="text"
+                    autoFocus
+                    value={lookupTerm}
+                  onChange={(e) => {
+                      const value = e.target.value;
+                      setLookupTerm(value);
+                      if (value.trim() === "") {
+                        if (lookupView === "common") {
+                          loadAllDiagnostics();
+                        } else {
+                          loadAllInspectionDiagnostics();
+                        }
+                        return;
+                      }
+                      if (lookupView === "common") {
+                        searchDiagnostics(value);
+                      } else {
+                        searchInspectionDiagnostics(value);
+                      }
+                    }}
+                    placeholder={
+                      lookupView === "common"
+                        ? "Nhập triệu chứng, nguyên nhân cần tra cứu..."
+                        : "Nhập lỗi hoặc nguyên nhân đã gặp tại garage..."
+                    }
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
+                  />
+                </div>
+               <button
+                type="button"
+                onClick={() => setShowFilterPanel((v) => !v)}
+                title="Bộ lọc hãng xe / dòng xe"
+                className="h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-xl text-sm font-semibold text-[#00285E] border border-slate-200 bg-white hover:bg-slate-50 active:scale-[0.97] transition-all"
+              >
+                <Filter size={15} />
+              </button>
+              </div>
+
+                         {showFilterPanel && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={diagMakeId}
+                      onChange={(e) => {
+                        const val = e.target.value ? Number(e.target.value) : "";
+                        setDiagMakeId(val);
+                        setDiagModelId("");
+                        setDiagModels([]);
+                        if (val) {
+                          loadModels(val);
+                          if (lookupView === "common") {
+                            filterDiagnostics(val, undefined);
+                          } else {
+                            filterInspectionDiagnostics(val, undefined);
+                          }
+                        } else {
+                          if (lookupView === "common") {
+                            loadAllDiagnostics();
+                          } else {
+                            loadAllInspectionDiagnostics();
+                          }
+                        }
+                      }}
+                      className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-[#00285E] transition-colors"
+                    >
+                      <option value="">Tất cả hãng xe</option>
+                      {diagMakes.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.make_name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={diagModelId}
+                      disabled={!diagMakeId}
+                      onChange={(e) => {
+                        const val = e.target.value ? Number(e.target.value) : "";
+                        setDiagModelId(val);
+                        const makeId = diagMakeId
+                          ? Number(diagMakeId)
+                          : undefined;
+                        const modelId = val ? Number(val) : undefined;
+                        if (lookupView === "common") {
+                          filterDiagnostics(makeId, modelId);
+                        } else {
+                          filterInspectionDiagnostics(makeId, modelId);
+                        }
+                      }}
+                      className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-[#00285E] transition-colors disabled:opacity-50"
+                    >
+                      <option value="">Tất cả dòng xe</option>
+                      {diagModels.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.model_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+              </div>
+            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4 bg-slate-50/50">
+             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+  <div className="grid grid-cols-[56px_1.4fr_1.6fr] border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+    <div className="px-3 py-2.5">STT</div>
+    <div className="px-3 py-2.5">
+      {lookupView === "common" ? "Các lỗi thường gặp" : "Lỗi đã gặp"}
+    </div>
+    <div className="px-3 py-2.5">Nguyên nhân</div>
+  </div>
+
+  {lookupRows.map((row, index) => (
+    <div
+      key={row.id}
+      className="grid grid-cols-[56px_1.4fr_1.6fr] border-b border-slate-100 last:border-b-0"
+    >
+      <div className="px-3 py-3 text-sm font-semibold text-slate-500">
+        {index + 1}
+      </div>
+      <div className="px-3 py-3 text-sm text-slate-700 font-semibold">
+        {row.issue}
+      </div>
+      <div className="px-3 py-3 text-sm text-slate-600 whitespace-pre-line leading-relaxed">
+        {row.cause}
+      </div>
+    </div>
+  ))}
+</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CHAT THAM KHẢO AI */}
+      {aiChatOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div
+            onClick={() => setAiChatOpen(false)}
+            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+          />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg h-[85vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5">
+            {/* Header */}
+            <div
+              className="flex items-center justify-between px-6 py-4 shrink-0"
+              style={{ backgroundColor: "#00285E" }}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center">
+                  <Sparkles size={16} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white leading-tight">
+                    Tham khảo AI
+                  </h3>
+                  <span className="text-xs font-semibold text-white/60">
+                    {issueReportAssignment?.vehicleModel || "Chẩn đoán ô tô"}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setAiChatOpen(false)}
+                className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Khung hội thoại */}
+            <div className="overflow-y-auto flex-1 px-4 py-4 space-y-3 bg-slate-50/50">
+              {aiMessages.length === 0 && !isAiLoading && (
+                <div className="h-full flex flex-col items-center justify-center text-center px-6">
+                  <div className="w-12 h-12 rounded-2xl bg-[#EDF3FF] text-[#00285E] flex items-center justify-center mb-3">
+                    <Sparkles size={22} />
+                  </div>
+                  <p className="text-sm text-slate-500">
+                    Mô tả triệu chứng để AI gợi ý nguyên nhân khả dĩ và bộ phận
+                    cần kiểm tra.
+                  </p>
+                </div>
+              )}
+              {aiMessages.map((m, i) =>
+                m.role === "user" ? (
+                  <div key={i} className="flex justify-end">
+                    <div className="max-w-[80%] rounded-2xl rounded-br-md bg-[#00285E] text-white px-3.5 py-2.5 text-sm">
+                      {m.text}
+                    </div>
+                  </div>
+                ) : (
+                  <div key={i} className="flex justify-start">
+                    <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-white border border-slate-200 px-3.5 py-2.5">
+                      <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">
+                        {m.text}
+                      </p>
+                      {m.disclaimer && (
+                        <p className="text-[11px] text-slate-400 italic mt-2 pt-2 border-t border-slate-100">
+                          {m.disclaimer}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ),
+              )}
+              {isAiLoading && (
+                <div className="flex justify-start">
+                  <div className="rounded-2xl rounded-bl-md bg-white border border-slate-200 px-4 py-3">
+                    <span className="inline-flex items-center gap-2 text-sm text-slate-400">
+                      <Loader2 size={14} className="animate-spin" />
+                      AI đang phân tích...
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Ô nhập */}
+            <div className="px-4 py-3 border-t border-slate-200 shrink-0 bg-white">
+              <div className="flex items-end gap-2">
+                <textarea
+                  rows={1}
+                  value={aiInput}
+                  onChange={(e) => setAiInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      sendAiMessage();
+                    }
+                  }}
+                  placeholder="Nhập triệu chứng cần hỏi..."
+                  className="flex-1 max-h-28 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
+                />
+                <button
+                  onClick={sendAiMessage}
+                  disabled={!aiInput.trim() || isAiLoading}
+                  className="h-11 w-11 shrink-0 inline-flex items-center justify-center rounded-xl text-white bg-[#00285E] hover:brightness-110 active:scale-[0.97] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isAiLoading ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Send size={16} />
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL TRA CỨU KINH NGHIỆM SỬA LỖI (task REPAIR) */}
+      {repairLookupOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div
+            onClick={() => setRepairLookupOpen(false)}
+            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+          />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5">
+            <div
+              className="flex items-center justify-between px-6 py-4 shrink-0"
+              style={{ backgroundColor: "#00285E" }}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center">
+                  <Wrench size={16} />
+                </div>
+                <h3 className="text-base font-bold text-white leading-tight">
+                  Tra cứu kinh nghiệm sửa lỗi
+                </h3>
+              </div>
+              <button
+                onClick={() => setRepairLookupOpen(false)}
+                className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="px-6 py-4 border-b border-slate-100 shrink-0 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search
+                    size={15}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    type="text"
+                    autoFocus
+                    value={repairLookupTerm}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setRepairLookupTerm(value);
+                      if (value.trim() === "") {
+                        loadAllInspectionHistory();
+                      } else {
+                        searchInspectionHistory(value);
+                      }
+                    }}
+                    placeholder="Nhập lỗi, bộ phận cần tra cứu kinh nghiệm sửa..."
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowRepairFilter((v) => !v)}
+                  title="Bộ lọc hãng xe / dòng xe"
+                  className="h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-xl text-sm font-semibold text-[#00285E] border border-slate-200 bg-white hover:bg-slate-50 active:scale-[0.97] transition-all"
+                >
+                  <Filter size={15} />
+                </button>
+              </div>
+
+              {showRepairFilter && (
+                <div className="flex items-center gap-2">
+                  <select
+                    value={repairMakeId}
+                    onChange={(e) => {
+                      const val = e.target.value ? Number(e.target.value) : "";
+                      setRepairMakeId(val);
+                      setRepairModelId("");
+                      setRepairModels([]);
+                      if (val) {
+                        loadModelsForRepair(val);
+                        filterInspectionHistory(val, undefined);
+                      } else {
+                        loadAllInspectionHistory();
+                      }
+                    }}
+                    className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-[#00285E] transition-colors"
+                  >
+                    <option value="">Tất cả hãng xe</option>
+                    {diagMakes.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.make_name}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={repairModelId}
+                    disabled={!repairMakeId}
+                    onChange={(e) => {
+                      const val = e.target.value ? Number(e.target.value) : "";
+                      setRepairModelId(val);
+                      filterInspectionHistory(
+                        repairMakeId ? Number(repairMakeId) : undefined,
+                        val ? Number(val) : undefined,
+                      );
+                    }}
+                    className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-[#00285E] transition-colors disabled:opacity-50"
+                  >
+                    <option value="">Tất cả dòng xe</option>
+                    {repairModels.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.model_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-6 py-5 bg-slate-50/50">
+              {isRepairLoading ? (
+                <div className="py-12 text-center">
+                  <span className="inline-flex items-center gap-2 text-slate-400 text-sm">
+                    <Loader2 size={16} className="animate-spin" />
+                    Đang tải dữ liệu...
+                  </span>
+                </div>
+              ) : inspectionHistory.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 py-12 text-center">
+                  <p className="text-sm text-slate-400">
+                    Không tìm thấy kinh nghiệm sửa lỗi phù hợp.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                  <table className="w-full min-w-[640px] text-left text-sm">
+                    <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500">
+                      <tr>
+                        <th className="w-16 px-4 py-3 text-center">STT</th>
+                        <th className="w-1/3 px-4 py-3">Nội dung</th>
+                        <th className="px-4 py-3">Kinh nghiệm</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {repairHistoryRows.map((row, index) => (
+                        <tr
+                          key={row.key}
+                          className="align-top hover:bg-slate-50/70 transition-colors"
+                        >
+                          <td className="px-4 py-4 text-center font-semibold text-slate-500">
+                            {index + 1}
+                          </td>
+                          <td className="px-4 py-4 font-semibold text-slate-800">
+                            {row.content}
+                          </td>
+                          <td className="px-4 py-4 whitespace-pre-line leading-relaxed text-slate-600">
+                            {row.guide}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL XÁC NHẬN HOÀN THÀNH */}
+      {confirmTask && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div
+            onClick={() => setConfirmTask(null)}
+            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+          />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden ring-1 ring-slate-900/5">
+            <div className="px-6 pt-6 pb-5 text-center">
+              <div className="mx-auto w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center mb-4">
+                <CheckCircle2 size={24} className="text-emerald-600" />
+              </div>
+              <h3 className="text-base font-bold text-slate-800 mb-1.5">
+                Hoàn thành công việc?
+              </h3>
+              <p className="text-sm text-slate-500 leading-relaxed">
+                Xác nhận đánh dấu hoàn thành{" "}
+                <span className="font-semibold text-slate-700">
+                  “{confirmTask.serviceName}”
+                </span>
+                . Thao tác này không thể hoàn tác.
+              </p>
+            </div>
+            <div className="flex items-center gap-2.5 px-6 pb-6">
+              <button
+                onClick={() => setConfirmTask(null)}
+                className="flex-1 h-11 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => completeTaskInModal(confirmTask)}
+                className="flex-1 h-11 inline-flex items-center justify-center gap-1.5 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:brightness-110 active:scale-[0.98] transition-all"
+              >
+                <CheckCircle2 size={15} />
+                Hoàn thành
+              </button>
             </div>
           </div>
         </div>

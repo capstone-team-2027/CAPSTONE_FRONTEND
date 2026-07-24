@@ -54,7 +54,7 @@ const ReceptionIssueReports =  lazy(() => import("./pages/reception/issues-repor
 const TechnicianLayout = lazy(() => import("./pages/technician/TechnicianLayout"));
 const TechnicianAssignments = lazy(() => import("./pages/technician/assignments/TechnicianAssignments"));
 const TechnicianAssignmentsDetail = lazy(() => import("./pages/technician/assignments/TechnicianAssignmentsDetail"));
-const TechnicianRequestParts = lazy(() => import("./pages/technician/parts-request/TechnicianRequestParts"));
+const TechnicianWorkHistory = lazy(() => import("./pages/technician/work-history/TechnicianWorkHistory"));
 const TechnicianUpdateProgress = lazy(() => import("./pages/technician/progress/TechnicianUpdateProgress"));
 const TechnicianMyShifts = lazy(() => import("./pages/technician/my-shifts/TechnicianMyShifts"));
 const TechnicianIssuesReportHistory = lazy(() => import("./pages/technician/assignments/IssuesReportHistory"));
@@ -134,8 +134,9 @@ function App() {
           <Route path="" element={<Navigate to="assignments" replace />} />
           <Route path="assignments" element={<TechnicianAssignments />} />
           <Route path="assignments/:id" element={<TechnicianAssignmentsDetail />} />
-          <Route path="parts-request" element={<TechnicianRequestParts />} />
-          <Route path="parts-request/:id" element={<TechnicianRequestParts />} />
+          <Route path="work-history" element={<TechnicianWorkHistory />} />
+          <Route path="parts-request" element={<Navigate to="/technician/work-history" replace />} />
+          <Route path="parts-request/:id" element={<Navigate to="/technician/work-history" replace />} />
           <Route path="progress" element={<TechnicianUpdateProgress />} />
           <Route path="progress/:id" element={<TechnicianUpdateProgress />} />
           <Route path="my-shifts" element={<TechnicianMyShifts />} />
