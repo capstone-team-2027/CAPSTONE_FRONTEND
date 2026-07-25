@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   ClipboardList,
   CalendarClock,
+  MapPin,
 } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { useSocket } from '../../../hook/useSocket';
@@ -418,6 +419,42 @@ export default function TrackingTab() {
                     >
                       {formatDateTime(currentOrder.actual_finish_time)}
                     </span>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Tracking Map Section */}
+              <motion.div
+                key={`map-${currentOrder.id}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="mt-6 bg-white rounded-2xl border border-gray-200/70 shadow-xs p-5 sm:p-6"
+              >
+                <div className="flex items-center gap-2 text-[#00285E] font-bold text-sm mb-4">
+                  <MapPin className="w-4 h-4 text-brand-orange" />
+                  <span>Vị trí phương tiện</span>
+                </div>
+                
+                <div className="w-full h-64 md:h-80 rounded-xl overflow-hidden border border-gray-200 relative group shadow-inner">
+                  <iframe 
+                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1m2!1s0x3135ab9bd9861ca1%3A0xe7887f7b72ca17a9!2zSGFub2ksIEhvw6BuIEtp4bq_bSwgSGFub2ksIFZpZXRuYW0!5e0!3m2!1sen!2s!4v1700000000000!5m2!1sen!2s" 
+                    width="100%" 
+                    height="100%" 
+                    style={{ border: 0 }} 
+                    allowFullScreen={false} 
+                    loading="lazy" 
+                    referrerPolicy="no-referrer-when-downgrade"
+                    title="Vehicle Location"
+                    className="filter contrast-125 saturate-50"
+                  ></iframe>
+                  <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-lg border border-white/50 max-w-[200px] transition-transform hover:scale-105">
+                    <h4 className="font-bold text-xs text-[#00285E] mb-1">AGM Intelligent Garage</h4>
+                    <p className="text-[10px] text-gray-500 font-medium">123 Đường Cầu Giấy, Quan Hoa, Hà Nội</p>
+                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-gray-200/60">
+                        <span className="w-1.5 h-1.5 rounded-full bg-brand-orange animate-pulse"></span>
+                        <span className="text-[9px] font-bold text-brand-orange uppercase tracking-wider">Xe đang đỗ tại xưởng</span>
+                    </div>
                   </div>
                 </div>
               </motion.div>

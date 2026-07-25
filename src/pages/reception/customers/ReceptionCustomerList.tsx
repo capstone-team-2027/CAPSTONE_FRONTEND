@@ -3,8 +3,8 @@ import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { RECEPTION_API } from '../../../constants/reception/receptionApiEndpoint';
 import { useSocket } from '../../../hook/useSocket';
 import { AssignTechnicianModal } from './AssignTechnicianModal';
-import { MapPin } from 'lucide-react';
-import { useOutletContext } from 'react-router-dom';
+import { MapPin, ClipboardPlus } from 'lucide-react';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 
 interface User {
   id: number;
@@ -32,6 +32,8 @@ export default function ReceptionCustomerList() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [assignModalData, setAssignModalData] = useState<{ customer: Customer } | null>(null);
+
+  const navigate = useNavigate();
 
   // Lấy search query từ Header của ReceptionLayout
   const { searchQuery, showToast } = useOutletContext<{ searchQuery: string, showToast: (msg: string, type: string) => void }>();
@@ -137,9 +139,14 @@ export default function ReceptionCustomerList() {
                 </tr>
               ) : (
                 filteredCustomers.map(customer => {
-                  // Chỉ hiện nút cứu hộ nếu có đủ toạ độ
                   const hasLocation = customer.user?.latitude != null && customer.user?.longitude != null;
-                  const activeRescue = customer.rescueRequests && customer.rescueRequests.length > 0 ? customer.rescueRequests[0] : null;
+                  const latestRescue = customer.rescueRequests && customer.rescueRequests.length > 0
+                    ? [...customer.rescueRequests].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+                    : null;
+
+                  const activeRescue = latestRescue && ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(latestRescue.status) ? latestRescue : null;
+                  const completedRescue = latestRescue && latestRescue.status === 'COMPLETED' ? latestRescue : null;
+                  const displayName = customer.name || customer.user?.fullName || "Khách hàng ẩn danh";
 
                   return (
                     <tr key={customer.id} className="hover:bg-slate-50/50 transition-colors">
@@ -147,10 +154,10 @@ export default function ReceptionCustomerList() {
                         <div className="flex items-center gap-3">
                           <img
                             src={customer.user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=150&auto=format&fit=crop'}
-                            alt={customer.name}
+                            alt={displayName}
                             className="w-10 h-10 rounded-full object-cover border border-slate-200"
                           />
-                          <span className="font-semibold text-slate-800">{customer.name}</span>
+                          <span className="font-semibold text-slate-800">{displayName}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 font-medium">{customer.phone}</td>
@@ -162,32 +169,58 @@ export default function ReceptionCustomerList() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {hasLocation ? (
-                          activeRescue ? (
-                            <div className="flex flex-col items-end gap-2">
-                              <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-md border border-orange-200">
-                                ĐÃ GÁN: {activeRescue.technician?.fullName?.toUpperCase() || 'KTV'}
-                              </span>
+                        <div className="flex items-center justify-end gap-3">
+                          {/* Khối 1: Hiển thị trạng thái định vị / Nút gọi cứu hộ */}
+                          {hasLocation ? (
+                            activeRescue && activeRescue.status !== 'PENDING' ? (
+                              <div className="flex flex-col items-end gap-2">
+                                <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-md border border-orange-200">
+                                  ĐÃ GÁN: {activeRescue.technician?.fullName?.toUpperCase() || 'KTV'}
+                                </span>
+                                <button
+                                  onClick={() => handleRescueClick(customer)}
+                                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors text-xs font-bold"
+                                >
+                                  <MapPin size={14} />
+                                  GÁN LẠI
+                                </button>
+                              </div>
+                            ) : (
                               <button
                                 onClick={() => handleRescueClick(customer)}
-                                className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors text-xs font-bold"
+                                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-xs font-bold ${activeRescue?.status === 'PENDING'
+                                    ? 'bg-rose-600 text-white border border-rose-600 hover:bg-rose-700 animate-pulse shadow-md shadow-rose-200'
+                                    : 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'
+                                  }`}
                               >
                                 <MapPin size={14} />
-                                GÁN LẠI
+                                CỨU HỘ KHẨN CẤP
                               </button>
-                            </div>
+                            )
                           ) : (
-                            <button
-                              onClick={() => handleRescueClick(customer)}
-                              className="inline-flex items-center gap-2 px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors text-xs font-bold animate-pulse"
-                            >
-                              <MapPin size={14} />
-                              CỨU HỘ KHẨN CẤP
-                            </button>
-                          )
-                        ) : (
-                          <span className="text-xs font-medium text-slate-400 italic">Đang tắt vị trí</span>
-                        )}
+                            <span className="text-xs font-medium text-slate-400 italic">Đang tắt vị trí</span>
+                          )}
+
+                          {/* Khối 2: Nếu có cứu hộ vừa hoàn thành, hiện Status và nút Tạo Dịch Vụ */}
+                          {completedRescue && (
+                            <>
+                              <div className="w-px h-10 bg-slate-200 mx-2"></div>
+                              <div className="flex flex-col items-end gap-2">
+                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                                  KTV ĐÃ CỨU HỘ THÀNH CÔNG
+                                </span>
+                                <button
+                                  onClick={() => navigate(`/reception/customers/rescue-service-order/${completedRescue.id}`, { state: { customer } })}
+                                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white border border-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors text-xs font-bold shadow-sm"
+                                  title="Tạo Phiếu dịch vụ cho chiếc xe này"
+                                >
+                                  <ClipboardPlus size={14} />
+                                  TẠO DỊCH VỤ
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -202,7 +235,7 @@ export default function ReceptionCustomerList() {
         isOpen={assignModalData !== null}
         onClose={() => setAssignModalData(null)}
         onAssign={handleAssignTechnician}
-        customerName={assignModalData?.customer.name || ''}
+        customerName={assignModalData ? (assignModalData.customer.name || assignModalData.customer.user?.fullName || 'Khách hàng') : ''}
       />
     </div>
   );

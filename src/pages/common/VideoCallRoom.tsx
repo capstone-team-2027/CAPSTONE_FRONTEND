@@ -5,6 +5,8 @@ import { useSelector } from 'react-redux';
 import type { RootState } from '../../store/store';
 import { useSocket } from '../../hook/useSocket';
 import { Menu, MapPin, X } from 'lucide-react';
+import { useFetchClient_v2 } from '../../hook/useFetchClient';
+import { LOCATION_ENDPOINTS } from '../../constants/customer/locationEndpoints';
 
 export default function VideoCallRoom() {
     const { roomId } = useParams();
@@ -20,6 +22,7 @@ export default function VideoCallRoom() {
     const isCustomer = roleCodeStr === 'customer';
 
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const { fetchPrivate } = useFetchClient_v2();
 
     useEffect(() => {
         if (!socket || !roomId) return;
@@ -211,6 +214,35 @@ export default function VideoCallRoom() {
         };
     }, [roomId, navigate]); // Bỏ 'user' khỏi dependency để không bị re-render khi user update
 
+    const handleUpdateLocation = () => {
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+
+                    fetchPrivate(LOCATION_ENDPOINTS.UPDATE_LOCATION, "PATCH", {
+                        latitude: lat,
+                        longitude: lng
+                    }).then(() => {
+                        alert("Đã gửi vị trí GPS của bạn thành công. Lễ tân hiện đã có thể điều phối cứu hộ đến chỗ bạn!");
+                    }).catch(err => {
+                        console.error("Lỗi khi lưu vị trí", err);
+                        alert("Cập nhật vị trí thất bại. Vui lòng thử lại!");
+                    });
+                },
+                (error) => {
+                    console.error("Lỗi lấy vị trí: ", error);
+                    alert("Không thể lấy vị trí. Vui lòng kiểm tra quyền truy cập GPS trên trình duyệt hoặc điện thoại.");
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        } else {
+            alert("Trình duyệt/Thiết bị của bạn không hỗ trợ định vị GPS.");
+        }
+        setIsMenuOpen(false);
+    };
+
     return (
         <div className="w-full h-screen bg-[#1c1f2e] flex flex-col items-center justify-center relative">
             {/* Vùng chứa giao diện Video Call của Zego */}
@@ -234,11 +266,7 @@ export default function VideoCallRoom() {
                         <div className="absolute top-14 left-0 w-64 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-2 shadow-2xl flex flex-col gap-2">
                             <button 
                                 className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-white/20 text-white transition-all text-left"
-                                onClick={() => {
-                                    // Handle cập nhật vị trí logic here
-                                    alert("Chức năng cập nhật vị trí đang được phát triển!");
-                                    setIsMenuOpen(false);
-                                }}
+                                onClick={handleUpdateLocation}
                             >
                                 <MapPin size={20} />
                                 <span className="font-medium text-sm">Cập nhật vị trí</span>

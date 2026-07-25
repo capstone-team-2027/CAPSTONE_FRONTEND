@@ -113,7 +113,7 @@ export default function ReceptionServiceOrderDetail() {
   const customerName = order.vehicle?.customer?.user?.fullName || 'Khách vãng lai';
   const customerPhone = order.vehicle?.customer?.phone || '—';
   const customerEmail = order.vehicle?.customer?.user?.email || '—';
-  
+
   const vehiclePlate = order.vehicle?.license_plate || '—';
   const vehicleModel = `${order.vehicle?.model?.make?.make_name || ''} ${order.vehicle?.model?.model_name || ''}`.trim() || '—';
   const vehicleYear = order.vehicle?.year?.toString() || '—';
@@ -247,7 +247,7 @@ export default function ReceptionServiceOrderDetail() {
                 Hạng mục dịch vụ tiếp nhận
               </h2>
             </div>
-            
+
             <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
               {(!order.tasks || order.tasks.length === 0) ? (
                 <div className="text-xs text-slate-400 italic py-2 text-center">Chưa có hạng mục dịch vụ nào</div>
@@ -262,7 +262,7 @@ export default function ReceptionServiceOrderDetail() {
                         <div className="flex flex-col">
                           <span className="text-xs font-semibold text-slate-700">{task.catalog?.service_name || 'Dịch vụ'}</span>
                           <span className="text-[9px] text-slate-400 uppercase font-bold">
-                            {task.catalog?.estimated_duration || 0} phút 
+                            {task.catalog?.estimated_duration || 0} phút
                           </span>
                         </div>
                       </div>
@@ -290,7 +290,7 @@ export default function ReceptionServiceOrderDetail() {
           }
         });
         const uniqueTechs = Array.from(technicians.values());
-        
+
         if (uniqueTechs.length === 0) return null;
 
         return (

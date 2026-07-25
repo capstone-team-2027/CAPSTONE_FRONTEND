@@ -378,13 +378,13 @@ export default function BookingPage() {
     }, []);
 
 
-    // Auto redirect to home after 5 seconds of success
+    // Auto redirect to home after 30 seconds of success
     useEffect(() => {
         let timer: any;
         if (isSuccess) {
             timer = setTimeout(() => {
                 navigate('/');
-            }, 5000);
+            }, 30000);
         }
         return () => {
             if (timer) clearTimeout(timer);
@@ -995,34 +995,120 @@ export default function BookingPage() {
             : null;
 
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 text-left">
+            <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 text-left relative overflow-hidden">
+                {/* Immersive Background */}
+                <div className="absolute inset-0 z-0">
+                    <img src="/images/Service-Image.png" className="w-full h-full object-cover" alt="Garage Background" />
+                    <div className="absolute inset-0 bg-[#001C43]/70 backdrop-blur-md" />
+                </div>
+                
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="max-w-md w-full space-y-8 bg-white p-8 md:p-12 rounded-[2.5rem] shadow-xl border border-gray-100 text-center"
+                    initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                    className="max-w-6xl w-full rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col lg:flex-row relative z-10 border border-white/20"
                 >
-                    <div>
-                        <h2 className="mt-6 text-3xl font-extrabold text-brand-blue font-display">Thanh toán đơn hàng</h2>
-                        <p className="mt-3 text-sm text-gray-500 leading-relaxed text-center">
-                            Đơn đặt lịch của bạn đã được ghi nhận. Vui lòng thanh toán để hoàn tất.
-                        </p>
+                    {/* LEFT SIDE: Booking Information - Glassmorphism Light */}
+                    <div className="flex-1 p-8 md:p-12 bg-white/90 backdrop-blur-xl flex flex-col">
+                        <div className="flex items-center gap-4 mb-8">
+                            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 shadow-inner">
+                                <Check size={24} strokeWidth={2.5} />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-extrabold text-brand-blue font-display">Chi tiết đặt lịch</h2>
+                                <p className="text-sm text-gray-500">Mã đơn: <span className="font-bold text-brand-blue">AGM-{bookingCode}</span></p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-6 flex-grow">
+                            <div className="bg-white/60 p-6 rounded-2xl border border-white text-sm space-y-5 shadow-sm">
+                                <div className="flex justify-between items-center pb-4 border-b border-slate-200/60">
+                                    <span className="text-gray-500">Hình thức</span>
+                                    <span className="font-bold text-brand-blue">
+                                        {bookingFlow === 'CONSULTATION' ? t('booking.directConsultation', 'Tư vấn trực tiếp') : t('booking.serviceBooking', 'Đặt lịch dịch vụ')}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-start pb-4 border-b border-slate-200/60">
+                                    <span className="text-gray-500">{t('booking.summary.serviceLabel', 'Dịch vụ:')}</span>
+                                    <div className="text-right max-w-[60%]">
+                                        <span className="font-bold text-brand-blue block">{activeSelection?.title}</span>
+                                        {activeSelection?.subItems && activeSelection.subItems.length > 0 && (
+                                            <div className="mt-2 text-xs text-slate-500 space-y-1">
+                                                {activeSelection.subItems.map((item, idx) => (
+                                                    <div key={idx} className="line-clamp-2">• {item}</div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-center pb-4 border-b border-slate-200/60">
+                                    <span className="text-gray-500">{t('booking.summary.timeLabel', 'Thời gian:')}</span>
+                                    <span className="font-bold text-brand-blue">{bookingTime} - {bookingDate.split('-').reverse().join('-')}</span>
+                                </div>
+                                {bookingFlow !== 'CONSULTATION' && (
+                                    <div className="flex justify-between items-center pb-4 border-b border-slate-200/60">
+                                        <span className="text-gray-500">{t('booking.summary.plateLabel', 'Biển số xe:')}</span>
+                                        <span className="font-bold text-brand-blue uppercase">{vehiclePlate || 'N/A'}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-500">Khách hàng</span>
+                                    <span className="font-bold text-brand-blue">{profileName || 'Khách hàng'}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-8 pt-6 border-t border-dashed border-gray-300/50">
+                            <div className="flex items-center justify-between p-6 bg-gradient-to-r from-blue-50/80 to-transparent rounded-2xl border border-blue-100/50">
+                                <span className="font-bold text-brand-blue text-base">Tổng thanh toán</span>
+                                <span className="text-2xl font-extrabold font-display" style={{ color: COLORS.orange }}>
+                                    {activeSelection?.price}
+                                </span>
+                            </div>
+                        </div>
                     </div>
 
-                    {qrUrl && (
-                        <div className="mt-6 flex flex-col items-center justify-center border-t border-slate-100 pt-6">
-                            <img src={qrUrl} alt="VietQR Payment" className="w-56 h-56 rounded-xl shadow-md border border-slate-200" />
-                            <p className="text-[10px] text-gray-400 mt-2 text-center leading-relaxed">Sử dụng App Ngân hàng hoặc Ví điện tử để quét mã.<br />Nội dung chuyển khoản mặc định sẽ bao gồm mã đặt lịch của bạn.</p>
-                        </div>
-                    )}
+                    {/* RIGHT SIDE: Payment details - Glassmorphism Dark */}
+                    <div className="flex-1 p-8 md:p-12 relative overflow-hidden flex flex-col justify-center min-h-[500px] bg-black/40 backdrop-blur-2xl">
+                        {/* Lighting Effects */}
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-brand-orange/20 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl z-0" />
+                        <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/20 rounded-full translate-y-1/3 -translate-x-1/3 blur-3xl z-0" />
+                        
+                        <div className="relative z-10 text-center space-y-8 flex flex-col items-center">
+                            <div>
+                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/10 backdrop-blur-md border border-white/20 mb-6 shadow-xl">
+                                    <Banknote size={32} className="text-[#F9A11B]" />
+                                </div>
+                                <h2 className="text-3xl font-extrabold text-white font-display mb-3">Thanh toán đơn hàng</h2>
+                                <p className="text-blue-100/80 text-sm leading-relaxed max-w-sm mx-auto font-light">
+                                    Quét mã QR bằng ứng dụng ngân hàng hoặc ví điện tử để hoàn tất đặt lịch.
+                                </p>
+                            </div>
 
-                    <div className="pt-4 flex flex-col gap-2">
-                        <button
-                            onClick={() => submitToBackend()}
-                            disabled={isSubmitting}
-                            className={`w-full py-3 rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer ${isSubmitting ? 'bg-slate-300 text-slate-500' : 'bg-[#F9A11B] text-[#00285E] hover:bg-[#E08F12]'}`}
-                        >
-                            {isSubmitting ? 'Đang xử lý...' : 'Tôi đã thanh toán'}
-                        </button>
+                            {qrUrl ? (
+                                <div className="p-1 rounded-3xl bg-gradient-to-br from-white/40 to-white/10 shadow-2xl relative group">
+                                    <div className="bg-white p-5 rounded-[1.3rem] relative z-10">
+                                        <img src={qrUrl} alt="VietQR Payment" className="w-56 h-56 rounded-xl object-contain" />
+                                        <div className="mt-4 pt-4 border-t border-slate-100 text-xs text-slate-500 font-medium">
+                                            Nội dung CK: <span className="font-bold text-brand-blue uppercase">AGM-{bookingCode}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-white/10 backdrop-blur-md p-8 rounded-3xl border border-white/20 text-white w-full max-w-xs">
+                                    <p className="text-sm">Không tìm thấy thông tin thanh toán.</p>
+                                </div>
+                            )}
+
+                            <div className="pt-2 w-full max-w-xs text-center">
+                                <div className="flex flex-col items-center justify-center gap-3">
+                                    <div className="w-5 h-5 border-2 border-[#F9A11B] border-t-transparent rounded-full animate-spin"></div>
+                                    <p className="text-[12px] text-blue-100/70 leading-relaxed max-w-[250px] mx-auto">
+                                        Hệ thống đang tự động chờ xác nhận thanh toán...
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </motion.div>
             </div>
@@ -1046,7 +1132,7 @@ export default function BookingPage() {
                             {t('booking.success.desc', 'Mã đặt lịch của bạn là {{code}}. Chúng tôi đã gửi email xác nhận chi tiết lịch hẹn của bạn. Bộ phận chăm sóc khách hàng sẽ liên hệ với bạn trong vòng 15 phút.', { code: `AGM-${bookingCode}` })}
                         </p>
                         <p className="text-xs text-amber-500 font-bold mt-2">
-                            Tự động chuyển về trang chủ trong 5 giây...
+                            Tự động chuyển về trang chủ trong 30 s...
                         </p>
                     </div>
 
@@ -1075,7 +1161,7 @@ export default function BookingPage() {
                         )}
                         <div className="flex justify-between">
                             <span className="text-gray-400">{t('booking.summary.timeLabel', 'Thời gian:')}</span>
-                            <span className="font-bold text-brand-blue">{bookingTime} - {bookingDate}</span>
+                            <span className="font-bold text-brand-blue">{bookingTime} - {bookingDate.split('-').reverse().join('-')}</span>
                         </div>
                         {bookingFlow !== 'CONSULTATION' && (
                             <>
@@ -2135,7 +2221,7 @@ export default function BookingPage() {
                                         <div className="text-[9px] text-white/40 font-bold uppercase tracking-widest">{t('booking.sidebar.timeLabel', 'Thời gian hẹn')}</div>
                                         <div className="flex justify-between items-center mt-1">
                                             <span className="font-bold text-xs md:text-sm">
-                                                {bookingDate && bookingTime ? `${bookingTime} - ${bookingDate}` : t('booking.sidebar.notSelected', 'Chưa chọn')}
+                                                {bookingDate && bookingTime ? `${bookingTime} - ${bookingDate.split('-').reverse().join('-')}` : t('booking.sidebar.notSelected', 'Chưa chọn')}
                                             </span>
                                             {bookingDate && bookingTime && step > 2 && (
                                                 <button onClick={() => setStep(2)} className="p-1 hover:bg-white/10 rounded-lg transition-colors text-brand-orange border-none bg-transparent cursor-pointer">

@@ -59,8 +59,8 @@ const LocationUpdater = ({ userLocation }: { userLocation: [number, number] | nu
 };
 
 export const MapTracking: React.FC = () => {
-  // Dữ liệu Gara cố định
-  const garageLocation: [number, number] = [10.762622, 106.660172]; 
+  // Dữ liệu Gara cố định (FPT University Da Nang)
+  const garageLocation: [number, number] = [15.9675, 108.2605]; 
   
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
@@ -81,11 +81,11 @@ export const MapTracking: React.FC = () => {
     // Tham gia vào Room bảo mật riêng của khách hàng này
     socket.emit('join-room', `customer_${user.id}`);
 
-    const handleRescueDispatched = (data: { customerId: number | string, routeCoords: [number, number][] }) => {
+    const handleRescueDispatched = (data: { customerId: number | string, routeCoords?: [number, number][] }) => {
       // Dù Server chỉ gửi cho room này, nhưng check lại id cho chắc chắn
       if (String(data.customerId) === String(user.id)) {
-        setRescueRoute(data.routeCoords);
-        if (data.routeCoords.length > 0) {
+        if (data.routeCoords && data.routeCoords.length > 0) {
+           setRescueRoute(data.routeCoords);
            setCarLocation(data.routeCoords[0]);
            startSimulation(data.routeCoords);
         }

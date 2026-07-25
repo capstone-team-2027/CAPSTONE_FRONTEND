@@ -16,6 +16,8 @@ import { useFetchClient } from '../../hook/useFetchClient';
 import { loginSuccess } from '../../store/slices/userSlice';
 import { PROFILE_API_ENDPOINTS } from '../../constants/customer/profileApiEndpoint';
 
+import ChatbotWidget from '../../components/chatbot/ChatbotWidget';
+
 type NavItem = { name: string; path: string };
 type NavLinkProps = {
     item: NavItem;
@@ -564,6 +566,9 @@ export default function Navbar() {
                     })}
                 </div>
             </div>
+
+            {/* AI Chatbot Widget */}
+            <ChatbotWidget />
         </>
     );
 }

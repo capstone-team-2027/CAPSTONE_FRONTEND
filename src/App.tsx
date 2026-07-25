@@ -53,6 +53,7 @@ const ReceptionQuoteList = lazy(() => import("./pages/reception/quotes/Reception
 const ReceptionQuoteDetail = lazy(() => import("./pages/reception/quotes/ReceptionQuoteDetail"));
 const ReceptionIssueReports = lazy(() => import("./pages/reception/issues-report/ReceptionIssuesReportHistory"));
 const ReceptionCustomerList = lazy(() => import("./pages/reception/customers/ReceptionCustomerList"));
+const ReceptionRescueCreateServiceOrder = lazy(() => import("./pages/reception/customers/ReceptionRescueCreateServiceOrder"));
 const ReceptionTechnicianList = lazy(() => import("./pages/reception/technicians/ReceptionTechnicianList"));
 
 
@@ -161,6 +162,7 @@ function App() {
           <Route path="service-orders/:id" element={<ReceptionServiceOrderDetail />} />
           <Route path="service-orders/create" element={<ReceptionCreateServiceOrder />} />
           <Route path="customers" element={<ReceptionCustomerList />} />
+          <Route path="customers/rescue-service-order/:rescueId" element={<ReceptionRescueCreateServiceOrder />} />
           <Route path="feedback" element={<ReceptionReceiveFeedback />} />
           <Route path="service-history" element={<ReceptionServiceHistory />} />
           <Route path="payments" element={<ReceptionProcessPayment />} />

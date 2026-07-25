@@ -186,6 +186,9 @@ export default function TechnicianRescuePage() {
         showToast('Đã đến nơi thành công!', 'success');
         if (animationRef.current) clearInterval(animationRef.current);
       }
+      else if (newStatus === 'COMPLETED') {
+        showToast('Hoàn tất cứu hộ xuất sắc! Đang chuyển trang...', 'success');
+      }
       
     } catch (error) {
       console.error(error);
@@ -423,10 +426,17 @@ export default function TechnicianRescuePage() {
               
               {rescueTask.status === 'ARRIVED' && (
                 <button 
-                  onClick={() => window.location.href = `/technician/assignments`}
+                  onClick={async () => {
+                    await updateStatus('COMPLETED');
+                    setTimeout(() => {
+                      window.location.href = `/technician/assignments`;
+                    }, 1500);
+                  }}
+                  disabled={actionLoading}
                   className="w-full py-4 bg-slate-800 text-white rounded-full font-black tracking-wide shadow-2xl hover:bg-slate-700 transition-all flex items-center justify-center gap-2 text-lg"
                 >
-                  CHUYỂN SANG SỬA CHỮA
+                  {actionLoading ? <Loader2 size={24} className="animate-spin" /> : <CheckCircle size={24} />}
+                  HOÀN TẤT CỨU HỘ & CHUYỂN SANG SỬA CHỮA
                 </button>
               )}
             </motion.div>
