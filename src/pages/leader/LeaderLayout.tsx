@@ -6,7 +6,6 @@ import {
   ShieldCheck,
   HelpCircle,
   LogOut,
-  Search,
   Bell,
   Menu,
   X,
@@ -14,6 +13,7 @@ import {
   Info,
   AlertTriangle,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '../../store/store';
@@ -33,6 +33,8 @@ export default function LeaderLayout() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'info' | 'warning'; text: string } | null>(null);
+
+  const { i18n } = useTranslation();
 
   const showToast = (text: string, type: 'success' | 'info' | 'warning' = 'success') => {
     setToastMessage({ text, type });
@@ -70,11 +72,18 @@ export default function LeaderLayout() {
   const displayRole = 'Phân công kỹ thuật';
 
   // Sidebar menu items for team leader
-  const menuItems = [
-    { name: 'Tổng quan', icon: LayoutDashboard, path: '/leader' },
-    { name: 'Phân công kỹ thuật', icon: ClipboardCheck, path: '/leader/assignments' },
-    { name: 'Nghiệm thu tổng thể', icon: ShieldCheck, path: '/leader/final-qc' },
+  const menuGroups = [
+    {
+      label: 'Nội dung',
+      items: [
+        { name: 'Tổng quan', icon: LayoutDashboard, path: '/leader' },
+        { name: 'Phân công kỹ thuật', icon: ClipboardCheck, path: '/leader/assignments' },
+        { name: 'Nghiệm thu tổng thể', icon: ShieldCheck, path: '/leader/final-qc' },
+      ],
+    },
   ];
+
+  const menuItems = menuGroups.flatMap((group) => group.items);
 
   // Dynamic active menu item based on current URL path
   const activeMenu = useMemo(() => {
@@ -86,31 +95,42 @@ export default function LeaderLayout() {
   }, [location.pathname]);
 
   const renderNav = () => (
-    <nav className="space-y-1">
-      {menuItems.map((item) => {
-        const Icon = item.icon;
-        const isActive = activeMenu === item.name;
-        return (
-          <button
-            key={item.name}
-            onClick={() => {
-              navigate(item.path);
-              setIsMobileSidebarOpen(false);
-            }}
-            className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all group ${isActive
-              ? 'bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15'
-              : 'text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E]'
-              }`}
-          >
-            <Icon
-              size={18}
-              className={isActive ? 'text-[#F9A11B]' : 'text-slate-500 group-hover:text-[#00285E]'}
-            />
-            <span>{item.name}</span>
-          </button>
-        );
-      })}
-    </nav>
+    <div className="space-y-4">
+      {menuGroups.map((group, groupIndex) => (
+        <div key={group.label ?? `group-${groupIndex}`}>
+          {group.label && (
+            <span className="px-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+              {group.label}
+            </span>
+          )}
+          <nav className="space-y-1">
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeMenu === item.name;
+              return (
+                <button
+                  key={item.name}
+                  onClick={() => {
+                    navigate(item.path);
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all group ${isActive
+                    ? 'bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15'
+                    : 'text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E]'
+                    }`}
+                >
+                  <Icon
+                    size={18}
+                    className={isActive ? 'text-[#F9A11B]' : 'text-slate-500 group-hover:text-[#00285E]'}
+                  />
+                  <span>{item.name}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      ))}
+    </div>
   );
 
   const handleLogout = () => {
@@ -181,7 +201,7 @@ export default function LeaderLayout() {
         style={{ height: '100vh' }}
       >
         {/* Sidebar Header */}
-        <div className="p-6 border-b border-[#D2E2FF] flex items-center justify-between">
+        <div className="h-20 px-4 border-b border-[#D2E2FF] flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#00285E] flex items-center justify-center shadow-md">
               <ShieldCheck size={20} className="text-white" />
@@ -194,11 +214,8 @@ export default function LeaderLayout() {
         </div>
 
         {/* Navigation Section */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-7 scrollbar-none">
-          <div>
-            <span className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
-              Nghiệp vụ phân công
-            </span>
+        <div className="flex-1 overflow-y-auto px-2 py-5 space-y-5 scrollbar-none">
+          <div className="w-full max-w-[220px] mx-auto">
             {renderNav()}
           </div>
         </div>
@@ -230,7 +247,7 @@ export default function LeaderLayout() {
             onClick={() => setIsMobileSidebarOpen(false)}
           ></div>
           <aside className="relative flex flex-col w-72 bg-[#EDF3FF] border-r border-[#D2E2FF] h-full p-0">
-            <div className="p-6 border-b border-[#D2E2FF] flex items-center justify-between">
+            <div className="h-20 px-4 border-b border-[#D2E2FF] flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-[#00285E] flex items-center justify-center shadow-md">
                   <ShieldCheck size={20} className="text-white" />
@@ -284,22 +301,22 @@ export default function LeaderLayout() {
       <main className="flex-1 flex flex-col min-w-0 pb-16">
 
         {/* DESKTOP HEADER BAR */}
-        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-between border-b border-slate-100 shadow-xs sticky top-0 z-30">
-          {/* Search bar */}
-          <div className="relative w-80">
-            <Search size={16} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Tìm phiếu kiểm định, mã đơn..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200/80 rounded-full pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-            />
-          </div>
-
+        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-30">
           {/* User profile & Actions */}
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => i18n.changeLanguage('vi')}
+                className={`px-3 py-2 rounded-full text-xs font-bold transition ${i18n.language === 'vi' ? 'bg-[#00285E] text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+              >
+                VI
+              </button>
+              <button
+                onClick={() => i18n.changeLanguage('en')}
+                className={`px-3 py-2 rounded-full text-xs font-bold transition ${i18n.language.startsWith('en') ? 'bg-[#00285E] text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+              >
+                EN
+              </button>
               <button
                 onClick={() => showToast('Không có thông báo mới', 'info')}
                 className="p-2.5 rounded-full hover:bg-slate-50 border border-slate-100 transition-colors text-slate-600 relative group"

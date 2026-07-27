@@ -237,6 +237,9 @@ export default function LeaderAssignments() {
   const [isLoading, setIsLoading] = useState(false);
 
   const [localSearch, setLocalSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [currentHistoryPage, setCurrentHistoryPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const effectiveSearch = (searchQuery || localSearch).toLowerCase();
 
   // Đơn đang mở chi tiết
@@ -516,6 +519,38 @@ export default function LeaderAssignments() {
     });
   }, [history, historyCodes, effectiveSearch]);
 
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const totalHistoryPages = Math.ceil(filteredHistory.length / ITEMS_PER_PAGE);
+
+  const paginatedOrders = useMemo(() => {
+    const activePage = Math.min(Math.max(currentPage, 1), totalPages || 1);
+    const start = (activePage - 1) * ITEMS_PER_PAGE;
+    return filtered.slice(start, start + ITEMS_PER_PAGE);
+  }, [filtered, currentPage, totalPages]);
+
+  const paginatedHistory = useMemo(() => {
+    const activePage = Math.min(Math.max(currentHistoryPage, 1), totalHistoryPages || 1);
+    const start = (activePage - 1) * ITEMS_PER_PAGE;
+    return filteredHistory.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredHistory, currentHistoryPage, totalHistoryPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    setCurrentHistoryPage(1);
+  }, [effectiveSearch]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages || 1);
+    }
+  }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    if (currentHistoryPage > totalHistoryPages) {
+      setCurrentHistoryPage(totalHistoryPages || 1);
+    }
+  }, [currentHistoryPage, totalHistoryPages]);
+
   const stats = useMemo(() => {
     const allTasks = serviceOrders.flatMap((o) => o.tasks ?? []);
     const assigned = allTasks.filter(
@@ -647,7 +682,11 @@ export default function LeaderAssignments() {
               type="text"
               placeholder="Tìm biển số, dịch vụ, kỹ thuật viên..."
               value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
+              onChange={(e) => {
+                setLocalSearch(e.target.value);
+                setCurrentPage(1);
+                setCurrentHistoryPage(1);
+              }}
               className="w-full sm:w-72 bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
             />
           </div>
@@ -686,7 +725,7 @@ export default function LeaderAssignments() {
                     </td>
                   </tr>
                 ) : (
-                  filteredHistory.map((order) => {
+                  paginatedHistory.map((order) => {
                     const sum = orderSummary(order);
                     return (
                       <tr
@@ -760,6 +799,35 @@ export default function LeaderAssignments() {
               </tbody>
             </table>
           </div>
+
+          {totalHistoryPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 bg-slate-50 border-t border-slate-200 text-sm text-slate-500">
+              <span>
+                Hiển thị {filteredHistory.length === 0 ? 0 : (Math.min(Math.max(currentHistoryPage, 1), totalHistoryPages) - 1) * ITEMS_PER_PAGE + 1}–{Math.min(Math.min(Math.max(currentHistoryPage, 1), totalHistoryPages) * ITEMS_PER_PAGE, filteredHistory.length)} trên {filteredHistory.length} đơn
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentHistoryPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentHistoryPage === 1}
+                  className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                >Trước</button>
+                {Array.from({ length: totalHistoryPages }, (_, index) => index + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentHistoryPage(page)}
+                    className={`w-9 h-9 rounded-xl text-sm font-semibold transition ${page === currentHistoryPage ? 'bg-[#00285E] text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setCurrentHistoryPage((prev) => Math.min(totalHistoryPages, prev + 1))}
+                  disabled={currentHistoryPage === totalHistoryPages}
+                  className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                >Sau</button>
+              </div>
+            </div>
+          )}
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[720px]">
@@ -793,7 +861,7 @@ export default function LeaderAssignments() {
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((order) => {
+                  paginatedOrders.map((order) => {
                     const sum = orderSummary(order);
                     return (
                       <tr
@@ -861,6 +929,35 @@ export default function LeaderAssignments() {
               </tbody>
             </table>
           </div>
+
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 bg-slate-50 border-t border-slate-200 text-sm text-slate-500">
+              <span>
+                Hiển thị {filtered.length === 0 ? 0 : (Math.min(Math.max(currentPage, 1), totalPages) - 1) * ITEMS_PER_PAGE + 1}–{Math.min(Math.min(Math.max(currentPage, 1), totalPages) * ITEMS_PER_PAGE, filtered.length)} trên {filtered.length} đơn
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                >Trước</button>
+                {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-9 h-9 rounded-xl text-sm font-semibold transition ${page === currentPage ? 'bg-[#00285E] text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                >Sau</button>
+              </div>
+            </div>
+          )}
         )}
       </div>
 
