@@ -12,6 +12,7 @@ import {
     History,
     ShieldCheck,
     Clock,
+    MapPin,
 } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +25,7 @@ import SettingsTab from './SettingsTab';
 import HistoryTab from './HistoryTab';
 import WarrantyTab from './WarrantyTab';
 import TrackingTab from './TrackingTab';
+import MapTab from './MapTab';
 import type { RootState } from '../../../store/store';
 import type { UserModel } from '../../../model/User';
 import { useFetchClient } from '../../../hook/useFetchClient';
@@ -36,6 +38,7 @@ const MENU_ITEMS = [
     { id: 'history', label: 'Lịch sử sửa chữa', icon: History },
     { id: 'warranty', label: 'Bảo hành', icon: ShieldCheck },
     { id: 'tracking', label: 'Theo dõi', icon: Clock },
+    { id: 'map', label: 'Bản đồ', icon: MapPin },
     { id: 'settings', label: 'Cài đặt', icon: Settings },
 ] as const;
 
@@ -380,6 +383,9 @@ export default function UserProfile() {
 
             case 'tracking':
                 return <TrackingTab />;
+
+            case 'map':
+                return <MapTab />;
 
             case 'settings':
                 return (

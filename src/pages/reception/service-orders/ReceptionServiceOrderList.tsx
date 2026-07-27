@@ -208,6 +208,7 @@ export default function ReceptionServiceOrderList() {
                   <th className="py-3 px-4">Xe</th>
                   <th className="py-3 px-4">Ngày tạo</th>
                   <th className="py-3 px-4">Tiến độ</th>
+                  <th className="py-3 px-4">Thanh toán</th>
                   <th className="py-3 px-4">Trạng thái</th>
                   <th className="py-3 px-4 text-center">Thao tác</th>
                 </tr>
@@ -262,6 +263,17 @@ export default function ReceptionServiceOrderList() {
                             </div>
                           );
                         })()}
+                      </td>
+                      <td className="py-4 px-4">
+                        {so.payment?.payment_status === 'PAID' || so.payment?.payment_status === 'COMPLETED' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-700 whitespace-nowrap">
+                            Đã thanh toán
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500 whitespace-nowrap">
+                            Chưa thanh toán
+                          </span>
+                        )}
                       </td>
                       <td className="py-4 px-4">
                         <span

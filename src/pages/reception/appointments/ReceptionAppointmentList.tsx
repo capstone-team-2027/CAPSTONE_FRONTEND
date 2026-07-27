@@ -13,6 +13,8 @@ import {
   XCircle,
   AlertCircle,
   Loader2,
+  User,
+  Phone,
 } from 'lucide-react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import type { AppointmentModel } from '../../../model/Appointment';
@@ -22,7 +24,7 @@ import { APPOINTMENT_API_ENDPOINTS, SERVICE_ORDER_API_ENDPOINTS } from '../../..
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   pending: { label: 'Chờ xác nhận', color: '#D97706', bg: '#FEF3C7', icon: Clock },
-  confirmed: { label: 'Đã xác nhận', color: '#2563EB', bg: '#DBEAFE', icon: CheckCircle2 },
+  confirmed: { label: 'Chờ tiếp nhận', color: '#2563EB', bg: '#DBEAFE', icon: Clock },
   in_progress: { label: 'Đã tiếp nhận ', color: '#EA580C', bg: '#FED7AA', icon: Loader2 },
   completed: { label: 'Đã tiếp nhận', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
   cancelled: { label: 'Đã hủy', color: '#DC2626', bg: '#FEE2E2', icon: XCircle },
@@ -31,18 +33,6 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 
 const ITEMS_PER_PAGE = 6;
 
-/*const formatBookingType = (type?: string) => {
-  switch (type) {
-    case 'CUSTOMER_SPECIFIC': return { label: 'KH Đặt Dịch Vụ', style: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
-    case 'CUSTOMER_REPAIR': return { label: 'KH Đặt Sửa Chữa', style: 'bg-rose-50 text-rose-600 border-rose-100' };
-    case 'RECEPTIONIST_SPECIFIC': return { label: 'LT Đặt Dịch Vụ', style: 'bg-indigo-50 text-indigo-600 border-indigo-100' };
-    case 'RECEPTIONIST_REPAIR': return { label: 'LT Đặt Sửa Chữa', style: 'bg-orange-50 text-orange-600 border-orange-100' };
-    case 'WALK_IN_SPECIFIC': return { label: 'Khách Vãng Lai - Dịch Vụ', style: 'bg-teal-50 text-teal-600 border-teal-100' };
-    case 'WALK_IN_REPAIR': return { label: 'Khách Vãng Lai - Sửa Chữa', style: 'bg-red-50 text-red-600 border-red-100' };
-    case 'CONSULTATION': return { label: 'Tư Vấn', style: 'bg-purple-50 text-purple-600 border-purple-100' };
-    default: return { label: type || 'Khác', style: 'bg-slate-50 text-slate-600 border-slate-100' };
-  }
-};*/
 
 export default function AppointmentList() {
   const navigate = useNavigate();
@@ -57,7 +47,7 @@ export default function AppointmentList() {
   const [error, setError] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('unreceived');
   const [currentPage, setCurrentPage] = useState(1);
 
   const loadAppointments = async () => {
@@ -105,6 +95,7 @@ export default function AppointmentList() {
               ? `${appt.vehicle.model.make?.make_name || ''} ${appt.vehicle.model.model_name || ''}`.trim()
               : 'Chưa cập nhật',
             vehicleYear: appt.vehicle?.year || undefined,
+            vehicleColor: appt.vehicle?.color || undefined,
             vinNumber: appt.vehicle?.vin_number || undefined,
             hasServiceOrder: !!appt.serviceOrder,
             serviceOrderId: appt.serviceOrder?.id || null,
@@ -135,6 +126,7 @@ export default function AppointmentList() {
   const [selectedServiceOrderId, setSelectedServiceOrderId] = useState<string | null>(null);
   const [vinNumber, setVinNumber] = useState('');
   const [odoNumber, setOdoNumber] = useState('');
+  const [vehicleCondition, setVehicleCondition] = useState('');
   const [isSubmittingVin, setIsSubmittingVin] = useState(false);
 
   const handleReceiveClick = async (apptId: string, currentStatus: string, serviceOrderId?: string) => {
@@ -142,6 +134,7 @@ export default function AppointmentList() {
     setSelectedServiceOrderId(serviceOrderId || null);
     setVinNumber('');
     setOdoNumber('');
+    setVehicleCondition('');
 
     try {
       const res = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.CHECK_VEHICLE_INFO(apptId));
@@ -193,7 +186,8 @@ export default function AppointmentList() {
       // Update ODO if serviceOrderId exists
       if (selectedServiceOrderId) {
         const odoResponse = await fetchPrivate(SERVICE_ORDER_API_ENDPOINTS.UPDATE_ODO(selectedServiceOrderId), 'PUT', {
-          current_odo: parseInt(odoNumber)
+          current_odo: parseInt(odoNumber),
+          symptoms: vehicleCondition.trim() || undefined
         });
         if (!odoResponse.success) throw new Error(odoResponse.message || 'Lỗi cập nhật ODO');
       }
@@ -216,7 +210,7 @@ export default function AppointmentList() {
       if (selectedServiceOrderId) {
         navigate(`/reception/service-orders/${selectedServiceOrderId}`);
       } else {
-        navigate(`/reception/service-orders/create?appointmentId=${selectedApptId}&odo=${odoNumber}`);
+        navigate(`/reception/service-orders/create?appointmentId=${selectedApptId}&odo=${odoNumber}&condition=${encodeURIComponent(vehicleCondition)}`);
       }
     } catch (err: any) {
       console.error(err);
@@ -257,8 +251,12 @@ export default function AppointmentList() {
       let matchStatus = false;
       if (statusFilter === 'all') {
         matchStatus = true;
+      } else if (statusFilter === 'unreceived') {
+        matchStatus = apt.status === 'pending' || apt.status === 'confirmed';
       } else if (statusFilter === 'received') {
         matchStatus = apt.status === 'in_progress' || apt.status === 'completed';
+      } else if (statusFilter === 'cancelled') {
+        matchStatus = apt.status === 'cancelled' || apt.status === 'no_show';
       } else {
         matchStatus = apt.status === statusFilter;
       }
@@ -281,6 +279,15 @@ export default function AppointmentList() {
     confirmed: appointments.filter((a) => a.status === 'confirmed').length,
     completed: appointments.filter((a) => a.status === 'completed').length,
   }), [appointments]);
+
+  const tabCounts = useMemo(() => {
+    return {
+      unreceived: appointments.filter((a) => a.status === 'pending' || a.status === 'confirmed').length,
+      received: appointments.filter((a) => a.status === 'in_progress' || a.status === 'completed').length,
+      cancelled: appointments.filter((a) => a.status === 'cancelled' || a.status === 'no_show').length,
+      all: appointments.length,
+    };
+  }, [appointments]);
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -346,9 +353,10 @@ export default function AppointmentList() {
               Trạng thái:
             </span>
             {[
-              { id: 'all', label: 'Tất cả' },
-              { id: 'received', label: 'Đã tiếp nhận' },
-              { id: 'cancelled', label: 'Đã hủy' }
+              { id: 'unreceived', label: 'Chưa tiếp nhận', count: tabCounts.unreceived },
+              { id: 'received', label: 'Đã tiếp nhận', count: tabCounts.received },
+              { id: 'cancelled', label: 'Đã hủy', count: tabCounts.cancelled },
+              { id: 'all', label: 'Tất cả', count: tabCounts.all }
             ].map((tab) => {
               const isActive = statusFilter === tab.id;
               return (
@@ -356,12 +364,15 @@ export default function AppointmentList() {
                   key={tab.id}
                   type="button"
                   onClick={() => { setStatusFilter(tab.id); setCurrentPage(1); }}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${isActive
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 ${isActive
                     ? 'bg-[#00285E] text-white border-[#00285E] shadow-sm'
                     : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                 >
-                  {tab.label}
+                  <span>{tab.label}</span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${isActive ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-600'}`}>
+                    {tab.count}
+                  </span>
                 </button>
               );
             })}
@@ -551,11 +562,53 @@ export default function AppointmentList() {
       {/* VIN MODAL */}
       {isVinModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl border border-slate-200">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl border border-slate-200">
             <h3 className="text-lg font-bold text-[#00285E] mb-2 flex items-center gap-2">
               <CarFront size={20} className="text-amber-500" />
               Tiếp nhận & Cập nhật Thông tin Xe
             </h3>
+            
+            {/* Display Customer & Vehicle Info Summary */}
+            {(() => {
+              const appt = appointments.find(a => a.id === selectedApptId) as any;
+              if (!appt) return null;
+              return (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-5 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-slate-700">
+                    <div className="flex items-center gap-2">
+                      <User size={16} className="text-slate-400" />
+                      <span className="font-semibold">{appt.customerName}</span>
+                    </div>
+                    <div className="hidden sm:block text-slate-300">•</div>
+                    <div className="flex items-center gap-2">
+                      <Phone size={16} className="text-slate-400" />
+                      <span>{appt.customerPhone}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="h-px bg-slate-200/60 w-full" />
+                  
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 text-sm text-slate-700">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-1 bg-blue-100 text-[#00285E] font-bold rounded-lg border border-blue-200">
+                        {appt.vehiclePlate}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-y-1 gap-x-4">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-500">Loại xe:</span>
+                        <span className="font-semibold">{appt.vehicleModel}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-500">Màu sắc:</span>
+                        <span className="font-semibold">{appt.vehicleColor || 'Chưa cập nhật'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             <p className="text-slate-500 text-sm mb-4">
               Vui lòng nhập Số khung (VIN) và Số ODO hiện tại của xe. (VIN có thể để trống, ODO là bắt buộc).
             </p>
@@ -581,6 +634,17 @@ export default function AppointmentList() {
                   onChange={(e) => setOdoNumber(e.target.value)}
                   placeholder="Nhập số km hiện tại (VD: 55000)"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#00285E]/20 focus:border-[#00285E] transition-all"
+                  disabled={isSubmittingVin}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Tình trạng xe lúc tiếp nhận</label>
+                <textarea
+                  value={vehicleCondition}
+                  onChange={(e) => setVehicleCondition(e.target.value)}
+                  placeholder="Ghi chú tình trạng xe: trầy xước, móp méo, báo lỗi..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#00285E]/20 focus:border-[#00285E] transition-all resize-none h-32"
                   disabled={isSubmittingVin}
                 />
               </div>

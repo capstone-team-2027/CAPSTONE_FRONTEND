@@ -17,12 +17,14 @@ import {
   AlertTriangle,
   Settings,
   Calendar,
+  Siren,
 } from "lucide-react";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "../../store/store";
 import type { UserModel } from "../../model/User";
 import { useFetchClient } from "../../hook/useFetchClient";
+import { useSocket } from '../../hook/useSocket';
 import { loginSuccess, logout } from "../../store/slices/userSlice";
 import { PROFILE_API_ENDPOINTS } from "../../constants/common/profileEndpoints";
 import { NOTIFICATION_API_ENDPOINTS } from "../../constants/technician/notificationEndpoints";
@@ -32,6 +34,7 @@ export default function TechnicianLayout() {
   const location = useLocation();
   const dispatch = useDispatch();
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
 
   const user = useSelector(
     (state: RootState) => state.user.user as UserModel | null,
@@ -147,8 +150,8 @@ export default function TechnicianLayout() {
   const displayName = user?.fullName || "Kỹ thuật viên";
   const displayRole = "Kỹ thuật viên";
 
-  // Menu items for the sidebar
   const menuItems = [
+    { name: 'Cứu hộ khẩn cấp', icon: Siren, path: '/technician/rescue' },
     { name: "Phân công", icon: CheckSquare, path: "/technician/assignments" },
     { name: "Lịch làm việc", icon: Calendar, path: "/technician/my-shifts" },
     {
@@ -165,10 +168,9 @@ export default function TechnicianLayout() {
     { name: "Cập nhật tiến độ", icon: Activity, path: "/technician/progress" },
   ];
 
-  // Dynamic active menu item based on current URL path
   const activeMenu = useMemo(() => {
     const path = location.pathname;
-
+    if (path.includes('/rescue')) return 'Cứu hộ khẩn cấp';
     if (path.includes("/assignments")) return "Phân công";
     if (path.includes("/my-shifts")) return "Lịch làm việc";
     if (path.includes("/issues-reports")) return "Lịch sử báo cáo";
@@ -219,19 +221,14 @@ export default function TechnicianLayout() {
                     navigate(item.path);
                     onNavigate?.();
                   }}
-                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all group ${
-                    isActive
-                      ? "bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-[#00285E]"
-                  }`}
+                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all group ${isActive
+                    ? "bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-[#00285E]"
+                    }`}
                 >
                   <Icon
                     size={18}
-                    className={
-                      isActive
-                        ? "text-[#F9A11B]"
-                        : "text-slate-500 group-hover:text-[#00285E]"
-                    }
+                    className={isActive ? (item.name === 'Cứu hộ khẩn cấp' ? 'text-rose-400' : 'text-[#F9A11B]') : (item.name === 'Cứu hộ khẩn cấp' ? 'text-rose-500 group-hover:text-rose-600' : 'text-slate-500 group-hover:text-[#00285E]')}
                   />
                   <span>{item.name}</span>
                 </button>

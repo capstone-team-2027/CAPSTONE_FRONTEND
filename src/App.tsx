@@ -2,18 +2,21 @@ import { lazy, Suspense } from "react";
 import { Route, Routes, useLocation, Navigate } from "react-router-dom";
 
 const Header = lazy(() => import("./pages/customer/Header"));
-const Home = lazy(() => import("./pages/customer/Home/Home"));
+const Home = lazy(() => import("./pages/customer/home/Home"));
 const Services = lazy(() => import("./pages/customer/services/Services"));
-const Parts = lazy(() => import("./pages/customer/Parts/Parts"));
-const BookingPage = lazy(() => import("./pages/customer/Booking/BookingPage"));
-const Signup = lazy(() => import("./pages/customer/Home/SingUp"));
+const Parts = lazy(() => import("./pages/customer/parts/Parts"));
+const BookingPage = lazy(() => import("./pages/customer/booking/BookingPage"));
+const Signup = lazy(() => import("./pages/customer/home/SingUp"));
 const Footer = lazy(() => import("./pages/customer/Footer"));
-const Login = lazy(() => import("./pages/customer/Home/Login"));
+const Login = lazy(() => import("./pages/customer/home/Login"));
 const UserProfile = lazy(() => import("./pages/customer/UserProfile/UserProfile"));
-const ForgotPassword = lazy(() => import("./pages/customer/Home/ForgotPassword"));
-const Team = lazy(() => import("./pages/customer/Team/Team"));
-const OtpVerification = lazy(() => import("./pages/customer/Home/verify-otp"));
-const VerifyPhone = lazy(() => import("./pages/customer/Home/verify-phone"));
+const ForgotPassword = lazy(() => import("./pages/customer/home/ForgotPassword"));
+const Team = lazy(() => import("./pages/customer/team/Team"));
+const OtpVerification = lazy(() => import("./pages/customer/home/verify-otp"));
+const VerifyPhone = lazy(() => import("./pages/customer/home/verify-phone"));
+
+// Import component MapTracking để test
+const MapTrackingTest = lazy(() => import("./components/share/MapTracking").then(m => ({ default: m.MapTracking })));
 
 const VideoCallRoom = lazy(() => import("./pages/common/VideoCallRoom"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
@@ -49,7 +52,11 @@ const ReceptionServiceHistory = lazy(() => import("./pages/reception/service-his
 const ReceptionProcessPayment = lazy(() => import("./pages/reception/payments/ReceptionProcessPayment"));
 const ReceptionQuoteList = lazy(() => import("./pages/reception/quotes/ReceptionQuoteList"));
 const ReceptionQuoteDetail = lazy(() => import("./pages/reception/quotes/ReceptionQuoteDetail"));
-const ReceptionIssueReports =  lazy(() => import("./pages/reception/issues-report/ReceptionIssuesReportHistory"));
+const ReceptionIssueReports = lazy(() => import("./pages/reception/issues-report/ReceptionIssuesReportHistory"));
+const ReceptionCustomerList = lazy(() => import("./pages/reception/customers/ReceptionCustomerList"));
+const ReceptionRescueCreateServiceOrder = lazy(() => import("./pages/reception/customers/ReceptionRescueCreateServiceOrder"));
+const ReceptionTechnicianList = lazy(() => import("./pages/reception/technicians/ReceptionTechnicianList"));
+
 
 // Technician Page Imports
 const TechnicianLayout = lazy(() => import("./pages/technician/TechnicianLayout"));
@@ -59,6 +66,7 @@ const TechnicianWorkHistory = lazy(() => import("./pages/technician/work-history
 const TechnicianUpdateProgress = lazy(() => import("./pages/technician/progress/TechnicianUpdateProgress"));
 const TechnicianMyShifts = lazy(() => import("./pages/technician/my-shifts/TechnicianMyShifts"));
 const TechnicianIssuesReportHistory = lazy(() => import("./pages/technician/assignments/IssuesReportHistory"));
+const TechnicianRescuePage = lazy(() => import("./pages/technician/rescue/TechnicianRescuePage"));
 
 // Technician Leader Page Imports
 const LeaderLayout = lazy(() => import("./pages/leader/LeaderLayout"));
@@ -103,6 +111,9 @@ function App() {
           <Route path="team" element={<Team />} />
           <Route path="otp-verification" element={<OtpVerification />} />
           <Route path="verify-phone" element={<VerifyPhone />} />
+
+          {/* Route test bản đồ */}
+          <Route path="test-map" element={<div className="container mx-auto p-4 md:p-10"><MapTrackingTest /></div>} />
         </Route>
 
         <Route path="/video-call/:roomId" element={<VideoCallRoom />} />
@@ -143,6 +154,7 @@ function App() {
           <Route path="progress/:id" element={<TechnicianUpdateProgress />} />
           <Route path="my-shifts" element={<TechnicianMyShifts />} />
           <Route path="issues-reports" element={<TechnicianIssuesReportHistory />} />
+          <Route path="rescue" element={<TechnicianRescuePage />} />
         </Route>
 
         {/* Reception Dashboard */}
@@ -153,15 +165,16 @@ function App() {
           <Route path="service-orders" element={<ReceptionServiceOrderList />} />
           <Route path="service-orders/:id" element={<ReceptionServiceOrderDetail />} />
           <Route path="service-orders/create" element={<ReceptionCreateServiceOrder />} />
+          <Route path="customers" element={<ReceptionCustomerList />} />
+          <Route path="customers/rescue-service-order/:rescueId" element={<ReceptionRescueCreateServiceOrder />} />
           <Route path="feedback" element={<ReceptionReceiveFeedback />} />
           <Route path="service-history" element={<ReceptionServiceHistory />} />
           <Route path="payments" element={<ReceptionProcessPayment />} />
           <Route path="quotes" element={<ReceptionQuoteList />} />
           <Route path="quotes/:id" element={<ReceptionQuoteDetail />} />
           <Route path="issues" element={<ReceptionIssueReports />} />
+          <Route path="technicians" element={<ReceptionTechnicianList />} />
         </Route>
-
-        {/* Technician Leader Dashboard */}
         <Route path="/leader" element={<LeaderLayout />}>
           <Route path="" element={<LeaderDashboard />} />
           <Route path="assignments" element={<LeaderAssignments />} />

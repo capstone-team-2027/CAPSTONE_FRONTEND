@@ -14,6 +14,7 @@ import {
   Car,
   Calendar,
   Loader2,
+  MapPin,
 } from 'lucide-react';
 import { mockHistoryData } from './HistoryTab';
 

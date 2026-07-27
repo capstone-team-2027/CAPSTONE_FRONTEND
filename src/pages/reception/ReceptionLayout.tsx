@@ -20,6 +20,7 @@ import {
   Settings,
   Video,
   PhoneCall,
+  Users
 } from "lucide-react";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
@@ -228,7 +229,6 @@ export default function ReceptionLayout() {
       ? "Nhân viên tiếp nhận"
       : user?.role || "Nhân viên tiếp nhận";
 
-  // Menu items for the sidebar
   const menuItems = [
     { name: "Lịch hẹn", icon: CalendarCheck, path: "/reception/appointments" },
     { name: "Báo cáo lỗi", icon: FileText, path: "/reception/issues" },
@@ -243,6 +243,8 @@ export default function ReceptionLayout() {
       icon: CreditCard,
       path: "/reception/payments",
     },
+    { name: 'Khách hàng & Cứu hộ', icon: Users, path: '/reception/customers' },
+    { name: 'Kỹ thuật viên hôm nay', icon: Wrench, path: '/reception/technicians' },
     {
       name: "Phản hồi khách hàng",
       icon: MessageSquare,
@@ -263,6 +265,8 @@ export default function ReceptionLayout() {
     if (path.includes("/service-history")) return "Lịch sử dịch vụ";
     if (path.includes("/quotes")) return "Quản lý báo giá";
     if (path.includes("/payments")) return "Thanh toán dịch vụ";
+    if (path.includes('/customers')) return 'Khách hàng & Cứu hộ';
+    if (path.includes('/technicians')) return 'Kỹ thuật viên hôm nay';
     if (path.includes("/feedback")) return "Phản hồi khách hàng";
     if (path.includes("/service-orders")) return "Quản lý hóa đơn dịch vụ";
 
@@ -311,11 +315,10 @@ export default function ReceptionLayout() {
                     navigate(item.path);
                     onNavigate?.();
                   }}
-                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all group ${
-                    isActive
-                      ? "bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15"
-                      : "text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E]"
-                  }`}
+                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all group ${isActive
+                    ? "bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15"
+                    : "text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E]"
+                    }`}
                 >
                   <Icon
                     size={18}
@@ -522,11 +525,10 @@ export default function ReceptionLayout() {
 
               <div className="flex items-center gap-4 w-full">
                 <button
+                  type="button"
                   onClick={() => {
                     if (incomingCall?.roomId) {
-                      socket?.emit("end-video-call", {
-                        roomId: incomingCall.roomId,
-                      });
+                      socket?.emit('end-video-call', { roomId: incomingCall.roomId, reason: 'rejected' });
                     }
                     setIncomingCall(null);
                   }}
@@ -535,6 +537,7 @@ export default function ReceptionLayout() {
                   Từ chối
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     const roomId = incomingCall.roomId;
                     setIncomingCall(null);
@@ -609,7 +612,7 @@ export default function ReceptionLayout() {
             onClick={() => setIsMobileSidebarOpen(false)}
           ></div>
           <aside className="relative flex flex-col w-72 bg-[#EDF3FF] border-r border-[#D2E2FF] h-full p-0">
-            <SidebarContent onNavigate={() => setIsMobileSidebarOpen(false)} />                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+            <SidebarContent onNavigate={() => setIsMobileSidebarOpen(false)} />
           </aside>
         </div>
       )}

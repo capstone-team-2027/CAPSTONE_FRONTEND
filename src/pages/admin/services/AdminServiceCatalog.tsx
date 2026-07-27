@@ -26,6 +26,7 @@ import { SERVICE_CATALOG_API_ENDPOINTS } from '../../../constants/admin/serviceC
 import { SERVICE_CATEGORY_API_ENDPOINTS } from '../../../constants/admin/serviceCategoriesApiEndPoint';
 import { type ServiceCombo, ComboFormModal } from "./AdminServiceCombo";
 import { SERVICE_COMBOS_API_ENDPOINTS } from "../../../constants/admin/serviceCombosApiEndPoint";
+import { SPARE_PART_API_ENDPOINTS } from '../../../constants/inventory/sparePartApiEnPoint';
 
 // LocalStorage helpers for prices and combos persistence
 const getServicePrices = (): Record<number, number> => {
@@ -103,6 +104,7 @@ export default function AdminServiceManagement() {
   const [services, setServices] = useState<ServiceCatalog[]>([]);
   const [categoryList, setCategoryList] = useState<Category[]>([]);
   const [combos, setCombos] = useState<ServiceCombo[]>([]);
+  const [spareParts, setSpareParts] = useState<any[]>([]);
   const [allServicesForCombo, setAllServicesForCombo] = useState<ServiceCatalog[]>([]);
 
   const [totalServices, setTotalServices] = useState(0);
@@ -251,7 +253,14 @@ export default function AdminServiceManagement() {
       setCombosLoading(false);
     }
   };
-
+  const handleGetSpareParts = async () => {
+    try {
+      const result = await fetchPrivate(`${SPARE_PART_API_ENDPOINTS.SPARE_PART}?page=1&limit=1000`);
+      setSpareParts(result.data?.items || []);
+    } catch (error) {
+      console.error("Lỗi lấy danh sách phụ tùng", error);
+    }
+  };
   // Debounce for service search
   useEffect(() => {
     const urlVal = searchParams.get("servicesQ") || "";
@@ -449,7 +458,7 @@ export default function AdminServiceManagement() {
         if (res.success) {
           showToast(`Đã xóa danh mục "${name}" thành công`, 'success');
           loadCategories();
-          handleGetCategory(); 
+          handleGetCategory();
         } else {
           showToast(res.message || 'Lỗi khi xóa danh mục dịch vụ', 'warning');
         }
@@ -514,12 +523,12 @@ export default function AdminServiceManagement() {
     itemsOnPage: number,
     itemLabel: string
   ) => {
-    if (totalPages <= 1) return null;
-
+    // Bỏ dòng check `if (totalPages <= 1) return null;` để thanh phân trang luôn hiện
+    const actualTotalPages = Math.max(1, totalPages);
     const pages = [];
     const maxVisible = 5;
     let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-    let end = Math.min(totalPages, start + maxVisible - 1);
+    let end = Math.min(actualTotalPages, start + maxVisible - 1);
 
     if (end - start + 1 < maxVisible) {
       start = Math.max(1, end - maxVisible + 1);
@@ -557,29 +566,28 @@ export default function AdminServiceManagement() {
             <button
               key={p}
               onClick={() => onPageChange(p)}
-              className={`w-8 h-8 rounded border text-xs font-bold transition-all cursor-pointer ${
-                p === currentPage
-                  ? "bg-[#00285E] border-[#00285E] text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-              }`}
+              className={`w-8 h-8 rounded border text-xs font-bold transition-all cursor-pointer ${p === currentPage
+                ? "bg-[#00285E] border-[#00285E] text-white"
+                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
             >
               {p}
             </button>
           ))}
-          {end < totalPages && (
+          {end < actualTotalPages && (
             <>
-              {end < totalPages - 1 && <span className="text-slate-400 text-xs px-1">...</span>}
+              {end < actualTotalPages - 1 && <span className="text-slate-400 text-xs px-1">...</span>}
               <button
-                onClick={() => onPageChange(totalPages)}
+                onClick={() => onPageChange(actualTotalPages)}
                 className="w-8 h-8 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
               >
-                {totalPages}
+                {actualTotalPages}
               </button>
             </>
           )}
           <button
             onClick={() => onPageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
+            disabled={currentPage === actualTotalPages}
             className="px-3 py-1.5 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition-colors cursor-pointer disabled:cursor-not-allowed"
           >
             Sau
@@ -954,7 +962,7 @@ export default function AdminServiceManagement() {
                       </td>
 
                       <td className="py-4 px-4 text-slate-900 font-bold text-sm">
-                        {(servicePrices[s.id] ?? 300000).toLocaleString("vi-VN")} đ
+                        {((s.total_price != null ? s.total_price : Number(s.labor_price)) || 0).toLocaleString("vi-VN")} đ
                       </td>
                       <td className="py-4 px-4 text-slate-600 text-sm font-semibold">
                         {s.estimated_duration} phút
@@ -1175,6 +1183,7 @@ export default function AdminServiceManagement() {
         <ServiceFormModal
           initial={editingService}
           categoryList={categoryList}
+          spareParts={spareParts}
           onClose={() => {
             setIsModalOpen(false);
             setEditingService(null);
@@ -1235,12 +1244,13 @@ export default function AdminServiceManagement() {
 interface ServiceFormModalProps {
   initial: ServiceCatalog | null;
   categoryList: Category[];
+  spareParts: any[];
   onClose: () => void;
   onRefresh: () => void;
   showToast: (text: string, type?: "success" | "info" | "warning") => void;
 }
 
-function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast }: ServiceFormModalProps) {
+function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefresh, showToast }: ServiceFormModalProps) {
   const isEdit = !!initial;
   const { fetchPrivate } = useFetchClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1259,8 +1269,9 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast
   });
 
   // Set price state and load it from persistence if editing
-  const initialPrice = initial ? (getServicePrices()[initial.id] ?? 300000) : 300000;
+  const initialPrice = initial ? (Number(initial.labor_price) || 0) : 0;
   const [price, setPrice] = useState<number>(initialPrice);
+  const [sparePartId, setSparePartId] = useState<number | ''>(initial?.spare_part_id || '');
 
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -1307,13 +1318,14 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast
           service_name: name,
           description: description,
           estimated_duration: durationMinutes,
-          is_active: isActive
+          is_active: isActive,
+          labor_price: price,
+          spare_part_id: sparePartId || null
         }
       );
 
       const newService = response.data;
       if (newService && newService.id) {
-        saveServicePrice(newService.id, price);
         if (imageUrl !== "/images/Service-Image.png") {
           saveServiceImage(newService.id, imageUrl);
         }
@@ -1338,11 +1350,12 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast
           service_name: name,
           description: description,
           estimated_duration: durationMinutes,
-          is_active: isActive
+          is_active: isActive,
+          labor_price: price,
+          spare_part_id: sparePartId || null
         }
       );
       if (initial?.id) {
-        saveServicePrice(initial.id, price);
         if (imageUrl !== "/images/Service-Image.png") {
           saveServiceImage(initial.id, imageUrl);
         }
@@ -1458,7 +1471,7 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                  Danh mục 
+                  Danh mục
                 </label>
                 <select
                   value={categoryId}
@@ -1475,7 +1488,7 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                  Thời gian (phút) 
+                  Thời gian (phút)
                 </label>
                 <input
                   type="number"
@@ -1490,7 +1503,7 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                  Giá dịch vụ
+                  Giá công dịch vụ
                 </label>
                 <div className="relative">
                   <input
@@ -1507,6 +1520,27 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">VND</span>
                 </div>
               </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                  Phụ tùng kèm theo (Tùy chọn)
+                </label>
+                <select
+                  value={sparePartId}
+                  onChange={(e) => setSparePartId(e.target.value ? Number(e.target.value) : '')}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+                >
+                  <option value="">-- Không có --</option>
+                  {spareParts.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} - {Number(p.retail_price).toLocaleString("vi-VN")}đ
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div className="flex items-end pb-2.5">
                 <label className="flex items-center gap-2.5 cursor-pointer select-none">
                   <input

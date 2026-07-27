@@ -24,7 +24,7 @@ import {
   Tag,
   Clock,
 } from 'lucide-react';
-import { useNavigate, useSearchParams, useOutletContext } from 'react-router-dom';
+import { useNavigate, useParams, useLocation, useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import * as PhoneInputLib from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
@@ -115,19 +115,19 @@ const MOCK_EXISTING_CUSTOMERS: any[] = [];
 
 
 
-export default function ReceptionCreateServiceOrder() {
+export default function ReceptionRescueCreateServiceOrder() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: 'success' | 'info' | 'warning') => void;
   }>();
 
-  // Tab mode: 'approved_record' (Lịch hẹn/KH có sẵn) or 'first_time' (Khách lần đầu đến)
-  const initialMode = searchParams.get('appointmentId') ? 'approved_record' : 'approved_record';
-  const [mode, setMode] = useState<'approved_record' | 'first_time'>(initialMode);
+  const { rescueId } = useParams();
+  const location = useLocation();
+  const customer = location.state?.customer;
 
-  const rescueId = searchParams.get('rescueId');
+  // Mode is always approved_record for Rescue
+  const mode = 'approved_record';
 
   // Search in Tab 1
   const [recordSearch, setRecordSearch] = useState('');
@@ -145,8 +145,7 @@ export default function ReceptionCreateServiceOrder() {
   const [manualVehiclePlate, setManualVehiclePlate] = useState('');
   const [manualVehicleVin, setManualVehicleVin] = useState('');
   const [manualVehicleYear, setManualVehicleYear] = useState('');
-  const [currentOdo, setCurrentOdo] = useState(searchParams.get('odo') || '');
-  const [initialCondition, setInitialCondition] = useState(searchParams.get('condition') || '');
+  const [currentOdo, setCurrentOdo] = useState('');
   const [bayId, setBayId] = useState('1'); // Cầu nâng (default 1)
 
   // Vehicle autocomplete states
@@ -225,7 +224,8 @@ export default function ReceptionCreateServiceOrder() {
   const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
   const [selectedCombos, setSelectedCombos] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState(''); // Mô tả tình trạng hỏng hóc
-  const [receptionServiceMode, setReceptionServiceMode] = useState<'SERVICE' | 'REPAIR'>('SERVICE');
+  const [initialCondition, setInitialCondition] = useState(''); // Trạng thái tiếp nhận xe ban đầu
+  const [receptionServiceMode, setReceptionServiceMode] = useState<'SERVICE' | 'REPAIR'>('REPAIR');
   const [serviceSearch, setServiceSearch] = useState('');
   const [activeServiceTab, setActiveServiceTab] = useState<'single' | 'combo' | 'category'>('single');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
@@ -425,168 +425,69 @@ export default function ReceptionCreateServiceOrder() {
     });
   }, [activeDbServices]);
 
-  // Handle URL appointmentId param on mount
   useEffect(() => {
-    const apptId = searchParams.get('appointmentId');
-    if (apptId) {
-      const fetchAppt = async () => {
-        setIsLoadingRecord(true);
-        try {
-          const response = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.GET_APPOINTMENT_DETAIL(apptId));
-          if (response.success && response.data) {
-            const data = response.data;
-            const servicesDetails: any[] = [];
-            if (Array.isArray(data.appointmentDetails)) {
-              data.appointmentDetails.forEach((detail: any) => {
-                if (detail.catalog) {
-                  servicesDetails.push({
-                    id: detail.catalog.id,
-                    name: detail.catalog.service_name,
-                    price: detail.catalog.price,
-                    category: 'Dịch vụ lẻ'
-                  });
-                }
-                if (detail.combo) {
-                  const subServices = detail.combo.catalogs
-                    ? detail.combo.catalogs.map((c: any) => c.service_name)
-                    : [];
-                  servicesDetails.push({
-                    id: detail.combo.id,
-                    name: detail.combo.combo_name,
-                    price: detail.combo.total_price || 0,
-                    category: 'Combo dịch vụ',
-                    description: detail.combo.description,
-                    subServices
-                  });
-                }
-              });
-            }
+    const loadFullCustomer = async () => {
+      if (!customer) {
+        showToast('Không tìm thấy thông tin khách hàng từ luồng cứu hộ. Đang tải...', 'info');
+        return;
+      }
 
-            let appointmentDate = '';
-            let appointmentTime = '';
-            if (data.scheduled_time) {
-              const dateObj = new Date(data.scheduled_time);
-              appointmentDate = dateObj.getFullYear() + '-' + String(dateObj.getMonth() + 1).padStart(2, '0') + '-' + String(dateObj.getDate()).padStart(2, '0');
-              appointmentTime = String(dateObj.getHours()).padStart(2, '0') + ':' + String(dateObj.getMinutes()).padStart(2, '0');
-            }
+      const phone = customer.phone || customer.user?.phoneNumber;
+      if (!phone) {
+        const customerRecord = {
+          type: 'customer',
+          id: customer.id,
+          name: customer.customer_name || customer.user?.fullName || 'Khách vãng lai',
+          phone: '',
+          vehicles: customer.vehicles || []
+        };
+        handleSelectRecord(customerRecord);
+        return;
+      }
 
-            const initialServiceIds: number[] = [];
-            let initialComboId: number | null = null;
-            if (Array.isArray(data.appointmentDetails)) {
-              data.appointmentDetails.forEach((detail: any) => {
-                if (detail.catalog) {
-                  initialServiceIds.push(detail.catalog.id);
-                }
-                if (detail.combo) {
-                  initialComboId = detail.combo.id;
-                }
-              });
-            }
-
-            if (data.booking_type && data.booking_type.includes('REPAIR')) {
-              setReceptionServiceMode('REPAIR');
-              if (data.notes && servicesDetails.length === 0) {
-                servicesDetails.push({
-                  id: 'repair-notes',
-                  name: 'Khám & Sửa chữa lỗi',
-                  price: 0,
-                  category: 'Yêu cầu của khách',
-                  description: data.notes
-                });
-              }
-            } else {
-              setReceptionServiceMode('SERVICE');
-            }
-
-            if (data.notes) {
-              setNotes(data.notes);
-            }
-
-            setSelectedRecord({
-              type: 'appointment',
-              id: String(data.id),
-              name: data.customer?.user?.fullName || 'Khách vãng lai',
-              phone: data.customer?.user?.phoneNumber || data.customer?.phone || '',
-              plate: data.vehicle?.license_plate || 'Chưa cập nhật',
-              model: data.vehicle?.model ? `${data.vehicle.model.make?.make_name || ''} ${data.vehicle.model.model_name || ''}`.trim() : 'Chưa cập nhật',
-              year: data.vehicle?.year || '',
-              mileage: data.vehicle?.mileage || '',
-              appointmentDate,
-              appointmentTime,
-              servicesDetails,
-            });
-            setSelectedServiceIds(initialServiceIds);
-            setSelectedComboId(initialComboId);
-            setMode('approved_record');
-          }
-        } catch (e) {
-          console.error(e);
-        } finally {
-          setIsLoadingRecord(false);
-        }
-      };
-      fetchAppt();
-    }
-  }, [searchParams]);
-
-  // Search algorithm for Tab 1
-  const handleSearchRecord = async () => {
-    if (!recordSearch || !recordSearch.trim()) {
-      setSearchResults([]);
-      return;
-    }
-
-    try {
-      const res = await fetchPrivate(SEARCH_API_ENDPOINTS.CUSTOMER_INFO_BY_PHONE, 'POST', { phone: recordSearch });
-      if (res && res.success && res.data) {
-        const { customer, appointments } = res.data;
-        const results: any[] = [];
-
-        // 1. Nếu khách hàng có Lịch hẹn (Appointments)
-        if (appointments && appointments.length > 0) {
-          appointments.forEach((apt: any) => {
-            results.push({
-              type: 'appointment',
-              id: String(apt.id),
-              name: apt.customer_name,
-              phone: apt.phone,
-              plate: apt.vehicle?.license_plate || 'Chưa cập nhật',
-              vin: apt.vehicle?.vin_number || '',
-              model: apt.vehicle ? `${apt.vehicle.brand} ${apt.vehicle.model}`.trim() : 'Chưa cập nhật',
-              appointmentDate: apt.appointmentDate,
-              appointmentTime: apt.appointmentTime,
-              vehicleId: apt.vehicle?.id
-            });
-          });
-        }
-
-        // 2. Tùy chọn Tiếp nhận khách vãng lai (Không có lịch hẹn)
-        if (customer) {
-          results.push({
+      setIsLoadingRecord(true);
+      try {
+        const res = await fetchPrivate(SEARCH_API_ENDPOINTS.CUSTOMER_INFO_BY_PHONE, 'POST', { phone });
+        if (res && res.success && res.data && res.data.customer) {
+          const fullCustomer = res.data.customer;
+          const customerRecord = {
+            type: 'customer',
+            id: fullCustomer.id,
+            name: fullCustomer.customer_name,
+            phone: fullCustomer.phone,
+            vehicles: fullCustomer.vehicles || []
+          };
+          handleSelectRecord(customerRecord);
+        } else {
+          // Fallback
+          const customerRecord = {
             type: 'customer',
             id: customer.id,
-            name: customer.customer_name,
-            phone: customer.phone,
+            name: customer.customer_name || customer.user?.fullName || 'Khách vãng lai',
+            phone,
             vehicles: customer.vehicles || []
-          });
+          };
+          handleSelectRecord(customerRecord);
         }
-
-        if (results.length > 0) {
-          setSearchResults(results);
-        } else {
-          setSearchResults([]);
-          showToast('Không tìm thấy khách hàng hoặc lịch hẹn', 'info');
-        }
-      } else {
-        setSearchResults([]);
-        showToast('Không tìm thấy khách hàng', 'info');
+      } catch (err) {
+        console.error("Lỗi khi tải thông tin xe khách hàng", err);
+        // Fallback
+        const customerRecord = {
+          type: 'customer',
+          id: customer.id,
+          name: customer.customer_name || customer.user?.fullName || 'Khách vãng lai',
+          phone,
+          vehicles: customer.vehicles || []
+        };
+        handleSelectRecord(customerRecord);
+      } finally {
+        setIsLoadingRecord(false);
       }
-    } catch (err: any) {
-      console.error(err);
-      setSearchResults([]);
-      showToast('Không tìm thấy khách hàng với số điện thoại này', 'warning');
-    }
-  };
+    };
+    
+    loadFullCustomer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer]);
 
   const handleSelectRecord = (record: any) => {
     setSelectedRecord(record);
@@ -603,9 +504,6 @@ export default function ReceptionCreateServiceOrder() {
         setSelectedCustomerVehicleId('');
       }
     }
-
-    setRecordSearch('');
-    setSearchResults([]);
   };
 
   const selectedTotal = useMemo(() => {
@@ -672,53 +570,32 @@ export default function ReceptionCreateServiceOrder() {
         showToast('Vui lòng chọn ít nhất 1 dịch vụ hoặc combo.', 'warning');
         return;
       }
-      if (receptionServiceMode === 'REPAIR' && !notes.trim()) {
+      if (!notes.trim()) {
         showToast('Vui lòng điền mô tả tình trạng sửa chữa.', 'warning');
         return;
       }
 
       // Determine explicit booking type
-      let finalBookingType = '';
-      if (mode === 'first_time') {
-        finalBookingType = receptionServiceMode === 'SERVICE' ? 'WALK_IN_SPECIFIC' : 'WALK_IN_REPAIR';
-      } else if (mode === 'approved_record' && selectedRecord?.type === 'customer') {
-        finalBookingType = receptionServiceMode === 'SERVICE' ? 'RECEPTIONIST_SPECIFIC' : 'RECEPTIONIST_REPAIR';
-      }
+      let finalBookingType = 'RECEPTIONIST_REPAIR';
 
       // Prepare payload
       const estimated_finish_time = `${bookingDate}T${bookingTime}:00`;
       let finalVehicleId = null;
       let walkInPayload = undefined;
 
-      if (mode === 'first_time') {
+      if (vehicleInputMode === 'EXISTING') {
+        finalVehicleId = Number(selectedCustomerVehicleId);
+      } else {
+        // Thêm mới xe cho khách hàng cũ
         walkInPayload = {
-          customer_name: manualCustName.trim() || undefined,
-          customer_phone: manualCustPhone.trim(),
+          customer_name: selectedRecord?.name || undefined,
+          customer_phone: selectedRecord?.phone,
           vehicle_plate: manualVehiclePlate.trim(),
           vehicle_vin: manualVehicleVin.trim() || undefined,
           vehicle_year: manualVehicleYear || undefined,
           brand_name: vehicleBrand.trim(),
           model_name: vehicleModel.trim()
         };
-      } else if (mode === 'approved_record') {
-        if (selectedRecord?.type === 'appointment') {
-          finalVehicleId = Number(selectedRecord.vehicleId);
-        } else if (selectedRecord?.type === 'customer') {
-          if (vehicleInputMode === 'EXISTING') {
-            finalVehicleId = Number(selectedCustomerVehicleId);
-          } else {
-            // Thêm mới xe cho khách hàng cũ
-            walkInPayload = {
-              customer_name: selectedRecord?.name || undefined,
-              customer_phone: selectedRecord?.phone,
-              vehicle_plate: manualVehiclePlate.trim(),
-              vehicle_vin: manualVehicleVin.trim() || undefined,
-              vehicle_year: manualVehicleYear || undefined,
-              brand_name: vehicleBrand.trim(),
-              model_name: vehicleModel.trim()
-            };
-          }
-        }
       }
 
       const payload: any = {
@@ -734,10 +611,6 @@ export default function ReceptionCreateServiceOrder() {
         symptoms: initialCondition.trim() ? initialCondition.trim() : undefined,
         rescue_id: rescueId ? Number(rescueId) : undefined
       };
-
-      if (mode === 'approved_record' && selectedRecord?.type === 'appointment') {
-        payload.appointment_id = Number(selectedRecord.id);
-      }
 
       const res = await fetchPrivate(SERVICE_ORDER_API_ENDPOINTS.CREATE, 'POST', payload);
       if (res.success) {
@@ -781,141 +654,8 @@ export default function ReceptionCreateServiceOrder() {
         </div>
       </div>
 
-      {/* SEGMENTED TAB CONTROL FOR SECTIONS */}
-      <div className="flex p-1 bg-slate-100 rounded-xl max-w-xl">
-        <button
-          onClick={() => {
-            setMode('approved_record');
-            setSelectedRecord(null);
-          }}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-bold transition-all ${mode === 'approved_record'
-            ? 'bg-white text-[#00285E] shadow-sm'
-            : 'text-slate-500 hover:text-slate-700'
-            }`}
-        >
-          <Layers size={14} />
-          <span>Khách hàng cũ</span>
-        </button>
-        <button
-          onClick={() => {
-            setMode('first_time');
-            setSelectedRecord(null);
-          }}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-bold transition-all ${mode === 'first_time'
-            ? 'bg-white text-[#00285E] shadow-sm'
-            : 'text-slate-500 hover:text-slate-700'
-            }`}
-        >
-          <PlusCircle size={14} />
-          <span>Khách vãng lai lần đầu</span>
-        </button>
-      </div>
-
-      <AnimatePresence mode="wait">
-        {mode === 'approved_record' ? (
-          /* SECTION 1: CREATE FROM APPROVED APPOINTMENT OR CHECKED-IN CUSTOMER */
-          <motion.div
-            key="approved-record"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="space-y-6"
-          >
-            {/* SEARCH INPUT BAR */}
-            <div className="bg-slate-50 rounded-2xl border border-slate-200/60 p-5 space-y-3 relative">
-              <h2 className="text-xs font-bold text-[#00285E] uppercase tracking-widest flex items-center gap-2">
-                <Search size={14} />
-                Tìm kiếm Khách hàng hiện tại bằng SĐT
-              </h2>
-              <div className="flex items-start gap-2">
-                <div className="login-phone flex-1">
-                  <PhoneInput
-                    country="vn"
-                    value={recordSearch}
-                    onChange={(val) => setRecordSearch(val)}
-                    enableSearch
-                    searchPlaceholder="Tìm quốc gia..."
-                    inputProps={{ name: 'search_phone' }}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSearchRecord}
-                  className="px-6 h-12 bg-[#00285E] text-white rounded-xl text-sm font-bold shadow-sm hover:bg-[#001a3f] transition-colors whitespace-nowrap"
-                >
-                  Tìm kiếm
-                </button>
-              </div>
-
-              {/* SEARCH RESULTS DROPDOWN */}
-              {searchResults.length > 0 && (
-                <div className="absolute left-5 right-5 z-20 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto divide-y divide-slate-100">
-                  {searchResults.map((r, i) => {
-                    const isDisabled = r.type === 'appointment' && r.isInGarage;
-                    return (
-                      <button
-                        key={i}
-                        type="button"
-                        disabled={isDisabled}
-                        onClick={() => handleSelectRecord(r)}
-                        className={`w-full px-4 py-3 text-left flex items-center justify-between text-sm transition-colors ${isDisabled ? 'bg-rose-50/50 cursor-not-allowed' : 'hover:bg-slate-50'
-                          }`}
-                      >
-                        <div className="flex flex-col">
-                          <span className={`font-bold ${isDisabled ? 'text-rose-700' : 'text-slate-800'}`}>
-                            {r.name} ({r.phone})
-                          </span>
-                          <span className={`text-xs font-semibold mt-0.5 ${isDisabled ? 'text-rose-500' : 'text-slate-400'}`}>
-                            {r.type === 'appointment' ? `Xe: ${r.plate} • ${r.model}` : `Số lượng xe: ${r.vehicles?.length || 0}`}
-                            {isDisabled && ' (ĐANG TRONG XƯỞNG)'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-right">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${isDisabled ? 'text-rose-700 bg-rose-100' : 'text-[#00285E] bg-[#EDF3FF]'
-                            }`}>
-                            {r.type === 'appointment' ? `Lịch hẹn: ${r.id}` : `Hồ sơ: ${r.id}`}
-                          </span>
-                          <UserCheck size={16} className={isDisabled ? "text-rose-400" : "text-[#00285E]"} />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* APPOINTMENT AUTO-FILL CARD */}
-            {selectedRecord && selectedRecord.type === 'appointment' && (
-              <div className="bg-blue-50 rounded-2xl border border-blue-100 p-5 space-y-3">
-                <h2 className="text-xs font-bold text-blue-700 uppercase tracking-widest flex items-center gap-2">
-                  <Calendar size={14} />
-                  Thông tin Lịch hẹn (tự động điền)
-                </h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                  <div>
-                    <span className="text-[10px] font-semibold text-blue-400 uppercase block">Mã lịch hẹn</span>
-                    <span className="font-bold text-blue-800">{selectedRecord.id}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-semibold text-blue-400 uppercase block">Ngày hẹn</span>
-                    <span className="font-bold text-blue-800">{selectedRecord.appointmentDate}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-semibold text-blue-400 uppercase block">Giờ hẹn</span>
-                    <span className="font-bold text-blue-800">{selectedRecord.appointmentTime}</span>
-                  </div>
-                </div>
-                {/* Note about adding services (Câu 62) */}
-                <div className="flex items-start gap-2 bg-white/60 border border-blue-200/50 rounded-xl p-3 text-xs text-blue-700 font-semibold leading-relaxed">
-                  <AlertCircle size={14} className="shrink-0 mt-0.5 text-blue-600" />
-                  <span>
-                    <strong>Thông tin nghiệp vụ:</strong> Lịch hẹn gốc chỉ lưu nhu cầu đặt chỗ. Bạn có thể tự do thay đổi, thêm hoặc bớt dịch vụ thực tế phát sinh bên dưới cho hóa đơn dịch vụ (Service Order).
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* READONLY CUSTOMER & VEHICLE DISPLAY */}
+      <div className="space-y-6">
+        {/* READONLY CUSTOMER & VEHICLE DISPLAY */}
             {selectedRecord ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* READONLY CUSTOMER INFO */}
@@ -934,60 +674,7 @@ export default function ReceptionCreateServiceOrder() {
                   </div>
                 </div>
 
-                {/* VEHICLE INFO: READONLY OR EDITABLE */}
-                {selectedRecord.type === 'appointment' ? (
-                  <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
-                    <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
-                      <Car size={16} className="text-[#00285E]" />
-                      Thông tin Xe
-                    </h2>
-                    <div className="space-y-3">
-                      <FormReadonly label="Biển số" value={selectedRecord.plate} highlight />
-                      <FormReadonly label="Loại xe" value={selectedRecord.model} />
-                      <FormReadonly label="Năm SX" value={selectedRecord.year?.toString() || '—'} />
-                      <FormInput
-                        label="Số km hiện tại (ODO) *"
-                        value={currentOdo}
-                        onChange={setCurrentOdo}
-                        placeholder={selectedRecord.mileage ? `Lần trước: ${selectedRecord.mileage.toLocaleString('vi-VN')} km` : 'VD: 15000...'}
-                        type="number"
-                        icon={<Gauge size={14} className="text-slate-400" />}
-                      />
-                      <div className="pt-2">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                          <Clock size={14} className="text-slate-400" />
-                          Thời gian *
-                        </label>
-                        <div className="grid grid-cols-1 gap-3">
-                          <input
-                            type="date"
-                            value={bookingDate}
-                            onChange={(e) => setBookingDate(e.target.value)}
-                            min={minDateStr}
-                            className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
-                          />
-                          <select
-                            value={bookingTime}
-                            onChange={(e) => setBookingTime(e.target.value)}
-                            className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
-                          >
-                            <option value="">-- Chọn giờ --</option>
-                            {timeSlots.map(slot => (
-                              <option
-                                key={slot.time}
-                                value={slot.time}
-                                disabled={slot.isFull}
-                                className={slot.isFull ? 'text-gray-300' : ''}
-                              >
-                                {slot.time} ({slot.isFull ? 'Kín lịch' : slot.label})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
+                {/* VEHICLE INFO */}
                   <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
                     <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
                       <Car size={16} className="text-[#00285E]" />
@@ -1212,325 +899,31 @@ export default function ReceptionCreateServiceOrder() {
                       </div>
                     )}
                   </div>
-                )}
-              </div>
+                </div>
             ) : (
-              <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-16 text-center text-slate-400 font-semibold text-sm">
-                Vui lòng tìm kiếm lịch hẹn hoặc hồ sơ khách hàng hiện có ở thanh tìm kiếm phía trên để hiển thị thông tin.
+              <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-16 text-center text-slate-400 font-semibold text-sm flex flex-col items-center justify-center gap-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00285E]"></div>
+                Đang tải thông tin khách hàng từ hệ thống...
               </div>
             )}
-          </motion.div>
-        ) : (
-          /* SECTION 2: FOR FIRST-TIME WALK-IN CUSTOMERS WITH EDITABLE FIELDS */
-          <motion.div
-            key="first-time"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="grid grid-cols-1 md:grid-cols-2 gap-6"
-          >
-            {/* EDITABLE CUSTOMER INFO */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
-              <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
-                <User size={16} className="text-[#00285E]" />
-                Thông tin Khách hàng mới
-              </h2>
-              <div className="space-y-4">
-                <FormInput
-                  label="Họ và tên khách hàng *"
-                  value={manualCustName}
-                  onChange={setManualCustName}
-                  placeholder="Nhập họ và tên khách hàng..."
-                />
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-widest mb-2 px-1 text-slate-700">
-                    SỐ ĐIỆN THOẠI *
-                  </label>
-                  <div className="login-phone">
-                    <PhoneInput
-                      country="vn"
-                      value={manualCustPhone}
-                      onChange={(val) => setManualCustPhone(val)}
-                      enableSearch
-                      searchPlaceholder="Tìm quốc gia..."
-                      inputProps={{ name: 'phone' }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+      </div>
 
-            {/* EDITABLE VEHICLE INFO */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
-              <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
-                <Car size={16} className="text-[#00285E]" />
-                Thông tin Xe tiếp nhận
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <FormInput
-                    label="Biển số xe *"
-                    value={manualVehiclePlate}
-                    onChange={setManualVehiclePlate}
-                    placeholder="VD: 51A-123.45..."
-                  />
-                </div>
-                <div className="relative" ref={brandRef}>
-                  <FormInput
-                    label="Hãng xe *"
-                    value={vehicleBrand}
-                    onChange={(val) => {
-                      setVehicleBrand(val);
-                      setShowBrandSuggestions(true);
-                      setSelectedMakeId(null);
-                      setVehicleModel('');
-                    }}
-                    placeholder="VD: Toyota"
-                  />
-                  {showBrandSuggestions && brandSuggestions.length > 0 && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                      {brandSuggestions.map((brand: any) => (
-                        <div
-                          key={brand.id}
-                          className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm font-semibold text-slate-700"
-                          onClick={() => {
-                            setVehicleBrand(brand.make_name);
-                            setSelectedMakeId(brand.id);
-                            setShowBrandSuggestions(false);
-                            setVehicleModel('');
-                          }}
-                        >
-                          {brand.make_name}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="relative" ref={modelRef}>
-                  <FormInput
-                    label="Dòng xe *"
-                    value={vehicleModel}
-                    onChange={(val) => {
-                      setVehicleModel(val);
-                      setShowModelSuggestions(true);
-                    }}
-                    placeholder="VD: Camry"
-                  />
-                  {showModelSuggestions && modelSuggestions.length > 0 && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                      {modelSuggestions.map((model: any) => (
-                        <div
-                          key={model.id}
-                          className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm font-semibold text-slate-700"
-                          onClick={() => {
-                            setVehicleModel(model.model_name);
-                            setVehicleBrand(model.make?.make_name || vehicleBrand);
-                            if (model.make_id) setSelectedMakeId(model.make_id);
-                            setShowModelSuggestions(false);
-                          }}
-                        >
-                          {model.model_name} <span className="text-xs text-slate-400">({model.make?.make_name})</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <FormInput
-                    label="Số khung (VIN)"
-                    value={manualVehicleVin}
-                    onChange={setManualVehicleVin}
-                    placeholder="VD: 1XYZ234..."
-                  />
-                </div>
-                <div>
-                  <FormInput
-                    label="Năm sản xuất"
-                    value={manualVehicleYear}
-                    onChange={setManualVehicleYear}
-                    placeholder="VD: 2022..."
-                    type="number"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <FormInput
-                    label="ODO hiện tại (km) *"
-                    value={currentOdo}
-                    onChange={setCurrentOdo}
-                    placeholder="VD: 15000..."
-                    type="number"
-                    icon={<Gauge size={14} className="text-slate-400" />}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                    <Clock size={14} className="text-slate-400" />
-                    Thời gian *
-                  </label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <input
-                      type="date"
-                      value={bookingDate}
-                      onChange={(e) => setBookingDate(e.target.value)}
-                      min={minDateStr}
-                      className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
-                    />
-                    <select
-                      value={bookingTime}
-                      onChange={(e) => setBookingTime(e.target.value)}
-                      className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
-                    >
-                      <option value="">-- Chọn giờ --</option>
-                      {timeSlots.map(slot => (
-                        <option
-                          key={slot.time}
-                          value={slot.time}
-                          disabled={slot.isFull}
-                          className={slot.isFull ? 'text-gray-300' : ''}
-                        >
-                          {slot.time} ({slot.isFull ? 'Kín lịch' : slot.label})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* SERVICE OR REPAIR SELECTION */}
+      {/* REPAIR NOTES */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-6">
-        {/* Toggle Buttons */}
-        <div className="flex gap-2 p-1 bg-slate-100/60 rounded-xl w-fit border border-slate-200/20">
-          <button
-            type="button"
-            onClick={() => setReceptionServiceMode('SERVICE')}
-            className={`py-2.5 px-5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${receptionServiceMode === 'SERVICE'
-              ? 'bg-[#00285E] text-white shadow-sm'
-              : 'text-slate-500 hover:text-slate-800'
-              }`}
-          >
-            <Settings size={14} />
-            Khách làm Dịch Vụ
-          </button>
-          <button
-            type="button"
-            onClick={() => setReceptionServiceMode('REPAIR')}
-            className={`py-2.5 px-5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${receptionServiceMode === 'REPAIR'
-              ? 'bg-rose-500 text-white shadow-sm'
-              : 'text-slate-500 hover:text-slate-800'
-              }`}
-          >
-            <Wrench size={14} />
-            Khách làm Sửa Chữa
-          </button>
+        <div>
+          <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
+            <StickyNote size={16} className="text-[#00285E]" />
+            Mô tả tình trạng hỏng hóc <span className="text-rose-500">*</span>
+          </h2>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Nhập mô tả các vấn đề của xe (ví dụ: xe kêu lạch cạch ở gầm, điều hòa không mát...)"
+            rows={3}
+            className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-amber-400 focus:bg-white text-brand-blue resize-none"
+          />
         </div>
-
-        {/* REPAIR NOTES */}
-        {receptionServiceMode === 'REPAIR' && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-            <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
-              <StickyNote size={16} className="text-[#00285E]" />
-              Mô tả tình trạng hỏng hóc <span className="text-rose-500">*</span>
-            </h2>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Nhập mô tả các vấn đề của xe (ví dụ: xe kêu lạch cạch ở gầm, điều hòa không mát...)"
-              rows={3}
-              className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-amber-400 focus:bg-white text-brand-blue resize-none"
-            />
-          </motion.div>
-        )}
-
-        {receptionServiceMode === 'SERVICE' && (
-          <div>
-            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-              <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
-                <Settings size={16} className="text-[#00285E]" />
-                Chọn Dịch vụ <span className="text-rose-500">*</span>
-              </h2>
-              <span className="text-xs font-bold text-[#00285E] bg-[#EDF3FF] px-3 py-1 rounded-lg">
-                Đã chọn: {selectedServiceIds.length + (selectedComboId ? 1 : 0)} — Tổng: {formatPrice(selectedTotal)}
-              </span>
-            </div>
-
-            <div>
-              {/* Sub-tabs Selector */}
-              <div className="flex gap-2 mb-4 border-b border-slate-100 pb-3 overflow-x-auto scrollbar-none">
-                <button
-                  type="button"
-                  onClick={() => setActiveServiceTab('single')}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeServiceTab === 'single'
-                    ? 'bg-[#00285E] text-white shadow-sm'
-                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
-                    }`}
-                >
-                  <Wrench size={14} />
-                  <span>Dịch vụ lẻ</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveServiceTab('combo')}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeServiceTab === 'combo'
-                    ? 'bg-[#00285E] text-white shadow-sm'
-                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
-                    }`}
-                >
-                  <Package size={14} />
-                  <span>Combo</span>
-                </button>
-              </div>
-
-              {/* Tab contents */}
-              <div className="mt-4">
-                {activeServiceTab === 'single' && (
-                  <SingleServicesSelector
-                    mappedServices={mappedServices}
-                    activeCategories={activeCategories}
-                    selectedServiceIds={selectedServiceIds}
-                    setSelectedServiceIds={setSelectedServiceIds}
-                    COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
-                    t={(k, d) => (t as any)(k, d)}
-                    selectedCategoryId={selectedCategoryId}
-                    setSelectedCategoryId={setSelectedCategoryId}
-                    servicePage={servicePage}
-                    setServicePage={setServicePage}
-                    dbCombos={dbCombos}
-                    selectedComboId={selectedComboId}
-                    serviceTotalPages={1}
-                    searchText={serviceSearch}
-                    setSearchText={setServiceSearch}
-                  />
-                )}
-
-                {activeServiceTab === 'combo' && (
-                  <ComboServicesSelector
-                    dbCombos={dbCombos}
-                    setDbCombos={setDbCombos}
-                    selectedComboId={selectedComboId}
-                    setSelectedComboId={setSelectedComboId}
-                    mappedServices={mappedServices}
-                    COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
-                    selectedServiceIds={selectedServiceIds}
-                    setSelectedServiceIds={setSelectedServiceIds}
-                  />
-                )}
-              </div>
-
-              {selectedServiceIds.length === 0 && !selectedComboId && (
-                <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
-                  <AlertCircle size={14} />
-                  Cần chọn ít nhất 1 dịch vụ hoặc combo.
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {receptionServiceMode === 'REPAIR' && !notes.trim() && (
+        {!notes.trim() && (
           <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
             <AlertCircle size={14} />
             Cần điền mô tả tình trạng sửa chữa.

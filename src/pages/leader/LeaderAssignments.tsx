@@ -144,11 +144,10 @@ const TechnicianCard = ({
   return (
     <div
       onClick={onPick}
-      className={`w-full rounded-xl border px-3 py-3 cursor-pointer transition-all ${
-        picked
+      className={`w-full rounded-xl border px-3 py-3 cursor-pointer transition-all ${picked
           ? "border-[#00285E] bg-white ring-1 ring-[#00285E]"
           : "border-slate-200 bg-white hover:border-slate-300"
-      }`}
+        }`}
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
@@ -168,11 +167,10 @@ const TechnicianCard = ({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold ${
-              busy
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold ${busy
                 ? "bg-amber-50 text-amber-600"
                 : "bg-emerald-50 text-emerald-600"
-            }`}
+              }`}
           >
             {busy ? `${tech.remaining_count} việc` : "Đang rảnh"}
           </span>
@@ -201,9 +199,8 @@ const TechnicianCard = ({
               className="flex items-center gap-2 text-[11px] text-slate-500"
             >
               <span
-                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                  ASSIGNMENT_STATUS_DOT[a.status] ?? "bg-slate-300"
-                }`}
+                className={`w-1.5 h-1.5 rounded-full shrink-0 ${ASSIGNMENT_STATUS_DOT[a.status] ?? "bg-slate-300"
+                  }`}
               />
               <span className="truncate">
                 {a.task?.catalog?.service_name ?? `Công việc #${a.task_id}`}
@@ -609,21 +606,19 @@ export default function LeaderAssignments() {
       <div className="flex border-b border-slate-200/60">
         <button
           onClick={() => handleTabChange("pending")}
-          className={`px-6 py-3 font-bold text-sm border-b-2 transition-all ${
-            activeTab === "pending"
+          className={`px-6 py-3 font-bold text-sm border-b-2 transition-all ${activeTab === "pending"
               ? "border-[#00285E] text-[#00285E]"
               : "border-transparent text-slate-400 hover:text-slate-600"
-          }`}
+            }`}
         >
           Chờ phân công
         </button>
         <button
           onClick={() => handleTabChange("history")}
-          className={`px-6 py-3 font-bold text-sm border-b-2 transition-all ${
-            activeTab === "history"
+          className={`px-6 py-3 font-bold text-sm border-b-2 transition-all ${activeTab === "history"
               ? "border-[#00285E] text-[#00285E]"
               : "border-transparent text-slate-400 hover:text-slate-600"
-          }`}
+            }`}
         >
           Lịch sử phân công
         </button>
@@ -766,106 +761,106 @@ export default function LeaderAssignments() {
             </table>
           </div>
         ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[720px]">
-            <thead>
-              <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
-                <th className="py-4 px-6">Đơn dịch vụ</th>
-                <th className="py-4 px-4">Xe</th>
-                <th className="py-4 px-4">Công việc</th>
-                <th className="py-4 px-4">Ngày tạo</th>
-                <th className="py-4 px-4">Trạng thái</th>
-                <th className="py-4 px-6 text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={6} className="py-14 text-center">
-                    <span className="inline-flex items-center gap-2 text-slate-400 text-sm">
-                      <Loader2 size={16} className="animate-spin" />
-                      Đang tải danh sách...
-                    </span>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[720px]">
+              <thead>
+                <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
+                  <th className="py-4 px-6">Đơn dịch vụ</th>
+                  <th className="py-4 px-4">Xe</th>
+                  <th className="py-4 px-4">Công việc</th>
+                  <th className="py-4 px-4">Ngày tạo</th>
+                  <th className="py-4 px-4">Trạng thái</th>
+                  <th className="py-4 px-6 text-right">Thao tác</th>
                 </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="py-14 text-center text-slate-400 text-sm"
-                  >
-                    Không có đơn dịch vụ nào chờ xử lý...
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((order) => {
-                  const sum = orderSummary(order);
-                  return (
-                    <tr
-                      key={order.id}
-                      onClick={() => openDetail(order)}
-                      className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors cursor-pointer group"
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="py-14 text-center">
+                      <span className="inline-flex items-center gap-2 text-slate-400 text-sm">
+                        <Loader2 size={16} className="animate-spin" />
+                        Đang tải danh sách...
+                      </span>
+                    </td>
+                  </tr>
+                ) : filtered.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="py-14 text-center text-slate-400 text-sm"
                     >
-                      <td className="py-4 px-6">
-                        <span className="font-bold text-[#00285E] text-sm">
-                          {orderCodes[order.id] ?? `#${order.id}`}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-800">
-                          <Car size={13} className="text-slate-400 shrink-0" />
-                          {order.vehicle?.license_plate ?? "—"}
-                        </span>
-                        <span className="text-[11px] text-slate-400 block">
-                          {order.vehicle?.model?.model_name ?? ""}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md text-xs font-bold">
-                          <ClipboardList size={11} className="text-slate-400" />
-                          {sum.total} công việc
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500">
-                          <Calendar size={13} className="text-slate-400" />
-                          {formatDate(order.createdAt)}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        {sum.unassigned > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200 whitespace-nowrap">
-                            <AlertCircle size={11} />
-                            Còn {sum.unassigned} chưa gán
+                      Không có đơn dịch vụ nào chờ xử lý...
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((order) => {
+                    const sum = orderSummary(order);
+                    return (
+                      <tr
+                        key={order.id}
+                        onClick={() => openDetail(order)}
+                        className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors cursor-pointer group"
+                      >
+                        <td className="py-4 px-6">
+                          <span className="font-bold text-[#00285E] text-sm">
+                            {orderCodes[order.id] ?? `#${order.id}`}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 whitespace-nowrap">
-                            <CheckCircle2 size={11} />
-                            Đã phân công đủ
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                            <Car size={13} className="text-slate-400 shrink-0" />
+                            {order.vehicle?.license_plate ?? "—"}
                           </span>
-                        )}
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="flex justify-end">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openDetail(order);
-                            }}
-                            title="Xem chi tiết"
-                            className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-                          >
-                            <Eye size={15} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                          <span className="text-[11px] text-slate-400 block">
+                            {order.vehicle?.model?.model_name ?? ""}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md text-xs font-bold">
+                            <ClipboardList size={11} className="text-slate-400" />
+                            {sum.total} công việc
+                          </span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500">
+                            <Calendar size={13} className="text-slate-400" />
+                            {formatDate(order.createdAt)}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4">
+                          {sum.unassigned > 0 ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200 whitespace-nowrap">
+                              <AlertCircle size={11} />
+                              Còn {sum.unassigned} chưa gán
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 whitespace-nowrap">
+                              <CheckCircle2 size={11} />
+                              Đã phân công đủ
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-4 px-6">
+                          <div className="flex justify-end">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openDetail(order);
+                              }}
+                              title="Xem chi tiết"
+                              className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                            >
+                              <Eye size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -1021,11 +1016,10 @@ export default function LeaderAssignments() {
                       return (
                         <label
                           key={task.id}
-                          className={`flex items-start gap-3 px-4 py-4 transition-colors ${
-                            canPick
+                          className={`flex items-start gap-3 px-4 py-4 transition-colors ${canPick
                               ? "cursor-pointer hover:bg-slate-50/70"
                               : "cursor-default"
-                          } ${picked ? "bg-[#EDF3FF]/50" : ""}`}
+                            } ${picked ? "bg-[#EDF3FF]/50" : ""}`}
                         >
                           <input
                             type="checkbox"
@@ -1350,10 +1344,9 @@ export default function LeaderAssignments() {
                             </p>
                             <span className="shrink-0 inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500">
                               <span
-                                className={`w-1.5 h-1.5 rounded-full ${
-                                  ASSIGNMENT_STATUS_DOT[a.status] ??
+                                className={`w-1.5 h-1.5 rounded-full ${ASSIGNMENT_STATUS_DOT[a.status] ??
                                   "bg-slate-300"
-                                }`}
+                                  }`}
                               />
                               {ASSIGNMENT_STATUS_LABEL[a.status] ?? a.status}
                             </span>
@@ -1650,10 +1643,9 @@ export default function LeaderAssignments() {
                                 </span>
                               </span>
                               <span
-                                className={`shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${
-                                  cfg?.className ??
+                                className={`shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${cfg?.className ??
                                   "bg-slate-50 text-slate-500 border border-slate-200"
-                                }`}
+                                  }`}
                               >
                                 {cfg?.label ?? task.status}
                               </span>
@@ -1689,22 +1681,19 @@ export default function LeaderAssignments() {
                                       ? "Phân công đã hoàn thành, không thể đổi người"
                                       : undefined
                                   }
-                                  className={`px-4 py-3 flex items-center gap-3 transition-colors ${
-                                    isDone
+                                  className={`px-4 py-3 flex items-center gap-3 transition-colors ${isDone
                                       ? "opacity-50"
-                                      : `cursor-pointer ${
-                                          picked
-                                            ? "bg-[#EDF3FF]"
-                                            : "hover:bg-slate-50"
-                                        }`
-                                  }`}
+                                      : `cursor-pointer ${picked
+                                        ? "bg-[#EDF3FF]"
+                                        : "hover:bg-slate-50"
+                                      }`
+                                    }`}
                                 >
                                   <span
-                                    className={`shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
-                                      picked
+                                    className={`shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${picked
                                         ? "bg-[#00285E] border-[#00285E] text-white"
                                         : "border-slate-300 bg-white"
-                                    }`}
+                                      }`}
                                   >
                                     {picked && (
                                       <CheckCircle2 size={13} />

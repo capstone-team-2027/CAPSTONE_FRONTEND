@@ -27,6 +27,9 @@ import {
   Trash2,
   Wallet,
   QrCode,
+  Copy,
+  Check,
+  Banknote,
 } from "lucide-react";
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { QUOTE_MANAGEMENT_ENDPOINTS } from "../../../constants/reception/quoteManagementEndpoints";
@@ -320,7 +323,7 @@ export default function ReceptionQuoteList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedQuotation, setSelectedQuotation] =
     useState<QuotationRow | null>(null);
-  const { fetchPrivate } = useFetchClient();
+  const { fetchPrivate, fetchPublic } = useFetchClient();
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
@@ -340,6 +343,49 @@ export default function ReceptionQuoteList() {
   const editUidRef = useRef(0);
   // Modal mã thanh toán tiền cọc phụ tùng đặt riêng
   const [showDepositPayment, setShowDepositPayment] = useState(false);
+  const [isDepositPaid, setIsDepositPaid] = useState(false);
+
+  const handleCopyDepositInfo = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    showToast(`Đã sao chép ${label}`, "info");
+  };
+
+  // Polling deposit payment status matching BookingPage.tsx
+  useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval>;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    if (showDepositPayment && !isDepositPaid && selectedQuotation?.id) {
+      intervalId = setInterval(async () => {
+        try {
+          const amount = selectedQuotation.deposit_amount || 0;
+          const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+          const res = await fetchPublic(
+            `${apiBaseUrl}/api/payment/check-status?bookingCode=BG-${selectedQuotation.id}&amount=${amount}`
+          );
+          if (res && res.success && res.isPaid) {
+            clearInterval(intervalId);
+            setIsDepositPaid(true);
+            showToast(
+              `Hệ thống đã nhận được tiền cọc cho Báo giá ${selectedQuotation.code}!`,
+              "success"
+            );
+            await handleGetQuotationHistory();
+
+            // Sau 4s tự động reset/load lại toàn bộ trang để cập nhật trạng thái mới nhất
+            timeoutId = setTimeout(() => {
+              window.location.reload();
+            }, 4000);
+          }
+        } catch (err) {
+          console.error("Lỗi kiểm tra thanh toán tiền cọc:", err);
+        }
+      }, 5000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [showDepositPayment, isDepositPaid, selectedQuotation?.id]);
   // Modal nhập OTP trước khi duyệt báo giá
   const [confirmApprove, setConfirmApprove] = useState(false);
   const [otpPhone, setOtpPhone] = useState("");
@@ -356,7 +402,7 @@ export default function ReceptionQuoteList() {
 
   useEffect(() => {
     handleGetQuotationHistory();
-  },[]);
+  }, []);
 
   useEffect(() => {
     if (!confirmApprove || !isOtpSent || resendCountdown <= 0) return;
@@ -566,10 +612,9 @@ export default function ReceptionQuoteList() {
         infoStartY + lineGap * 2,
       );
       document.text(
-        `Tên xe: ${
-          [quotation.vehicleName, quotation.vehicleColor]
-            .filter(Boolean)
-            .join(" · ") || "—"
+        `Tên xe: ${[quotation.vehicleName, quotation.vehicleColor]
+          .filter(Boolean)
+          .join(" · ") || "—"
         }`,
         leftX,
         infoStartY + lineGap * 3,
@@ -907,25 +952,25 @@ export default function ReceptionQuoteList() {
   const startEdit = () => {
     if (!selectedQuotation) return;
     const mappedRows: EditRow[] = selectedQuotation.items.map((item) => {
-        editUidRef.current += 1;
-        const isPart = !!item.sparePart;
-        const isCustom = Boolean(item.custom_item_name);
-        const svc = item.service_catalog;
-        return {
-          uid: editUidRef.current,
-          detailId: item.id,
-          issueId: item.issue?.id ?? null,
-          kind: isPart ? "part" : isCustom ? "custom" : "service",
-          partId: item.sparePart?.id ?? null,
-          customItemName: item.custom_item_name ?? "",
-          customUnitPrice: isCustom ? Number(item.unit_price) || 0 : 0,
-          quantity: item.quantity,
-          serviceId: svc?.id ?? null,
-          serviceName: svc?.service_name ?? "Dịch vụ sửa chữa",
-          hasDbPrice: Number(svc?.labor_price) > 0,
-          repairPrice: Number(item.repair_price) || 0,
-        };
-      });
+      editUidRef.current += 1;
+      const isPart = !!item.sparePart;
+      const isCustom = Boolean(item.custom_item_name);
+      const svc = item.service_catalog;
+      return {
+        uid: editUidRef.current,
+        detailId: item.id,
+        issueId: item.issue?.id ?? null,
+        kind: isPart ? "part" : isCustom ? "custom" : "service",
+        partId: item.sparePart?.id ?? null,
+        customItemName: item.custom_item_name ?? "",
+        customUnitPrice: isCustom ? Number(item.unit_price) || 0 : 0,
+        quantity: item.quantity,
+        serviceId: svc?.id ?? null,
+        serviceName: svc?.service_name ?? "Dịch vụ sửa chữa",
+        hasDbPrice: Number(svc?.labor_price) > 0,
+        repairPrice: Number(item.repair_price) || 0,
+      };
+    });
     const issueIds = [
       ...new Set(
         selectedQuotation.items
@@ -1161,27 +1206,27 @@ export default function ReceptionQuoteList() {
       items: editRows
         .filter((row) => row.kind !== "part" || row.partId)
         .map((row) => {
-        if (row.kind === "part") {
-          return {
+          if (row.kind === "part") {
+            return {
               issue_id: row.issueId != null ? Number(row.issueId) : undefined,
               spare_part_id: row.partId != null ? Number(row.partId) : undefined,
               quantity: Number(row.quantity),
-          };
-        }
-        if (row.kind === "custom") {
+            };
+          }
+          if (row.kind === "custom") {
+            return {
+              issue_id: row.issueId != null ? Number(row.issueId) : undefined,
+              custom_item_name: row.customItemName.trim(),
+              unit_price: Number(row.customUnitPrice),
+              quantity: Number(row.quantity),
+            };
+          }
           return {
             issue_id: row.issueId != null ? Number(row.issueId) : undefined,
-            custom_item_name: row.customItemName.trim(),
-            unit_price: Number(row.customUnitPrice),
-            quantity: Number(row.quantity),
+            service_id: row.serviceId != null ? Number(row.serviceId) : undefined,
+            quantity: 1,
+            repair_price: Number(row.repairPrice),
           };
-        }
-        return {
-          issue_id: row.issueId != null ? Number(row.issueId) : undefined,
-          service_id: row.serviceId != null ? Number(row.serviceId) : undefined,
-          quantity: 1,
-          repair_price: Number(row.repairPrice),
-        };
         }),
       deposit_amount: editDeposit,
       note: editNote || undefined,
@@ -1276,51 +1321,51 @@ export default function ReceptionQuoteList() {
 
       {/* SEARCH & FILTER */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs flex flex-col md:flex-row items-stretch md:items-center gap-4">
-          <div className="relative flex-1 group">
-            <Search
-              size={16}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#00285E] transition-colors"
-            />
-            <input
-              type="text"
-              placeholder="Tìm theo mã báo giá, tên phụ tùng, dịch vụ, ghi chú..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
+        <div className="relative flex-1 group">
+          <Search
+            size={16}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#00285E] transition-colors"
+          />
+          <input
+            type="text"
+            placeholder="Tìm theo mã báo giá, tên phụ tùng, dịch vụ, ghi chú..."
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full bg-slate-50 border border-slate-200/80 rounded-xl pl-11 pr-10 py-2.5 text-sm font-semibold placeholder:font-normal placeholder:text-slate-400 hover:border-slate-300 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => {
+                setSearchTerm("");
                 setCurrentPage(1);
               }}
-              className="w-full bg-slate-50 border border-slate-200/80 rounded-xl pl-11 pr-10 py-2.5 text-sm font-semibold placeholder:font-normal placeholder:text-slate-400 hover:border-slate-300 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => {
-                  setSearchTerm("");
-                  setCurrentPage(1);
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200/70 transition-colors"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Filter size={16} className="text-slate-400" />
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-700 cursor-pointer hover:border-slate-300 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200/70 transition-colors"
             >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="PENDING">Chờ duyệt</option>
-              <option value="PENDING_DEPOSIT">Chờ đặt cọc</option>
-              <option value="APPROVED">Đã duyệt</option>
-              <option value="REJECTED">Từ chối</option>
-            </select>
-          </div>
+              <X size={14} />
+            </button>
+          )}
         </div>
+        <div className="flex items-center gap-2">
+          <Filter size={16} className="text-slate-400" />
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-700 cursor-pointer hover:border-slate-300 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+          >
+            <option value="all">Tất cả trạng thái</option>
+            <option value="PENDING">Chờ duyệt</option>
+            <option value="PENDING_DEPOSIT">Chờ đặt cọc</option>
+            <option value="APPROVED">Đã duyệt</option>
+            <option value="REJECTED">Từ chối</option>
+          </select>
+        </div>
+      </div>
 
       {/* TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
@@ -1499,11 +1544,10 @@ export default function ReceptionQuoteList() {
                   <button
                     key={page}
                     onClick={() => setCurrentPage(page)}
-                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
-                      page === currentPage
+                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${page === currentPage
                         ? "bg-[#00285E] text-white shadow-md"
                         : "text-slate-500 hover:bg-slate-100"
-                    }`}
+                      }`}
                   >
                     {page}
                   </button>
@@ -2068,112 +2112,111 @@ export default function ReceptionQuoteList() {
                                                 {formatVND(
                                                   Math.round(
                                                     row.quantity *
-                                                      row.customUnitPrice *
-                                                      0.3,
+                                                    row.customUnitPrice *
+                                                    0.3,
                                                   ),
                                                 )}
                                               </p>
                                             </div>
                                           ) : (
-                                          <>
-                                          <select
-                                            value={row.partId ?? ""}
-                                            onChange={(e) =>
-                                              updateEditPart(
-                                                row.uid,
-                                                e.target.value
-                                                  ? Number(e.target.value)
-                                                  : null,
-                                              )
-                                            }
-                                            className={`w-full min-w-[180px] bg-slate-50 border rounded-lg px-3 py-2 text-xs font-semibold focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors ${
-                                              row.partId
-                                                ? "border-slate-200 text-slate-800"
-                                                : "border-amber-300 text-slate-400"
-                                            }`}
-                                          >
-                                            <option value="">
-                                              -- Chọn phụ tùng tiếp theo --
-                                            </option>
-                                            {detail?.sparePart &&
-                                              !spareParts.some(
-                                                (p) =>
-                                                  p.id === detail.sparePart!.id,
-                                              ) && (
-                                                <option
-                                                  value={detail.sparePart.id}
-                                                >
-                                                  {detail.sparePart.name}
+                                            <>
+                                              <select
+                                                value={row.partId ?? ""}
+                                                onChange={(e) =>
+                                                  updateEditPart(
+                                                    row.uid,
+                                                    e.target.value
+                                                      ? Number(e.target.value)
+                                                      : null,
+                                                  )
+                                                }
+                                                className={`w-full min-w-[180px] bg-slate-50 border rounded-lg px-3 py-2 text-xs font-semibold focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors ${row.partId
+                                                    ? "border-slate-200 text-slate-800"
+                                                    : "border-amber-300 text-slate-400"
+                                                  }`}
+                                              >
+                                                <option value="">
+                                                  -- Chọn phụ tùng tiếp theo --
                                                 </option>
+                                                {detail?.sparePart &&
+                                                  !spareParts.some(
+                                                    (p) =>
+                                                      p.id === detail.sparePart!.id,
+                                                  ) && (
+                                                    <option
+                                                      value={detail.sparePart.id}
+                                                    >
+                                                      {detail.sparePart.name}
+                                                    </option>
+                                                  )}
+                                                {spareParts.map((part) => {
+                                                  const available = Number(
+                                                    part.available_quantity,
+                                                  );
+                                                  return (
+                                                    <option
+                                                      key={part.id}
+                                                      value={part.id}
+                                                      disabled={available <= 0}
+                                                    >
+                                                      {part.name}
+                                                      {part.brand
+                                                        ? ` - ${part.brand}`
+                                                        : ""}
+                                                      {available <= 0
+                                                        ? " (hết hàng)"
+                                                        : ` (còn: ${available})`}
+                                                    </option>
+                                                  );
+                                                })}
+                                              </select>
+                                              {row.partId != null && (
+                                                <p className="text-[11px] text-slate-400 mt-1">
+                                                  Đơn giá:{" "}
+                                                  <span className="font-semibold text-slate-600">
+                                                    {formatVND(unitPrice)}
+                                                  </span>
+                                                </p>
                                               )}
-                                            {spareParts.map((part) => {
-                                              const available = Number(
-                                                part.available_quantity,
-                                              );
-                                              return (
-                                                <option
-                                                  key={part.id}
-                                                  value={part.id}
-                                                  disabled={available <= 0}
-                                                >
-                                                  {part.name}
-                                                  {part.brand
-                                                    ? ` - ${part.brand}`
-                                                    : ""}
-                                                  {available <= 0
-                                                    ? " (hết hàng)"
-                                                    : ` (còn: ${available})`}
-                                                </option>
-                                              );
-                                            })}
-                                          </select>
-                                          {row.partId != null && (
-                                            <p className="text-[11px] text-slate-400 mt-1">
-                                              Đơn giá:{" "}
-                                              <span className="font-semibold text-slate-600">
-                                                {formatVND(unitPrice)}
-                                              </span>
-                                            </p>
-                                          )}
-                                          </>
+                                            </>
                                           )}
                                         </td>
                                         <td className="py-3.5 px-3">
                                           {!isEmptyPart ? (
-                                          <input
-                                            type="number"
-                                            min={0}
-                                            value={row.quantity}
-                                            onChange={(e) =>
-                                              updateEditQuantity(
-                                                row.uid,
-                                                Number(e.target.value),
-                                              )
-                                            }
-                                            className="w-16 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-800 text-center focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
-                                          />
+                                            <input
+                                              type="number"
+                                              min={0}
+                                              value={row.quantity}
+                                              onChange={(e) =>
+                                                updateEditQuantity(
+                                                  row.uid,
+                                                  Number(e.target.value),
+                                                )
+                                              }
+                                              className="w-16 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-800 text-center focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
+                                            />
                                           ) : (
                                             <span className="text-xs text-slate-300">—</span>
                                           )}
                                         </td>
                                         <td className="py-3.5 px-4 text-right whitespace-nowrap">
                                           {!isEmptyPart ? (
-                                          <span className="text-xs font-bold text-[#00285E]">
-                                            {formatVND(row.quantity * unitPrice)}
-                                          </span>
+                                            <span className="text-xs font-bold text-[#00285E]">
+                                              {formatVND(row.quantity * unitPrice)}
+                                            </span>
                                           ) : (
                                             <span className="text-xs text-slate-300">—</span>
                                           )}
                                         </td>
                                         <td className="py-3.5 px-2 text-center">
                                           {!isEmptyPart && (
-                                          <button
-                                            onClick={() => removeEditRow(row.uid)}
-                                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                                            title="Xóa phụ tùng"
-                                          >
-                                            <Trash2 size={14} />
-                                          </button>
+                                            <button
+                                              onClick={() => removeEditRow(row.uid)}
+                                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                                              title="Xóa phụ tùng"
+                                            >
+                                              <Trash2 size={14} />
+                                            </button>
                                           )}
                                         </td>
                                       </tr>
@@ -2295,8 +2338,8 @@ export default function ReceptionQuoteList() {
                                   {formatVND(
                                     Math.round(
                                       editCustomQuantity *
-                                        editCustomPrice *
-                                        0.3,
+                                      editCustomPrice *
+                                      0.3,
                                     ),
                                   )}
                                   )
@@ -2392,14 +2435,14 @@ export default function ReceptionQuoteList() {
                                           availableIssues.length
                                           ? []
                                           : availableIssues.map(
-                                              (i) => i.issueId,
-                                            ),
+                                            (i) => i.issueId,
+                                          ),
                                       )
                                     }
                                     className="text-[11px] font-semibold text-[#00285E] hover:underline"
                                   >
                                     {pickedIssueIds.length ===
-                                    availableIssues.length
+                                      availableIssues.length
                                       ? "Bỏ chọn tất cả"
                                       : "Chọn tất cả"}
                                   </button>
@@ -2412,11 +2455,10 @@ export default function ReceptionQuoteList() {
                                     return (
                                       <label
                                         key={item.issueId}
-                                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-semibold cursor-pointer transition-colors ${
-                                          checked
+                                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-semibold cursor-pointer transition-colors ${checked
                                             ? "border-[#00285E] bg-white text-slate-800"
                                             : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
-                                        }`}
+                                          }`}
                                       >
                                         <input
                                           type="checkbox"
@@ -2425,8 +2467,8 @@ export default function ReceptionQuoteList() {
                                             setPickedIssueIds((prev) =>
                                               prev.includes(item.issueId)
                                                 ? prev.filter(
-                                                    (id) => id !== item.issueId,
-                                                  )
+                                                  (id) => id !== item.issueId,
+                                                )
                                                 : [...prev, item.issueId],
                                             )
                                           }
@@ -2490,11 +2532,10 @@ export default function ReceptionQuoteList() {
                                         : null,
                                     )
                                   }
-                                  className={`w-40 bg-white border rounded-lg px-2 py-1.5 text-xs font-semibold focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors ${
-                                    row.issueId
+                                  className={`w-40 bg-white border rounded-lg px-2 py-1.5 text-xs font-semibold focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors ${row.issueId
                                       ? "border-slate-200 text-slate-800"
                                       : "border-amber-300 text-slate-400"
-                                  }`}
+                                    }`}
                                 >
                                   <option value="">-- Chọn hạng mục --</option>
                                   {editIssues
@@ -2648,7 +2689,10 @@ export default function ReceptionQuoteList() {
                     {selectedQuotation.status !== "PENDING" &&
                       isAwaitingDeposit(selectedQuotation) && (
                         <button
-                          onClick={() => setShowDepositPayment(true)}
+                          onClick={() => {
+                            setIsDepositPaid(false);
+                            setShowDepositPayment(true);
+                          }}
                           className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-amber-500 to-amber-600 shadow-lg shadow-amber-600/25 hover:shadow-amber-600/40 hover:brightness-105 active:scale-[0.98] transition-all"
                         >
                           <Wallet size={16} />
@@ -2805,8 +2849,8 @@ export default function ReceptionQuoteList() {
                       {isSendingOtp
                         ? "Đang gửi lại mã..."
                         : resendCountdown > 0
-                        ? `Gửi lại mã sau ${resendCountdown}s`
-                        : "Gửi lại mã OTP"}
+                          ? `Gửi lại mã sau ${resendCountdown}s`
+                          : "Gửi lại mã OTP"}
                     </button>
                   </div>
                   <p className="mt-3 text-center text-xs text-slate-400">
@@ -2861,111 +2905,212 @@ export default function ReceptionQuoteList() {
         </div>
       )}
 
-      {/* MÃ THANH TOÁN TIỀN CỌC PHỤ TÙNG ĐẶT RIÊNG */}
+      {/* MÃ THANH TOÁN TIỀN CỌC PHỤ TÙNG ĐẶT RIÊNG (RỘNG CÂN ĐỐI - MAX-W-2XL) */}
       {showDepositPayment && selectedQuotation && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
-            onClick={() => setShowDepositPayment(false)}
+            onClick={() => {
+              setShowDepositPayment(false);
+              setIsDepositPaid(false);
+            }}
           />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden ring-1 ring-slate-900/5">
-            <div className="px-7 pt-7 pb-6">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2.5 rounded-xl bg-amber-50 shrink-0">
-                    <Wallet size={20} className="text-amber-600" />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden ring-1 ring-slate-900/5">
+            {/* Header */}
+            <div className="px-7 pt-6 pb-4 flex items-center justify-between border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-50 shrink-0">
+                  <Wallet size={20} className="text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">
+                    Thanh toán tiền cọc
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Khách quét mã để chuyển cọc phụ tùng đặt riêng.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDepositPayment(false);
+                  setIsDepositPaid(false);
+                }}
+                className="p-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                aria-label="Đóng"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body - 2 Columns (Wider & Balanced Height) */}
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
+              {/* LEFT COLUMN: Deposit Info & Customer/Vehicle */}
+              <div className="flex flex-col justify-between space-y-4">
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+                      Số tiền cần cọc
+                    </p>
+                    <span className="text-[11px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-200">
+                      {selectedQuotation.code}
+                    </span>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-800">
-                      Thanh toán tiền cọc
-                    </h3>
-                    <p className="text-sm text-slate-500 leading-relaxed mt-1">
-                      Khách quét mã để chuyển cọc phụ tùng đặt riêng.
+
+                  <p className="mt-1.5 text-2xl font-black text-amber-600">
+                    {formatVND(selectedQuotation.deposit_amount ?? 0)}
+                  </p>
+
+                  {/* Chi tiết từng phụ tùng đặt thêm (custom_item_name) cần cọc 30% */}
+                  <div className="mt-3 pt-3 border-t border-amber-200/60 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
+                        Phụ tùng đặt thêm ({selectedQuotation.items.filter((item) => item.custom_item_name).length}):
+                      </p>
+                      <span className="text-[10px] text-amber-700/90 italic">
+                        * Cọc 30% giá trị
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                      {selectedQuotation.items
+                        .filter((item) => item.custom_item_name)
+                        .map((item, idx) => {
+                          const itemName = item.custom_item_name || "Phụ tùng đặt thêm";
+                          const unitPrice = item.unit_price || (item.quantity > 0 ? item.amount / item.quantity : item.amount);
+                          return (
+                            <div key={idx} className="bg-white/90 p-2.5 rounded-xl border border-amber-200/80 text-xs flex justify-between items-start gap-2 shadow-2xs">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-slate-800 truncate">{itemName}</p>
+                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                  Đơn giá x1: <span className="font-semibold text-slate-700">{formatVND(unitPrice)}</span> · SL: <span className="font-bold text-amber-700">x{item.quantity}</span>
+                                </p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="text-[10px] text-slate-400 block uppercase font-medium">Thành tiền</span>
+                                <span className="font-extrabold text-slate-900 text-xs">{formatVND(item.amount)}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Khách hàng
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800 truncate">
+                      {selectedQuotation.customerName}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {selectedQuotation.customerPhone || "—"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Thông tin xe
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800 truncate">
+                      {selectedQuotation.vehiclePlate || "—"}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500 truncate">
+                      {[
+                        selectedQuotation.vehicleName,
+                        selectedQuotation.vehicleColor,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "—"}
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowDepositPayment(false)}
-                  className="p-2 -mt-1 -mr-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-                  aria-label="Đóng"
-                >
-                  <X size={18} />
-                </button>
               </div>
 
-              <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-                  Số tiền cần cọc
-                </p>
-                <p className="mt-1 text-2xl font-bold text-amber-700">
-                  {formatVND(selectedQuotation.deposit_amount ?? 0)}
-                </p>
-                <p className="mt-1 text-xs text-amber-600">
-                  Báo giá {selectedQuotation.code} ·{" "}
-                  {
-                    selectedQuotation.items.filter(
-                      (item) => item.custom_item_name,
-                    ).length
-                  }{" "}
-                  phụ tùng đặt riêng
-                </p>
-              </div>
+              {/* RIGHT COLUMN: VietQR Code Container - LARGER QR & FULL CONTAINER */}
+              <div className="flex flex-col items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center h-full">
+                {!isDepositPaid ? (
+                  <>
+                    <div className="w-full flex items-center justify-between pb-2 border-b border-slate-200/80 mb-2">
+                      <span className="text-xs font-bold text-[#00285E] uppercase tracking-wide">
+                        Quét mã VietQR cọc
+                      </span>
+                      <span className="text-[10px] font-extrabold text-amber-700 bg-amber-100/90 px-2 py-0.5 rounded border border-amber-200">
+                        {import.meta.env.VITE_SEPAY_BANK || "TPBank"}
+                      </span>
+                    </div>
 
-              {/* TODO: thay bằng ảnh QR thật khi có API sinh mã thanh toán */}
-              <div className="mt-5 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 py-10">
-                <QrCode size={64} className="text-slate-300" />
-                <p className="mt-3 text-sm font-semibold text-slate-500">
-                  Chưa có mã thanh toán
-                </p>
-                <p className="mt-1 text-xs text-slate-400">
-                  Mã QR sẽ hiển thị ở đây sau khi nối API.
-                </p>
-              </div>
+                    {/* Larger QR Image */}
+                    <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-md my-1 w-full flex items-center justify-center">
+                      <img
+                        src={`https://vietqr.app/img?acc=${import.meta.env.VITE_SEPAY_ACC || "05979551201"}&bank=${import.meta.env.VITE_SEPAY_BANK || "TPBank"}&amount=${selectedQuotation.deposit_amount || 0}&template=compact&showinfo=true&addInfo=BG-${selectedQuotation.id}`}
+                        alt="VietQR Deposit Code"
+                        className="w-56 h-56 rounded-xl object-contain mx-auto"
+                      />
+                    </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Khách hàng
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-slate-800 truncate">
-                    {selectedQuotation.customerName}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {selectedQuotation.customerPhone || "—"}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Thông tin xe
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-slate-800 truncate">
-                    {selectedQuotation.vehiclePlate || "—"}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500 truncate">
-                    {[
-                      selectedQuotation.vehicleName,
-                      selectedQuotation.vehicleColor,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || "—"}
-                  </p>
-                </div>
+                    {/* Bank & Memo Detail Boxes */}
+                    <div className="w-full space-y-1.5 text-xs text-slate-700 my-2">
+                      <div className="flex items-center justify-between bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
+                        <span className="text-[11px] text-slate-500 font-medium">Số tài khoản:</span>
+                        <div className="flex items-center gap-1.5 font-mono font-bold text-[#00285E]">
+                          <span>{import.meta.env.VITE_SEPAY_ACC || "05979551201"}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyDepositInfo(import.meta.env.VITE_SEPAY_ACC || "05979551201", "Số tài khoản")}
+                            className="p-1 text-slate-400 hover:text-[#00285E] rounded transition-colors"
+                          >
+                            <Copy size={13} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
+                        <span className="text-[11px] text-slate-500 font-medium">Nội dung CK:</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-[#00285E] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                            BG-{selectedQuotation.id}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyDepositInfo(`BG-${selectedQuotation.id}`, "Nội dung chuyển khoản")}
+                            className="p-1 text-slate-400 hover:text-[#00285E] rounded transition-colors"
+                          >
+                            <Copy size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                      Hệ thống đang tự động chờ nhận tiền cọc...
+                    </div>
+                  </>
+                ) : (
+                  <div className="py-12 flex flex-col items-center justify-center text-center space-y-2 my-auto">
+                    <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 shadow-sm mb-2">
+                      <Check size={32} strokeWidth={3} />
+                    </div>
+                    <p className="text-base font-extrabold text-emerald-700">Đã nhận được tiền cọc!</p>
+                    <p className="text-xs text-slate-500 max-w-[200px]">Hệ thống đã tự động cập nhật nhận tiền cọc cho báo giá {selectedQuotation.code}.</p>
+                  </div>
+                )}
               </div>
             </div>
-            <div className="flex items-center justify-end gap-2.5 px-6 py-4 bg-slate-50 border-t border-slate-100">
+
+            {/* Footer */}
+            <div className="flex items-center justify-end px-6 py-3.5 bg-slate-50 border-t border-slate-100">
               <button
-                onClick={() => setShowDepositPayment(false)}
-                className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] transition-all"
+                onClick={() => {
+                  setShowDepositPayment(false);
+                  setIsDepositPaid(false);
+                }}
+                className="h-10 px-6 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] transition-all"
               >
                 Đóng
-              </button>
-              <button
-                disabled
-                className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-amber-500 to-amber-600 shadow-lg shadow-amber-600/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <QrCode size={15} />
-                Tạo mã thanh toán
               </button>
             </div>
           </div>
