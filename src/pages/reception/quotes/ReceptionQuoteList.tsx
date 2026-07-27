@@ -353,6 +353,7 @@ export default function ReceptionQuoteList() {
   // Polling deposit payment status matching BookingPage.tsx
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval>;
+    let timeoutId: ReturnType<typeof setTimeout>;
     if (showDepositPayment && !isDepositPaid && selectedQuotation?.id) {
       intervalId = setInterval(async () => {
         try {
@@ -369,6 +370,11 @@ export default function ReceptionQuoteList() {
               "success"
             );
             await handleGetQuotationHistory();
+
+            // Sau 4s tự động reset/load lại toàn bộ trang để cập nhật trạng thái mới nhất
+            timeoutId = setTimeout(() => {
+              window.location.reload();
+            }, 4000);
           }
         } catch (err) {
           console.error("Lỗi kiểm tra thanh toán tiền cọc:", err);
@@ -377,6 +383,7 @@ export default function ReceptionQuoteList() {
     }
     return () => {
       if (intervalId) clearInterval(intervalId);
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [showDepositPayment, isDepositPaid, selectedQuotation?.id]);
   // Modal nhập OTP trước khi duyệt báo giá
