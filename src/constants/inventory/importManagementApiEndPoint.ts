@@ -2,5 +2,6 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localho
 
 export const INVENTORY_LOG_API_ENDPOINTS = {
     INVENTORY_LOG: `${API_BASE_URL}/api/inventory/import`,
+    IMPORT_DETAIL: (receiptCode: string) => `${API_BASE_URL}/api/inventory/import/${receiptCode}`,
     SCAN_INVOICE: `${API_BASE_URL}/api/inventory/import/scan-invoice`,
 };

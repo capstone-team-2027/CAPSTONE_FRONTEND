@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   FileText,
+  ArrowLeft,
   Search,
   Calendar,
   X,
@@ -13,12 +14,12 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { APPROVED_QUOTE_API_ENDPOINTS } from "../../../constants/inventory/approvedQuoteApiEndPoint";
 
 const formatPrice = (v: number | string) =>
-  Number(v).toLocaleString("vi-VN") + "đ";
+  Number(v).toLocaleString("vi-VN") + " VND";
 
 const formatDate = (d: string) => {
   const date = new Date(d);
@@ -121,6 +122,7 @@ export default function InventoryApprovedQuotes() {
   }>();
 
   const { fetchPrivate } = useFetchClient();
+  const navigate = useNavigate();
   const [localSearch, setLocalSearch] = useState("");
   const [selected, setSelected] = useState<QuotationRow | null>(null);
   const effectiveSearch = (searchQuery || localSearch).toLowerCase();
@@ -239,14 +241,23 @@ export default function InventoryApprovedQuotes() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* TITLE */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
-            Báo giá đã duyệt
-          </h1>
-          <p className="text-slate-500 text-sm">
-            Danh sách báo giá đã được khách hàng duyệt — sẵn sàng xuất kho phụ
-            tùng.
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
+              Báo giá đã duyệt
+            </h1>
+            <p className="text-slate-500 text-sm">
+              Danh sách báo giá đã được khách hàng duyệt — sẵn sàng xuất kho phụ
+              tùng.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -332,7 +343,7 @@ export default function InventoryApprovedQuotes() {
                 <th className="py-4 px-4">Tổng tiền</th>
                 <th className="py-4 px-4">Ngày tạo</th>
                 <th className="py-4 px-4">Trạng thái</th>
-                <th className="py-4 px-6 text-right">Thao tác</th>
+                <th className="py-4 px-6">Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -398,16 +409,17 @@ export default function InventoryApprovedQuotes() {
                       </span>
                     </td>
                     <td className="py-4 px-6">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-start gap-2">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelected(q);
                           }}
                           title="Xem chi tiết"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                          className="h-8 flex items-center gap-1.5 px-3 rounded-lg text-[11px] font-bold text-white bg-[#00285E] hover:brightness-125 active:scale-[0.97] transition-all whitespace-nowrap"
                         >
-                          <Eye size={15} />
+                          <Eye size={13} />
+                          Xem chi tiết
                         </button>
                       </div>
                     </td>

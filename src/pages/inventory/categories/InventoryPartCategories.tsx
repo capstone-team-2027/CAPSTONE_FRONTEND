@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Tags, Plus, Pencil, X } from "lucide-react";
-import { useOutletContext } from "react-router-dom";
+import { Tags, Plus, Pencil, ArrowLeft, X } from "lucide-react";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import {
   type UpdatePartCategory,
   type CreatePartCategory,
@@ -16,6 +16,7 @@ export default function PartCategories() {
   }>();
 
   const { fetchPrivate, fetchPrivateFormGeneric } = useFetchClient();
+  const navigate = useNavigate();
   const [categories, setCategories] = useState<GetPartCategory[]>([]);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -98,13 +99,22 @@ export default function PartCategories() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* TITLE & ACTIONS */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
-            Danh mục phụ tùng
-          </h1>
-          <p className="text-slate-500 text-sm">
-            Quản lý các nhóm phân loại phụ tùng trong kho.
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
+              Danh mục phụ tùng
+            </h1>
+            <p className="text-slate-500 text-sm">
+              Quản lý các nhóm phân loại phụ tùng trong kho.
+            </p>
+          </div>
         </div>
         <button
           onClick={openCreate}
@@ -135,7 +145,7 @@ export default function PartCategories() {
                 <th className="py-4 px-6">Danh mục</th>
                 <th className="py-4 px-6">Mô tả</th>
                 <th className="py-4 px-4">Trạng thái</th>
-                <th className="py-4 px-6 text-right">Thao tác</th>
+                <th className="py-4 px-6">Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -182,13 +192,14 @@ export default function PartCategories() {
                       </div>
                     </td>
                     <td className="py-4 px-6">
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex items-center justify-start gap-1.5">
                         <button
                           onClick={() => openEdit(c)}
-                          title="Sửa danh mục"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                          title="Cập nhật danh mục"
+                          className="h-8 flex items-center gap-1.5 px-3 rounded-lg text-[11px] font-bold text-white bg-[#00285E] hover:brightness-125 active:scale-[0.97] transition-all whitespace-nowrap"
                         >
-                          <Pencil size={15} />
+                          <Pencil size={13} />
+                          Cập nhật
                         </button>
                       </div>
                     </td>

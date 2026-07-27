@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowUpFromLine,
+  ArrowLeft,
   Search,
   Calendar,
   X,
@@ -9,12 +10,12 @@ import {
   Eye,
   Loader2,
 } from "lucide-react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { EXPORT_LOG_API_ENDPOINTS } from "../../../constants/inventory/exportManagementApiEndPoint";
 
 const formatPrice = (v: number | string) =>
-  Number(v).toLocaleString("vi-VN") + "đ";
+  Number(v).toLocaleString("vi-VN") + " VND";
 
 const formatDate = (d: string) => new Date(d).toLocaleDateString("vi-VN");
 
@@ -46,6 +47,7 @@ export default function InventoryExport() {
   }>();
 
   const { fetchPrivate } = useFetchClient();
+  const navigate = useNavigate();
   const [localSearch, setLocalSearch] = useState("");
   const effectiveSearch = (searchQuery || localSearch).toLowerCase();
 
@@ -117,13 +119,22 @@ export default function InventoryExport() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* TITLE */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
-            Lịch sử xuất kho
-          </h1>
-          <p className="text-slate-500 text-sm">
-            Danh sách các phiếu xuất kho đã thực hiện.
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
+              Lịch sử xuất kho
+            </h1>
+            <p className="text-slate-500 text-sm">
+              Danh sách các phiếu xuất kho đã thực hiện.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -195,7 +206,7 @@ export default function InventoryExport() {
                 <th className="py-4 px-4">Ngày xuất</th>
                 <th className="py-4 px-4">Số phụ tùng</th>
                 <th className="py-4 px-4">Tổng giá trị</th>
-                <th className="py-4 px-6 text-right">Thao tác</th>
+                <th className="py-4 px-6">Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -239,16 +250,17 @@ export default function InventoryExport() {
                       {formatPrice(r.total_amount)}
                     </td>
                     <td className="py-4 px-6">
-                      <div className="flex justify-end">
+                      <div className="flex justify-start">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             openDetail(r);
                           }}
                           title="Xem chi tiết"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                          className="h-8 flex items-center gap-1.5 px-3 rounded-lg text-[11px] font-bold text-white bg-[#00285E] hover:brightness-125 active:scale-[0.97] transition-all whitespace-nowrap"
                         >
-                          <Eye size={15} />
+                          <Eye size={13} />
+                          Xem chi tiết
                         </button>
                       </div>
                     </td>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Truck, Plus, Pencil, X, Phone, MapPin } from "lucide-react";
-import { useOutletContext } from "react-router-dom";
+import { Truck, Plus, Pencil, ArrowLeft, X, Phone, MapPin } from "lucide-react";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import {
   type GetSupplierResponse,
   type CreateSupplierRequest,
@@ -11,6 +11,7 @@ import { useFetchClient } from "../../../hook/useFetchClient";
 import { SUPPLIER_API_ENDPOINTS } from "../../../constants/inventory/supplierApiEndPoint";
 
 export default function InventorySuppliers() {
+  const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [suppliers, setSuppliers] = useState<GetSupplierResponse[]>([]);
@@ -88,13 +89,22 @@ export default function InventorySuppliers() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* TITLE & ACTIONS */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
-            Nhà cung cấp
-          </h1>
-          <p className="text-slate-500 text-sm">
-            Quản lý danh sách nhà cung cấp phụ tùng.
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
+              Nhà cung cấp
+            </h1>
+            <p className="text-slate-500 text-sm">
+              Quản lý danh sách nhà cung cấp phụ tùng.
+            </p>
+          </div>
         </div>
         <button
           onClick={() => setCreateOpen(true)}
@@ -126,7 +136,7 @@ export default function InventorySuppliers() {
                 <th className="py-4 px-6">Số điện thoại</th>
                 <th className="py-4 px-6">Địa chỉ</th>
                 <th className="py-4 px-4">Trạng thái</th>
-                <th className="py-4 px-6 text-right">Thao tác</th>
+                <th className="py-4 px-6">Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -178,16 +188,17 @@ export default function InventorySuppliers() {
                       </div>
                     </td>
                     <td className="py-4 px-6">
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex items-center justify-start gap-1.5">
                         <button
                           onClick={() => {
                             setEditingSupplier(s);
                             setEditOpen(true);
                           }}
-                          title="Sửa nhà cung cấp"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                          title="Cập nhật nhà cung cấp"
+                          className="h-8 flex items-center gap-1.5 px-3 rounded-lg text-[11px] font-bold text-white bg-[#00285E] hover:brightness-125 active:scale-[0.97] transition-all whitespace-nowrap"
                         >
-                          <Pencil size={15} />
+                          <Pencil size={13} />
+                          Cập nhật
                         </button>
                       </div>
                     </td>

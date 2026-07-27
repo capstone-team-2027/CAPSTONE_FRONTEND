@@ -23,6 +23,26 @@ export interface ImportSparePartResponse {
     supplier: Suppliers;
 }
 
+// 1 phiếu nhập đã gom theo receipt_code (GET /import)
+export interface ImportReceipt {
+    receipt_code: string;
+    imported_at: string;
+    item_count: number;
+    total_amount: number;
+    manager_name: string;
+}
+
+// 1 dòng phụ tùng trong phiếu nhập (GET /import/:receiptCode)
+export interface ImportDetailLine {
+    id: number;
+    receipt_code: string;
+    createdAt: string;
+    quantity: number;
+    unit_price: number;
+    part: Parts;
+    supplier: Suppliers;
+}
+
 export interface ConflictPart {
   id: number;
   sku: string;

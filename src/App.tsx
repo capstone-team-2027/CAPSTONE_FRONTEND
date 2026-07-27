@@ -35,6 +35,7 @@ const PartCategories = lazy(() => import("./pages/inventory/categories/Inventory
 const InventorySuppliers = lazy(() => import("./pages/inventory/suppliers/InventorySuppliers"));
 const InventoryApprovedQuotes = lazy(() => import("./pages/inventory/export/InventoryApprovedQuotes"));
 const InventoryExport = lazy(() => import("./pages/inventory/export/InventoryExport"));
+const InventoryWaitingStock = lazy(() => import("./pages/inventory/import/InventoryWaitingStock"));
 
 // Reception Page Imports
 const ReceptionLayout = lazy(() => import("./pages/reception/ReceptionLayout"));
@@ -125,6 +126,7 @@ function App() {
           <Route path="parts" element={<InventoryParts />} />
           <Route path="categories" element={<PartCategories />} />
           <Route path="import" element={<ImportHistory />} />
+          <Route path="waiting-stock" element={<InventoryWaitingStock />} />
           <Route path="suppliers" element={<InventorySuppliers />} />
           <Route path="approved-quotes" element={<InventoryApprovedQuotes />} />
           <Route path="export" element={<InventoryExport />} />
