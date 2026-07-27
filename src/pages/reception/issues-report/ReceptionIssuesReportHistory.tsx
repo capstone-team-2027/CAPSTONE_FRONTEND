@@ -54,10 +54,13 @@ interface QuotationServiceForm {
 
 // 1 dòng trong form báo giá: hạng mục lỗi + sản phẩm chọn từ hệ thống
 interface QuotationItemForm {
+  uid: number;
   issueId: number;
   componentName: string;
   description: string;
   partId: number | null;
+  isCustom: boolean;
+  customItemName: string;
   quantity: number;
   unitPrice: number;
 }
@@ -75,6 +78,8 @@ function PriceInput({
   title,
   className,
   placeholder,
+  commitOnChange,
+  formatWhileTyping,
   onCommit,
 }: {
   value: number;
@@ -82,6 +87,8 @@ function PriceInput({
   title?: string;
   className?: string;
   placeholder?: string;
+  commitOnChange?: boolean;
+  formatWhileTyping?: boolean;
   onCommit: (value: number) => void;
 }) {
   const [focused, setFocused] = useState(false);
@@ -89,7 +96,9 @@ function PriceInput({
 
   // Khi không focus: hiện giá đã format từ ngoài; khi focus: hiện chuỗi đang gõ
   const display = focused
-    ? draft
+    ? formatWhileTyping && draft
+      ? new Intl.NumberFormat("vi-VN").format(Number(draft))
+      : draft
     : value
       ? new Intl.NumberFormat("vi-VN").format(value)
       : "";
@@ -106,7 +115,11 @@ function PriceInput({
         setDraft(value ? String(value) : "");
         setFocused(true);
       }}
-      onChange={(e) => setDraft(e.target.value.replace(/\D/g, ""))}
+      onChange={(e) => {
+        const nextDraft = e.target.value.replace(/\D/g, "");
+        setDraft(nextDraft);
+        if (commitOnChange) onCommit(Number(nextDraft) || 0);
+      }}
       onBlur={() => {
         setFocused(false);
         onCommit(Number(draft) || 0);
@@ -143,23 +156,29 @@ export default function ReceptionIssuesReportHistory() {
     QuotationServiceForm[]
   >([]);
   const [quotationNote, setQuotationNote] = useState("");
+  const [showCustomPartForm, setShowCustomPartForm] = useState(false);
+  const [customPartIssueId, setCustomPartIssueId] = useState<number | "">("");
+  const [customPartName, setCustomPartName] = useState("");
+  const [customPartQuantity, setCustomPartQuantity] = useState(1);
+  const [customPartPrice, setCustomPartPrice] = useState(0);
   // Khu thêm dịch vụ: chọn 1 dịch vụ + tích các lỗi rồi mới bấm "Thêm"
   const [servicePicker, setServicePicker] = useState<number | "">("");
   const [pickedIssueIds, setPickedIssueIds] = useState<number[]>([]);
+  const quotationItemUidRef = useRef(0);
   // Cảnh báo tồn kho hiện ngay dưới ô bị lỗi (tự ẩn sau vài giây)
   const [stockWarning, setStockWarning] = useState<{
-    issueId: number;
+    uid: number;
     field: "part" | "quantity";
     message: string;
   } | null>(null);
   const stockWarningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const warnStock = (
-    issueId: number,
+    uid: number,
     field: "part" | "quantity",
     message: string,
   ) => {
-    setStockWarning({ issueId, field, message });
+    setStockWarning({ uid, field, message });
     if (stockWarningTimer.current) clearTimeout(stockWarningTimer.current);
     stockWarningTimer.current = setTimeout(() => setStockWarning(null), 4000);
   };
@@ -173,17 +192,25 @@ export default function ReceptionIssuesReportHistory() {
     setQuotationReport(report);
     setQuotationItems(
       report.items.map((item) => ({
+        uid: ++quotationItemUidRef.current,
         issueId: item.id,
         componentName:
           item.component?.name || `Linh kiện #${item.component?.id ?? item.id}`,
         description: item.error_description || "",
         partId: null,
+        isCustom: false,
+        customItemName: "",
         quantity: 1,
         unitPrice: 0,
       })),
     );
     setQuotationServices([]);
     setQuotationNote("");
+    setShowCustomPartForm(false);
+    setCustomPartIssueId("");
+    setCustomPartName("");
+    setCustomPartQuantity(1);
+    setCustomPartPrice(0);
     setServicePicker("");
     setPickedIssueIds([]);
     setStockWarning(null);
@@ -194,16 +221,18 @@ export default function ReceptionIssuesReportHistory() {
   const serviceUidRef = useRef(0);
   const addQuotationServiceForIssues = (id: number, issueIds: number[]) => {
     const service = services.find((s) => s.id === id);
-    if (!service || issueIds.length === 0) return;
+    if (!service) return;
     const dbPrice = Number(service.labor_price) || 0;
     setQuotationServices((prev) => {
       // Bỏ qua lỗi đã có dịch vụ này rồi để không tạo dòng trùng (service + lỗi)
-      const newRows = issueIds
+      const targetIssueIds: Array<number | null> =
+        issueIds.length > 0 ? issueIds : [null];
+      const newRows = targetIssueIds
         .filter(
           (issueId) =>
             !prev.some((s) => s.serviceId === id && s.issueId === issueId),
         )
-        .map((issueId) => {
+        .map<QuotationServiceForm>((issueId) => {
           serviceUidRef.current += 1;
           return {
             uid: serviceUidRef.current,
@@ -233,7 +262,7 @@ export default function ReceptionIssuesReportHistory() {
 
   const getRemainingStock = (
     items: QuotationItemForm[],
-    issueId: number,
+    uid: number,
     partId: number | null,
   ) => {
     if (!partId) return Infinity;
@@ -241,7 +270,7 @@ export default function ReceptionIssuesReportHistory() {
     if (!part) return Infinity;
     const usedByOthers = items.reduce(
       (sum, it) =>
-        it.issueId !== issueId && it.partId === partId
+        it.uid !== uid && it.partId === partId
           ? sum + it.quantity
           : sum,
       0,
@@ -253,13 +282,28 @@ export default function ReceptionIssuesReportHistory() {
   // Chọn sản phẩm trong hệ thống cho 1 dòng -> đơn giá tự lấy theo giá bán lẻ,
   // số lượng hiện tại bị kẹp lại theo tồn kho còn lại của sản phẩm mới.
   // Hết hàng thì báo ngay và giữ nguyên lựa chọn cũ.
-  const selectQuotationPart = (issueId: number, partId: number | null) => {
+  const selectQuotationPart = (uid: number, partId: number | null) => {
     const part = spareParts.find((p) => p.id === partId);
+    const currentItem = quotationItems.find((item) => item.uid === uid);
     if (part) {
-      const remaining = getRemainingStock(quotationItems, issueId, partId);
+      const isDuplicatedInIssue = quotationItems.some(
+        (item) =>
+          item.uid !== uid &&
+          item.issueId === currentItem?.issueId &&
+          item.partId === partId,
+      );
+      if (isDuplicatedInIssue) {
+        warnStock(
+          uid,
+          "part",
+          `"${part.name}" đã được chọn cho hạng mục lỗi này.`,
+        );
+        return;
+      }
+      const remaining = getRemainingStock(quotationItems, uid, partId);
       if (remaining <= 0) {
         warnStock(
-          issueId,
+          uid,
           "part",
           Number(part.available_quantity) <= 0
             ? `"${part.name}" đã hết hàng khả dụng trong kho.`
@@ -268,36 +312,132 @@ export default function ReceptionIssuesReportHistory() {
         return;
       }
     }
-    setQuotationItems((prev) =>
-      prev.map((item) => {
-        if (item.issueId !== issueId) return item;
-        const remaining = getRemainingStock(prev, issueId, partId);
+    setQuotationItems((prev) => {
+      const updatedItems = prev.map((item) => {
+        if (item.uid !== uid) return item;
+        const remaining = getRemainingStock(prev, uid, partId);
         return {
           ...item,
           partId,
+          isCustom: false,
+          customItemName: "",
           // Number() để phòng BE trả DECIMAL dạng chuỗi ("150000.00")
           unitPrice: Number(part?.retail_price ?? 0) || 0,
           quantity: part
             ? Math.min(Math.max(1, item.quantity), remaining)
             : item.quantity,
         };
-      }),
+      });
+      if (!partId || !currentItem) return updatedItems;
+      const hasEmptyRow = updatedItems.some(
+        (item) =>
+          item.issueId === currentItem.issueId &&
+          !item.partId &&
+          !item.isCustom,
+      );
+      if (hasEmptyRow) return updatedItems;
+      quotationItemUidRef.current += 1;
+      const emptyItem: QuotationItemForm = {
+        ...currentItem,
+        uid: quotationItemUidRef.current,
+        partId: null,
+        isCustom: false,
+        customItemName: "",
+        quantity: 1,
+        unitPrice: 0,
+      };
+      const lastIssueIndex = updatedItems.reduce(
+        (lastIndex, item, index) =>
+          item.issueId === currentItem.issueId ? index : lastIndex,
+        -1,
+      );
+      return [
+        ...updatedItems.slice(0, lastIssueIndex + 1),
+        emptyItem,
+        ...updatedItems.slice(lastIssueIndex + 1),
+      ];
+    });
+  };
+
+  const addCustomQuotationItem = (
+    issueId: number,
+    customItemName: string,
+    quantity: number,
+    unitPrice: number,
+  ) => {
+    const issueItem = quotationItems.find((item) => item.issueId === issueId);
+    if (!issueItem) return;
+    quotationItemUidRef.current += 1;
+    const customItem: QuotationItemForm = {
+      ...issueItem,
+      uid: quotationItemUidRef.current,
+      partId: null,
+      isCustom: true,
+      customItemName,
+      quantity,
+      unitPrice,
+    };
+    setQuotationItems((prev) => {
+      const lastIssueIndex = prev.reduce(
+        (lastIndex, item, index) =>
+          item.issueId === issueId ? index : lastIndex,
+        -1,
+      );
+      return [
+        ...prev.slice(0, lastIssueIndex),
+        customItem,
+        ...prev.slice(lastIssueIndex),
+      ];
+    });
+    setStockWarning(null);
+  };
+
+  const submitCustomQuotationItem = () => {
+    if (
+      customPartIssueId === "" ||
+      !customPartName.trim() ||
+      customPartQuantity <= 0 ||
+      customPartPrice <= 0
+    ) {
+      return;
+    }
+    addCustomQuotationItem(
+      customPartIssueId,
+      customPartName.trim(),
+      customPartQuantity,
+      customPartPrice,
+    );
+    setShowCustomPartForm(false);
+    setCustomPartIssueId("");
+    setCustomPartName("");
+    setCustomPartQuantity(1);
+    setCustomPartPrice(0);
+  };
+
+  const updateCustomQuotationItem = (
+    uid: number,
+    updates: Partial<Pick<QuotationItemForm, "customItemName" | "unitPrice">>,
+  ) => {
+    setQuotationItems((prev) =>
+      prev.map((item) =>
+        item.uid === uid ? { ...item, ...updates } : item,
+      ),
     );
   };
 
   // Số lượng không được vượt quá tồn kho còn lại của sản phẩm đã chọn.
   // Bấm tăng vượt tồn kho thì cảnh báo ngay cho người dùng biết.
-  const updateQuotationQuantity = (issueId: number, quantity: number) => {
-    const item = quotationItems.find((i) => i.issueId === issueId);
+  const updateQuotationQuantity = (uid: number, quantity: number) => {
+    const item = quotationItems.find((i) => i.uid === uid);
     if (item?.partId) {
       const remaining = getRemainingStock(
         quotationItems,
-        issueId,
+        uid,
         item.partId,
       );
       if (quantity > remaining) {
         warnStock(
-          issueId,
+          uid,
           "quantity",
           remaining <= 0
             ? "Đã hết hàng trong kho."
@@ -307,8 +447,8 @@ export default function ReceptionIssuesReportHistory() {
     }
     setQuotationItems((prev) =>
       prev.map((it) => {
-        if (it.issueId !== issueId) return it;
-        const remaining = getRemainingStock(prev, issueId, it.partId);
+        if (it.uid !== uid) return it;
+        const remaining = getRemainingStock(prev, uid, it.partId);
         return {
           ...it,
           quantity: Math.min(Math.max(0, quantity), remaining),
@@ -317,10 +457,29 @@ export default function ReceptionIssuesReportHistory() {
     );
   };
 
-  const removeQuotationItem = (issueId: number) =>
-    setQuotationItems((prev) =>
-      prev.filter((item) => item.issueId !== issueId),
-    );
+  const removeQuotationItem = (uid: number) =>
+    setQuotationItems((prev) => {
+      const target = prev.find((item) => item.uid === uid);
+      if (!target) return prev;
+      const issueRows = prev.filter(
+        (item) => item.issueId === target.issueId,
+      );
+      if (issueRows.length === 1) {
+        return prev.map((item) =>
+          item.uid === uid
+            ? {
+                ...item,
+                partId: null,
+                isCustom: false,
+                customItemName: "",
+                quantity: 1,
+                unitPrice: 0,
+              }
+            : item,
+        );
+      }
+      return prev.filter((item) => item.uid !== uid);
+    });
 
   const quotationPartsTotal = quotationItems.reduce(
     (sum, item) => sum + item.quantity * item.unitPrice,
@@ -331,6 +490,33 @@ export default function ReceptionIssuesReportHistory() {
     0,
   );
   const quotationTotal = quotationPartsTotal + quotationServicesTotal;
+  const hasCustomQuotationItem = quotationItems.some((item) => item.isCustom);
+  const customQuotationItemsTotal = quotationItems.reduce(
+    (sum, item) =>
+      item.isCustom ? sum + item.quantity * item.unitPrice : sum,
+    0,
+  );
+  const customQuotationItemNames = quotationItems
+    .filter((item) => item.isCustom && item.customItemName.trim())
+    .map((item) => item.customItemName.trim())
+    .join(", ");
+  const quotationDeposit = Math.round(customQuotationItemsTotal * 0.3);
+  const quotationIssueItems = Array.from(
+    new Map(
+      quotationItems.map((item) => [item.issueId, item]),
+    ).values(),
+  );
+  const selectedQuotationItemsCount = quotationItems.filter(
+    (item) => item.partId || item.isCustom,
+  ).length;
+  const hasIncompleteQuotationIssue = quotationIssueItems.some(
+    (issue) =>
+      !quotationItems.some(
+        (item) =>
+          item.issueId === issue.issueId &&
+          (item.partId || item.isCustom),
+      ),
+  );
 
   useEffect(()=>{
     handleGetSpareParts();
@@ -366,19 +552,29 @@ export default function ReceptionIssuesReportHistory() {
         task_id: quotationReport.taskId,
         items: [
           ...quotationItems
-            .filter((i) => i.partId)
-            .map((i) => ({
-              issue_id: i.issueId,
-              spare_part_id: i.partId!,
-              quantity: i.quantity,
-            })),
+            .filter((i) => i.partId || i.isCustom)
+            .map((i) =>
+              i.isCustom
+                ? {
+                    issue_id: Number(i.issueId),
+                    custom_item_name: i.customItemName.trim(),
+                    unit_price: Number(i.unitPrice),
+                    quantity: Number(i.quantity),
+                  }
+                : {
+                    issue_id: Number(i.issueId),
+                    spare_part_id: Number(i.partId!),
+                    quantity: Number(i.quantity),
+                  },
+            ),
           ...quotationServices.map((s) => ({
-            issue_id: s.issueId ?? undefined,
-            service_id: s.serviceId,
+            issue_id: s.issueId != null ? Number(s.issueId) : undefined,
+            service_id: Number(s.serviceId),
             quantity: 1,
-            repair_price: s.fee,
+            repair_price: Number(s.fee),
           })),
         ],
+        deposit_amount: hasCustomQuotationItem ? quotationDeposit : 0,
         note: quotationNote,
       };
       console.log("payload:", payload);
@@ -1079,140 +1275,302 @@ export default function ReceptionIssuesReportHistory() {
                     className="text-xs font-semibold px-2.5 py-1 rounded-full"
                     style={{ backgroundColor: "#00285E", color: "#fff" }}
                   >
-                    {quotationItems.length} hạng mục
+                    {quotationIssueItems.length} hạng mục ·{" "}
+                    {selectedQuotationItemsCount} phụ tùng
                   </span>
                 </div>
+                {false && showCustomPartForm && (
+                  <div className="mb-3 rounded-2xl border border-[#00285E]/15 bg-[#EDF3FF]/60 p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">
+                          Thêm phụ tùng đặt riêng
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          Chọn hạng mục lỗi và nhập thông tin phụ tùng cần đặt.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomPartForm(false)}
+                        className="rounded-full p-1.5 text-slate-400 hover:bg-white hover:text-slate-600"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-[minmax(150px,1fr)_minmax(180px,1.5fr)_80px_140px_auto] items-end gap-2">
+                      <div>
+                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                          Hạng mục lỗi
+                        </label>
+                        <select
+                          value={customPartIssueId}
+                          onChange={(event) =>
+                            setCustomPartIssueId(Number(event.target.value))
+                          }
+                          className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E]"
+                        >
+                          {quotationIssueItems.map((item) => (
+                            <option key={item.issueId} value={item.issueId}>
+                              {item.componentName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                          Tên phụ tùng
+                        </label>
+                        <input
+                          type="text"
+                          value={customPartName}
+                          onChange={(event) =>
+                            setCustomPartName(event.target.value)
+                          }
+                          placeholder="Nhập tên phụ tùng"
+                          className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E]"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                          Số lượng
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={customPartQuantity}
+                          onChange={(event) =>
+                            setCustomPartQuantity(
+                              Math.max(1, Number(event.target.value)),
+                            )
+                          }
+                          className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-center text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E]"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                          Đơn giá
+                        </label>
+                        <PriceInput
+                          value={customPartPrice}
+                          placeholder="Nhập đơn giá"
+                          formatWhileTyping
+                          onCommit={setCustomPartPrice}
+                          className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-right text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E]"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={submitCustomQuotationItem}
+                        disabled={
+                          customPartIssueId === "" ||
+                          !customPartName.trim() ||
+                          customPartQuantity <= 0 ||
+                          customPartPrice <= 0
+                        }
+                        className="h-10 whitespace-nowrap rounded-lg bg-[#00285E] px-4 text-xs font-semibold text-white transition-colors hover:bg-[#003C7D] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Thêm vào báo giá
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {quotationItems.length === 0 ? (
                   <div className="bg-white rounded-2xl border border-slate-200/70 p-6 text-center text-sm text-slate-400">
                     Chưa có hạng mục nào trong báo giá.
                   </div>
                 ) : (
-                  <div className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden">
+                  <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white">
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[560px] text-left border-collapse text-sm">
+                      <table className="w-full min-w-[680px] border-collapse text-left text-sm">
                         <thead>
-                          <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
-                            <th className="py-3 px-4 align-middle">
-                              Hạng mục lỗi
-                            </th>
-                            <th className="py-3 px-4 align-middle">
-                              Sản phẩm trong kho
-                            </th>
-                            <th className="py-3 px-3 align-middle w-20">SL</th>
-                            <th className="py-3 px-4 align-middle text-right whitespace-nowrap">
+                          <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                            <th className="px-4 py-3">Hạng mục lỗi</th>
+                            <th className="px-4 py-3">Sản phẩm trong kho</th>
+                            <th className="w-20 px-3 py-3">SL</th>
+                            <th className="px-4 py-3 text-right">
                               Thành tiền
                             </th>
-                            <th className="py-3 px-2 align-middle w-10"></th>
+                            <th className="w-10 px-2 py-3" />
                           </tr>
                         </thead>
                         <tbody>
-                          {quotationItems.map((item) => {
+                          {quotationItems.map((item, itemIndex) => {
                             const selectedPart = spareParts.find(
-                              (p) => p.id === item.partId,
+                              (part) => part.id === item.partId,
                             );
+                            const isFirstRowOfIssue =
+                              quotationItems.findIndex(
+                                (row) => row.issueId === item.issueId,
+                              ) === itemIndex;
+                            const isEmptyItem =
+                              !item.partId && !item.isCustom;
                             return (
                               <tr
-                                key={item.issueId}
-                                className="border-b border-slate-100 last:border-0 align-top"
+                                key={item.uid}
+                                className="border-b border-slate-100 align-top last:border-0"
                               >
-                                <td className="py-3.5 px-4">
-                                  <p
-                                    className="text-xs font-semibold text-slate-800 max-w-[150px] truncate"
-                                    title={item.componentName}
-                                  >
-                                    {item.componentName}
-                                  </p>
-                                  {item.description && (
-                                    <p
-                                      className="text-[11px] text-slate-400 max-w-[150px] truncate mt-0.5"
-                                      title={item.description}
-                                    >
-                                      {item.description}
-                                    </p>
+                                <td className="px-4 py-3.5">
+                                  {isFirstRowOfIssue && (
+                                    <>
+                                      <p className="max-w-[150px] truncate text-xs font-semibold text-slate-800">
+                                        {item.componentName}
+                                      </p>
+                                      {item.description && (
+                                        <p className="mt-0.5 max-w-[150px] truncate text-[11px] text-slate-400">
+                                          {item.description}
+                                        </p>
+                                      )}
+                                    </>
                                   )}
                                 </td>
-                                <td className="py-3.5 px-4">
-                                  <select
-                                    value={item.partId ?? ""}
-                                    onChange={(e) =>
-                                      selectQuotationPart(
-                                        item.issueId,
-                                        e.target.value
-                                          ? Number(e.target.value)
-                                          : null,
-                                      )
-                                    }
-                                    className={`w-full min-w-[180px] bg-slate-50 border rounded-lg px-3 py-2 text-xs font-semibold focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors ${
-                                      item.partId
-                                        ? "border-slate-200 text-slate-800"
-                                        : "border-amber-300 text-slate-400"
-                                    }`}
-                                  >
-                                    <option value="">
-                                      -- Chọn sản phẩm --
-                                    </option>
-                                    {spareParts.map((part) => {
-                                      const available = Number(
-                                        part.available_quantity,
-                                      );
-                                      return (
-                                        <option
-                                          key={part.id}
-                                          value={part.id}
-                                          disabled={available <= 0}
-                                        >
-                                          {part.name}
-                                          {part.brand ? ` - ${part.brand}` : ""}
-                                          {available <= 0
-                                            ? " (hết hàng)"
-                                            : ` (còn: ${available})`}
-                                        </option>
-                                      );
-                                    })}
-                                  </select>
-                                  {stockWarning?.issueId === item.issueId && (
-                                    <p className="flex items-center gap-1 text-[10px] font-semibold text-amber-600 mt-1">
-                                      <AlertCircle
-                                        size={11}
-                                        className="shrink-0"
-                                      />
+                                <td className="px-4 py-3.5">
+                                  {!item.isCustom ? (
+                                    <select
+                                      value={item.partId ?? ""}
+                                      onChange={(event) =>
+                                        selectQuotationPart(
+                                          item.uid,
+                                          event.target.value
+                                            ? Number(event.target.value)
+                                            : null,
+                                        )
+                                      }
+                                      className={`w-full min-w-[220px] rounded-lg border bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] ${
+                                        item.partId
+                                          ? "border-slate-200 text-slate-800"
+                                          : "border-amber-300 text-slate-400"
+                                      }`}
+                                    >
+                                      <option value="">
+                                        -- Chọn phụ tùng tiếp theo --
+                                      </option>
+                                      {spareParts.map((part) => {
+                                        const available = Number(
+                                          part.available_quantity,
+                                        );
+                                        return (
+                                          <option
+                                            key={part.id}
+                                            value={part.id}
+                                            disabled={available <= 0}
+                                          >
+                                            {part.name}
+                                            {part.brand
+                                              ? ` - ${part.brand}`
+                                              : ""}
+                                            {available <= 0
+                                              ? " (hết hàng)"
+                                              : ` (còn: ${available})`}
+                                          </option>
+                                        );
+                                      })}
+                                    </select>
+                                  ) : (
+                                    <div>
+                                      <div className="grid grid-cols-[minmax(0,1fr)_130px] gap-2">
+                                        <input
+                                          type="text"
+                                          value={item.customItemName}
+                                          onChange={(event) =>
+                                            updateCustomQuotationItem(
+                                              item.uid,
+                                              {
+                                                customItemName:
+                                                  event.target.value,
+                                              },
+                                            )
+                                          }
+                                          placeholder="Tên phụ tùng đặt riêng"
+                                          className="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                        />
+                                        <PriceInput
+                                          value={item.unitPrice}
+                                          placeholder="Đơn giá"
+                                          commitOnChange
+                                          formatWhileTyping
+                                          onCommit={(unitPrice) =>
+                                            updateCustomQuotationItem(
+                                              item.uid,
+                                              { unitPrice },
+                                            )
+                                          }
+                                          className="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-right text-xs font-semibold outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                        />
+                                      </div>
+                                      <div className="mt-2">
+                                        <span className="inline-flex whitespace-nowrap rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-700">
+                                          Sản phẩm không có sẵn, cần cọc 30% để
+                                          lấy hàng:&nbsp;
+                                          <strong className="font-bold text-amber-600">
+                                            {formatVND(
+                                              Math.round(
+                                                item.quantity *
+                                                  item.unitPrice *
+                                                  0.3,
+                                              ),
+                                            )}
+                                          </strong>
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {stockWarning?.uid === item.uid && (
+                                    <p className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-amber-600">
+                                      <AlertCircle size={11} />
                                       {stockWarning.message}
                                     </p>
                                   )}
                                 </td>
-                                <td className="py-3.5 px-3">
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    value={item.quantity}
-                                    onChange={(e) =>
-                                      updateQuotationQuantity(
-                                        item.issueId,
-                                        Number(e.target.value),
-                                      )
-                                    }
-                                    className="w-16 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-800 text-center focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
-                                  />
+                                <td className="px-3 py-3.5">
+                                  {!isEmptyItem ? (
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      value={item.quantity}
+                                      onChange={(event) =>
+                                        updateQuotationQuantity(
+                                          item.uid,
+                                          Number(event.target.value),
+                                        )
+                                      }
+                                      className="w-16 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-center text-xs font-semibold outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                    />
+                                  ) : (
+                                    <span className="text-xs text-slate-300">
+                                      —
+                                    </span>
+                                  )}
                                 </td>
-                                <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                                  <span className="text-xs font-bold text-[#00285E]">
-                                    {formatVND(
-                                      item.quantity *
-                                        (Number(selectedPart?.retail_price) ||
-                                          item.unitPrice),
-                                    )}
-                                  </span>
+                                <td className="whitespace-nowrap px-4 py-3.5 text-right">
+                                  {!isEmptyItem ? (
+                                    <span className="text-xs font-bold text-[#00285E]">
+                                      {formatVND(
+                                        item.quantity *
+                                          (Number(
+                                            selectedPart?.retail_price,
+                                          ) || item.unitPrice),
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-slate-300">
+                                      —
+                                    </span>
+                                  )}
                                 </td>
-                                <td className="py-3.5 px-2 text-center">
-                                  <button
-                                    onClick={() =>
-                                      removeQuotationItem(item.issueId)
-                                    }
-                                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                                    title="Xóa hạng mục"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
+                                <td className="px-2 py-3.5 text-center">
+                                  {!isEmptyItem && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        removeQuotationItem(item.uid)
+                                      }
+                                      className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-500"
+                                      title="Xóa phụ tùng"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  )}
                                 </td>
                               </tr>
                             );
@@ -1222,7 +1580,140 @@ export default function ReceptionIssuesReportHistory() {
                     </div>
                   </div>
                 )}
-                {quotationItems.some((i) => !i.partId) &&
+                <div className="mt-2">
+                <div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCustomPartForm((current) => !current);
+                    setCustomPartIssueId(
+                      quotationIssueItems[0]?.issueId ?? "",
+                    );
+                  }}
+                  className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[#00285E]/25 bg-white px-3 text-xs font-semibold text-[#00285E] transition-colors hover:border-[#00285E]/40 hover:bg-slate-50"
+                >
+                  <span className="text-base font-normal leading-none">+</span>
+                  Đặt phụ tùng riêng
+                </button>
+                </div>
+                {showCustomPartForm && (
+                  <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="mb-4 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">
+                          Thêm phụ tùng đặt riêng
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-400">
+                          Nhập thông tin phụ tùng cần đặt cho hạng mục lỗi.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomPartForm(false)}
+                        className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div>
+                        <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                          Hạng mục lỗi
+                        </label>
+                        <select
+                          value={customPartIssueId}
+                          onChange={(event) =>
+                            setCustomPartIssueId(Number(event.target.value))
+                          }
+                          className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                        >
+                          {quotationIssueItems.map((item) => (
+                            <option key={item.issueId} value={item.issueId}>
+                              {item.componentName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                          Tên phụ tùng
+                        </label>
+                        <input
+                          type="text"
+                          value={customPartName}
+                          onChange={(event) =>
+                            setCustomPartName(event.target.value)
+                          }
+                          placeholder="Nhập tên phụ tùng"
+                          className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                          Số lượng
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={customPartQuantity}
+                          onChange={(event) =>
+                            setCustomPartQuantity(
+                              Math.max(1, Number(event.target.value)),
+                            )
+                          }
+                          className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                          Đơn giá
+                        </label>
+                        <PriceInput
+                          value={customPartPrice}
+                          placeholder="Nhập đơn giá"
+                          commitOnChange
+                          formatWhileTyping
+                          onCommit={setCustomPartPrice}
+                          className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-right text-xs font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <div className="text-xs text-slate-500">
+                        Cọc áp dụng:{" "}
+                        <span className="font-bold text-amber-600">30%</span>
+                        {customPartPrice > 0 && (
+                          <span className="ml-2 font-semibold text-slate-700">
+                            (
+                            {formatVND(
+                              Math.round(
+                                customPartQuantity *
+                                  customPartPrice *
+                                  0.3,
+                              ),
+                            )}
+                            )
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={submitCustomQuotationItem}
+                        disabled={
+                          customPartIssueId === "" ||
+                          !customPartName.trim() ||
+                          customPartQuantity <= 0 ||
+                          customPartPrice <= 0
+                        }
+                        className="h-9 rounded-lg bg-[#00285E] px-4 text-xs font-semibold text-white hover:bg-[#003C7D] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Thêm vào báo giá
+                      </button>
+                    </div>
+                  </div>
+                )}
+                </div>
+                {hasIncompleteQuotationIssue &&
                   quotationItems.length > 0 && (
                     <p className="flex items-center gap-1.5 text-xs text-amber-600 mt-2 px-1">
                       <AlertCircle size={13} className="shrink-0" />
@@ -1251,13 +1742,14 @@ export default function ReceptionIssuesReportHistory() {
                 <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-3">
                   <select
                     value={servicePicker}
+                    aria-label="Chọn dịch vụ"
                     onChange={(e) => {
                       setServicePicker(
                         e.target.value ? Number(e.target.value) : "",
                       );
                       setPickedIssueIds([]);
                     }}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
                   >
                     <option value="">-- Chọn dịch vụ trong hệ thống --</option>
                     {services.map((service) => (
@@ -1270,7 +1762,7 @@ export default function ReceptionIssuesReportHistory() {
                   {servicePicker !== "" &&
                     (() => {
                       // Lỗi còn được áp cho dịch vụ đang chọn (loại lỗi đã có dịch vụ này)
-                      const availableIssues = quotationItems.filter(
+                      const availableIssues = quotationIssueItems.filter(
                         (item) =>
                           !quotationServices.some(
                             (s) =>
@@ -1278,73 +1770,92 @@ export default function ReceptionIssuesReportHistory() {
                               s.issueId === item.issueId,
                           ),
                       );
-                      if (availableIssues.length === 0)
+                      const hasServiceWithoutIssue = quotationServices.some(
+                        (service) =>
+                          service.serviceId === servicePicker &&
+                          service.issueId === null,
+                      );
+                      if (
+                        availableIssues.length === 0 &&
+                        hasServiceWithoutIssue
+                      )
                         return (
                           <p className="text-xs text-rose-500 italic px-1">
-                            Mọi hạng mục lỗi đã được áp dịch vụ này.
+                            Dịch vụ này đã được thêm cho mọi hạng mục có thể áp
+                            dụng.
                           </p>
                         );
                       return (
                         <>
-                          <div className="flex items-center justify-between px-1">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                              Áp cho hạng mục lỗi
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setPickedIssueIds(
-                                  pickedIssueIds.length ===
-                                    availableIssues.length
-                                    ? []
-                                    : availableIssues.map((i) => i.issueId),
-                                )
-                              }
-                              className="text-[11px] font-semibold text-[#00285E] hover:underline"
-                            >
-                              {pickedIssueIds.length === availableIssues.length
-                                ? "Bỏ chọn tất cả"
-                                : "Chọn tất cả"}
-                            </button>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                            {availableIssues.map((item) => {
-                              const checked = pickedIssueIds.includes(
-                                item.issueId,
-                              );
-                              return (
-                                <label
-                                  key={item.issueId}
-                                  className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-semibold cursor-pointer transition-colors ${
-                                    checked
-                                      ? "border-[#00285E] bg-white text-slate-800"
-                                      : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
-                                  }`}
+                          {availableIssues.length > 0 && (
+                            <>
+                              <div className="flex items-center justify-between px-1">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                  Áp cho hạng mục lỗi
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setPickedIssueIds(
+                                      pickedIssueIds.length ===
+                                        availableIssues.length
+                                        ? []
+                                        : availableIssues.map(
+                                            (i) => i.issueId,
+                                          ),
+                                    )
+                                  }
+                                  className="text-[11px] font-semibold text-[#00285E] hover:underline"
                                 >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() =>
-                                      setPickedIssueIds((prev) =>
-                                        prev.includes(item.issueId)
-                                          ? prev.filter(
-                                              (id) => id !== item.issueId,
-                                            )
-                                          : [...prev, item.issueId],
-                                      )
-                                    }
-                                    className="accent-[#00285E]"
-                                  />
-                                  <span className="truncate">
-                                    {item.componentName}
-                                  </span>
-                                </label>
-                              );
-                            })}
-                          </div>
+                                  {pickedIssueIds.length ===
+                                  availableIssues.length
+                                    ? "Bỏ chọn tất cả"
+                                    : "Chọn tất cả"}
+                                </button>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                {availableIssues.map((item) => {
+                                  const checked = pickedIssueIds.includes(
+                                    item.issueId,
+                                  );
+                                  return (
+                                    <label
+                                      key={item.issueId}
+                                      className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-semibold cursor-pointer transition-colors ${
+                                        checked
+                                          ? "border-[#00285E] bg-white text-slate-800"
+                                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={() =>
+                                          setPickedIssueIds((prev) =>
+                                            prev.includes(item.issueId)
+                                              ? prev.filter(
+                                                  (id) => id !== item.issueId,
+                                                )
+                                              : [...prev, item.issueId],
+                                          )
+                                        }
+                                        className="accent-[#00285E]"
+                                      />
+                                      <span className="truncate">
+                                        {item.componentName}
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
                           <button
                             type="button"
-                            disabled={pickedIssueIds.length === 0}
+                            disabled={
+                              pickedIssueIds.length === 0 &&
+                              hasServiceWithoutIssue
+                            }
                             onClick={() => {
                               addQuotationServiceForIssues(
                                 servicePicker,
@@ -1356,7 +1867,9 @@ export default function ReceptionIssuesReportHistory() {
                             style={{ backgroundColor: "#00285E" }}
                             className="w-full py-2 rounded-lg text-xs font-semibold text-white transition-all hover:brightness-125 disabled:opacity-40 disabled:cursor-not-allowed"
                           >
-                            Thêm dịch vụ cho {pickedIssueIds.length} hạng mục
+                            {pickedIssueIds.length > 0
+                              ? `Thêm dịch vụ cho ${pickedIssueIds.length} hạng mục`
+                              : "Thêm dịch vụ"}
                           </button>
                         </>
                       );
@@ -1381,43 +1894,46 @@ export default function ReceptionIssuesReportHistory() {
                           {service.serviceName}
                         </span>
                         {/* Gắn dịch vụ với hạng mục lỗi -> issue_id trong payload */}
-                        <select
-                          value={service.issueId ?? ""}
-                          onChange={(e) =>
-                            updateQuotationServiceIssue(
-                              service.uid,
-                              e.target.value ? Number(e.target.value) : null,
-                            )
-                          }
-                          className={`w-40 bg-white border rounded-lg px-2 py-1.5 text-xs font-semibold focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors ${
-                            service.issueId
-                              ? "border-slate-200 text-slate-800"
-                              : "border-amber-300 text-slate-400"
-                          }`}
-                        >
-                          <option value="">-- Chọn hạng mục --</option>
-                          {/* Ẩn lỗi đã được chính dịch vụ này chiếm ở dòng khác (tránh trùng service + lỗi) */}
-                          {quotationItems
-                            .filter(
-                              (item) =>
-                                item.issueId === service.issueId ||
-                                !quotationServices.some(
-                                  (s) =>
-                                    s.uid !== service.uid &&
-                                    s.serviceId === service.serviceId &&
-                                    s.issueId === item.issueId,
-                                ),
-                            )
-                            .map((item) => (
-                              <option key={item.issueId} value={item.issueId}>
-                                {item.componentName}
-                              </option>
-                            ))}
-                        </select>
+                        {service.issueId === null ? (
+                          <span className="w-40 text-center text-sm font-semibold text-slate-400">
+                            —
+                          </span>
+                        ) : (
+                          <select
+                            value={service.issueId}
+                            aria-label="Chọn hạng mục lỗi"
+                            onChange={(e) =>
+                              updateQuotationServiceIssue(
+                                service.uid,
+                                Number(e.target.value),
+                              )
+                            }
+                            className="w-40 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
+                          >
+                            {/* Ẩn lỗi đã được chính dịch vụ này chiếm ở dòng khác (tránh trùng service + lỗi) */}
+                            {quotationIssueItems
+                              .filter(
+                                (item) =>
+                                  item.issueId === service.issueId ||
+                                  !quotationServices.some(
+                                    (s) =>
+                                      s.uid !== service.uid &&
+                                      s.serviceId === service.serviceId &&
+                                      s.issueId === item.issueId,
+                                  ),
+                              )
+                              .map((item) => (
+                                <option key={item.issueId} value={item.issueId}>
+                                  {item.componentName}
+                                </option>
+                              ))}
+                          </select>
+                        )}
                         {/* Giá có trong DB thì khóa ô nhập, không có thì cho nhập tay */}
                         <PriceInput
                           placeholder="Nhập giá"
                           readOnly={service.hasDbPrice}
+                          formatWhileTyping
                           title={
                             service.hasDbPrice
                               ? "Giá lấy từ hệ thống, không chỉnh được"
@@ -1467,16 +1983,30 @@ export default function ReceptionIssuesReportHistory() {
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors resize-none"
                 />
               </div>
+
             </div>
 
             <div className="flex items-center justify-between gap-3 px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
               <div>
+                <div>
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
                   Tổng cộng
                 </span>
-                <span className="text-lg font-bold text-[#00285E]">
-                  {formatVND(quotationTotal)}
-                </span>
+                <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                  <span className="text-lg font-bold text-[#00285E]">
+                    {formatVND(quotationTotal)}
+                  </span>
+                  {hasCustomQuotationItem && customQuotationItemNames && (
+                    <span className="inline-flex items-center whitespace-nowrap rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-700">
+                      (Tiền cọc cho {customQuotationItemNames}:&nbsp;
+                      <strong className="font-bold text-amber-600">
+                        {formatVND(quotationDeposit)}
+                      </strong>
+                      )
+                    </span>
+                  )}
+                </div>
+                </div>
               </div>
               <div className="flex items-center gap-2.5">
                 <button
@@ -1489,9 +2019,16 @@ export default function ReceptionIssuesReportHistory() {
                   onClick={handleCreateQuotation}
                   disabled={
                     quotationItems.length === 0 ||
-                    quotationItems.some((i) => !i.partId || i.quantity <= 0) ||
-                    quotationServices.length === 0 ||
-                    quotationServices.some((s) => !s.issueId)
+                    hasIncompleteQuotationIssue ||
+                    quotationItems.some(
+                      (i) =>
+                        ((i.partId || i.isCustom) && i.quantity <= 0) ||
+                        (i.isCustom &&
+                          (!i.customItemName.trim() || i.unitPrice <= 0)),
+                    ) ||
+                    quotationDeposit < 0 ||
+                    quotationDeposit > quotationTotal ||
+                    quotationServices.length === 0
                   }
                   style={{ backgroundColor: "#00285E" }}
                   className="px-6 py-2.5 rounded-full text-sm font-semibold text-white shadow-lg shadow-[#00285E]/20 hover:brightness-125 transition-all disabled:opacity-40 disabled:cursor-not-allowed"

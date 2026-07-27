@@ -16,13 +16,16 @@ export interface GetServicesResponse {
 export interface CreateQuotationItemRequest {
   issue_id?: number;
   spare_part_id?: number;
+  custom_item_name?: string;
   service_id?: number;
+  unit_price?: number;
   repair_price?: number;
   quantity: number;
 }
 export interface CreateQuotationRequest {
   task_id: number;
   items: CreateQuotationItemRequest[];
+  deposit_amount?: number;
   note?: string;
 }
 export interface IssueHistoryUser{
@@ -96,6 +99,7 @@ export interface GetQuotationDetailResponse {
   unit_price: number;
   repair_price: number;
   amount: number;
+  custom_item_name?: string | null;
   issue?: QuotationDetailIssue | null;
   sparePart: GetSparePartResponse | null;
   service_catalog: GetServicesResponse | null;
@@ -106,6 +110,10 @@ export interface GetQuotationResponse {
   created_by: number;
   updated_by?: number | null;
   total_amount: number;
+  deposit_amount?: number;
+  deposit_paid_at?: string | null;
+  approval_method?: string | null;
+  approved_phone?: string | null;
   status: string;
   note?: string | null;
   approved_at?: string | null;
