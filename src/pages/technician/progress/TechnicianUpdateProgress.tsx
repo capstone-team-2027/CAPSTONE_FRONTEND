@@ -133,7 +133,7 @@ export default function TechnicianUpdateProgress() {
     }
     setCompletingTaskId(task.id);
     try {
-      await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.COMPLETE_TASK, 'PUT', {
+      await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.COMPLETE_TASK, 'PATCH', {
         taskAssignmentId: task.taskAssignmentId,
       });
       await loadTasks();

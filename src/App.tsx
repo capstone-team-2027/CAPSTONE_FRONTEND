@@ -61,7 +61,7 @@ const ReceptionTechnicianList = lazy(() => import("./pages/reception/technicians
 const TechnicianLayout = lazy(() => import("./pages/technician/TechnicianLayout"));
 const TechnicianAssignments = lazy(() => import("./pages/technician/assignments/TechnicianAssignments"));
 const TechnicianAssignmentsDetail = lazy(() => import("./pages/technician/assignments/TechnicianAssignmentsDetail"));
-const TechnicianRequestParts = lazy(() => import("./pages/technician/parts-request/TechnicianRequestParts"));
+const TechnicianWorkHistory = lazy(() => import("./pages/technician/work-history/TechnicianWorkHistory"));
 const TechnicianUpdateProgress = lazy(() => import("./pages/technician/progress/TechnicianUpdateProgress"));
 const TechnicianMyShifts = lazy(() => import("./pages/technician/my-shifts/TechnicianMyShifts"));
 const TechnicianIssuesReportHistory = lazy(() => import("./pages/technician/assignments/IssuesReportHistory"));
@@ -71,6 +71,7 @@ const TechnicianRescuePage = lazy(() => import("./pages/technician/rescue/Techni
 const LeaderLayout = lazy(() => import("./pages/leader/LeaderLayout"));
 const LeaderDashboard = lazy(() => import("./pages/leader/LeaderDashboard"));
 const LeaderAssignments = lazy(() => import("./pages/leader/LeaderAssignments"));
+const LeaderFinalQc = lazy(() => import("./pages/leader/LeaderFinalQc"));
 
 const LoadingScreen = () => (
   <div className="fixed inset-0 bg-slate-50/50 backdrop-blur-xs flex flex-col items-center justify-center z-50">
@@ -144,8 +145,9 @@ function App() {
           <Route path="" element={<Navigate to="assignments" replace />} />
           <Route path="assignments" element={<TechnicianAssignments />} />
           <Route path="assignments/:id" element={<TechnicianAssignmentsDetail />} />
-          <Route path="parts-request" element={<TechnicianRequestParts />} />
-          <Route path="parts-request/:id" element={<TechnicianRequestParts />} />
+          <Route path="work-history" element={<TechnicianWorkHistory />} />
+          <Route path="parts-request" element={<Navigate to="/technician/work-history" replace />} />
+          <Route path="parts-request/:id" element={<Navigate to="/technician/work-history" replace />} />
           <Route path="progress" element={<TechnicianUpdateProgress />} />
           <Route path="progress/:id" element={<TechnicianUpdateProgress />} />
           <Route path="my-shifts" element={<TechnicianMyShifts />} />
@@ -174,6 +176,7 @@ function App() {
         <Route path="/leader" element={<LeaderLayout />}>
           <Route path="" element={<LeaderDashboard />} />
           <Route path="assignments" element={<LeaderAssignments />} />
+          <Route path="final-qc" element={<LeaderFinalQc />} />
         </Route>
       </Routes>
       {!isAdminPath && (

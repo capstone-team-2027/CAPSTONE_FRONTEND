@@ -225,7 +225,7 @@ export default function ReceptionRescueCreateServiceOrder() {
   const [selectedCombos, setSelectedCombos] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState(''); // Mô tả tình trạng hỏng hóc
   const [initialCondition, setInitialCondition] = useState(''); // Trạng thái tiếp nhận xe ban đầu
-  const [receptionServiceMode, setReceptionServiceMode] = useState<'SERVICE' | 'REPAIR'>('SERVICE');
+  const [receptionServiceMode, setReceptionServiceMode] = useState<'SERVICE' | 'REPAIR'>('REPAIR');
   const [serviceSearch, setServiceSearch] = useState('');
   const [activeServiceTab, setActiveServiceTab] = useState<'single' | 'combo' | 'category'>('single');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
@@ -580,15 +580,6 @@ export default function ReceptionRescueCreateServiceOrder() {
 
       // Prepare payload
       const estimated_finish_time = `${bookingDate}T${bookingTime}:00`;
-      // Combine notes
-      let finalNotes = '';
-      if (notes.trim()) {
-        finalNotes += `[Hỏng hóc]: ${notes.trim()}\n`;
-      }
-      if (initialCondition.trim()) {
-        finalNotes += `[Trạng thái tiếp nhận xe]: ${initialCondition.trim()}`;
-      }
-
       let finalVehicleId = null;
       let walkInPayload = undefined;
 
@@ -616,7 +607,8 @@ export default function ReceptionRescueCreateServiceOrder() {
         estimated_finish_time: estimated_finish_time,
         service_ids: receptionServiceMode === 'SERVICE' ? selectedServiceIds : undefined,
         combo_ids: receptionServiceMode === 'SERVICE' && selectedComboId ? [selectedComboId] : undefined,
-        notes: finalNotes.trim() ? finalNotes.trim() : undefined,
+        notes: notes.trim() ? notes.trim() : undefined,
+        symptoms: initialCondition.trim() ? initialCondition.trim() : undefined,
         rescue_id: rescueId ? Number(rescueId) : undefined
       };
 

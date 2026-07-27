@@ -135,7 +135,7 @@ export default function ChatbotWidget() {
                                         {msg.role === 'user' ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
                                     </div>
                                     <div 
-                                        className={`px-4 py-2 rounded-2xl text-[14px] leading-relaxed shadow-sm ${
+                                        className={`px-4 py-2 rounded-2xl text-[14px] leading-relaxed shadow-sm whitespace-pre-wrap ${
                                             msg.role === 'user' 
                                                 ? 'bg-[#F9A11B] text-white rounded-tr-sm' 
                                                 : 'bg-white text-gray-800 border border-gray-100 rounded-tl-sm'

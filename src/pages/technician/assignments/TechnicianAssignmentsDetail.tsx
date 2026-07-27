@@ -4,12 +4,55 @@ import { useFetchClient_v2 as useFetchClient } from '../../../hook/useFetchClien
 import { TASK_ASSIGNMENT_ENDPOINTS } from '../../../constants/technician/taskAssignmentEndpoint';
 import { ChevronLeft, Loader2, Calendar, User, Car, CheckSquare, Clock } from 'lucide-react';
 
+interface TechnicianRef {
+  fullName?: string;
+}
+
+interface TaskDetail {
+  id: number;
+  status?: string;
+  catalog?: {
+    service_name?: string;
+    estimated_duration?: number;
+  };
+  assignments?: Array<{
+    id: number;
+    technician?: TechnicianRef;
+  }>;
+}
+
+interface ServiceOrderDetail {
+  id: number;
+  createdAt: string;
+  vehicle?: {
+    license_plate?: string;
+    model?: {
+      model_name?: string;
+      make?: { make_name?: string };
+    };
+    customer?: {
+      name?: string;
+      phone?: string;
+      user?: {
+        fullName?: string;
+        phoneNumber?: string;
+      };
+    };
+  };
+  appointment?: {
+    status?: string;
+    scheduled_time?: string;
+    notes?: string;
+  };
+  tasks?: TaskDetail[];
+}
+
 export default function TechnicianAssignmentsDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { fetchPrivate } = useFetchClient();
 
-  const [detailData, setDetailData] = useState<any>(null);
+  const [detailData, setDetailData] = useState<ServiceOrderDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -17,7 +60,9 @@ export default function TechnicianAssignmentsDetail() {
       try {
         setIsLoading(true);
         if (id) {
-          const response = await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.GET_SERVICE_ORDER_DETAIL(id));
+          const response = (await fetchPrivate<ServiceOrderDetail>(
+            TASK_ASSIGNMENT_ENDPOINTS.GET_SERVICE_ORDER_DETAIL(id),
+          )) as ServiceOrderDetail;
           setDetailData(response);
         }
       } catch (error) {
@@ -157,7 +202,7 @@ export default function TechnicianAssignmentsDetail() {
                 </tr>
               </thead>
               <tbody>
-                {tasks.map((task: any) => (
+                {tasks.map((task) => (
                   <tr key={task.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-50 last:border-0">
                     <td className="py-3 px-4 font-bold text-[#00285E]">#{task.id}</td>
                     <td className="py-3 px-4 font-semibold text-slate-700">{task.catalog?.service_name || '--'}</td>
@@ -169,7 +214,7 @@ export default function TechnicianAssignmentsDetail() {
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex flex-wrap gap-1">
-                        {task.assignments?.map((a: any) => (
+                        {task.assignments?.map((a) => (
                           <span key={a.id} className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
                             {a.technician?.fullName}
                           </span>

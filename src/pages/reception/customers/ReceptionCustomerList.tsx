@@ -194,7 +194,7 @@ export default function ReceptionCustomerList() {
                                   }`}
                               >
                                 <MapPin size={14} />
-                                CỨU HỘ KHẨN CẤP
+                                TIẾP NHẬN CỨU HỘ
                               </button>
                             )
                           ) : (
@@ -236,6 +236,8 @@ export default function ReceptionCustomerList() {
         onClose={() => setAssignModalData(null)}
         onAssign={handleAssignTechnician}
         customerName={assignModalData ? (assignModalData.customer.name || assignModalData.customer.user?.fullName || 'Khách hàng') : ''}
+        customerLat={assignModalData?.customer.user?.latitude ?? undefined}
+        customerLng={assignModalData?.customer.user?.longitude ?? undefined}
       />
     </div>
   );

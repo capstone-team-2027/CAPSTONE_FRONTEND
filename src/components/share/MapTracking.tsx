@@ -75,6 +75,12 @@ export const MapTracking: React.FC = () => {
   const [simulationStatus, setSimulationStatus] = useState<'idle' | 'running' | 'arrived'>('idle');
   const animationRef = useRef<number | null>(null);
 
+  // Thêm state cho Modal xác nhận
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [tempLocation, setTempLocation] = useState<[number, number] | null>(null);
+  const [distanceInfo, setDistanceInfo] = useState<{ distKm: number, durMin: number } | null>(null);
+  const [estimatedPrice, setEstimatedPrice] = useState<number>(0);
+
   useEffect(() => {
     if (!socket || !user?.id) return;
 
@@ -116,6 +122,62 @@ export const MapTracking: React.FC = () => {
     }, 50);
   };
 
+  const calculatePrice = (distKm: number) => {
+    if (distKm <= 15) {
+      return Math.max(150000, distKm * 15000);
+    } else {
+      return (15 * 15000) + ((distKm - 15) * 20000);
+    }
+  };
+
+  const processLocation = async (lat: number, lng: number) => {
+    setTempLocation([lat, lng]);
+    setIsLoading(true);
+    setErrorMsg('');
+    
+    try {
+      // Gọi OSRM API để lấy đường đi và khoảng cách
+      const url = `https://router.project-osrm.org/route/v1/driving/${garageLocation[1]},${garageLocation[0]};${lng},${lat}?overview=full&geometries=geojson`;
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.routes && data.routes.length > 0) {
+        const route = data.routes[0];
+        const distKm = parseFloat((route.distance / 1000).toFixed(1));
+        const durMin = Math.ceil(route.duration / 60);
+        
+        setDistanceInfo({ distKm, durMin });
+        setEstimatedPrice(calculatePrice(distKm));
+        setShowConfirmModal(true);
+      } else {
+        throw new Error("Không thể tính toán đường đi.");
+      }
+    } catch (error) {
+      console.error("Lỗi khi lấy đường đi:", error);
+      setErrorMsg("Không thể tính toán đường đi và chi phí. Vui lòng thử lại.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleConfirmRescue = () => {
+    if (tempLocation) {
+      setUserLocation(tempLocation);
+      setShowConfirmModal(false);
+      // Gửi lên server để Lễ tân thấy
+      fetchPrivate(LOCATION_ENDPOINTS.UPDATE_LOCATION, "PATCH", {
+        latitude: tempLocation[0],
+        longitude: tempLocation[1]
+      }).then(() => console.log("Lưu vị trí thành công!"))
+        .catch(err => console.error("Lỗi khi lưu vị trí lên DB", err));
+    }
+  };
+
+  const handleCancelRescue = () => {
+    setShowConfirmModal(false);
+    setTempLocation(null);
+  };
+
   // Hàm này chỉ chạy khi người dùng bấm nút
   const handleGetLocation = () => {
     setIsLoading(true);
@@ -126,15 +188,7 @@ export const MapTracking: React.FC = () => {
         (position) => {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
-          setUserLocation([lat, lng]);
-          setIsLoading(false);
-
-          // Gửi lên server
-          fetchPrivate(LOCATION_ENDPOINTS.UPDATE_LOCATION, "PATCH", {
-            latitude: lat,
-            longitude: lng
-          }).then(() => console.log("Lưu vị trí thành công!"))
-            .catch(err => console.error("Lỗi khi lưu vị trí lên DB", err));
+          processLocation(lat, lng);
         },
         (error) => {
           console.error("Lỗi lấy vị trí: ", error);
@@ -200,18 +254,10 @@ export const MapTracking: React.FC = () => {
       <div className="flex gap-2">
         <button 
           onClick={() => {
-            // Lấy một vị trí ngẫu nhiên gần Gara để test
-            const randomLat = garageLocation[0] + (Math.random() - 0.5) * 0.05;
-            const randomLng = garageLocation[1] + (Math.random() - 0.5) * 0.05;
-            setUserLocation([randomLat, randomLng]);
-            setErrorMsg('');
-
-            // Gửi lên server
-            fetchPrivate(LOCATION_ENDPOINTS.UPDATE_LOCATION, "PATCH", {
-              latitude: randomLat,
-              longitude: randomLng
-            }).then(() => console.log("Lưu vị trí giả thành công!"))
-              .catch(err => console.error("Lỗi khi lưu vị trí lên DB", err));
+            // Lấy một vị trí ngẫu nhiên gần Gara để test (10-20km)
+            const randomLat = garageLocation[0] + (Math.random() - 0.5) * 0.2;
+            const randomLng = garageLocation[1] + (Math.random() - 0.5) * 0.2;
+            processLocation(randomLat, randomLng);
           }}
           className="text-xs px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded transition"
         >
@@ -272,6 +318,54 @@ export const MapTracking: React.FC = () => {
           )}
         </MapContainer>
       </div>
+
+      {/* Modal Xác Nhận Cuốc Xe */}
+      {showConfirmModal && distanceInfo && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="bg-[#00285E] p-4 flex flex-col items-center">
+              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-2">
+                <MapPin className="text-white" size={32} />
+              </div>
+              <h3 className="font-bold text-white text-xl text-center">Xác nhận gọi cứu hộ</h3>
+              <p className="text-blue-200 text-sm mt-1 text-center">Vui lòng kiểm tra chi phí trước khi gọi xe</p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Khoảng cách:</span>
+                <span className="font-bold text-slate-800 text-lg">{distanceInfo.distKm} km</span>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Thời gian dự kiến:</span>
+                <span className="font-bold text-slate-800 text-lg">{distanceInfo.durMin} phút</span>
+              </div>
+              <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex flex-col gap-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-blue-700 font-bold">Phí cứu hộ dự kiến:</span>
+                  <span className="font-black text-blue-700 text-2xl">{estimatedPrice.toLocaleString('vi-VN')} đ</span>
+                </div>
+                <span className="text-xs text-blue-500/80 italic text-right">* Chưa bao gồm phí sửa chữa/vật tư</span>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 flex gap-3 bg-slate-50">
+              <button
+                onClick={handleCancelRescue}
+                className="flex-1 py-3 px-4 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={handleConfirmRescue}
+                className="flex-1 py-3 px-4 bg-[#00285E] text-white font-bold rounded-xl hover:bg-blue-900 transition-colors shadow-lg shadow-blue-900/20"
+              >
+                Đồng ý gọi xe
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

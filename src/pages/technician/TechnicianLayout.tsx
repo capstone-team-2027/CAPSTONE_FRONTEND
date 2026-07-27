@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   ClipboardList,
   Wrench,
-  PackagePlus,
+  History,
   Activity,
   CheckSquare,
   HelpCircle,
@@ -98,7 +98,7 @@ export default function TechnicianLayout() {
     setToastMessage({ text, type });
     setTimeout(() => {
       setToastMessage(null);
-    }, 3000);
+    }, 5000);
   };
 
   useEffect(() => {
@@ -161,9 +161,9 @@ export default function TechnicianLayout() {
     },
 
     {
-      name: "Yêu cầu phụ tùng",
-      icon: PackagePlus,
-      path: "/technician/parts-request",
+      name: "Lịch sử công việc",
+      icon: History,
+      path: "/technician/work-history",
     },
     { name: "Cập nhật tiến độ", icon: Activity, path: "/technician/progress" },
   ];
@@ -174,7 +174,7 @@ export default function TechnicianLayout() {
     if (path.includes("/assignments")) return "Phân công";
     if (path.includes("/my-shifts")) return "Lịch làm việc";
     if (path.includes("/issues-reports")) return "Lịch sử báo cáo";
-    if (path.includes("/parts-request")) return "Yêu cầu phụ tùng";
+    if (path.includes("/work-history")) return "Lịch sử công việc";
     if (path.includes("/progress")) return "Cập nhật tiến độ";
     return "Phân công";
   }, [location.pathname]);
@@ -279,7 +279,7 @@ export default function TechnicianLayout() {
             initial={{ opacity: 0, y: -50, x: "-50%" }}
             animate={{ opacity: 1, y: 16, x: "-50%" }}
             exit={{ opacity: 0, y: -20, x: "-50%" }}
-            className="fixed top-0 left-1/2 z-50 transform -translate-x-1/2 flex items-center gap-2.5 px-5 py-3.5 bg-slate-900 text-white rounded-2xl shadow-xl border border-slate-800 text-sm font-semibold"
+            className="fixed top-0 left-1/2 z-[100] transform -translate-x-1/2 flex items-center gap-2.5 px-5 py-3.5 bg-slate-900 text-white rounded-2xl shadow-xl border border-slate-800 text-sm font-semibold"
           >
             {toastMessage.type === "success" && (
               <CheckCircle size={18} className="text-emerald-400" />

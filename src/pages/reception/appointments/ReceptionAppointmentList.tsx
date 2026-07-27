@@ -19,11 +19,12 @@ import {
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import type { AppointmentModel } from '../../../model/Appointment';
 import { useFetchClient } from '../../../hook/useFetchClient';
+import { useSocket } from '../../../hook/useSocket';
 import { APPOINTMENT_API_ENDPOINTS, SERVICE_ORDER_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   pending: { label: 'Chờ xác nhận', color: '#D97706', bg: '#FEF3C7', icon: Clock },
-  confirmed: { label: 'Đã xác nhận', color: '#2563EB', bg: '#DBEAFE', icon: CheckCircle2 },
+  confirmed: { label: 'Chờ tiếp nhận', color: '#2563EB', bg: '#DBEAFE', icon: Clock },
   in_progress: { label: 'Đã tiếp nhận ', color: '#EA580C', bg: '#FED7AA', icon: Loader2 },
   completed: { label: 'Đã tiếp nhận', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
   cancelled: { label: 'Đã hủy', color: '#DC2626', bg: '#FEE2E2', icon: XCircle },
@@ -40,12 +41,13 @@ export default function AppointmentList() {
   }>();
 
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
   const [appointments, setAppointments] = useState<AppointmentModel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('unreceived');
   const [currentPage, setCurrentPage] = useState(1);
 
   const loadAppointments = async () => {
@@ -222,6 +224,18 @@ export default function AppointmentList() {
     loadAppointments();
   }, []);
 
+  // Có lịch hẹn mới -> BE emit new_notification -> tự tải lại danh sách
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      loadAppointments();
+    };
+    socket.on('new_notification', handleNewNotification);
+    return () => {
+      socket.off('new_notification', handleNewNotification);
+    };
+  }, [socket]);
+
   // Filtered data
   const filteredAppointments = useMemo(() => {
     return appointments.filter((apt) => {
@@ -237,8 +251,12 @@ export default function AppointmentList() {
       let matchStatus = false;
       if (statusFilter === 'all') {
         matchStatus = true;
+      } else if (statusFilter === 'unreceived') {
+        matchStatus = apt.status === 'pending' || apt.status === 'confirmed';
       } else if (statusFilter === 'received') {
         matchStatus = apt.status === 'in_progress' || apt.status === 'completed';
+      } else if (statusFilter === 'cancelled') {
+        matchStatus = apt.status === 'cancelled' || apt.status === 'no_show';
       } else {
         matchStatus = apt.status === statusFilter;
       }
@@ -261,6 +279,15 @@ export default function AppointmentList() {
     confirmed: appointments.filter((a) => a.status === 'confirmed').length,
     completed: appointments.filter((a) => a.status === 'completed').length,
   }), [appointments]);
+
+  const tabCounts = useMemo(() => {
+    return {
+      unreceived: appointments.filter((a) => a.status === 'pending' || a.status === 'confirmed').length,
+      received: appointments.filter((a) => a.status === 'in_progress' || a.status === 'completed').length,
+      cancelled: appointments.filter((a) => a.status === 'cancelled' || a.status === 'no_show').length,
+      all: appointments.length,
+    };
+  }, [appointments]);
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -326,9 +353,10 @@ export default function AppointmentList() {
               Trạng thái:
             </span>
             {[
-              { id: 'all', label: 'Tất cả' },
-              { id: 'received', label: 'Đã tiếp nhận' },
-              { id: 'cancelled', label: 'Đã hủy' }
+              { id: 'unreceived', label: 'Chưa tiếp nhận', count: tabCounts.unreceived },
+              { id: 'received', label: 'Đã tiếp nhận', count: tabCounts.received },
+              { id: 'cancelled', label: 'Đã hủy', count: tabCounts.cancelled },
+              { id: 'all', label: 'Tất cả', count: tabCounts.all }
             ].map((tab) => {
               const isActive = statusFilter === tab.id;
               return (
@@ -336,12 +364,15 @@ export default function AppointmentList() {
                   key={tab.id}
                   type="button"
                   onClick={() => { setStatusFilter(tab.id); setCurrentPage(1); }}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${isActive
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 ${isActive
                     ? 'bg-[#00285E] text-white border-[#00285E] shadow-sm'
                     : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                 >
-                  {tab.label}
+                  <span>{tab.label}</span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${isActive ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-600'}`}>
+                    {tab.count}
+                  </span>
                 </button>
               );
             })}
