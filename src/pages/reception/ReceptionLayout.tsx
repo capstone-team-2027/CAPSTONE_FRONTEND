@@ -9,7 +9,6 @@ import {
   History,
   HelpCircle,
   LogOut,
-  Search,
   Bell,
   Menu,
   X,
@@ -17,11 +16,11 @@ import {
   Info,
   AlertTriangle,
   Wrench,
-  Settings,
   Video,
   PhoneCall,
-  Users
+  Users,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "../../store/store";
@@ -85,6 +84,8 @@ export default function ReceptionLayout() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showNotificationDropdown]);
+
+  const { i18n } = useTranslation();
 
   const showToast = (
     text: string,
@@ -229,33 +230,34 @@ export default function ReceptionLayout() {
       ? "Nhân viên tiếp nhận"
       : user?.role || "Nhân viên tiếp nhận";
 
-  const menuItems = [
-    { name: "Lịch hẹn", icon: CalendarCheck, path: "/reception/appointments" },
-    { name: "Báo cáo lỗi", icon: FileText, path: "/reception/issues" },
+  const menuGroups = [
     {
-      name: "Lịch sử dịch vụ",
-      icon: History,
-      path: "/reception/service-history",
-    },
-    { name: "Quản lý báo giá", icon: FileText, path: "/reception/quotes" },
-    {
-      name: "Thanh toán dịch vụ",
-      icon: CreditCard,
-      path: "/reception/payments",
-    },
-    { name: 'Khách hàng & Cứu hộ', icon: Users, path: '/reception/customers' },
-    { name: 'Kỹ thuật viên hôm nay', icon: Wrench, path: '/reception/technicians' },
-    {
-      name: "Phản hồi khách hàng",
-      icon: MessageSquare,
-      path: "/reception/feedback",
+      label: 'Dịch vụ',
+      items: [
+        { name: "Lịch hẹn", icon: CalendarCheck, path: "/reception/appointments" },
+        { name: "Lịch sử dịch vụ", icon: History, path: "/reception/service-history" },
+        { name: "Quản lý báo giá", icon: FileText, path: "/reception/quotes" },
+        { name: "Thanh toán dịch vụ", icon: CreditCard, path: "/reception/payments" },
+        { name: "Quản lý hóa đơn dịch vụ", icon: ClipboardPlus, path: "/reception/service-orders" },
+      ],
     },
     {
-      name: "Quản lý hóa đơn dịch vụ",
-      icon: ClipboardPlus,
-      path: "/reception/service-orders",
+      label: 'Khách hàng',
+      items: [
+        { name: 'Khách hàng & Cứu hộ', icon: Users, path: '/reception/customers' },
+        { name: 'Kỹ thuật viên hôm nay', icon: Wrench, path: '/reception/technicians' },
+      ],
+    },
+    {
+      label: 'Hỗ trợ',
+      items: [
+        { name: "Báo cáo lỗi", icon: FileText, path: "/reception/issues" },
+        { name: "Phản hồi khách hàng", icon: MessageSquare, path: "/reception/feedback" },
+      ],
     },
   ];
+
+  const menuItems = menuGroups.flatMap((group) => group.items);
 
   // Dynamic active menu item based on current URL path
   const activeMenu = useMemo(() => {
@@ -276,7 +278,7 @@ export default function ReceptionLayout() {
   const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => (
     <>
       {/* Sidebar Header */}
-      <div className="p-6 border-b border-[#D2E2FF] flex items-center justify-between">
+      <div className="h-20 px-4 border-b border-[#D2E2FF] flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[#00285E] flex items-center justify-center shadow-md">
             <Wrench size={20} className="text-white" />
@@ -299,40 +301,46 @@ export default function ReceptionLayout() {
       </div>
 
       {/* Navigation Section */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-7 scrollbar-none">
-        <div>
-          <span className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
-            Quản lý tiếp nhận
-          </span>
-          <nav className="space-y-1">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeMenu === item.name;
-              return (
-                <button
-                  key={item.name}
-                  onClick={() => {
-                    navigate(item.path);
-                    onNavigate?.();
-                  }}
-                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all group ${isActive
-                    ? "bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15"
-                    : "text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E]"
-                    }`}
-                >
-                  <Icon
-                    size={18}
-                    className={
-                      isActive
-                        ? "text-[#F9A11B]"
-                        : "text-slate-500 group-hover:text-[#00285E]"
-                    }
-                  />
-                  <span>{item.name}</span>
-                </button>
-              );
-            })}
-          </nav>
+      <div className="flex-1 overflow-y-auto px-2 py-5 space-y-5 scrollbar-none">
+        <div className="w-full max-w-[220px] mx-auto space-y-5">
+          {menuGroups.map((group, groupIndex) => (
+            <div key={group.label ?? `group-${groupIndex}`}>
+              {group.label && (
+                <span className="px-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+                  {group.label}
+                </span>
+              )}
+              <nav className="space-y-1">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeMenu === item.name;
+                  return (
+                    <button
+                      key={item.name}
+                      onClick={() => {
+                        navigate(item.path);
+                        onNavigate?.();
+                      }}
+                      className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all group ${isActive
+                        ? "bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15"
+                        : "text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E]"
+                        }`}
+                    >
+                      <Icon
+                        size={18}
+                        className={
+                          isActive
+                            ? "text-[#F9A11B]"
+                            : "text-slate-500 group-hover:text-[#00285E]"
+                        }
+                      />
+                      <span>{item.name}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -620,26 +628,26 @@ export default function ReceptionLayout() {
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col min-w-0 pb-16">
         {/* DESKTOP HEADER BAR */}
-        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-between border-b border-slate-100 shadow-xs sticky top-0 z-30">
+        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-30">
           {/* Search bar */}
-          <div className="relative w-80">
-            <Search
-              size={16}
-              className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400"
-            />
-            <input
-              type="text"
-              placeholder="Tìm kiếm lịch hẹn, khách hàng..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200/80 rounded-full pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-            />
-          </div>
+
 
           {/* User profile & Actions */}
           <div className="flex items-center gap-6">
             {/* Quick action buttons */}
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => i18n.changeLanguage('vi')}
+                className={`px-3 py-2 rounded-full text-xs font-bold transition ${i18n.language === 'vi' ? 'bg-[#00285E] text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+              >
+                VI
+              </button>
+              <button
+                onClick={() => i18n.changeLanguage('en')}
+                className={`px-3 py-2 rounded-full text-xs font-bold transition ${i18n.language.startsWith('en') ? 'bg-[#00285E] text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+              >
+                EN
+              </button>
               <div className="relative" ref={desktopNotifRef}>
                 <button
                   onClick={() =>
@@ -656,12 +664,6 @@ export default function ReceptionLayout() {
                 </button>
                 <NotificationDropdown />
               </div>
-              <button
-                onClick={() => showToast("Mở cài đặt nhanh...", "info")}
-                className="p-2.5 rounded-full hover:bg-slate-50 border border-slate-100 transition-colors text-slate-600"
-              >
-                <Settings size={18} />
-              </button>
               <button
                 onClick={() => showToast("Mở trung tâm trợ giúp...", "info")}
                 className="p-2.5 rounded-full hover:bg-slate-50 border border-slate-100 transition-colors text-slate-600"

@@ -18,6 +18,8 @@ const ReceptionTechnicianList = () => {
   const [technicians, setTechnicians] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 9;
   const { fetchPrivate } = useFetchClient_v2();
 
   useEffect(() => {
@@ -43,6 +45,12 @@ const ReceptionTechnicianList = () => {
       (tech.phoneNumber || '').includes(searchQuery)
     );
   }, [technicians, searchQuery]);
+
+  const totalPages = Math.ceil(filteredTechnicians.length / ITEMS_PER_PAGE);
+  const paginatedTechnicians = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredTechnicians.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredTechnicians, currentPage]);
 
   // Framer Motion Variants
   const containerVariants = {
@@ -119,7 +127,10 @@ const ReceptionTechnicianList = () => {
             type="text"
             placeholder="Tìm theo tên hoặc SĐT..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full bg-white border border-slate-200 rounded-full pl-11 pr-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#00285E]/20 focus:border-[#00285E] transition-all shadow-sm"
           />
         </div>
@@ -137,7 +148,7 @@ const ReceptionTechnicianList = () => {
               animate="show"
               className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
             >
-              {filteredTechnicians.map((tech) => {
+              {paginatedTechnicians.map((tech) => {
                 const isLeader = tech.role?.roleCode === 'TECHNICIAN_LEADER';
                 const avatarInitial = tech.fullName ? tech.fullName.charAt(0).toUpperCase() : 'T';
                 
@@ -218,6 +229,35 @@ const ReceptionTechnicianList = () => {
                 );
               })}
             </motion.div>
+
+            {totalPages > 1 && (
+              <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <span className="text-sm text-slate-500">
+                  Hiển thị {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredTechnicians.length)} trên {filteredTechnicians.length} kỹ thuật viên
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >Trước</button>
+                  {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-9 h-9 rounded-xl text-sm font-semibold transition ${page === currentPage ? 'bg-[#00285E] text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >Sau</button>
+                </div>
+              </div>
+            )}
           ) : (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
