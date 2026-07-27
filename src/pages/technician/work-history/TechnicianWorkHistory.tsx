@@ -87,6 +87,8 @@ export default function TechnicianWorkHistory() {
   const [searchTerm, setSearchTerm] = useState("");
   const [taskTypeFilter, setTaskTypeFilter] = useState("all");
   const [completedDateFilter, setCompletedDateFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -205,6 +207,17 @@ export default function TechnicianWorkHistory() {
     workHistory,
   ]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, taskTypeFilter, completedDateFilter]);
+
+  const totalPages = Math.ceil(filteredWorkHistory.length / ITEMS_PER_PAGE);
+  const currentPageSafe = Math.min(Math.max(currentPage, 1), totalPages || 1);
+  const displayedWorkHistory = useMemo(() => {
+    const start = (currentPageSafe - 1) * ITEMS_PER_PAGE;
+    return filteredWorkHistory.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredWorkHistory, currentPageSafe]);
+
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       <div>
@@ -227,7 +240,10 @@ export default function TechnicianWorkHistory() {
             <input
               type="text"
               value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
+              onChange={(event) => {
+                setSearchTerm(event.target.value);
+                setCurrentPage(1);
+              }}
               placeholder="Tìm mã lệnh, khách hàng, biển số, dòng xe hoặc dịch vụ..."
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-700 outline-none transition-colors focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
             />
@@ -309,7 +325,7 @@ export default function TechnicianWorkHistory() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredWorkHistory.map((item) => (
+              {displayedWorkHistory.map((item) => (
                 <tr
                   key={item.id}
                   className="transition-colors hover:bg-slate-50/60"
@@ -412,6 +428,35 @@ export default function TechnicianWorkHistory() {
             </p>
           </div>
           )}
+
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 bg-slate-50 border-t border-slate-200 text-sm text-slate-500">
+            <span>
+              Hiển thị {filteredWorkHistory.length === 0 ? 0 : (currentPageSafe - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPageSafe * ITEMS_PER_PAGE, filteredWorkHistory.length)} trên {filteredWorkHistory.length} công việc
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPageSafe === 1}
+                className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >Trước</button>
+              {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`w-9 h-9 rounded-xl text-sm font-semibold transition ${page === currentPageSafe ? 'bg-[#00285E] text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={currentPageSafe === totalPages}
+                className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >Sau</button>
+            </div>
+          </div>
+        )}
       </div>
 
     </div>

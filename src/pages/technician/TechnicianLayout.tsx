@@ -8,17 +8,16 @@ import {
   CheckSquare,
   HelpCircle,
   LogOut,
-  Search,
   Bell,
   Menu,
   X,
   CheckCircle,
   Info,
   AlertTriangle,
-  Settings,
   Calendar,
   Siren,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "../../store/store";
@@ -91,6 +90,8 @@ export default function TechnicianLayout() {
     }
   }, [isNotificationOpen]);
 
+  const { i18n } = useTranslation();
+
   const showToast = (
     text: string,
     type: "success" | "info" | "warning" = "success",
@@ -150,23 +151,26 @@ export default function TechnicianLayout() {
   const displayName = user?.fullName || "Kỹ thuật viên";
   const displayRole = "Kỹ thuật viên";
 
-  const menuItems = [
-    { name: 'Cứu hộ khẩn cấp', icon: Siren, path: '/technician/rescue' },
-    { name: "Phân công", icon: CheckSquare, path: "/technician/assignments" },
-    { name: "Lịch làm việc", icon: Calendar, path: "/technician/my-shifts" },
+  const menuGroups = [
     {
-      name: "Lịch sử báo cáo",
-      icon: CheckSquare,
-      path: "/technician/issues-reports",
+      label: 'Công việc',
+      items: [
+        { name: 'Cứu hộ khẩn cấp', icon: Siren, path: '/technician/rescue' },
+        { name: "Phân công", icon: CheckSquare, path: "/technician/assignments" },
+        { name: "Cập nhật tiến độ", icon: Activity, path: "/technician/progress" },
+      ],
     },
-
     {
-      name: "Lịch sử công việc",
-      icon: History,
-      path: "/technician/work-history",
+      label: 'Lịch sử',
+      items: [
+        { name: "Lịch làm việc", icon: Calendar, path: "/technician/my-shifts" },
+        { name: "Lịch sử báo cáo", icon: CheckSquare, path: "/technician/issues-reports" },
+        { name: "Lịch sử công việc", icon: History, path: "/technician/work-history" },
+      ],
     },
-    { name: "Cập nhật tiến độ", icon: Activity, path: "/technician/progress" },
   ];
+
+  const menuItems = menuGroups.flatMap((group) => group.items);
 
   const activeMenu = useMemo(() => {
     const path = location.pathname;
@@ -182,7 +186,7 @@ export default function TechnicianLayout() {
   const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => (
     <>
       {/* Sidebar Header */}
-      <div className="p-6 border-b border-slate-200/60 flex items-center justify-between">
+      <div className="h-20 px-4 border-b border-[#D2E2FF] flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[#00285E] flex items-center justify-center shadow-md">
             <Wrench size={20} className="text-white" />
@@ -205,46 +209,52 @@ export default function TechnicianLayout() {
       </div>
 
       {/* Navigation Section */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-7 scrollbar-none">
-        <div>
-          <span className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
-            Quản lý công việc
-          </span>
-          <nav className="space-y-1">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeMenu === item.name;
-              return (
-                <button
-                  key={item.name}
-                  onClick={() => {
-                    navigate(item.path);
-                    onNavigate?.();
-                  }}
-                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all group ${isActive
-                    ? "bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-[#00285E]"
-                    }`}
-                >
-                  <Icon
-                    size={18}
-                    className={isActive ? (item.name === 'Cứu hộ khẩn cấp' ? 'text-rose-400' : 'text-[#F9A11B]') : (item.name === 'Cứu hộ khẩn cấp' ? 'text-rose-500 group-hover:text-rose-600' : 'text-slate-500 group-hover:text-[#00285E]')}
-                  />
-                  <span>{item.name}</span>
-                </button>
-              );
-            })}
-          </nav>
+      <div className="flex-1 overflow-y-auto px-2 py-5 space-y-5 scrollbar-none">
+        <div className="w-full max-w-[220px] mx-auto space-y-5">
+          {menuGroups.map((group, groupIndex) => (
+            <div key={group.label ?? `group-${groupIndex}`}>
+              {group.label && (
+                <span className="px-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+                  {group.label}
+                </span>
+              )}
+              <nav className="space-y-1">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeMenu === item.name;
+                  return (
+                    <button
+                      key={item.name}
+                      onClick={() => {
+                        navigate(item.path);
+                        onNavigate?.();
+                      }}
+                      className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all group ${isActive
+                        ? "bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15"
+                        : "text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E]"
+                        }`}
+                    >
+                      <Icon
+                        size={18}
+                        className={isActive ? (item.name === 'Cứu hộ khẩn cấp' ? 'text-rose-400' : 'text-[#F9A11B]') : (item.name === 'Cứu hộ khẩn cấp' ? 'text-rose-500 group-hover:text-rose-600' : 'text-slate-500 group-hover:text-[#00285E]')}
+                      />
+                      <span>{item.name}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Sidebar Footer */}
-      <div className="p-4 border-t border-slate-200/60 space-y-1">
+      <div className="p-4 border-t border-[#D2E2FF] space-y-1">
         <button
           onClick={() =>
             showToast("Chức năng hỗ trợ đang được kết nối...", "info")
           }
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 hover:text-[#00285E] transition-colors"
+          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E] transition-colors"
         >
           <HelpCircle size={18} className="text-slate-500" />
           <span>Hỗ trợ</span>
@@ -391,7 +401,7 @@ export default function TechnicianLayout() {
 
       {/* SIDEBAR ON DESKTOP */}
       <aside
-        className="fixed inset-y-0 left-0 bg-white border-r border-slate-200/60 w-72 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:sticky md:h-screen md:flex md:flex-col shrink-0 hidden md:block"
+        className="fixed inset-y-0 left-0 bg-[#EDF3FF] border-r border-[#D2E2FF] w-72 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:sticky md:h-screen md:flex md:flex-col shrink-0 hidden md:block"
         style={{ height: "100vh" }}
       >
         <SidebarContent />
@@ -404,7 +414,7 @@ export default function TechnicianLayout() {
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"
             onClick={() => setIsMobileSidebarOpen(false)}
           ></div>
-          <aside className="relative flex flex-col w-72 bg-white border-r border-slate-200/60 h-full p-0">
+          <aside className="relative flex flex-col w-72 bg-[#EDF3FF] border-r border-[#D2E2FF] h-full p-0">
             <SidebarContent onNavigate={() => setIsMobileSidebarOpen(false)} />
           </aside>
         </div>
@@ -413,26 +423,26 @@ export default function TechnicianLayout() {
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col min-w-0 pb-16">
         {/* DESKTOP HEADER BAR */}
-        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-between border-b border-slate-100 shadow-xs sticky top-0 z-25">
+        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-25">
           {/* Search bar */}
-          <div className="relative w-80">
-            <Search
-              size={16}
-              className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400"
-            />
-            <input
-              type="text"
-              placeholder="Tìm kiếm đơn dịch vụ, biển số xe..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200/80 rounded-full pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-            />
-          </div>
+
 
           {/* User profile & Actions */}
           <div className="flex items-center gap-6">
             {/* Quick action buttons */}
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => i18n.changeLanguage('vi')}
+                className={`px-3 py-2 rounded-full text-xs font-bold transition ${i18n.language === 'vi' ? 'bg-[#00285E] text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+              >
+                VI
+              </button>
+              <button
+                onClick={() => i18n.changeLanguage('en')}
+                className={`px-3 py-2 rounded-full text-xs font-bold transition ${i18n.language.startsWith('en') ? 'bg-[#00285E] text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+              >
+                EN
+              </button>
               <div className="relative">
                 <button
                   onClick={() => setIsNotificationOpen(!isNotificationOpen)}
@@ -505,12 +515,6 @@ export default function TechnicianLayout() {
                   </>
                 )}
               </div>
-              <button
-                onClick={() => showToast("Mở cài đặt nhanh...", "info")}
-                className="p-2.5 rounded-full hover:bg-slate-50 border border-slate-100 transition-colors text-slate-600"
-              >
-                <Settings size={18} />
-              </button>
               <button
                 onClick={() => showToast("Mở trung tâm trợ giúp...", "info")}
                 className="p-2.5 rounded-full hover:bg-slate-50 border border-slate-100 transition-colors text-slate-600"
