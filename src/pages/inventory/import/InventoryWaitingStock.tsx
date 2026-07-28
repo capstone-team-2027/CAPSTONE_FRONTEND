@@ -14,6 +14,8 @@ import {
   Truck,
   ArrowDownToLine,
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   AlertCircle,
   Loader2,
 } from "lucide-react";
@@ -27,8 +29,19 @@ import { type GetSupplierResponse } from "../../../model/dto/supplierManagement.
 import { type GetPartCategory } from "../../../model/dto/sparePartCategory.dto";
 import { type ImportSparePartRequest } from "../../../model/dto/importManagement.dto";
 
+const PAGE_SIZE = 6;
+
 const formatPrice = (v: number | string) =>
   Number(v).toLocaleString("vi-VN") + " VND";
+
+// BE trả message kèm số thô (550000, 220000.00) -> format lại cho dễ đọc
+const formatMoneyInMessage = (message: string) =>
+  message.replace(/\d+(\.\d+)?/g, (raw) => {
+    const value = Number(raw);
+    // Bỏ qua số nhỏ (id, số lượng) để không format nhầm
+    if (!Number.isFinite(value) || value < 1000) return raw;
+    return value.toLocaleString("vi-VN");
+  });
 
 const formatDateTime = (d: string) =>
   new Date(d).toLocaleString("vi-VN", {
@@ -167,6 +180,7 @@ export default function InventoryWaitingStock() {
   const { fetchPrivate } = useFetchClient();
   const navigate = useNavigate();
   const [localSearch, setLocalSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<WaitingStockItem | null>(null);
   const [items, setItems] = useState<WaitingStockItem[]>([]);
   // Các dòng được tick để gộp vào 1 đơn nhập kho
@@ -255,6 +269,13 @@ export default function InventoryWaitingStock() {
     return { totalItems, totalQuantity, totalValue, totalDeposit };
   }, [items]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = filtered.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
+
   const selectedInfo = selected ? getItemInfo(selected) : null;
 
   const toggleChecked = (id: number) =>
@@ -262,12 +283,17 @@ export default function InventoryWaitingStock() {
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
 
-  // Tick "chọn tất cả" chỉ áp cho các dòng đang hiển thị sau khi lọc
+  // Tick "chọn tất cả" chỉ áp cho các dòng đang hiển thị ở trang hiện tại
   const isAllChecked =
-    filtered.length > 0 && filtered.every((i) => checkedIds.includes(i.id));
+    pageItems.length > 0 && pageItems.every((i) => checkedIds.includes(i.id));
 
   const toggleCheckedAll = () =>
-    setCheckedIds(isAllChecked ? [] : filtered.map((i) => i.id));
+    setCheckedIds((prev) => {
+      const pageIds = pageItems.map((i) => i.id);
+      return isAllChecked
+        ? prev.filter((id) => !pageIds.includes(id))
+        : [...new Set([...prev, ...pageIds])];
+    });
 
   const checkedItems = useMemo(
     () => items.filter((i) => checkedIds.includes(i.id)),
@@ -341,10 +367,21 @@ export default function InventoryWaitingStock() {
       );
       return;
     }
+    // Nhập vào cao hơn giá đã báo khách -> lỗ, chặn ngay tại form
+    const overpricedLine = importLines.find(
+      (line) => line.costPrice > line.quotedPrice,
+    );
+    if (overpricedLine) {
+      setImportError(
+        `Giá nhập ${formatPrice(overpricedLine.costPrice)} cao hơn giá đã báo khách ${formatPrice(overpricedLine.quotedPrice)} cho "${overpricedLine.name.trim()}". Không thể nhập kho.`,
+      );
+      return;
+    }
     setIsSubmittingImport(true);
     try {
       // Phụ tùng đặt riêng chưa có trong kho -> tạo mới, retail_price giữ đúng
-      // giá đã báo khách để không lệch với báo giá.
+      // giá đã báo khách để không lệch với báo giá. quotation_item_id để BE gắn
+      // spare_part_id vừa tạo vào dòng báo giá và chuyển sang PENDING.
       const payload: ImportSparePartRequest = {
         supplier_id: importSupplierId,
         items: importLines.map((line) => ({
@@ -357,10 +394,11 @@ export default function InventoryWaitingStock() {
           warranty_period_months: line.warrantyMonths ?? undefined,
           warranty_km_limit: line.warrantyKm ?? undefined,
           force: true,
+          quotation_item_id: line.detailId,
         })),
       };
       await fetchPrivate(
-        INVENTORY_LOG_API_ENDPOINTS.INVENTORY_LOG,
+        INVENTORY_LOG_API_ENDPOINTS.IMPORT_ORDER_ITEM,
         "POST",
         payload,
       );
@@ -372,7 +410,11 @@ export default function InventoryWaitingStock() {
       setCheckedIds([]);
       handleGetWaitingStockItems();
     } catch (error: any) {
-      setImportError(error?.message ?? "Không thể tạo phiếu nhập kho.");
+      setImportError(
+        error?.message
+          ? formatMoneyInMessage(error.message)
+          : "Không thể tạo phiếu nhập kho.",
+      );
     } finally {
       setIsSubmittingImport(false);
     }
@@ -480,7 +522,10 @@ export default function InventoryWaitingStock() {
               type="text"
               placeholder="Tìm tên phụ tùng, khách hàng, biển số..."
               value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
+              onChange={(e) => {
+                setLocalSearch(e.target.value);
+                setPage(1);
+              }}
               className="w-full sm:w-72 bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
             />
           </div>
@@ -548,7 +593,7 @@ export default function InventoryWaitingStock() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {pageItems.length === 0 ? (
                 <tr>
                   <td
                     colSpan={9}
@@ -558,7 +603,7 @@ export default function InventoryWaitingStock() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((item) => {
+                pageItems.map((item) => {
                   const info = getItemInfo(item);
                   return (
                     <tr
@@ -661,6 +706,38 @@ export default function InventoryWaitingStock() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between flex-wrap gap-3">
+          <span className="text-xs font-medium text-slate-400">
+            Hiển thị {pageItems.length} / {filtered.length} phụ tùng
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={safePage === 1}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                onClick={() => setPage(n)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-colors ${n === safePage ? "bg-[#00285E] text-white shadow-sm" : "border border-slate-200 text-slate-600 hover:bg-white"}`}
+              >
+                {n}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage === totalPages}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       </div>
 

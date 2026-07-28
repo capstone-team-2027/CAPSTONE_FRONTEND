@@ -3,6 +3,7 @@ export interface Parts {
     id: number;
     sku: string,
     name: string,
+    brand?: string | null,
 }
 export interface Suppliers {
     id: number;
@@ -61,6 +62,9 @@ export interface ImportSparePartItemRequest {
   warranty_period_months?: number;
   warranty_km_limit?: number;
   force: boolean;
+  // Dòng QuotationDetail đang WAITING_STOCK -> BE gắn spare_part_id và đổi
+  // trạng thái sang PENDING sau khi nhập kho xong
+  quotation_item_id?: number;
 }
 
 export interface ImportSparePartRequest {

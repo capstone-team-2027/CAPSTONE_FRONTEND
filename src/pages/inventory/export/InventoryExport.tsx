@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowUpFromLine,
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Search,
   Calendar,
   X,
@@ -13,6 +15,8 @@ import {
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { EXPORT_LOG_API_ENDPOINTS } from "../../../constants/inventory/exportManagementApiEndPoint";
+
+const PAGE_SIZE = 6;
 
 const formatPrice = (v: number | string) =>
   Number(v).toLocaleString("vi-VN") + " VND";
@@ -49,6 +53,7 @@ export default function InventoryExport() {
   const { fetchPrivate } = useFetchClient();
   const navigate = useNavigate();
   const [localSearch, setLocalSearch] = useState("");
+  const [page, setPage] = useState(1);
   const effectiveSearch = (searchQuery || localSearch).toLowerCase();
 
   const [receipts, setReceipts] = useState<ExportReceipt[]>([]);
@@ -104,6 +109,13 @@ export default function InventoryExport() {
           (r.manager_name ?? "").toLowerCase().includes(effectiveSearch),
       ),
     [receipts, effectiveSearch],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = filtered.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
   );
 
   const stats = useMemo(() => {
@@ -190,7 +202,10 @@ export default function InventoryExport() {
               type="text"
               placeholder="Tìm mã phiếu, người xuất..."
               value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
+              onChange={(e) => {
+                setLocalSearch(e.target.value);
+                setPage(1);
+              }}
               className="w-full sm:w-64 bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
             />
           </div>
@@ -210,7 +225,7 @@ export default function InventoryExport() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {pageItems.length === 0 ? (
                 <tr>
                   <td
                     colSpan={6}
@@ -220,7 +235,7 @@ export default function InventoryExport() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((r) => (
+                pageItems.map((r) => (
                   <tr
                     key={r.receipt_code}
                     onClick={() => openDetail(r)}
@@ -269,6 +284,38 @@ export default function InventoryExport() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between flex-wrap gap-3">
+          <span className="text-xs font-medium text-slate-400">
+            Hiển thị {pageItems.length} / {filtered.length} phiếu xuất
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={safePage === 1}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                onClick={() => setPage(n)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-colors ${n === safePage ? "bg-[#00285E] text-white shadow-sm" : "border border-slate-200 text-slate-600 hover:bg-white"}`}
+              >
+                {n}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage === totalPages}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       </div>
 

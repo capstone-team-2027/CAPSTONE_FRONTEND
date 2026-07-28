@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowDownToLine,
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Search,
   Calendar,
   Plus,
@@ -30,6 +32,8 @@ import { SUPPLIER_API_ENDPOINTS } from "../../../constants/inventory/supplierApi
 import { SPARE_PART_API_ENDPOINTS } from "../../../constants/inventory/sparePartApiEnPoint";
 import type { SparePartResponse } from "../../../model/dto/sparePartManagement.dto";
 import { PART_CATEGORY_API_ENDPOINTS } from "../../../constants/inventory/sparePartCategoryApiEndPoint"
+const PAGE_SIZE = 6;
+
 const formatPrice = (v: number) => v.toLocaleString("vi-VN") + " VND";
 
 const formatDate = (d: string) => {
@@ -83,6 +87,7 @@ export default function ImportHistory() {
 
   const navigate = useNavigate();
   const [localSearch, setLocalSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<ImportReceipt | null>(null);
   const effectiveSearch = (searchQuery || localSearch).toLowerCase();
@@ -377,6 +382,13 @@ export default function ImportHistory() {
     );
   }, [inventoryLog, effectiveSearch]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = filtered.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
+
   // Summary stats
   const stats = useMemo(() => {
     const totalReceipts = inventoryLog.length;
@@ -478,7 +490,10 @@ export default function ImportHistory() {
               type="text"
               placeholder="Tìm mã phiếu, nhà cung cấp..."
               value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
+              onChange={(e) => {
+                setLocalSearch(e.target.value);
+                setPage(1);
+              }}
               className="w-full sm:w-64 bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
             />
           </div>
@@ -498,7 +513,7 @@ export default function ImportHistory() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {pageItems.length === 0 ? (
                 <tr>
                   <td
                     colSpan={6}
@@ -508,7 +523,7 @@ export default function ImportHistory() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((r) => (
+                pageItems.map((r) => (
                   <tr
                     key={r.receipt_code}
                     onClick={() => openDetail(r)}
@@ -557,6 +572,38 @@ export default function ImportHistory() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between flex-wrap gap-3">
+          <span className="text-xs font-medium text-slate-400">
+            Hiển thị {pageItems.length} / {filtered.length} phiếu nhập
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={safePage === 1}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                onClick={() => setPage(n)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-colors ${n === safePage ? "bg-[#00285E] text-white shadow-sm" : "border border-slate-200 text-slate-600 hover:bg-white"}`}
+              >
+                {n}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage === totalPages}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -665,11 +712,14 @@ export default function ImportHistory() {
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
-                        <table className="w-full min-w-[480px] text-left border-collapse text-sm">
+                        <table className="w-full min-w-[600px] text-left border-collapse text-sm">
                           <thead>
                             <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
                               <th className="py-3 px-4 align-middle">
                                 Phụ tùng
+                              </th>
+                              <th className="py-3 px-4 align-middle whitespace-nowrap">
+                                Hãng
                               </th>
                               <th className="py-3 px-3 align-middle text-center w-16 whitespace-nowrap">
                                 SL
@@ -694,6 +744,11 @@ export default function ImportHistory() {
                                   </span>
                                   <span className="text-[11px] text-slate-400">
                                     {line.part?.sku ?? ""}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className="text-xs font-semibold text-slate-600">
+                                    {line.part?.brand || "—"}
                                   </span>
                                 </td>
                                 <td className="py-3 px-3 text-center text-xs font-semibold text-slate-700">

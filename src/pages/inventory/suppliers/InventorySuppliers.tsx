@@ -1,6 +1,17 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Truck, Plus, Pencil, ArrowLeft, X, Phone, MapPin } from "lucide-react";
+import {
+  Truck,
+  Plus,
+  Pencil,
+  ArrowLeft,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Phone,
+  MapPin,
+} from "lucide-react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import {
   type GetSupplierResponse,
@@ -9,6 +20,8 @@ import {
 } from "../../../model/dto/supplierManagement.dto";
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { SUPPLIER_API_ENDPOINTS } from "../../../constants/inventory/supplierApiEndPoint";
+
+const PAGE_SIZE = 6;
 
 export default function InventorySuppliers() {
   const navigate = useNavigate();
@@ -22,9 +35,27 @@ export default function InventorySuppliers() {
   const [editingSupplier, setEditingSupplier] =
     useState<GetSupplierResponse | null>(null);
   const { fetchPrivate, fetchPrivateFormGeneric } = useFetchClient();
-  const { showToast } = useOutletContext<{
+  const { searchQuery, showToast } = useOutletContext<{
+    searchQuery: string;
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
+  const [localSearch, setLocalSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const effectiveSearch = (searchQuery || localSearch).toLowerCase();
+
+  const filtered = suppliers.filter(
+    (s) =>
+      (s.name ?? "").toLowerCase().includes(effectiveSearch) ||
+      (s.phone ?? "").toLowerCase().includes(effectiveSearch) ||
+      (s.address ?? "").toLowerCase().includes(effectiveSearch),
+  );
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = filtered.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
 
   useEffect(() => {
     handleGetSuppliers();
@@ -118,13 +149,32 @@ export default function InventorySuppliers() {
       {/* TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
         {/* Toolbar */}
-        <div className="p-5 border-b border-slate-100 flex items-center gap-2.5">
-          <h2 className="text-lg font-bold text-slate-800 tracking-tight">
-            Danh sách nhà cung cấp
-          </h2>
-          <span className="bg-[#EDF3FF] text-[#00285E] px-2.5 py-0.5 rounded-full text-xs font-bold">
-            {suppliers.length} nhà cung cấp
-          </span>
+        <div className="p-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg font-bold text-slate-800 tracking-tight">
+              Danh sách nhà cung cấp
+            </h2>
+            <span className="bg-[#EDF3FF] text-[#00285E] px-2.5 py-0.5 rounded-full text-xs font-bold">
+              {filtered.length} nhà cung cấp
+            </span>
+          </div>
+
+          <div className="relative">
+            <Search
+              size={15}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              type="text"
+              placeholder="Tìm tên, số điện thoại, địa chỉ..."
+              value={localSearch}
+              onChange={(e) => {
+                setLocalSearch(e.target.value);
+                setPage(1);
+              }}
+              className="w-full sm:w-64 bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+            />
+          </div>
         </div>
 
         {/* Table body */}
@@ -140,17 +190,19 @@ export default function InventorySuppliers() {
               </tr>
             </thead>
             <tbody>
-              {suppliers.length === 0 ? (
+              {pageItems.length === 0 ? (
                 <tr>
                   <td
                     colSpan={5}
                     className="py-14 text-center text-slate-400 text-sm"
                   >
-                    Chưa có nhà cung cấp nào...
+                    {effectiveSearch
+                      ? "Không tìm thấy nhà cung cấp phù hợp..."
+                      : "Chưa có nhà cung cấp nào..."}
                   </td>
                 </tr>
               ) : (
-                suppliers.map((s) => (
+                pageItems.map((s) => (
                   <tr
                     key={s.id}
                     className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors group"
@@ -207,6 +259,38 @@ export default function InventorySuppliers() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between flex-wrap gap-3">
+          <span className="text-xs font-medium text-slate-400">
+            Hiển thị {pageItems.length} / {filtered.length} nhà cung cấp
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={safePage === 1}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                onClick={() => setPage(n)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-colors ${n === safePage ? "bg-[#00285E] text-white shadow-sm" : "border border-slate-200 text-slate-600 hover:bg-white"}`}
+              >
+                {n}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage === totalPages}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       </div>
 

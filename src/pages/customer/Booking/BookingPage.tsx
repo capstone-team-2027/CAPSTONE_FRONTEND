@@ -20,6 +20,11 @@ import ComboServicesSelector from './ComboServicesSelector';
 import InlineCalendar from './InlineCalendar';
 import type { ServiceCombo, ServiceItem } from '../../../model/Service';
 
+const DEFAULT_SHIFTS = [
+    { start_time: '08:00', end_time: '12:00' },
+    { start_time: '13:00', end_time: '17:00' },
+];
+
 
 
 export default function BookingPage() {
@@ -51,7 +56,7 @@ export default function BookingPage() {
     const [notes, setNotes] = useState('');
 
     // Garage configuration states
-    const [shifts, setShifts] = useState<any[]>([]);
+    const [shifts, setShifts] = useState<any[]>(DEFAULT_SHIFTS);
     const [bufferMinutes, setBufferMinutes] = useState<number>(90);
 
     // Form States
@@ -260,14 +265,17 @@ export default function BookingPage() {
                 // Fetch availability
                 const dateParam = bookingDate ? `?date=${bookingDate}` : '';
                 const availRes = await fetchPublic(GARAGE_CONFIG_API_ENDPOINTS.GET_AVAILABILITY + dateParam);
-                if (availRes && availRes.success && availRes.data) {
-                    const data = availRes.data;
-                    if (data.shifts) setShifts(data.shifts);
+                const data = availRes?.data ?? availRes;
+                if (data) {
+                    if (Array.isArray(data.shifts)) {
+                        setShifts(data.shifts.length > 0 ? data.shifts : DEFAULT_SHIFTS);
+                    }
                     if (data.capacity !== undefined) setGarageCapacity(data.capacity);
                     if (data.bookedCounts) setBookedCounts(data.bookedCounts);
                 }
             } catch (error) {
                 console.error("Lỗi khi tải dữ liệu ca làm việc và tình trạng sức chứa:", error);
+                setShifts(DEFAULT_SHIFTS);
             }
         };
         loadGarageConfigs();
@@ -2129,6 +2137,11 @@ export default function BookingPage() {
                                                 {t('booking.step2.timeLabel', 'Chọn khung giờ')}
                                             </label>
                                             <div className="grid grid-cols-2 gap-3">
+                                                {timeSlots.length === 0 && (
+                                                    <div className="col-span-2 rounded-xl border border-amber-100 bg-amber-50/60 p-4 text-sm font-semibold text-amber-700">
+                                                        {t('booking.step2.noTimeSlots', 'Chưa có khung giờ khả dụng cho ngày này.')}
+                                                    </div>
+                                                )}
                                                 {timeSlots.map((slot) => {
                                                     const isSelected = bookingTime === slot.time;
                                                     return (
