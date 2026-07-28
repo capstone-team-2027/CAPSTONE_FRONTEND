@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useFetchClient_v2 as useFetchClient } from '../../../hook/useFetchClient';
 import { TASK_ASSIGNMENT_ENDPOINTS } from '../../../constants/technician/taskAssignmentEndpoint';
-import { ChevronLeft, Loader2, Calendar, User, Car, CheckSquare, Clock } from 'lucide-react';
+import { ArrowLeft, Loader2, Calendar, User, Car, CheckSquare, Clock } from 'lucide-react';
 
 interface TechnicianRef {
   fullName?: string;
@@ -98,12 +98,13 @@ export default function TechnicianAssignmentsDetail() {
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-5xl w-full mx-auto">
       {/* HEADER */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-start gap-3">
         <button
           onClick={() => navigate(-1)}
-          className="p-2 rounded-xl bg-white border border-slate-200/60 shadow-xs hover:bg-slate-50 transition-colors"
+          title="Quay lại"
+          className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
         >
-          <ChevronLeft size={20} className="text-slate-600" />
+          <ArrowLeft size={24} />
         </button>
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
+  ArrowLeft,
   Car,
   Filter,
   History,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 import { useFetchClient_v2 as useFetchClient } from "../../../hook/useFetchClient";
 import { TASK_ASSIGNMENT_ENDPOINTS } from "../../../constants/technician/taskAssignmentEndpoint";
+import { useNavigate } from "react-router-dom";
 
 interface WorkHistoryItem {
   id: number;
@@ -80,6 +82,7 @@ const formatStatus = (status: string) =>
   status === "COMPLETED" ? "Hoàn thành" : status;
 
 export default function TechnicianWorkHistory() {
+  const navigate = useNavigate();
   const { fetchPrivate } = useFetchClient();
   const [workHistory, setWorkHistory] = useState<WorkHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -220,14 +223,23 @@ export default function TechnicianWorkHistory() {
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight">
-          <History size={28} className="text-[#F9A11B]" />
-          Lịch sử công việc
-        </h1>
-        <p className="mt-2 text-sm text-slate-500">
-          Theo dõi các công việc kỹ thuật viên đã thực hiện và hoàn thành.
-        </p>
+      <div className="flex items-start gap-3">
+        <button
+          onClick={() => navigate(-1)}
+          title="Quay lại"
+          className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+        >
+          <ArrowLeft size={24} />
+        </button>
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight">
+            <History size={28} className="text-[#F9A11B]" />
+            Lịch sử công việc
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Theo dõi các công việc kỹ thuật viên đã thực hiện và hoàn thành.
+          </p>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-xs">

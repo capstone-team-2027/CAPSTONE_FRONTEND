@@ -12,6 +12,7 @@ import {
   Eye,
   PlayCircle,
   AlertCircle,
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -39,6 +40,7 @@ import type {
 interface AssignmentTask {
   taskId: number;
   serviceName: string;
+  repairIssue?: string;
   // Dùng cho modal tiến độ công việc
   taskAssignmentId?: number;
   status?: string;
@@ -99,6 +101,19 @@ interface ServiceTaskApi {
     estimated_duration?: number | null;
   };
   assignments?: TaskAssignmentApi[];
+  quotationItem?: {
+    id?: number;
+    quantity?: number;
+    issue?: {
+      id?: number;
+      error_description?: string | null;
+      note?: string | null;
+      component?: {
+        id?: number;
+        name?: string | null;
+      } | null;
+    } | null;
+  } | null;
 }
 
 interface ServiceOrderApi {
@@ -163,6 +178,18 @@ const ASSIGNMENT_STATUSES: Assignment["status"][] = [
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
+const getRepairIssueText = (task?: ServiceTaskApi | null) => {
+  const issue = task?.quotationItem?.issue;
+  const componentName = issue?.component?.name?.trim() ?? "";
+  const errorDescription = issue?.error_description?.trim() ?? "";
+
+  if (componentName && errorDescription) {
+    return `${componentName} - ${errorDescription}`;
+  }
+
+  return componentName || errorDescription || "";
+};
+
 const ASSIGNMENT_STATUS_CONFIG: Record<
   string,
   { label: string; className: string; icon: React.ElementType }
@@ -214,6 +241,7 @@ export default function TechnicianAssignments() {
   const [issueReportOpen, setIssueReportOpen] = useState(false);
   const [issueReportAssignment, setIssueReportAssignment] =
     useState<Assignment | null>(null);
+  const [showIncidentIssueReport, setShowIncidentIssueReport] = useState(false);
   const [issueTaskId, setIssueTaskId] = useState<number | null>(null);
   const [issueChecklist, setIssueChecklist] = useState<IssueChecklistItem[]>(
     [],
@@ -258,13 +286,76 @@ export default function TechnicianAssignments() {
   >({});
   const [confirmTask, setConfirmTask] = useState<AssignmentTask | null>(null);
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null);
+  const [taskActionMenuId, setTaskActionMenuId] = useState<number | null>(null);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  const updateTaskStatusInModal = (
+    task: AssignmentTask,
+    status: AssignmentTask["status"],
+  ) => {
+    const updateTask = (item: AssignmentTask) =>
+      item.taskId === task.taskId ? { ...item, status } : item;
+
+    setIssueReportAssignment((prev) =>
+      prev ? { ...prev, tasks: prev.tasks.map(updateTask) } : prev,
+    );
+    setAssignments((prev) =>
+      prev.map((assignment) =>
+        assignment.serviceOrderId === issueReportAssignment?.serviceOrderId
+          ? { ...assignment, tasks: assignment.tasks.map(updateTask) }
+          : assignment,
+      ),
+    );
+  };
+
+  const changeTaskRunningStatus = async (
+    task: AssignmentTask,
+    action: "pause" | "resume",
+  ) => {
+    if (!task.taskAssignmentId) {
+      showToast("Không tìm thấy thông tin phân công của công việc này.", "warning");
+      return;
+    }
+
+    setTaskActionMenuId(null);
+    setCompletingTaskId(task.taskId);
+    try {
+      await fetchPrivate(
+        action === "pause"
+          ? TASK_ASSIGNMENT_ENDPOINTS.PAUSE_TASK
+          : TASK_ASSIGNMENT_ENDPOINTS.RESUME_TASK,
+        "PUT",
+        {
+          taskAssignmentId: task.taskAssignmentId,
+          ...(action === "pause" ? { reason: null } : {}),
+        },
+      );
+      updateTaskStatusInModal(task, action === "pause" ? "PAUSED" : "IN_PROGRESS");
+      showToast(
+        action === "pause"
+          ? "Đã tạm dừng công việc."
+          : "Đã tiếp tục công việc.",
+        "success",
+      );
+      setRefreshKey((prev) => prev + 1);
+    } catch (error: unknown) {
+      console.error("Lỗi khi cập nhật trạng thái công việc:", error);
+      showToast(
+        getErrorMessage(error, "Đã xảy ra lỗi khi cập nhật trạng thái công việc."),
+        "warning",
+      );
+    } finally {
+      setCompletingTaskId(null);
+    }
+  };
+
   const completeTaskInModal = async (task: AssignmentTask) => {
     if (!task.taskAssignmentId) {
       showToast("Không tìm thấy thông tin phân công của công việc này.", "warning");
       return;
     }
     setConfirmTask(null);
+    setTaskActionMenuId(null);
     setCompletingTaskId(task.taskId);
     try {
       await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.COMPLETE_TASK, "PATCH", {
@@ -334,6 +425,7 @@ export default function TechnicianAssignments() {
     setCatSearch("");
     setLookupTerm("");
     setRepairExperienceByTask({});
+    setShowIncidentIssueReport(false);
     setIssueReportOpen(true);
   };
 
@@ -521,11 +613,12 @@ export default function TechnicianAssignments() {
                     (item) => item.id === selectedAssignment?.id,
                   ) ?? t.assignments?.[0];
                 return {
-                taskId: t.id,
-                serviceName: t.catalog?.service_name || `Task #${t.id}`,
-                taskAssignmentId: taskAssignment?.id,
-                status: taskAssignment?.status ?? t.status,
-                estimatedDuration: t.catalog?.estimated_duration ?? null,
+                  taskId: t.id,
+                  serviceName: t.catalog?.service_name || `Task #${t.id}`,
+                  repairIssue: getRepairIssueText(t),
+                  taskAssignmentId: taskAssignment?.id,
+                  status: taskAssignment?.status ?? t.status,
+                  estimatedDuration: t.catalog?.estimated_duration ?? null,
                 };
               }),
               appointmentDate: aptDate.toISOString(),
@@ -894,13 +987,60 @@ export default function TechnicianAssignments() {
         payload,
       );
       // BE tự complete task + chuyển order sang PENDING_QUOTATION
+      setShowIncidentIssueReport(false);
       setIssueReportOpen(false);
-      showToast("Đã hoàn tất kiểm tra và gửi báo cáo!", "success");
+      showToast(
+        issueReportAssignment?.taskType === "INSPECTION"
+          ? "Đã hoàn tất kiểm tra và gửi báo cáo!"
+          : "Đã gửi báo cáo lỗi phát sinh!",
+        "success",
+      );
       setRefreshKey((prev) => prev + 1);
     } catch (error: unknown) {
       console.error("Lỗi khi tạo báo cáo:", error);
       showToast(
         getErrorMessage(error, "Đã xảy ra lỗi khi tạo báo cáo."),
+        "warning",
+      );
+    } finally {
+      setIsSubmittingIssueReport(false);
+    }
+  };
+
+  const handleCreateAdditionalIssuesReport = async () => {
+    if (!issueTaskId) {
+      showToast("Không tìm thấy thông tin công việc.", "warning");
+      return;
+    }
+    if (checkedIssueItems.length === 0) {
+      showToast("Chọn ít nhất một hạng mục lỗi phát sinh để báo cáo.", "warning");
+      return;
+    }
+    const payload: CreateIssueReportRequest = {
+      task_id: issueTaskId,
+      issues: checkedIssueItems.map((item) => ({
+        component_id: item.component_id,
+        description: item.description,
+      })),
+      note: issueNote.trim() || undefined,
+    };
+    try {
+      setIsSubmittingIssueReport(true);
+      await fetchPrivate(
+        TASK_ASSIGNMENT_ENDPOINTS.ADDITIONAL_ISSUES_REPORT,
+        "POST",
+        payload,
+      );
+      setShowIncidentIssueReport(false);
+      showToast("Đã gửi báo cáo lỗi phát sinh!", "success");
+      setRefreshKey((prev) => prev + 1);
+    } catch (error: unknown) {
+      console.error("Lỗi khi tạo báo cáo lỗi phát sinh:", error);
+      showToast(
+        getErrorMessage(
+          error,
+          "Đã xảy ra lỗi khi tạo báo cáo lỗi phát sinh.",
+        ),
         "warning",
       );
     } finally {
@@ -966,14 +1106,23 @@ export default function TechnicianAssignments() {
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* HEADER */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
-          <CheckSquare className="text-[#F9A11B]" size={28} />
-          Quản lý phân công
-        </h1>
-        <p className="text-slate-500 text-sm">
-          Xem và quản lý trạng thái phân công công việc sửa chữa.
-        </p>
+      <div className="flex items-start gap-3">
+        <button
+          onClick={() => navigate(-1)}
+          title="Quay lại"
+          className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+        >
+          <ArrowLeft size={24} />
+        </button>
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
+            <CheckSquare className="text-[#F9A11B]" size={28} />
+            Quản lý phân công
+          </h1>
+          <p className="text-slate-500 text-sm">
+            Xem và quản lý trạng thái phân công công việc sửa chữa.
+          </p>
+        </div>
       </div>
 
       {/* KPI CARDS */}
@@ -1364,12 +1513,14 @@ export default function TechnicianAssignments() {
                   </h3>
                 </div>
               </div>
-              <button
-                onClick={() => setIssueReportOpen(false)}
-                className="relative p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
-              >
-                <X size={18} />
-              </button>
+              <div className="relative flex items-center gap-2">
+                <button
+                  onClick={() => setIssueReportOpen(false)}
+                  className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             <div className="overflow-y-auto flex-1 px-7 py-6 space-y-6 bg-slate-50/50">
@@ -1517,7 +1668,13 @@ export default function TechnicianAssignments() {
                         const isDone =
                           t.status === "COMPLETED" ||
                           t.status === "PENDING_QC";
+                        const isPaused = t.status === "PAUSED";
                         const isSending = completingTaskId === t.taskId;
+                        const taskStatusLabel = isDone
+                          ? "Đã xong"
+                          : isPaused
+                            ? "Tạm dừng"
+                            : "Đang thực hiện";
                         return (
                           <div
                             key={t.taskId}
@@ -1537,20 +1694,18 @@ export default function TechnicianAssignments() {
                                 <p className="text-sm font-semibold text-slate-800 truncate">
                                   {t.serviceName}
                                 </p>
+                                {t.repairIssue ? (
+                                  <div className="mt-1.5 inline-flex max-w-full rounded-lg border border-amber-100 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                                    <span className="truncate">
+                                      Vấn đề đang sửa: {t.repairIssue}
+                                    </span>
+                                  </div>
+                                ) : null}
                                 <div className="flex items-center gap-2 mt-0.5">
-                                  <span
-                                    className={`inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded ${
-                                      isDone
-                                        ? "bg-emerald-50 text-emerald-600"
-                                        : "bg-blue-50 text-blue-600"
-                                    }`}
-                                  >
-                                    {isDone ? "Đã xong" : "Đang thực hiện"}
-                                  </span>
                                   {t.estimatedDuration ? (
                                     <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
                                       <Clock size={10} />
-                                      {t.estimatedDuration} phút
+                                      Ước tính: {t.estimatedDuration} phút
                                     </span>
                                   ) : null}
                                 </div>
@@ -1567,18 +1722,66 @@ export default function TechnicianAssignments() {
                                   Đang kiểm tra
                                 </span>
                               ) : (
-                                <button
-                                  onClick={() => setConfirmTask(t)}
-                                  disabled={isSending}
-                                  className="inline-flex self-start sm:self-auto items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 active:scale-[0.97] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  {isSending ? (
-                                    <Loader2 size={13} className="animate-spin" />
-                                  ) : (
-                                    <CheckCircle2 size={13} />
-                                  )}
-                                  {isSending ? "Đang gửi..." : "Hoàn thành"}
-                                </button>
+                                <div className="relative self-start sm:self-auto">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setTaskActionMenuId((current) =>
+                                        current === t.taskId ? null : t.taskId,
+                                      )
+                                    }
+                                    disabled={isSending}
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border active:scale-[0.97] transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                                      isPaused
+                                        ? "text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100"
+                                        : "text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100"
+                                    }`}
+                                  >
+                                    {isSending ? (
+                                      <Loader2 size={13} className="animate-spin" />
+                                    ) : (
+                                      <Clock size={13} />
+                                    )}
+                                    {isSending ? "Đang xử lý..." : taskStatusLabel}
+                                    <ChevronDown size={12} />
+                                  </button>
+
+                                  {taskActionMenuId === t.taskId ? (
+                                    <div className="absolute right-0 top-full z-20 mt-2 w-36 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                                      {isPaused ? (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            changeTaskRunningStatus(t, "resume")
+                                          }
+                                          className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                                        >
+                                          Tiếp tục
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            changeTaskRunningStatus(t, "pause")
+                                          }
+                                          className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-amber-700 hover:bg-amber-50"
+                                        >
+                                          Tạm dừng
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setTaskActionMenuId(null);
+                                          setConfirmTask(t);
+                                        }}
+                                        className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                                      >
+                                        Hoàn thành
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </div>
                               )}
                             </div>
                             {issueReportAssignment.taskType === "REPAIR" && (
@@ -1850,13 +2053,338 @@ export default function TechnicianAssignments() {
                   </div>
                 </>
               ) : (
+                <div className="ml-auto flex items-center gap-2.5">
+                  {issueReportAssignment.taskType === "REPAIR" && (
+                    <button
+                      type="button"
+                      onClick={() => setShowIncidentIssueReport(true)}
+                      className="h-11 inline-flex items-center px-5 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/20 hover:brightness-110 active:scale-[0.98] transition-all"
+                    >
+                      Tạo báo cáo lỗi phát sinh
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setIssueReportOpen(false)}
+                    className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all"
+                  >
+                    Đóng
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showIncidentIssueReport && issueReportAssignment && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div
+            onClick={() => setShowIncidentIssueReport(false)}
+            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+          />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5">
+            <div
+              className="flex items-center justify-between px-6 py-4 shrink-0"
+              style={{ backgroundColor: "#00285E" }}
+            >
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="w-9 h-9 rounded-xl text-white flex items-center justify-center"
+                  style={{ backgroundColor: "#F9A11B" }}
+                >
+                  <AlertCircle size={16} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white leading-tight">
+                    Tạo báo cáo lỗi phát sinh
+                  </h3>
+                  <span className="text-xs font-semibold text-white/60">
+                    {issueReportAssignment.vehiclePlate || "—"} ·{" "}
+                    {issueReportAssignment.vehicleModel || "—"}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowIncidentIssueReport(false)}
+                className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-7 py-6 space-y-5 bg-slate-50/50">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-[#EDF3FF] rounded-2xl border border-[#c7d7f0] p-4">
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <Users size={13} className="text-[#00285E]" />
+                    <span className="text-[10px] font-bold text-[#00285E] uppercase tracking-widest">
+                      Khách hàng
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-baseline gap-2">
+                      <span className="w-12 shrink-0 text-xs text-slate-500">
+                        Tên:
+                      </span>
+                      <span className="text-sm font-semibold text-slate-800 truncate">
+                        {issueReportAssignment.customerName}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="w-12 shrink-0 text-xs text-slate-500">
+                        SĐT:
+                      </span>
+                      <span className="text-sm font-semibold text-slate-800 truncate">
+                        {issueReportAssignment.customerPhone || "—"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-amber-50 rounded-2xl border border-amber-100 p-4">
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <Car size={13} className="text-amber-700" />
+                    <span className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">
+                      Phương tiện
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-baseline gap-2">
+                      <span className="w-16 shrink-0 text-xs text-slate-500">
+                        Biển số:
+                      </span>
+                      <span className="text-sm font-semibold text-slate-800 truncate">
+                        {issueReportAssignment.vehiclePlate || "—"}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="w-16 shrink-0 text-xs text-slate-500">
+                        Xe:
+                      </span>
+                      <span className="text-sm font-semibold text-slate-800 truncate">
+                        {issueReportAssignment.vehicleModel || "—"}
+                        {issueReportAssignment.vehicleColor
+                          ? ` · ${issueReportAssignment.vehicleColor}`
+                          : ""}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                    <AlertCircle size={14} className="text-slate-500" />
+                    Ghi nhận lỗi phát sinh
+                  </label>
+                  {checkedIssueItems.length > 0 && (
+                    <span
+                      className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                      style={{ backgroundColor: "#00285E", color: "#fff" }}
+                    >
+                      {checkedIssueItems.length} lỗi đã chọn
+                    </span>
+                  )}
+                </div>
+
+                <div className="relative mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setCatDropdownOpen((v) => !v)}
+                    className="w-full flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-left text-sm text-slate-700 hover:border-slate-300 focus:outline-none focus:border-[#00285E] transition-colors"
+                  >
+                    <span
+                      className={
+                        pickedCategories.length === 0 ? "text-slate-400" : ""
+                      }
+                    >
+                      {pickedCategories.length === 0
+                        ? "Chọn nhóm lỗi cần ghi nhận..."
+                        : `Đã chọn ${pickedCategories.length} nhóm`}
+                    </span>
+                    <ChevronDown
+                      size={16}
+                      className={`text-slate-400 shrink-0 transition-transform ${
+                        catDropdownOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {catDropdownOpen && (
+                    <div className="absolute z-10 mt-1.5 w-full rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+                      <div className="p-2 border-b border-slate-100">
+                        <div className="relative">
+                          <Search
+                            size={14}
+                            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                          />
+                          <input
+                            autoFocus
+                            type="text"
+                            value={catSearch}
+                            onChange={(e) => setCatSearch(e.target.value)}
+                            placeholder="Tìm nhóm hoặc tên lỗi..."
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-2.5 py-1.5 text-sm focus:outline-none focus:border-[#00285E] transition-colors"
+                          />
+                        </div>
+                      </div>
+                      <div className="max-h-56 overflow-y-auto py-1">
+                        {categoryOptions.length === 0 ? (
+                          <p className="px-3 py-4 text-center text-xs text-slate-400">
+                            Không tìm thấy nhóm lỗi phù hợp.
+                          </p>
+                        ) : (
+                          categoryOptions.map((g) => {
+                            const picked = pickedCategories.includes(
+                              g.category,
+                            );
+                            return (
+                              <button
+                                key={g.category}
+                                type="button"
+                                onClick={() => {
+                                  toggleCategory(g.category);
+                                  setCatSearch("");
+                                  setCatDropdownOpen(false);
+                                }}
+                                className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-slate-50 transition-colors"
+                              >
+                                <span className="min-w-0">
+                                  <span className="text-sm text-slate-700 block truncate">
+                                    {g.category}
+                                  </span>
+                                  <span className="text-[11px] text-slate-400">
+                                    {g.items.length} lỗi
+                                  </span>
+                                </span>
+                                <span
+                                  className={`shrink-0 w-4 h-4 rounded flex items-center justify-center border transition-colors ${
+                                    picked
+                                      ? "bg-[#00285E] border-[#00285E] text-white"
+                                      : "border-slate-300"
+                                  }`}
+                                >
+                                  {picked && <CheckCircle2 size={11} />}
+                                </span>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {pickedGroups.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic px-1 py-4 text-center bg-white rounded-2xl border border-dashed border-slate-200">
+                    Chọn nhóm lỗi ở trên để hiển thị danh sách lỗi phát sinh.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {pickedGroups.map((group) => (
+                      <div
+                        key={group.category}
+                        className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden"
+                      >
+                        <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
+                          <span className="text-sm font-semibold text-[#00285E]">
+                            {group.category}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeCategory(group.category)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+                        <div className="divide-y divide-slate-100">
+                          {group.items.map((item) => (
+                            <div key={item.component_id} className="p-3">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={item.checked}
+                                  onChange={() =>
+                                    toggleIssueChecklistItem(item.component_id)
+                                  }
+                                  className="w-4 h-4 accent-[#00285E]"
+                                />
+                                <span className="text-sm font-semibold text-slate-700">
+                                  {item.component_name}
+                                </span>
+                              </label>
+                              {item.checked && (
+                                <textarea
+                                  rows={2}
+                                  value={item.description}
+                                  onChange={(e) =>
+                                    updateIssueChecklistDescription(
+                                      item.component_id,
+                                      e.target.value,
+                                    )
+                                  }
+                                  placeholder="Mô tả lỗi phát sinh..."
+                                  className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors resize-none"
+                                />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">
+                  Ghi chú
+                </label>
+                <textarea
+                  rows={3}
+                  value={issueNote}
+                  onChange={(e) => setIssueNote(e.target.value)}
+                  placeholder="Ghi chú thêm cho báo cáo lỗi phát sinh..."
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
+              <span className="text-xs text-slate-400">
+                {checkedIssueItems.length > 0
+                  ? `${checkedIssueItems.length} lỗi sẽ được báo cáo`
+                  : "Chọn lỗi phát sinh để gửi báo cáo"}
+              </span>
+              <div className="flex items-center gap-2.5">
                 <button
-                  onClick={() => setIssueReportOpen(false)}
-                  className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all ml-auto"
+                  onClick={() => setShowIncidentIssueReport(false)}
+                  disabled={isSubmittingIssueReport}
+                  className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-40"
                 >
                   Đóng
                 </button>
-              )}
+                <button
+                  onClick={handleCreateAdditionalIssuesReport}
+                  disabled={
+                    isSubmittingIssueReport || checkedIssueItems.length === 0
+                  }
+                  className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/25 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isSubmittingIssueReport ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" />
+                      Đang gửi...
+                    </>
+                  ) : (
+                    <>
+                      <ClipboardList size={15} />
+                      Gửi báo cáo lỗi phát sinh
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

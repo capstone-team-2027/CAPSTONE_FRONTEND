@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import {
+  ArrowLeft,
   CheckCircle2,
   Loader2,
 } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { TASK_ASSIGNMENT_ENDPOINTS } from '../../../constants/technician/taskAssignmentEndpoint';
 
@@ -13,11 +14,24 @@ interface RepairTask {
   // id của Task_Assignment - dùng khi gọi API hoàn thành công việc
   taskAssignmentId?: number;
   name: string;
+  repairIssue?: string;
   category: string;
   status: 'not_started' | 'in_progress' | 'completed' | 'blocked';
   progress: number;
   estimatedTime: string;
 }
+
+const getRepairIssueText = (task: any) => {
+  const issue = task?.quotationItem?.issue;
+  const componentName = issue?.component?.name?.trim?.() ?? '';
+  const errorDescription = issue?.error_description?.trim?.() ?? '';
+
+  if (componentName && errorDescription) {
+    return `${componentName} - ${errorDescription}`;
+  }
+
+  return componentName || errorDescription || '';
+};
 
 // Trạng thái assignment bên BE -> trạng thái hiển thị ở FE
 const mapAssignmentStatus = (status?: string): RepairTask['status'] => {
@@ -52,6 +66,7 @@ const EMPTY_VEHICLE_INFO = {
 
 export default function TechnicianUpdateProgress() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
 
   const { fetchPrivate } = useFetchClient();
 
@@ -84,6 +99,7 @@ export default function TechnicianUpdateProgress() {
           id: String(t.id),
           taskAssignmentId: assignment?.id,
           name: t.catalog?.service_name || `Công việc #${t.id}`,
+          repairIssue: getRepairIssueText(t),
           category: t.catalog?.service_name ? 'Dịch vụ' : 'Khác',
           status,
           progress: status === 'completed' ? 100 : 0,
@@ -178,13 +194,22 @@ export default function TechnicianUpdateProgress() {
       `}</style>
 
       {/* TITLE */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
-          Cập nhật tiến độ sửa chữa
-        </h1>
-        <p className="text-slate-500 text-sm">
-          Đánh dấu hoàn thành từng hạng mục được phân công.
-        </p>
+      <div className="flex items-start gap-3">
+        <button
+          onClick={() => navigate(-1)}
+          title="Quay lại"
+          className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+        >
+          <ArrowLeft size={24} />
+        </button>
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
+            Cập nhật tiến độ sửa chữa
+          </h1>
+          <p className="text-slate-500 text-sm">
+            Đánh dấu hoàn thành từng hạng mục được phân công.
+          </p>
+        </div>
       </div>
 
       {/* HERO: thông tin xe + tiến độ tổng */}
@@ -300,6 +325,13 @@ export default function TechnicianUpdateProgress() {
                   <span className="text-xs text-slate-400">
                     {task.category} · {task.estimatedTime}
                   </span>
+                  {task.repairIssue ? (
+                    <div className="mt-1.5 inline-flex max-w-full rounded-lg border border-amber-100 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                      <span className="truncate">
+                        Vấn đề đang sửa: {task.repairIssue}
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
