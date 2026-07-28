@@ -636,28 +636,31 @@ export default function ReceptionLayout() {
           <div className="flex items-center gap-6">
             {/* Quick action buttons */}
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => i18n.changeLanguage('vi')}
-                className={`px-3 py-2 rounded-full text-xs font-bold transition ${i18n.language === 'vi' ? 'bg-[#00285E] text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
-              >
-                VI
-              </button>
-              <button
-                onClick={() => i18n.changeLanguage('en')}
-                className={`px-3 py-2 rounded-full text-xs font-bold transition ${i18n.language.startsWith('en') ? 'bg-[#00285E] text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
-              >
-                EN
-              </button>
+              <div className="flex items-center gap-1 border border-slate-200 rounded-full p-0.5 bg-slate-50 select-none">
+                <button
+                  onClick={() => i18n.changeLanguage('vi')}
+                  className={`px-2.5 py-1 text-[10px] font-bold rounded-full transition-all ${i18n.language === 'vi' ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  VI
+                </button>
+                <button
+                  onClick={() => i18n.changeLanguage('en')}
+                  className={`px-2.5 py-1 text-[10px] font-bold rounded-full transition-all ${i18n.language.startsWith('en') ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  EN
+                </button>
+              </div>
               <div className="relative" ref={desktopNotifRef}>
                 <button
                   onClick={() =>
                     setShowNotificationDropdown(!showNotificationDropdown)
                   }
-                  className="p-2.5 rounded-full hover:bg-slate-50 border border-slate-100 transition-colors text-slate-600 relative group"
+                  title="Thông báo"
+                  className="w-10 h-10 rounded-xl flex items-center justify-center bg-white text-[#00285E] hover:bg-slate-50 transition-colors relative"
                 >
                   <Bell size={18} />
                   {unreadCount > 0 && (
-                    <span className="absolute top-0 right-0 flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full ring-2 ring-white">
+                    <span className="absolute top-1.5 right-1.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full ring-2 ring-white">
                       {unreadCount > 99 ? "99+" : unreadCount}
                     </span>
                   )}
@@ -666,7 +669,8 @@ export default function ReceptionLayout() {
               </div>
               <button
                 onClick={() => showToast("Mở trung tâm trợ giúp...", "info")}
-                className="p-2.5 rounded-full hover:bg-slate-50 border border-slate-100 transition-colors text-slate-600"
+                title="Trợ giúp"
+                className="w-10 h-10 rounded-xl flex items-center justify-center bg-white text-[#00285E] hover:bg-slate-50 transition-colors"
               >
                 <HelpCircle size={18} />
               </button>
