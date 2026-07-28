@@ -3,7 +3,6 @@ import type { ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     LayoutDashboard,
-    Car,
     Calendar,
     Settings,
     HelpCircle,
@@ -13,13 +12,14 @@ import {
     ShieldCheck,
     Clock,
     MapPin,
+    ReceiptText,
 } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { logout, loginSuccess } from '../../../store/slices/userSlice';
 
 import DashboardTab from './DashboardTab';
-import VehiclesTab from './VehiclesTab';
+import QuoteTrackingTab from './QuoteTrackingTab';
 import AppointmentsTab from './AppointmentsTab';
 import SettingsTab from './SettingsTab';
 import HistoryTab from './HistoryTab';
@@ -33,7 +33,7 @@ import { PROFILE_API_ENDPOINTS } from '../../../constants/customer/profileApiEnd
 
 const MENU_ITEMS = [
     { id: 'dashboard', label: 'Hồ sơ người dùng', icon: LayoutDashboard },
-    { id: 'vehicles', label: 'Xe sở hữu', icon: Car },
+    { id: 'quoteTracking', label: 'Theo dõi báo giá', icon: ReceiptText },
     { id: 'appointments', label: 'Lịch hẹn', icon: Calendar },
     { id: 'history', label: 'Lịch sử sửa chữa', icon: History },
     { id: 'warranty', label: 'Bảo hành', icon: ShieldCheck },
@@ -369,8 +369,8 @@ export default function UserProfile() {
                     />
                 );
 
-            case 'vehicles':
-                return <VehiclesTab />;
+            case 'quoteTracking':
+                return <QuoteTrackingTab />;
 
             case 'appointments':
                 return <AppointmentsTab />;
