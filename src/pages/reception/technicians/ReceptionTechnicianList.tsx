@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
+  ArrowLeft,
   Wrench, 
   Phone, 
   Star, 
@@ -13,8 +14,10 @@ import {
 } from 'lucide-react';
 import { RECEPTION_API } from '../../../constants/reception/receptionApiEndpoint';
 import { useFetchClient_v2 } from '../../../hook/useFetchClient';
+import { useNavigate } from 'react-router-dom';
 
 const ReceptionTechnicianList = () => {
+  const navigate = useNavigate();
   const [technicians, setTechnicians] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -106,19 +109,28 @@ const ReceptionTechnicianList = () => {
     <div className="flex-1 p-6 lg:p-8 max-w-[1600px] mx-auto w-full space-y-8">
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#00285E] to-blue-700 flex items-center justify-center shadow-lg shadow-blue-900/20">
-              <Wrench size={20} className="text-white" />
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#00285E] to-blue-700 flex items-center justify-center shadow-lg shadow-blue-900/20">
+                <Wrench size={20} className="text-white" />
+              </div>
+              <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
+                Kỹ thuật viên làm việc hôm nay
+              </h1>
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
-              Kỹ thuật viên làm việc hôm nay
-            </h1>
+            <p className="text-slate-500 text-sm flex items-center gap-2 font-medium">
+              <CalendarDays size={16} />
+              Danh sách nhân sự kỹ thuật có mặt tại Gara trong ngày
+            </p>
           </div>
-          <p className="text-slate-500 text-sm flex items-center gap-2 font-medium">
-            <CalendarDays size={16} />
-            Danh sách nhân sự kỹ thuật có mặt tại Gara trong ngày
-          </p>
         </div>
 
         <div className="relative w-full md:w-80">
@@ -142,25 +154,26 @@ const ReceptionTechnicianList = () => {
       ) : (
         <AnimatePresence mode="wait">
           {filteredTechnicians.length > 0 ? (
-            <motion.div 
-              variants={containerVariants}
-              initial="hidden"
-              animate="show"
-              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
-            >
-              {paginatedTechnicians.map((tech) => {
-                const isLeader = tech.role?.roleCode === 'TECHNICIAN_LEADER';
-                const avatarInitial = tech.fullName ? tech.fullName.charAt(0).toUpperCase() : 'T';
-                
-                return (
-                  <motion.div 
-                    key={tech.id} 
-                    variants={itemVariants}
-                    whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                    className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs hover:shadow-xl hover:border-blue-200 transition-all duration-300 relative group overflow-hidden"
-                  >
-                    {/* Top Right Decoration */}
-                    <div className="absolute -top-10 -right-10 w-24 h-24 bg-blue-50 rounded-full blur-2xl group-hover:bg-blue-100 transition-colors"></div>
+            <>
+              <motion.div 
+                variants={containerVariants}
+                initial="hidden"
+                animate="show"
+                className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+              >
+                {paginatedTechnicians.map((tech) => {
+                  const isLeader = tech.role?.roleCode === 'TECHNICIAN_LEADER';
+                  const avatarInitial = tech.fullName ? tech.fullName.charAt(0).toUpperCase() : 'T';
+                  
+                  return (
+                    <motion.div 
+                      key={tech.id} 
+                      variants={itemVariants}
+                      whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                      className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs hover:shadow-xl hover:border-blue-200 transition-all duration-300 relative group overflow-hidden"
+                    >
+                      {/* Top Right Decoration */}
+                      <div className="absolute -top-10 -right-10 w-24 h-24 bg-blue-50 rounded-full blur-2xl group-hover:bg-blue-100 transition-colors"></div>
 
                     <div className="flex items-start gap-4 mb-5 relative z-10">
                       <div className="relative">
@@ -225,23 +238,23 @@ const ReceptionTechnicianList = () => {
                         </div>
                       </div>
                     </div>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
 
-            {totalPages > 1 && (
-              <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <span className="text-sm text-slate-500">
-                  Hiển thị {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredTechnicians.length)} trên {filteredTechnicians.length} kỹ thuật viên
-                </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                    className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >Trước</button>
-                  {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+              {totalPages > 1 && (
+                <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <span className="text-sm text-slate-500">
+                    Hiển thị {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredTechnicians.length)} trên {filteredTechnicians.length} kỹ thuật viên
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >Trước</button>
+                    {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page)}
@@ -249,15 +262,16 @@ const ReceptionTechnicianList = () => {
                     >
                       {page}
                     </button>
-                  ))}
-                  <button
-                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >Sau</button>
+                    ))}
+                    <button
+                      onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >Sau</button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </>
           ) : (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}

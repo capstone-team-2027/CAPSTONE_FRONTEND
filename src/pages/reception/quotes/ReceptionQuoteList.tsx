@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import type {
   GetQuotationResponse,
   GetAllSparePartsResponse,
   GetServicesResponse,
 } from "../../../model/dto/quoteManagement.dto";
 import {
+  ArrowLeft,
   History,
   Search,
   Filter,
@@ -315,6 +316,7 @@ const formatDateTime = (dateStr: string) =>
   });
 
 export default function ReceptionQuoteList() {
+  const navigate = useNavigate();
   // TODO: tự viết hàm fetch API rồi setQuotations(data) + setIsLoading
   const [quotations, setQuotations] = useState<GetQuotationResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -1253,14 +1255,23 @@ export default function ReceptionQuoteList() {
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* HEADER */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
-          <History className="text-[#F9A11B]" size={28} />
-          Lịch sử báo giá
-        </h1>
-        <p className="text-slate-500 text-sm">
-          Xem lại các báo giá đã tạo và trạng thái duyệt của khách hàng.
-        </p>
+      <div className="flex items-start gap-3">
+        <button
+          onClick={() => navigate(-1)}
+          title="Quay lại"
+          className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+        >
+          <ArrowLeft size={24} />
+        </button>
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
+            <History className="text-[#F9A11B]" size={28} />
+            Lịch sử báo giá
+          </h1>
+          <p className="text-slate-500 text-sm">
+            Xem lại các báo giá đã tạo và trạng thái duyệt của khách hàng.
+          </p>
+        </div>
       </div>
 
       {/* KPI CARDS */}

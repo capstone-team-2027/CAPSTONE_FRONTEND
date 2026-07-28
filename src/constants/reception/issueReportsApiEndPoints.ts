@@ -2,4 +2,5 @@
   
   export const ISSUE_REPORTS_ENDPOINTS = {
     ISSUES_REPORT: `${API_BASE_URL}/api/receptionist/issues`,
+    ADDITIONAL_ISSUES_REPORT: `${API_BASE_URL}/api/receptionist/issues/additional`,
   }

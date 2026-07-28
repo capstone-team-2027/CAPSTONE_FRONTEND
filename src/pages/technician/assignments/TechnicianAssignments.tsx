@@ -2084,21 +2084,23 @@ export default function TechnicianAssignments() {
           />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5">
             <div
-              className="flex items-center justify-between px-6 py-4 shrink-0"
+              className="relative flex items-start justify-between px-7 pt-7 pb-6 shrink-0 text-white overflow-hidden"
               style={{ backgroundColor: "#00285E" }}
             >
-              <div className="flex items-center gap-2.5">
+              <div className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-white/10" />
+              <div className="absolute -bottom-14 -left-6 w-40 h-40 rounded-full bg-white/5" />
+              <div className="relative flex items-center gap-4">
                 <div
-                  className="w-9 h-9 rounded-xl text-white flex items-center justify-center"
+                  className="flex items-center justify-center w-12 h-12 rounded-2xl shrink-0"
                   style={{ backgroundColor: "#F9A11B" }}
                 >
-                  <AlertCircle size={16} />
+                  <AlertCircle size={22} className="text-white" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white leading-tight">
+                  <h3 className="text-xl font-bold text-white leading-none">
                     Tạo báo cáo lỗi phát sinh
                   </h3>
-                  <span className="text-xs font-semibold text-white/60">
+                  <span className="mt-2 block text-xs font-semibold text-white/60">
                     {issueReportAssignment.vehiclePlate || "—"} ·{" "}
                     {issueReportAssignment.vehicleModel || "—"}
                   </span>
@@ -2106,7 +2108,7 @@ export default function TechnicianAssignments() {
               </div>
               <button
                 onClick={() => setShowIncidentIssueReport(false)}
-                className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+                className="relative p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
               >
                 <X size={18} />
               </button>
@@ -2191,7 +2193,7 @@ export default function TechnicianAssignments() {
                   <button
                     type="button"
                     onClick={() => setCatDropdownOpen((v) => !v)}
-                    className="w-full flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-left text-sm text-slate-700 hover:border-slate-300 focus:outline-none focus:border-[#00285E] transition-colors"
+                    className="w-full flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-left text-sm text-slate-700 hover:border-slate-300 focus:outline-none focus:border-[#00285E] transition-colors"
                   >
                     <span
                       className={
@@ -2346,7 +2348,7 @@ export default function TechnicianAssignments() {
                   value={issueNote}
                   onChange={(e) => setIssueNote(e.target.value)}
                   placeholder="Ghi chú thêm cho báo cáo lỗi phát sinh..."
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors resize-none"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors resize-none"
                 />
               </div>
             </div>

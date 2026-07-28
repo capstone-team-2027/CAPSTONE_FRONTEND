@@ -13,6 +13,7 @@ export interface IssueHistoryUser{
     id: number;
     fullName: string | null;
     phone: string | null;
+    phoneNumber?: string | null;
 }
 export interface IssueHistoryCustomer{
     id: number;

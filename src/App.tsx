@@ -53,6 +53,7 @@ const ReceptionProcessPayment = lazy(() => import("./pages/reception/payments/Re
 const ReceptionQuoteList = lazy(() => import("./pages/reception/quotes/ReceptionQuoteList"));
 const ReceptionQuoteDetail = lazy(() => import("./pages/reception/quotes/ReceptionQuoteDetail"));
 const ReceptionIssueReports = lazy(() => import("./pages/reception/issues-report/ReceptionIssuesReportHistory"));
+const ReceptionAdditionalIssues = lazy(() => import("./pages/reception/issues-report/ReceptionAdditionalIssues"));
 const ReceptionCustomerList = lazy(() => import("./pages/reception/customers/ReceptionCustomerList"));
 const ReceptionRescueCreateServiceOrder = lazy(() => import("./pages/reception/customers/ReceptionRescueCreateServiceOrder"));
 const ReceptionTechnicianList = lazy(() => import("./pages/reception/technicians/ReceptionTechnicianList"));
@@ -173,6 +174,7 @@ function App() {
           <Route path="quotes" element={<ReceptionQuoteList />} />
           <Route path="quotes/:id" element={<ReceptionQuoteDetail />} />
           <Route path="issues" element={<ReceptionIssueReports />} />
+          <Route path="additional-issues" element={<ReceptionAdditionalIssues />} />
           <Route path="technicians" element={<ReceptionTechnicianList />} />
         </Route>
         <Route path="/leader" element={<LeaderLayout />}>

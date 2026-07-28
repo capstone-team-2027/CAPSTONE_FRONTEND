@@ -3,7 +3,7 @@ import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { RECEPTION_API } from '../../../constants/reception/receptionApiEndpoint';
 import { useSocket } from '../../../hook/useSocket';
 import { AssignTechnicianModal } from './AssignTechnicianModal';
-import { MapPin, ClipboardPlus } from 'lucide-react';
+import { ArrowLeft, MapPin, ClipboardPlus } from 'lucide-react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 
 interface User {
@@ -124,9 +124,18 @@ export default function ReceptionCustomerList() {
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto w-full">
       <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Khách hàng & Cứu hộ</h1>
-          <p className="text-slate-500 text-sm mt-1">Quản lý khách hàng và theo dõi yêu cầu cứu hộ khẩn cấp.</p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">Khách hàng & Cứu hộ</h1>
+            <p className="text-slate-500 text-sm mt-1">Quản lý khách hàng và theo dõi yêu cầu cứu hộ khẩn cấp.</p>
+          </div>
         </div>
         <button onClick={loadCustomers} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg transition-colors">
           Làm mới
@@ -245,8 +254,6 @@ export default function ReceptionCustomerList() {
             </tbody>
           </table>
         </div>
-      </div>
-
       </div>
 
       {totalPages > 1 && (

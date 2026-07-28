@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
+  ArrowLeft,
   CalendarCheck,
   Search,
   Filter,
@@ -298,14 +299,23 @@ export default function AppointmentList() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
-            <CalendarCheck className="text-amber-500" size={28} />
-            Danh sách Lịch hẹn
-          </h1>
-          <p className="text-slate-500 text-sm">
-            Quản lý tất cả lịch hẹn dịch vụ — xem chi tiết và tiếp nhận xe.
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
+              <CalendarCheck className="text-amber-500" size={28} />
+              Danh sách Lịch hẹn
+            </h1>
+            <p className="text-slate-500 text-sm">
+              Quản lý tất cả lịch hẹn dịch vụ — xem chi tiết và tiếp nhận xe.
+            </p>
+          </div>
         </div>
       </div>
 

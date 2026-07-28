@@ -235,9 +235,7 @@ export default function ReceptionLayout() {
       label: 'Dịch vụ',
       items: [
         { name: "Lịch hẹn", icon: CalendarCheck, path: "/reception/appointments" },
-        { name: "Lịch sử dịch vụ", icon: History, path: "/reception/service-history" },
         { name: "Quản lý báo giá", icon: FileText, path: "/reception/quotes" },
-        { name: "Thanh toán dịch vụ", icon: CreditCard, path: "/reception/payments" },
         { name: "Quản lý hóa đơn dịch vụ", icon: ClipboardPlus, path: "/reception/service-orders" },
       ],
     },
@@ -252,6 +250,7 @@ export default function ReceptionLayout() {
       label: 'Hỗ trợ',
       items: [
         { name: "Báo cáo lỗi", icon: FileText, path: "/reception/issues" },
+        { name: "Lỗi phát sinh", icon: AlertTriangle, path: "/reception/additional-issues" },
         { name: "Phản hồi khách hàng", icon: MessageSquare, path: "/reception/feedback" },
       ],
     },
@@ -263,10 +262,9 @@ export default function ReceptionLayout() {
   const activeMenu = useMemo(() => {
     const path = location.pathname;
     if (path.includes("/appointments")) return "Lịch hẹn";
+    if (path.includes("/additional-issues")) return "Lỗi phát sinh";
     if (path.includes("/issues")) return "Báo cáo lỗi";
-    if (path.includes("/service-history")) return "Lịch sử dịch vụ";
     if (path.includes("/quotes")) return "Quản lý báo giá";
-    if (path.includes("/payments")) return "Thanh toán dịch vụ";
     if (path.includes('/customers')) return 'Khách hàng & Cứu hộ';
     if (path.includes('/technicians')) return 'Kỹ thuật viên hôm nay';
     if (path.includes("/feedback")) return "Phản hồi khách hàng";
