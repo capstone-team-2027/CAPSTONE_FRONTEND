@@ -124,3 +124,12 @@ export interface GetQuotationResponse {
   task?: QuotationTask | null;
   items: GetQuotationDetailResponse[];
 }
+
+export interface RejectCustomerQuotationRequest {
+  reason: string;
+}
+
+export interface CustomerQuotationActionResponse {
+  message: string;
+  data?: GetQuotationResponse;
+}

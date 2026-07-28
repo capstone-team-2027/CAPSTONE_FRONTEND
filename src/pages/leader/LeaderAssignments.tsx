@@ -693,6 +693,7 @@ export default function LeaderAssignments() {
         </div>
 
         {activeTab === "history" ? (
+          <>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[720px]">
               <thead>
@@ -828,7 +829,9 @@ export default function LeaderAssignments() {
               </div>
             </div>
           )}
+          </>
         ) : (
+          <>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[720px]">
               <thead>
@@ -958,6 +961,7 @@ export default function LeaderAssignments() {
               </div>
             </div>
           )}
+          </>
         )}
       </div>
 

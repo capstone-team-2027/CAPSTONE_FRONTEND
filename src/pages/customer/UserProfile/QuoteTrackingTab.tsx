@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { AlertCircle, CheckCircle2, Clock3, Eye, Filter, Package, ReceiptText, Search, Wallet, Wrench, X, XCircle } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, Clock3, Copy, Eye, Filter, Package, ReceiptText, Search, Wallet, Wrench, X, XCircle } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { PROFILE_API_ENDPOINTS } from '../../../constants/customer/profileApiEndpoint';
-import type { GetQuotationResponse } from '../../../model/dto/quoteManagement.dto';
+import type {
+  CustomerQuotationActionResponse,
+  GetQuotationResponse,
+  RejectCustomerQuotationRequest,
+} from '../../../model/dto/quoteManagement.dto';
 
 type QuoteStatusFilter = 'all' | 'PENDING' | 'PENDING_DEPOSIT' | 'APPROVED' | 'REJECTED';
 type CustomerQuotationRow = GetQuotationResponse & {
@@ -111,9 +115,9 @@ const getItemType = (item: GetQuotationResponse['items'][number]) =>
   item.service_catalog ? 'Dịch vụ' : 'Phụ tùng';
 
 const isAwaitingDeposit = (quote: GetQuotationResponse) =>
+  ['APPROVED', 'PENDING_DEPOSIT'].includes(quote.status) &&
   Number(quote.deposit_amount ?? 0) > 0 &&
-  !quote.deposit_paid_at &&
-  quote.status !== 'REJECTED';
+  !quote.deposit_paid_at;
 
 const getVehicleText = (quote: CustomerQuotationRow) => {
   const vehicle = quote.task?.serviceOrder?.vehicle;
@@ -125,7 +129,7 @@ const getVehicleText = (quote: CustomerQuotationRow) => {
 };
 
 export default function QuoteTrackingTab() {
-  const { fetchPrivate } = useFetchClient();
+  const { fetchPrivate, fetchPublic } = useFetchClient();
   const [pendingQuotes, setPendingQuotes] = useState<GetQuotationResponse[]>([]);
   const [historyQuotes, setHistoryQuotes] = useState<GetQuotationResponse[]>([]);
   const [selectedQuote, setSelectedQuote] = useState<CustomerQuotationRow | null>(null);
@@ -133,6 +137,12 @@ export default function QuoteTrackingTab() {
   const [statusFilter, setStatusFilter] = useState<QuoteStatusFilter>('PENDING');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [showDepositPayment, setShowDepositPayment] = useState(false);
+  const [isDepositPaid, setIsDepositPaid] = useState(false);
 
   const loadPendingQuotations = async () => {
     setIsLoading(true);
@@ -175,6 +185,56 @@ export default function QuoteTrackingTab() {
     void loadHistoryQuotations();
   };
 
+  const handleApproveQuotation = async () => {
+    if (!selectedQuote || isSubmittingAction) return;
+
+    setIsSubmittingAction(true);
+    setActionError('');
+    try {
+      await fetchPrivate<CustomerQuotationActionResponse>(
+        PROFILE_API_ENDPOINTS.APPROVE_QUOTATION(selectedQuote.id),
+        'PATCH',
+      );
+      setSelectedQuote(null);
+      await loadPendingQuotations();
+      setHistoryQuotes([]);
+    } catch (err: any) {
+      setActionError(err?.message || 'Không thể duyệt báo giá.');
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
+
+  const handleRejectQuotation = async () => {
+    if (!selectedQuote || isSubmittingAction) return;
+
+    const reason = rejectReason.trim();
+    if (!reason) {
+      setActionError('Vui lòng nhập lý do từ chối báo giá.');
+      return;
+    }
+
+    const payload: RejectCustomerQuotationRequest = { reason };
+    setIsSubmittingAction(true);
+    setActionError('');
+    try {
+      await fetchPrivate<CustomerQuotationActionResponse>(
+        PROFILE_API_ENDPOINTS.REJECT_QUOTATION(selectedQuote.id),
+        'PATCH',
+        payload,
+      );
+      setIsRejectModalOpen(false);
+      setRejectReason('');
+      setSelectedQuote(null);
+      await loadPendingQuotations();
+      setHistoryQuotes([]);
+    } catch (err: any) {
+      setActionError(err?.message || 'Không thể từ chối báo giá.');
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
+
   useEffect(() => {
     void loadPendingQuotations();
   }, []);
@@ -184,6 +244,37 @@ export default function QuoteTrackingTab() {
       void loadHistoryQuotations();
     }
   }, [statusFilter]);
+
+  useEffect(() => {
+    if (!showDepositPayment || isDepositPaid || !selectedQuote?.id) return;
+
+    const quotationId = selectedQuote.id;
+    const amount = Number(selectedQuote.deposit_amount ?? 0);
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
+    const intervalId = window.setInterval(async () => {
+      try {
+        const result = await fetchPublic(
+          `${apiBaseUrl}/api/payment/check-status?bookingCode=BG-${quotationId}&amount=${amount}`,
+        );
+
+        if (result?.success && result?.isPaid) {
+          window.clearInterval(intervalId);
+          setIsDepositPaid(true);
+          setHistoryQuotes([]);
+          await loadHistoryQuotations();
+        }
+      } catch (paymentError) {
+        console.error('Không thể kiểm tra trạng thái thanh toán cọc:', paymentError);
+      }
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
+  }, [showDepositPayment, isDepositPaid, selectedQuote?.id]);
+
+  const handleCopyDepositInfo = async (value: string) => {
+    await navigator.clipboard.writeText(value);
+  };
 
   const quotes = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase();
@@ -429,7 +520,14 @@ export default function QuoteTrackingTab() {
                   </div>
 
                   <button
-                    onClick={() => setSelectedQuote(null)}
+                    onClick={() => {
+                      setSelectedQuote(null);
+                      setActionError('');
+                      setRejectReason('');
+                      setIsRejectModalOpen(false);
+                      setShowDepositPayment(false);
+                      setIsDepositPaid(false);
+                    }}
                     className="w-9 h-9 rounded-xl text-white/80 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors"
                   >
                     <X size={20} />
@@ -619,14 +717,282 @@ export default function QuoteTrackingTab() {
                     {formatCurrency(selectedQuote.total_amount)}
                   </p>
                 </div>
-                <button
-                  onClick={() => setSelectedQuote(null)}
-                  className="px-6 py-2.5 rounded-xl bg-[#00285E] text-sm font-bold text-white hover:bg-[#001E46] transition-colors shadow-sm"
-                >
-                  Đóng
-                </button>
+                <div className="flex flex-col items-end gap-2">
+                  {actionError && (
+                    <p className="max-w-[330px] text-right text-xs font-semibold text-rose-600">
+                      {actionError}
+                    </p>
+                  )}
+                  {selectedQuote.status === 'PENDING' && (
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        disabled={isSubmittingAction}
+                        onClick={() => {
+                          setActionError('');
+                          setIsRejectModalOpen(true);
+                        }}
+                        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-rose-200 bg-white text-sm font-bold text-rose-600 hover:bg-rose-50 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        Từ chối
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSubmittingAction}
+                        onClick={() => void handleApproveQuotation()}
+                        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#00285E] text-sm font-bold text-white hover:bg-[#001E46] transition-colors shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        {isSubmittingAction ? 'Đang xử lý...' : 'Duyệt báo giá'}
+                      </button>
+                    </div>
+                  )}
+                  {isAwaitingDeposit(selectedQuote) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDepositPaid(false);
+                        setShowDepositPayment(true);
+                      }}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-amber-500 to-amber-600 px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-amber-600/20 transition-all hover:brightness-105"
+                    >
+                      <Wallet className="h-4 w-4" />
+                      Thanh toán cọc
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
+
+            {isRejectModalOpen && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-4">
+                <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                  <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-rose-500">
+                        Từ chối báo giá
+                      </p>
+                      <h4 className="mt-1 text-lg font-extrabold text-[#00285E]">
+                        Nhập lý do từ chối
+                      </h4>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isSubmittingAction}
+                      onClick={() => {
+                        setIsRejectModalOpen(false);
+                        setActionError('');
+                      }}
+                      className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div className="px-6 py-5">
+                    <label className="mb-2 block text-sm font-bold text-slate-700">
+                      Lý do từ chối
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={rejectReason}
+                      onChange={(event) => {
+                        setRejectReason(event.target.value);
+                        if (actionError) setActionError('');
+                      }}
+                      placeholder="Nhập lý do bạn không đồng ý với báo giá..."
+                      className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-rose-400"
+                    />
+                    {actionError && (
+                      <p className="mt-2 text-xs font-semibold text-rose-600">{actionError}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4">
+                    <button
+                      type="button"
+                      disabled={isSubmittingAction}
+                      onClick={() => {
+                        setIsRejectModalOpen(false);
+                        setActionError('');
+                      }}
+                      className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-60"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSubmittingAction || !rejectReason.trim()}
+                      onClick={() => void handleRejectQuotation()}
+                      className="rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isSubmittingAction ? 'Đang xử lý...' : 'Xác nhận từ chối'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showDepositPayment && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-4">
+                <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+                  <div className="flex items-center justify-between border-b border-slate-100 px-7 py-5">
+                    <div className="flex items-center gap-3">
+                      <div className="rounded-xl bg-amber-50 p-2.5 text-amber-600">
+                        <Wallet className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-extrabold text-slate-800">
+                          Thanh toán tiền cọc
+                        </h4>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          Quét mã VietQR để thanh toán cọc phụ tùng đặt riêng.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowDepositPayment(false);
+                        setIsDepositPaid(false);
+                      }}
+                      className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-5 p-6 sm:grid-cols-2">
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs font-bold uppercase tracking-wide text-amber-800">
+                            Số tiền cần cọc
+                          </p>
+                          <span className="rounded-md border border-amber-200 bg-white/70 px-2 py-1 text-[10px] font-bold text-amber-700">
+                            {selectedQuote.code}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-2xl font-black text-amber-600">
+                          {formatCurrency(selectedQuote.deposit_amount)}
+                        </p>
+                        <div className="mt-3 space-y-2 border-t border-amber-200 pt-3">
+                          {depositItems.map((item) => (
+                            <div
+                              key={item.id}
+                              className="rounded-xl border border-amber-100 bg-white/90 px-3 py-2.5"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-bold text-slate-700">
+                                    {getItemName(item)}
+                                  </p>
+                                  <p className="mt-1 text-[11px] text-slate-500">
+                                    Số lượng: {item.quantity} · Cọc 30%
+                                  </p>
+                                </div>
+                                <span className="shrink-0 text-xs font-extrabold text-[#00285E]">
+                                  {formatCurrency(item.amount)}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                          Khách hàng
+                        </p>
+                        <p className="mt-1.5 text-sm font-bold text-slate-700">
+                          {selectedQuote.customerName}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {selectedQuote.customerPhone || '—'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-center rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
+                      {!isDepositPaid ? (
+                        <>
+                          <div className="mb-3 flex w-full items-center justify-between border-b border-slate-200 pb-2">
+                            <span className="text-xs font-bold uppercase tracking-wide text-[#00285E]">
+                              Quét mã VietQR
+                            </span>
+                            <span className="rounded-md border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold text-amber-700">
+                              {import.meta.env.VITE_SEPAY_BANK || 'TPBank'}
+                            </span>
+                          </div>
+                          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                            <img
+                              src={`https://vietqr.app/img?acc=${import.meta.env.VITE_SEPAY_ACC || '05979551201'}&bank=${import.meta.env.VITE_SEPAY_BANK || 'TPBank'}&amount=${selectedQuote.deposit_amount || 0}&template=compact&showinfo=true&addInfo=BG-${selectedQuote.id}`}
+                              alt="Mã VietQR thanh toán cọc"
+                              className="h-52 w-52 rounded-xl object-contain"
+                            />
+                          </div>
+                          <div className="mt-3 w-full space-y-2 text-xs">
+                            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2">
+                              <span className="text-slate-500">Số tài khoản</span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void handleCopyDepositInfo(
+                                    import.meta.env.VITE_SEPAY_ACC || '05979551201',
+                                  )
+                                }
+                                className="flex items-center gap-1.5 font-mono font-bold text-[#00285E]"
+                              >
+                                {import.meta.env.VITE_SEPAY_ACC || '05979551201'}
+                                <Copy className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2">
+                              <span className="text-slate-500">Nội dung CK</span>
+                              <button
+                                type="button"
+                                onClick={() => void handleCopyDepositInfo(`BG-${selectedQuote.id}`)}
+                                className="flex items-center gap-1.5 font-mono font-bold text-[#00285E]"
+                              >
+                                BG-{selectedQuote.id}
+                                <Copy className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                          <p className="mt-3 text-[11px] font-medium text-slate-500">
+                            Hệ thống đang tự động chờ xác nhận tiền cọc...
+                          </p>
+                        </>
+                      ) : (
+                        <div className="my-auto flex flex-col items-center py-12">
+                          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                            <Check className="h-8 w-8" strokeWidth={3} />
+                          </div>
+                          <p className="mt-4 text-base font-extrabold text-emerald-700">
+                            Thanh toán cọc thành công!
+                          </p>
+                          <p className="mt-2 max-w-[230px] text-xs leading-relaxed text-slate-500">
+                            Hệ thống đã ghi nhận tiền cọc cho báo giá {selectedQuote.code}.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end border-t border-slate-100 bg-slate-50 px-6 py-3.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowDepositPayment(false);
+                        setIsDepositPaid(false);
+                      }}
+                      className="rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100"
+                    >
+                      Đóng
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
       })()}

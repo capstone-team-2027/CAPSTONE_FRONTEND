@@ -211,7 +211,9 @@ const QUOTE_RECAPTCHA_CONTAINER_ID = "quotation-recaptcha-container";
 // Báo giá có phụ tùng đặt riêng thì phải cọc trước; chưa có deposit_paid_at
 // nghĩa là khách chưa chuyển tiền cọc -> cần lễ tân theo dõi và xác nhận.
 const isAwaitingDeposit = (quotation: GetQuotationResponse) =>
-  Number(quotation.deposit_amount) > 0 && !quotation.deposit_paid_at;
+  ["APPROVED", "PENDING_DEPOSIT"].includes(quotation.status) &&
+  Number(quotation.deposit_amount) > 0 &&
+  !quotation.deposit_paid_at;
 
 const formatVND = (value: number | string) =>
   `${new Intl.NumberFormat("vi-VN").format(Number(value) || 0)} VND`;
@@ -2665,7 +2667,9 @@ export default function ReceptionQuoteList() {
                   </>
                 ) : (
                   <>
-                    {selectedQuotation.status === "PENDING" && (
+                    {["PENDING", "REJECTED"].includes(
+                      selectedQuotation.status,
+                    ) && (
                       <button
                         onClick={startEdit}
                         className="h-11 flex items-center gap-2 px-5 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/25 hover:shadow-[#00285E]/40 hover:brightness-110 active:scale-[0.98] transition-all"
@@ -2697,7 +2701,9 @@ export default function ReceptionQuoteList() {
                       </button>
                     )}
                     {/* Duyệt xong mới thu cọc phụ tùng đặt riêng */}
-                    {selectedQuotation.status !== "PENDING" &&
+                    {["APPROVED", "PENDING_DEPOSIT"].includes(
+                      selectedQuotation.status,
+                    ) &&
                       isAwaitingDeposit(selectedQuotation) && (
                         <button
                           onClick={() => {
