@@ -111,6 +111,8 @@ export default function LeaderFinalQc() {
   const [orders, setOrders] = useState<GetFinalQcOrderResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [localSearch, setLocalSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const effectiveSearch = (searchQuery || localSearch).toLowerCase();
 
   const [selected, setSelected] = useState<GetFinalQcOrderResponse | null>(
@@ -230,6 +232,17 @@ export default function LeaderFinalQc() {
     });
   }, [orders, orderCodes, effectiveSearch]);
 
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const currentPageSafe = Math.min(Math.max(currentPage, 1), totalPages || 1);
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPageSafe - 1) * ITEMS_PER_PAGE;
+    return filtered.slice(start, start + ITEMS_PER_PAGE);
+  }, [filtered, currentPageSafe]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [effectiveSearch]);
+
   // Đơn chỉ nghiệm thu được khi mọi công việc đã COMPLETED (khớp ràng buộc BE)
   const allTasksDone = (o: GetFinalQcOrderResponse) =>
     (o.tasks ?? []).length > 0 &&
@@ -297,7 +310,10 @@ export default function LeaderFinalQc() {
               type="text"
               placeholder="Tìm mã đơn, biển số, dịch vụ..."
               value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
+              onChange={(e) => {
+                setLocalSearch(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full sm:w-72 bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
             />
           </div>
@@ -335,7 +351,7 @@ export default function LeaderFinalQc() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((o) => {
+                paginatedOrders.map((o) => {
                   return (
                     <tr
                       key={o.id}
@@ -398,6 +414,35 @@ export default function LeaderFinalQc() {
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 bg-slate-50 border-t border-slate-200 text-sm text-slate-500">
+            <span>
+              Hiển thị {filtered.length === 0 ? 0 : (currentPageSafe - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPageSafe * ITEMS_PER_PAGE, filtered.length)} trên {filtered.length} đơn
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPageSafe === 1}
+                className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >Trước</button>
+              {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`w-9 h-9 rounded-xl text-sm font-semibold transition ${page === currentPageSafe ? 'bg-[#00285E] text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={currentPageSafe === totalPages}
+                className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >Sau</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── MODAL CHI TIẾT ── */}

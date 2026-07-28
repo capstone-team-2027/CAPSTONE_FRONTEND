@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { RECEPTION_API } from '../../../constants/reception/receptionApiEndpoint';
 import { useSocket } from '../../../hook/useSocket';
@@ -32,6 +32,8 @@ export default function ReceptionCustomerList() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [assignModalData, setAssignModalData] = useState<{ customer: Customer } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   const navigate = useNavigate();
 
@@ -100,10 +102,24 @@ export default function ReceptionCustomerList() {
     }
   };
 
-  const filteredCustomers = customers.filter(c =>
-    c.name?.toLowerCase().includes((searchQuery || '').toLowerCase()) ||
-    c.phone?.includes(searchQuery || '')
+  const filteredCustomers = useMemo(
+    () =>
+      customers.filter((c) =>
+        c.name?.toLowerCase().includes((searchQuery || '').toLowerCase()) ||
+        c.phone?.includes(searchQuery || ''),
+      ),
+    [customers, searchQuery],
   );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);
+  const paginatedCustomers = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredCustomers.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredCustomers, currentPage]);
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto w-full">
@@ -133,12 +149,12 @@ export default function ReceptionCustomerList() {
                 <tr>
                   <td colSpan={4} className="px-6 py-8 text-center text-slate-400">Đang tải dữ liệu...</td>
                 </tr>
-              ) : filteredCustomers.length === 0 ? (
+              ) : paginatedCustomers.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-8 text-center text-slate-400">Không tìm thấy khách hàng nào.</td>
                 </tr>
               ) : (
-                filteredCustomers.map(customer => {
+                paginatedCustomers.map((customer) => {
                   const hasLocation = customer.user?.latitude != null && customer.user?.longitude != null;
                   const latestRescue = customer.rescueRequests && customer.rescueRequests.length > 0
                     ? [...customer.rescueRequests].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
@@ -230,6 +246,37 @@ export default function ReceptionCustomerList() {
           </table>
         </div>
       </div>
+
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 bg-white border border-t-0 border-slate-200 text-sm text-slate-500">
+          <span>
+            Hiển thị {filteredCustomers.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredCustomers.length)} trên {filteredCustomers.length} khách hàng
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            >Trước</button>
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+              <button
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                className={`w-9 h-9 rounded-xl text-sm font-semibold transition ${page === currentPage ? 'bg-[#00285E] text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            >Sau</button>
+          </div>
+        </div>
+      )}
 
       <AssignTechnicianModal
         isOpen={assignModalData !== null}

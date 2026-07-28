@@ -23,6 +23,8 @@ import {
   ShieldCheck,
   Wrench
 } from "lucide-react";
+
+const PAGE_SIZE = 6;
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { useFetchClient_v2 } from "../../../hook/useFetchClient";
 import { CUSTOMER_API_ENDPOINTS } from "../../../constants/admin/customerApiEndpoint";
@@ -51,6 +53,7 @@ export default function AdminCustomerManagement() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [tierFilter, setTierFilter] = useState<string>("ALL");
   const [customerTypeFilter, setCustomerTypeFilter] = useState<"ALL" | "REGISTERED" | "GUEST">("ALL");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -164,6 +167,10 @@ export default function AdminCustomerManagement() {
       return matchesSearch && matchesStatus && matchesTier && matchesType;
     });
   }, [customers, searchTerm, statusFilter, tierFilter, customerTypeFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = filteredCustomers.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   // Actions
   const handleOpenEdit = (customer: CustomerData) => {
@@ -446,7 +453,7 @@ export default function AdminCustomerManagement() {
                   </td>
                 </tr>
               ) : (
-                filteredCustomers.map(customer => {
+                pageItems.map(customer => {
                   const tier = TIER_CONFIG[customer.membership_tier];
                   const statusInfo = STATUS_CONFIG[customer.status];
                   return (
@@ -510,6 +517,34 @@ export default function AdminCustomerManagement() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* PAGINATION */}
+        <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-sm text-slate-500">
+            Hiển thị {pageItems.length} trên {filteredCustomers.length} khách hàng
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+              disabled={safePage <= 1}
+              className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              Trước
+            </button>
+            <span className="px-3 py-2 text-sm font-semibold text-slate-600">
+              {safePage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={safePage >= totalPages}
+              className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              Tiếp
+            </button>
+          </div>
         </div>
       </div>
 
