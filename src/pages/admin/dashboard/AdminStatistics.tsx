@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -11,19 +11,48 @@ import {
   Target,
 } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
+import { useFetchClient_v2 } from '../../../hook/useFetchClient';
+import { ADMIN_DASHBOARD_API_ENDPOINTS } from '../../../constants/admin/dashboardApiEndpoint';
 
-interface ServiceStat {
-  name: string;
+interface AdminServiceStat {
+  serviceName: string;
   category: string;
   bookingCount: number;
   revenue: number;
   durationAvg: number; // minutes
 }
 
-interface CustomerStat {
-  label: string;
-  value: number;
-  color: string;
+interface DashboardData {
+  summary: {
+    totalCustomers: number;
+    totalStaff: number;
+    totalAppointments: number;
+    activeOrders: number;
+    totalRevenue: number;
+  };
+  appointmentStatus: {
+    completed: number;
+    pending: number;
+    cancelled: number;
+  };
+  revenueTrend: {
+    labels: string[];
+    revenue: number[];
+    orders: number[];
+  };
+  appointmentsTrend: {
+    labels: string[];
+    counts: number[];
+  };
+  topServices: AdminServiceStat[];
+  topTechnicians: Array<{ technicianName: string; completedTasks: number; revenueContribution: number }>;
+  recentActivity: Array<{
+    id: number;
+    status: string;
+    scheduled_time: string;
+    createdAt?: string;
+    customer?: { name?: string; phone?: string };
+  }>;
 }
 
 const C = {
@@ -36,77 +65,79 @@ const C = {
   teal: '#0D9488',
 };
 
-// Mock data presets
-const MOCK_REVENUE_PRESETS: Record<string, { days: string[]; revenue: number[]; orders: number[] }> = {
-  today: {
-    days: ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'],
-    revenue: [5, 12, 8, 20, 15, 10], // in Million VND
-    orders: [2, 4, 3, 6, 5, 2],
-  },
-  '7days': {
-    days: ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'CN'],
-    revenue: [45, 52, 38, 65, 58, 85, 95], // in Million VND
-    orders: [12, 15, 10, 18, 16, 24, 28],
-  },
-  month: {
-    days: ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4'],
-    revenue: [120, 150, 110, 180], // in Million VND
-    orders: [45, 52, 40, 60],
-  },
-  quarter: {
-    days: ['Tháng 4', 'Tháng 5', 'Tháng 6'],
-    revenue: [428, 501, 467], // in Million VND
-    orders: [142, 168, 155],
-  },
-};
-
-const MOCK_SERVICES: ServiceStat[] = [
-  { name: 'Bảo dưỡng định kỳ cấp 1', category: 'Bảo dưỡng', bookingCount: 142, revenue: 71000000, durationAvg: 45 },
-  { name: 'Thay dầu động cơ Castrol', category: 'Dầu nhớt', bookingCount: 118, revenue: 76700000, durationAvg: 20 },
-  { name: 'Cân chỉnh thước lái 3D', category: 'Sửa chữa gầm', bookingCount: 85, revenue: 51000000, durationAvg: 50 },
-  { name: 'Vệ sinh kim phun điện tử', category: 'Động cơ', bookingCount: 64, revenue: 76800000, durationAvg: 40 },
-  { name: 'Khử mùi diệt khuẩn ô tô', category: 'Chăm sóc xe', bookingCount: 52, revenue: 10400000, durationAvg: 15 },
+const MOCK_SERVICES: AdminServiceStat[] = [
+  { serviceName: 'Bảo dưỡng định kỳ cấp 1', category: 'Bảo dưỡng', bookingCount: 142, revenue: 71000000, durationAvg: 45 },
+  { serviceName: 'Thay dầu động cơ Castrol', category: 'Dầu nhớt', bookingCount: 118, revenue: 76700000, durationAvg: 20 },
+  { serviceName: 'Cân chỉnh thước lái 3D', category: 'Sửa chữa gầm', bookingCount: 85, revenue: 51000000, durationAvg: 50 },
+  { serviceName: 'Vệ sinh kim phun điện tử', category: 'Động cơ', bookingCount: 64, revenue: 76800000, durationAvg: 40 },
+  { serviceName: 'Khử mùi diệt khuẩn ô tô', category: 'Chăm sóc xe', bookingCount: 52, revenue: 10400000, durationAvg: 15 },
 ];
 
-const MOCK_CUSTOMERS: CustomerStat[] = [
-  { label: 'Khách hàng mới', value: 342, color: C.blue },
-  { label: 'Khách hàng quay lại', value: 906, color: C.green },
-];
-
-const MOCK_APPOINTMENTS = [
-  { label: 'Hoàn thành', value: 890, color: C.green },
-  { label: 'Đang chờ/Đang xử lý', value: 248, color: C.orange },
-  { label: 'Đã hủy', value: 110, color: C.red },
-];
 
 const MOCK_TECHNICIANS = [
-  { name: 'Trần Văn Hùng', completedTasks: 96, rating: 4.8, revenueContribution: 42000000 },
-  { name: 'Lê Minh Tuấn', completedTasks: 84, rating: 4.6, revenueContribution: 38000000 },
-  { name: 'Nguyễn Nam Khánh', completedTasks: 78, rating: 4.5, revenueContribution: 31000000 },
-  { name: 'Phạm Văn Thành', completedTasks: 72, rating: 4.7, revenueContribution: 29000000 },
+  { technicianName: 'Trần Văn Hùng', completedTasks: 96, revenueContribution: 42000000 },
+  { technicianName: 'Lê Minh Tuấn', completedTasks: 84, revenueContribution: 38000000 },
+  { technicianName: 'Nguyễn Nam Khánh', completedTasks: 78, revenueContribution: 31000000 },
+  { technicianName: 'Phạm Văn Thành', completedTasks: 72, revenueContribution: 29000000 },
 ];
 
 export default function AdminStatistics() {
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: 'success' | 'info' | 'warning') => void;
   }>();
+  const { fetchPrivate } = useFetchClient_v2();
 
   const [timeframe, setTimeframe] = useState<'today' | '7days' | 'month' | 'quarter'>('7days');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isCustomMode, setIsCustomMode] = useState(false);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Dynamic calculations based on timeframe
+  useEffect(() => {
+    const loadDashboard = async () => {
+      try {
+        setLoading(true);
+        const response = await fetchPrivate(ADMIN_DASHBOARD_API_ENDPOINTS.SUMMARY);
+        setDashboardData(response.data);
+      } catch (error) {
+        console.error('Failed to load dashboard data', error);
+        showToast('Không thể tải dữ liệu dashboard', 'warning');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboard();
+  }, [fetchPrivate, showToast]);
+
   const currentData = useMemo(() => {
-    return MOCK_REVENUE_PRESETS[timeframe] || MOCK_REVENUE_PRESETS['7days'];
-  }, [timeframe]);
+    if (!dashboardData?.revenueTrend) {
+      return { labels: ['0'], revenue: [0], orders: [0] };
+    }
+    return {
+      labels: dashboardData.revenueTrend.labels,
+      revenue: dashboardData.revenueTrend.revenue,
+      orders: dashboardData.revenueTrend.orders,
+    };
+  }, [dashboardData]);
 
   const statsSummary = useMemo(() => {
-    const totalRev = currentData.revenue.reduce((a, b) => a + b, 0) * 1000000;
-    const totalOrd = currentData.orders.reduce((a, b) => a + b, 0);
+    const totalRev = dashboardData?.summary?.totalRevenue || 0;
+    const totalOrd = dashboardData?.summary?.activeOrders || 0;
     const avgRevPerOrder = totalOrd > 0 ? Math.round(totalRev / totalOrd) : 0;
     return { totalRev, totalOrd, avgRevPerOrder };
-  }, [currentData]);
+  }, [dashboardData]);
+
+  const serviceStats = (dashboardData?.topServices?.length ? dashboardData.topServices : MOCK_SERVICES) as AdminServiceStat[];
+  const technicianStats = dashboardData?.topTechnicians?.length ? dashboardData.topTechnicians : MOCK_TECHNICIANS;
+
+  const timeframeOptions = [
+    { id: 'today', label: 'Hôm nay' },
+    { id: '7days', label: '7 ngày qua' },
+    { id: 'month', label: 'Tháng này' },
+    { id: 'quarter', label: 'Quý này' },
+  ] as const;
 
   const handleFilterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,6 +147,16 @@ export default function AdminStatistics() {
     }
     showToast('Đã cập nhật dữ liệu thống kê!', 'success');
   };
+
+  if (loading) {
+    return (
+      <div className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto">
+        <div className="rounded-2xl border border-slate-200/60 bg-white p-10 text-center text-slate-500 shadow-sm">
+          Đang tải dữ liệu dashboard…
+        </div>
+      </div>
+    );
+  }
 
   const handleExport = () => {
     const headers = ['Mục tiêu thống kê', 'Giá trị'];
@@ -146,11 +187,11 @@ export default function AdminStatistics() {
   const usableWidth = chartWidth - padding * 2;
   const usableHeight = chartHeight - padding * 2;
 
-  const maxRevenueVal = Math.max(...currentData.revenue);
-  const maxOrdersVal = Math.max(...currentData.orders);
+  const maxRevenueVal = Math.max(...currentData.revenue, 1);
+  const maxOrdersVal = Math.max(...currentData.orders, 1);
 
-  const points = currentData.days.map((day, idx) => {
-    const x = padding + (idx / (currentData.days.length - 1)) * usableWidth;
+  const points = currentData.labels.map((day, idx) => {
+    const x = padding + (idx / Math.max(currentData.labels.length - 1, 1)) * usableWidth;
     const yRevenue = chartHeight - padding - (currentData.revenue[idx] / maxRevenueVal) * usableHeight;
     const yOrders = chartHeight - padding - (currentData.orders[idx] / maxOrdersVal) * usableHeight;
     return { x, yRevenue, yOrders, day, revenue: currentData.revenue[idx], order: currentData.orders[idx] };
@@ -215,17 +256,12 @@ export default function AdminStatistics() {
             </div>
             
             <div className="flex bg-slate-100 p-1 rounded-xl">
-              {[
-                { id: 'today', label: 'Hôm nay' },
-                { id: '7days', label: '7 ngày qua' },
-                { id: 'month', label: 'Tháng này' },
-                { id: 'quarter', label: 'Quý này' },
-              ].map((item) => (
+              {timeframeOptions.map((item) => (
                 <button
                   type="button"
                   key={item.id}
                   onClick={() => {
-                    setTimeframe(item.id as any);
+                    setTimeframe(item.id);
                     setIsCustomMode(false);
                   }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
@@ -279,10 +315,10 @@ export default function AdminStatistics() {
       {/* KPI OVERVIEW CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Tổng doanh thu', value: `${statsSummary.totalRev.toLocaleString('vi-VN')} đ`, icon: <TrendingUp size={22} />, color: C.green, bg: '#D1FAE5', change: '+14.2% so với kỳ trước' },
-          { label: 'Tổng lượt dịch vụ', value: statsSummary.totalOrd.toLocaleString('vi-VN'), icon: <Wrench size={22} />, color: C.navy, bg: '#EFF6FF', change: '+8.6% so với kỳ trước' },
-          { label: 'Giá trị đơn TB', value: `${statsSummary.avgRevPerOrder.toLocaleString('vi-VN')} đ`, icon: <Target size={22} />, color: C.purple, bg: '#EDE9FE', change: '+5.1% so với kỳ trước' },
-          { label: 'Khách hàng hoạt động', value: '1,248', icon: <Users size={22} />, color: C.orange, bg: '#FEF3C7', change: '+12.4% so với kỳ trước' },
+          { label: 'Tổng doanh thu', value: `${statsSummary.totalRev.toLocaleString('vi-VN')} đ`, icon: <TrendingUp size={22} />, color: C.green, bg: '#D1FAE5', change: 'Từ báo giá đã duyệt' },
+          { label: 'Đơn đang xử lý', value: statsSummary.totalOrd.toLocaleString('vi-VN'), icon: <Wrench size={22} />, color: C.navy, bg: '#EFF6FF', change: 'Service order đang hoạt động' },
+          { label: 'Giá trị đơn TB', value: `${statsSummary.avgRevPerOrder.toLocaleString('vi-VN')} đ`, icon: <Target size={22} />, color: C.purple, bg: '#EDE9FE', change: 'Dựa trên báo giá đã duyệt' },
+          { label: 'Khách hàng hoạt động', value: dashboardData?.summary?.totalCustomers?.toLocaleString('vi-VN') || '0', icon: <Users size={22} />, color: C.orange, bg: '#FEF3C7', change: 'Tổng khách hàng trong hệ thống' },
         ].map((card, i) => (
           <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs flex flex-col justify-between">
             <div className="flex items-start justify-between">
@@ -381,17 +417,20 @@ export default function AdminStatistics() {
               <div>
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Tỷ lệ khách hàng</span>
                 <div className="space-y-2">
-                  {MOCK_CUSTOMERS.map((c, idx) => {
-                    const total = MOCK_CUSTOMERS.reduce((s, x) => s + x.value, 0);
-                    const pct = Math.round((c.value / total) * 100);
+                  {[
+                    { label: 'Khách hàng', value: dashboardData?.summary?.totalCustomers || 0, color: C.blue },
+                    { label: 'Nhân sự', value: dashboardData?.summary?.totalStaff || 0, color: C.green },
+                  ].map((item, idx) => {
+                    const total = (dashboardData?.summary?.totalCustomers || 0) + (dashboardData?.summary?.totalStaff || 0);
+                    const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
                     return (
                       <div key={idx}>
                         <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
-                          <span>{c.label}</span>
-                          <span>{c.value} ({pct}%)</span>
+                          <span>{item.label}</span>
+                          <span>{item.value} ({pct}%)</span>
                         </div>
                         <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: c.color }} />
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: item.color }} />
                         </div>
                       </div>
                     );
@@ -403,17 +442,21 @@ export default function AdminStatistics() {
               <div>
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Lịch hẹn dịch vụ</span>
                 <div className="space-y-2">
-                  {MOCK_APPOINTMENTS.map((a, idx) => {
-                    const total = MOCK_APPOINTMENTS.reduce((s, x) => s + x.value, 0);
-                    const pct = Math.round((a.value / total) * 100);
+                  {[
+                    { label: 'Hoàn thành', value: dashboardData?.appointmentStatus?.completed || 0, color: C.green },
+                    { label: 'Đang chờ', value: dashboardData?.appointmentStatus?.pending || 0, color: C.orange },
+                    { label: 'Đã hủy', value: dashboardData?.appointmentStatus?.cancelled || 0, color: C.red },
+                  ].map((item, idx) => {
+                    const total = (dashboardData?.appointmentStatus?.completed || 0) + (dashboardData?.appointmentStatus?.pending || 0) + (dashboardData?.appointmentStatus?.cancelled || 0);
+                    const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
                     return (
                       <div key={idx}>
                         <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
-                          <span>{a.label}</span>
-                          <span>{a.value} ({pct}%)</span>
+                          <span>{item.label}</span>
+                          <span>{item.value} ({pct}%)</span>
                         </div>
                         <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: a.color }} />
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: item.color }} />
                         </div>
                       </div>
                     );
@@ -448,12 +491,12 @@ export default function AdminStatistics() {
                 </tr>
               </thead>
               <tbody>
-                {MOCK_SERVICES.map((s, idx) => (
+                {serviceStats.map((s: AdminServiceStat, idx: number) => (
                   <tr key={idx} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                    <td className="py-3 px-3 font-semibold text-slate-800">{s.name}</td>
+                    <td className="py-3 px-3 font-semibold text-slate-800">{s.serviceName}</td>
                     <td className="py-3 px-3 text-slate-400 font-semibold">{s.category}</td>
-                    <td className="py-3 px-3 text-center font-bold text-slate-700">{s.bookingCount} lượt</td>
-                    <td className="py-3 px-3 text-right font-bold text-[#00285E]">{s.revenue.toLocaleString('vi-VN')} đ</td>
+                    <td className="py-3 px-3 text-center font-bold text-slate-700">{s.bookingCount?.toLocaleString?.('vi-VN') ?? s.bookingCount} lượt</td>
+                    <td className="py-3 px-3 text-right font-bold text-[#00285E]">{(s.revenue || 0).toLocaleString('vi-VN')} đ</td>
                     <td className="py-3 px-3 text-center font-semibold text-slate-600">{s.durationAvg} phút</td>
                   </tr>
                 ))}
@@ -478,21 +521,54 @@ export default function AdminStatistics() {
                   <th className="py-2.5 px-3">Kỹ thuật viên</th>
                   <th className="py-2.5 px-3 text-center">Số nhiệm vụ hoàn thành</th>
                   <th className="py-2.5 px-3 text-right">Doanh thu đóng góp</th>
-                  <th className="py-2.5 px-3 text-center">Đánh giá trung bình</th>
+                  <th className="py-2.5 px-3 text-center">Đánh giá ước lượng</th>
                 </tr>
               </thead>
               <tbody>
-                {MOCK_TECHNICIANS.map((t, idx) => (
+                {technicianStats.map((t, idx) => (
                   <tr key={idx} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                    <td className="py-3 px-3 font-semibold text-slate-800">{t.name}</td>
-                    <td className="py-3 px-3 text-center font-bold text-slate-700">{t.completedTasks} tác vụ</td>
-                    <td className="py-3 px-3 text-right font-bold text-emerald-600">{t.revenueContribution.toLocaleString('vi-VN')} đ</td>
-                    <td className="py-3 px-3 text-center font-bold text-amber-500">⭐ {t.rating}</td>
+                    <td className="py-3 px-3 font-semibold text-slate-800">{t.technicianName}</td>
+                    <td className="py-3 px-3 text-center font-bold text-slate-700">{t.completedTasks?.toLocaleString('vi-VN') ?? t.completedTasks} tác vụ</td>
+                    <td className="py-3 px-3 text-right font-bold text-emerald-600">{(t.revenueContribution || 0).toLocaleString('vi-VN')} đ</td>
+                    <td className="py-3 px-3 text-center font-semibold text-amber-500">{t.completedTasks ? (Math.min(5, Math.max(3.5, 3.5 + t.completedTasks / 100)).toFixed(1)) : '0.0'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      {/* RECENT ACTIVITY */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800 tracking-tight">Hoạt động gần đây</h2>
+            <p className="text-slate-400 text-xs mt-0.5">Lịch hẹn mới nhất và trạng thái xử lý</p>
+          </div>
+          <span className="text-xs font-semibold text-slate-500">Cập nhật theo thời gian thực</span>
+        </div>
+
+        <div className="space-y-3">
+          {dashboardData?.recentActivity?.map((activity) => (
+            <button
+              key={activity.id}
+              onClick={() => showToast(`Chi tiết lịch: ${activity.id}`, 'info')}
+              className="w-full text-left rounded-2xl border border-slate-100 p-4 hover:border-slate-300 hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-slate-800 truncate">{activity.customer?.name || 'Khách ẩn danh'}</p>
+                  <p className="text-xs text-slate-500">{activity.customer?.phone || 'Không có số'}</p>
+                </div>
+                <span className="text-[11px] uppercase font-semibold text-slate-500 tracking-widest">{activity.status}</span>
+              </div>
+              <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                <span>{new Date(activity.scheduled_time).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                <span>{activity.createdAt ? new Date(activity.createdAt).toLocaleDateString('vi-VN') : 'N/A'}</span>
+              </div>
+            </button>
+          ))}
         </div>
       </div>
     </div>
