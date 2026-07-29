@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     LayoutDashboard,
     Calendar,
-    Settings,
     HelpCircle,
     LogOut,
     CheckCircle2,
@@ -21,7 +20,6 @@ import { logout, loginSuccess } from '../../../store/slices/userSlice';
 import DashboardTab from './DashboardTab';
 import QuoteTrackingTab from './QuoteTrackingTab';
 import AppointmentsTab from './AppointmentsTab';
-import SettingsTab from './SettingsTab';
 import HistoryTab from './HistoryTab';
 import WarrantyTab from './WarrantyTab';
 import TrackingTab from './TrackingTab';
@@ -39,7 +37,6 @@ const MENU_ITEMS = [
     { id: 'warranty', label: 'Bảo hành', icon: ShieldCheck },
     { id: 'tracking', label: 'Theo dõi', icon: Clock },
     { id: 'map', label: 'Bản đồ', icon: MapPin },
-    { id: 'settings', label: 'Cài đặt', icon: Settings },
 ] as const;
 
 type TabId = typeof MENU_ITEMS[number]['id'];
@@ -52,7 +49,7 @@ export default function UserProfile() {
     }, [t]);
 
     const dispatch = useDispatch();
-    const { fetchPrivate, fetchPrivateForm } = useFetchClient();
+    const { fetchPrivateForm } = useFetchClient();
 
     const user = useSelector(
         (state: RootState) => state.user.user as UserModel | null
@@ -86,40 +83,6 @@ export default function UserProfile() {
         email: editOverrides.email ?? '',
         phone: editOverrides.phone ?? user?.phoneNumber ?? '',
         address: editOverrides.address ?? '',
-    };
-
-    // =====================================================
-    // SETTINGS DATA — derived từ Redux + settingsOverrides
-    // =====================================================
-
-    const [settingsOverrides, setSettingsOverrides] = useState<Partial<{
-        fullName: string;
-        email: string;
-        phone: string;
-        newPassword: string;
-        confirmPassword: string;
-        enable2FA: boolean;
-        notifyEmail: boolean;
-        notifySMS: boolean;
-        notifyPush: boolean;
-        language: string;
-        darkMode: boolean;
-    }>>({});
-
-    const [pendingSettingsAvatarFile, setPendingSettingsAvatarFile] = useState<File | null>(null);
-
-    const settingsData = {
-        fullName: settingsOverrides.fullName ?? user?.fullName ?? '',
-        email: settingsOverrides.email ?? '',
-        phone: settingsOverrides.phone ?? user?.phoneNumber ?? '',
-        newPassword: settingsOverrides.newPassword ?? '',
-        confirmPassword: settingsOverrides.confirmPassword ?? '',
-        enable2FA: settingsOverrides.enable2FA ?? false,
-        notifyEmail: settingsOverrides.notifyEmail ?? true,
-        notifySMS: settingsOverrides.notifySMS ?? false,
-        notifyPush: settingsOverrides.notifyPush ?? true,
-        language: settingsOverrides.language ?? 'Tiếng Việt',
-        darkMode: settingsOverrides.darkMode ?? false,
     };
 
     // =====================================================
@@ -158,7 +121,7 @@ export default function UserProfile() {
     // HANDLE AVATAR
     // =====================================================
 
-    const handleAvatarUpdate = (forSettings = false) => {
+    const handleAvatarUpdate = () => {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = 'image/*';
@@ -169,12 +132,7 @@ export default function UserProfile() {
             if (file) {
                 const previewUrl = URL.createObjectURL(file);
                 setAvatarPreview(previewUrl);
-
-                if (forSettings) {
-                    setPendingSettingsAvatarFile(file);
-                } else {
-                    setPendingAvatarFile(file);
-                }
+                setPendingAvatarFile(file);
             }
         };
 
@@ -275,77 +233,6 @@ export default function UserProfile() {
     };
 
     // =====================================================
-    // HANDLE SAVE SETTINGS
-    // =====================================================
-
-    const handleSettingsSave = async () => {
-        if (
-            settingsOverrides.newPassword &&
-            settingsOverrides.newPassword !== settingsOverrides.confirmPassword
-        ) {
-            alert(t('settings.passwordMismatch', 'Mật khẩu mới và xác nhận mật khẩu không khớp!'));
-            return;
-        }
-
-        setIsSubmitting(true);
-        try {
-            const form = new FormData();
-
-            const newFullName = settingsOverrides.fullName?.trim() ?? '';
-            if (newFullName) {
-                form.append('fullName', newFullName);
-            }
-
-            if (pendingSettingsAvatarFile) {
-                form.append('avatar', pendingSettingsAvatarFile);
-            }
-
-            if (!newFullName && !pendingSettingsAvatarFile) {
-                showSuccessToast(t('settings.updateSuccess', 'Đã lưu cài đặt thành công!'));
-                return;
-            }
-
-            const response = await fetchPrivateForm(
-                PROFILE_API_ENDPOINTS.UPDATE_PROFILE,
-                'PUT',
-                form,
-            );
-
-            syncUserToRedux(response.data);
-
-            setSettingsOverrides((prev) => ({
-                ...prev,
-                fullName: undefined,
-            }));
-            setPendingSettingsAvatarFile(null);
-            setAvatarPreview('');
-
-            showSuccessToast(t('settings.updateSuccess', 'Đã lưu cài đặt thành công!'));
-        } catch (error: any) {
-            alert(error.message || t('profile.updateFail', 'Cập nhật thất bại, vui lòng thử lại.'));
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    // =====================================================
-    // HANDLE CHANGE PASSWORD
-    // =====================================================
-    const handleChangePassword = async (data: any) => {
-        await fetchPrivate(
-            PROFILE_API_ENDPOINTS.CHANGE_PASSWORD,
-            'PUT',
-            data
-        );
-        showSuccessToast(t('settings.changePasswordSuccess', 'Đổi mật khẩu thành công!'));
-    };
-
-    const handleSettingChange = (field: string, value: string | boolean) => {
-        setSettingsOverrides((prev) => ({ ...prev, [field]: value }));
-    };
-
-
-    // =====================================================
     // RENDER TAB
     // =====================================================
 
@@ -358,7 +245,7 @@ export default function UserProfile() {
                         formData={formData}
                         isEditing={isEditing}
                         isSubmitting={isSubmitting}
-                        onAvatarUpdate={() => handleAvatarUpdate(false)}
+                        onAvatarUpdate={handleAvatarUpdate}
                         onInputChange={handleInputChange}
                         onSave={handleSave}
                         onEditToggle={setIsEditing}
@@ -386,19 +273,6 @@ export default function UserProfile() {
 
             case 'map':
                 return <MapTab />;
-
-            case 'settings':
-                return (
-                    <SettingsTab
-                        settingsData={settingsData}
-                        avatarUrl={avatarUrl}
-                        isSubmitting={isSubmitting}
-                        onAvatarUpdate={() => handleAvatarUpdate(true)}
-                        onSettingChange={handleSettingChange}
-                        onSave={handleSettingsSave}
-                        onChangePassword={handleChangePassword}
-                    />
-                );
 
             default:
                 return null;

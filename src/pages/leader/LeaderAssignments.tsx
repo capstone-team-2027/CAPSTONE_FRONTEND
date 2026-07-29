@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useOutletContext } from "react-router-dom";
 import { useFetchClient } from "../../hook/useFetchClient";
+import { useSocket } from "../../hook/useSocket";
 import { TECHNICIAN_LEADER_TASK_ENDPOINTS } from "../../constants/technicianLeader/taskManagementEndpoint";
 import type {
   GetLeaderTasksResponse,
@@ -230,6 +231,7 @@ export default function LeaderAssignments() {
   }>();
 
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
   const [serviceOrders, setServiceOrders] = useState<GetLeaderTasksResponse[]>(
     [],
   );
@@ -275,6 +277,20 @@ export default function LeaderAssignments() {
     handleGetTasks();
     handleGetTechnicians();
   }, []);
+
+  // Có công việc chờ nghiệm thu/báo cáo lỗi mới -> BE emit new_notification -> tự tải lại
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      handleGetTasks();
+      if (activeTab === "history") handleGetHistory();
+    };
+    socket.on("new_notification", handleNewNotification);
+    return () => {
+      socket.off("new_notification", handleNewNotification);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket, activeTab]);
 
   const handleGetTasks = async () => {
     setIsLoading(true);

@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { useFetchClient_v2 as useFetchClient } from "../../../hook/useFetchClient";
+import { useSocket } from "../../../hook/useSocket";
 import { TASK_ASSIGNMENT_ENDPOINTS } from "../../../constants/technician/taskAssignmentEndpoint";
 import type {
   CreateIssueReportRequest,
@@ -341,6 +342,7 @@ export default function TechnicianAssignments() {
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
   const { fetchPrivate, fetchPrivateForm } = useFetchClient();
+  const socket = useSocket();
   const [components, setComponents] = useState<GetComponentsResponse[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -900,6 +902,18 @@ export default function TechnicianAssignments() {
     };
     fetchAssignments();
   }, [fetchPrivate, refreshKey]);
+
+  // Có phân công/cập nhật mới -> BE emit new_notification -> tự tải lại danh sách
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      setRefreshKey((prev) => prev + 1);
+    };
+    socket.on("new_notification", handleNewNotification);
+    return () => {
+      socket.off("new_notification", handleNewNotification);
+    };
+  }, [socket]);
 
   useEffect(() => {
     if (!issueReportAssignment) return;

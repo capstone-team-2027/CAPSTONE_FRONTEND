@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { useFetchClient } from "../../../hook/useFetchClient";
+import { useSocket } from "../../../hook/useSocket";
 import { useNavigate } from "react-router-dom";
 import { ISSUE_REPORTS_ENDPOINTS } from "../../../constants/reception/issueReportsApiEndPoints";
 import type { GetIssuesReportItemResponse } from "../../../model/dto/receptionistIssueReports.dto";
@@ -77,6 +78,7 @@ const makeReportCode = (createdAt: string, index: number) => {
 export default function ReceptionAdditionalIssues() {
   const navigate = useNavigate();
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
 
   const [issues, setIssues] = useState<GetIssuesReportItemResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -98,33 +100,46 @@ export default function ReceptionAdditionalIssues() {
   >({});
   const [errorMessage, setErrorMessage] = useState("");
 
-  useEffect(() => {
-    const loadAdditionalIssues = async () => {
-      setIsLoading(true);
-      setErrorMessage("");
-      try {
-        const response = await fetchPrivate<GetIssuesReportItemResponse[]>(
-          ISSUE_REPORTS_ENDPOINTS.ADDITIONAL_ISSUES_REPORT,
-        );
-        const data = Array.isArray(response) ? response : response?.data ?? [];
-        setIssues(data);
-      } catch (error) {
-        console.error("Lỗi khi tải lỗi phát sinh:", error);
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Không thể tải danh sách lỗi phát sinh.",
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const loadAdditionalIssues = async () => {
+    setIsLoading(true);
+    setErrorMessage("");
+    try {
+      const response = await fetchPrivate<GetIssuesReportItemResponse[]>(
+        ISSUE_REPORTS_ENDPOINTS.ADDITIONAL_ISSUES_REPORT,
+      );
+      const data = Array.isArray(response) ? response : response?.data ?? [];
+      setIssues(data);
+    } catch (error) {
+      console.error("Lỗi khi tải lỗi phát sinh:", error);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Không thể tải danh sách lỗi phát sinh.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     void loadAdditionalIssues();
     // fetchPrivate được tạo lại theo render ở hook hiện tại; không đưa vào deps
     // để tránh gọi API liên tục sau mỗi lần setState.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Có lỗi phát sinh mới -> BE emit new_notification -> tự tải lại danh sách
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      void loadAdditionalIssues();
+    };
+    socket.on("new_notification", handleNewNotification);
+    return () => {
+      socket.off("new_notification", handleNewNotification);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket]);
 
   useEffect(() => {
     const loadQuotationResources = async () => {

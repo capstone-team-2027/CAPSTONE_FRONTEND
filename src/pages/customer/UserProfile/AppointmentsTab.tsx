@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/customer/appointmentsEndpoints';
+import ProfileSectionHeader from './ProfileSectionHeader';
 
 export interface AppointmentItem {
   id: string;
@@ -333,14 +334,10 @@ export default function AppointmentsTab() {
     >
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-5">
-        <div>
-          <h2 className="text-2xl font-display font-bold text-brand-blue tracking-tight">
-            {t('appointments.historyTitle', 'Lịch sử đặt lịch hẹn')}
-          </h2>
-          <p className="text-xs text-gray-500 mt-1">
-            {t('appointments.historyDesc', 'Theo dõi trạng thái, thời gian và chi tiết các lịch hẹn dịch vụ của bạn.')}
-          </p>
-        </div>
+        <ProfileSectionHeader
+          title={t('appointments.historyTitle', 'Lịch sử đặt lịch hẹn')}
+          description={t('appointments.historyDesc', 'Theo dõi trạng thái, thời gian và chi tiết các lịch hẹn dịch vụ của bạn.')}
+        />
 
         <button
           type="button"

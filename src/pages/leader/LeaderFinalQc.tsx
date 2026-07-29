@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useOutletContext } from "react-router-dom";
 import { useFetchClient } from "../../hook/useFetchClient";
+import { useSocket } from "../../hook/useSocket";
 import { TECHNICIAN_LEADER_TASK_ENDPOINTS } from "../../constants/technicianLeader/taskManagementEndpoint";
 import type {
   GetFinalQcOrderResponse,
@@ -108,6 +109,7 @@ export default function LeaderFinalQc() {
   }>();
 
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
   const [orders, setOrders] = useState<GetFinalQcOrderResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [localSearch, setLocalSearch] = useState("");
@@ -151,6 +153,19 @@ export default function LeaderFinalQc() {
   useEffect(() => {
     handleGetOrders();
   }, []);
+
+  // Có đơn chờ nghiệm thu mới -> BE emit new_notification -> tự tải lại danh sách
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      handleGetOrders();
+    };
+    socket.on("new_notification", handleNewNotification);
+    return () => {
+      socket.off("new_notification", handleNewNotification);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket]);
 
   const handleGetOrders = async () => {
     setIsLoading(true);

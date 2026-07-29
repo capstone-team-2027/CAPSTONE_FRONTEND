@@ -33,6 +33,7 @@ import {
   Banknote,
 } from "lucide-react";
 import { useFetchClient } from "../../../hook/useFetchClient";
+import { useSocket } from "../../../hook/useSocket";
 import { QUOTE_MANAGEMENT_ENDPOINTS } from "../../../constants/reception/quoteManagementEndpoints";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -328,6 +329,7 @@ export default function ReceptionQuoteList() {
   const [selectedQuotation, setSelectedQuotation] =
     useState<QuotationRow | null>(null);
   const { fetchPrivate, fetchPublic } = useFetchClient();
+  const socket = useSocket();
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
@@ -375,10 +377,12 @@ export default function ReceptionQuoteList() {
             );
             await handleGetQuotationHistory();
 
-            // Sau 4s tự động reset/load lại toàn bộ trang để cập nhật trạng thái mới nhất
+            // Cho lễ tân thấy trạng thái "đã cọc" một chút rồi mới đóng cả 2 modal
             timeoutId = setTimeout(() => {
-              window.location.reload();
-            }, 4000);
+              setShowDepositPayment(false);
+              setSelectedQuotation(null);
+              setIsDepositPaid(false);
+            }, 2000);
           }
         } catch (err) {
           console.error("Lỗi kiểm tra thanh toán tiền cọc:", err);
@@ -407,6 +411,18 @@ export default function ReceptionQuoteList() {
   useEffect(() => {
     handleGetQuotationHistory();
   }, []);
+
+  // Có cập nhật mới -> BE emit new_notification -> tự tải lại danh sách
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      handleGetQuotationHistory();
+    };
+    socket.on("new_notification", handleNewNotification);
+    return () => {
+      socket.off("new_notification", handleNewNotification);
+    };
+  }, [socket]);
 
   useEffect(() => {
     if (!confirmApprove || !isOtpSent || resendCountdown <= 0) return;
@@ -1866,15 +1882,17 @@ export default function ReceptionQuoteList() {
                                                   : "bg-emerald-50 text-emerald-700"
                                               }`}
                                             >
-                                              Phụ tùng đặt riêng ·{" "}
                                               {item.status ===
-                                              "WAITING_DEPOSIT"
-                                                ? "Cần cọc"
-                                                : "Đã cọc"}
-                                              :{" "}
-                                              {formatVND(
-                                                selectedQuotation.deposit_amount ??
-                                                  0,
+                                              "WAITING_DEPOSIT" ? (
+                                                <>
+                                                  Phụ tùng đặt riêng · Cần cọc:{" "}
+                                                  {formatVND(
+                                                    selectedQuotation.deposit_amount ??
+                                                      0,
+                                                  )}
+                                                </>
+                                              ) : (
+                                                "Phụ tùng đặt riêng · Đã cọc"
                                               )}
                                             </span>
                                           )}

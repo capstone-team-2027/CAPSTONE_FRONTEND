@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useFetchClient } from '../../../hook/useFetchClient';
+import { useSocket } from '../../../hook/useSocket';
 import { TASK_ASSIGNMENT_ENDPOINTS } from '../../../constants/technician/taskAssignmentEndpoint';
 
 // ========== TYPES ==========
@@ -69,6 +70,7 @@ export default function TechnicianUpdateProgress() {
   const navigate = useNavigate();
 
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
 
   const [tasks, setTasks] = useState<RepairTask[]>([]);
   const [vehicleInfo, setVehicleInfo] = useState(EMPTY_VEHICLE_INFO);
@@ -133,7 +135,21 @@ export default function TechnicianUpdateProgress() {
 
   useEffect(() => {
     loadTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Có cập nhật mới -> BE emit new_notification -> tự tải lại danh sách công việc
+  useEffect(() => {
+    if (!socket || !id) return;
+    const handleNewNotification = () => {
+      loadTasks();
+    };
+    socket.on('new_notification', handleNewNotification);
+    return () => {
+      socket.off('new_notification', handleNewNotification);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket, id]);
 
   // Overall progress (tasks rỗng lúc đang tải -> tránh chia cho 0)
   const overallProgress =

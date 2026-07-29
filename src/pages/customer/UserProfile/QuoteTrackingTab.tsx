@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertCircle, Check, CheckCircle2, Clock3, Copy, Eye, Filter, Package, ReceiptText, Search, Wallet, Wrench, X, XCircle } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
+import { useSocket } from '../../../hook/useSocket';
 import { PROFILE_API_ENDPOINTS } from '../../../constants/customer/profileApiEndpoint';
+import ProfileSectionHeader from './ProfileSectionHeader';
 import type {
   CustomerQuotationActionResponse,
   GetQuotationResponse,
@@ -130,6 +132,7 @@ const getVehicleText = (quote: CustomerQuotationRow) => {
 
 export default function QuoteTrackingTab() {
   const { fetchPrivate, fetchPublic } = useFetchClient();
+  const socket = useSocket();
   const [pendingQuotes, setPendingQuotes] = useState<GetQuotationResponse[]>([]);
   const [historyQuotes, setHistoryQuotes] = useState<GetQuotationResponse[]>([]);
   const [selectedQuote, setSelectedQuote] = useState<CustomerQuotationRow | null>(null);
@@ -245,6 +248,19 @@ export default function QuoteTrackingTab() {
     }
   }, [statusFilter]);
 
+  // Có báo giá mới -> BE emit new_notification -> tự tải lại danh sách đang xem
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      reloadCurrentFilter();
+    };
+    socket.on('new_notification', handleNewNotification);
+    return () => {
+      socket.off('new_notification', handleNewNotification);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket]);
+
   useEffect(() => {
     if (!showDepositPayment || isDepositPaid || !selectedQuote?.id) return;
 
@@ -263,6 +279,12 @@ export default function QuoteTrackingTab() {
           setIsDepositPaid(true);
           setHistoryQuotes([]);
           await loadHistoryQuotations();
+          // Cho khách thấy dòng "Thanh toán cọc thành công!" một chút rồi mới đóng cả 2 modal
+          setTimeout(() => {
+            setShowDepositPayment(false);
+            setSelectedQuote(null);
+            setIsDepositPaid(false);
+          }, 2000);
         }
       } catch (paymentError) {
         console.error('Không thể kiểm tra trạng thái thanh toán cọc:', paymentError);
@@ -318,12 +340,10 @@ export default function QuoteTrackingTab() {
       className="flex flex-col gap-6 text-left"
     >
       <div className="border-b border-gray-100 pb-5">
-        <h2 className="text-2xl font-display font-bold text-[#00285E] tracking-tight">
-          Theo dõi báo giá
-        </h2>
-        <p className="text-xs text-gray-500 mt-1">
-          Kiểm tra báo giá đang chờ duyệt, tiền cọc phụ tùng và lịch sử báo giá đã xử lý.
-        </p>
+        <ProfileSectionHeader
+          title="Theo dõi báo giá"
+          description="Kiểm tra báo giá đang chờ duyệt, tiền cọc phụ tùng và lịch sử báo giá đã xử lý."
+        />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200/70 shadow-xs p-4">
@@ -655,13 +675,15 @@ export default function QuoteTrackingTab() {
                                           : "bg-emerald-50 text-emerald-700"
                                       }`}
                                     >
-                                      Phụ tùng đặt riêng ·{" "}
-                                      {item.status === "WAITING_DEPOSIT"
-                                        ? "Cần cọc"
-                                        : "Đã cọc"}
-                                      :{" "}
-                                      {formatCurrency(
-                                        selectedQuote.deposit_amount ?? 0,
+                                      {item.status === "WAITING_DEPOSIT" ? (
+                                        <>
+                                          Phụ tùng đặt riêng · Cần cọc:{" "}
+                                          {formatCurrency(
+                                            selectedQuote.deposit_amount ?? 0,
+                                          )}
+                                        </>
+                                      ) : (
+                                        "Phụ tùng đặt riêng · Đã cọc"
                                       )}
                                     </span>
                                   )}

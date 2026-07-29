@@ -26,14 +26,17 @@ import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "../../store/store";
 import type { UserModel } from "../../model/User";
 import { useFetchClient } from "../../hook/useFetchClient";
+import { useSocket } from "../../hook/useSocket";
 import { loginSuccess, logout } from "../../store/slices/userSlice";
 import { PROFILE_API_ENDPOINTS } from "../../constants/common/profileEndpoints";
+import { NOTIFICATION_API_ENDPOINTS } from "../../constants/inventory/notificationEndpoints";
 
 export default function InventoryLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
   const { i18n } = useTranslation();
 
   const user = useSelector(
@@ -46,6 +49,9 @@ export default function InventoryLayout() {
     type: "success" | "info" | "warning";
     text: string;
   } | null>(null);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   const showToast = (
     text: string,
@@ -80,6 +86,86 @@ export default function InventoryLayout() {
     const token = localStorage.getItem("token");
     if (token && !user) fetchUserProfile();
   }, [dispatch, fetchPrivate, user]);
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await fetchPrivate(NOTIFICATION_API_ENDPOINTS.GET_NOTIFICATIONS);
+      if (Array.isArray(response)) {
+        setNotifications(response);
+      }
+    } catch (error) {
+      console.error("Không lấy được danh sách thông báo:", error);
+    }
+  };
+
+  const fetchUnreadCount = async () => {
+    try {
+      const response = await fetchPrivate(NOTIFICATION_API_ENDPOINTS.GET_UNREAD_COUNT);
+      if (response?.count !== undefined) {
+        setUnreadCount(response.count);
+      }
+    } catch (error) {
+      console.error("Không lấy được số lượng thông báo:", error);
+    }
+  };
+
+  const handleMarkAsRead = async (id: number) => {
+    try {
+      await fetchPrivate(NOTIFICATION_API_ENDPOINTS.MARK_AS_READ(id), "PUT");
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error("Lỗi khi cập nhật thông báo:", error);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await fetchPrivate(NOTIFICATION_API_ENDPOINTS.MARK_ALL_AS_READ, "PUT");
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Lỗi khi đánh dấu đọc tất cả:", error);
+    }
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      fetchUnreadCount();
+      const intervalId = setInterval(fetchUnreadCount, 60000);
+      return () => clearInterval(intervalId);
+    }
+  }, []);
+
+  // Realtime: vào room riêng theo user + room role INVENTORY_MANAGER để nhận thông báo
+  useEffect(() => {
+    if (!socket || !user?.id) return;
+
+    const joinRooms = () => {
+      socket.emit("join-user", user.id);
+      if (user.role) socket.emit("join-role", user.role);
+    };
+    joinRooms();
+    socket.on("connect", joinRooms);
+
+    const handleNewNotification = () => {
+      fetchUnreadCount();
+      if (isNotificationOpen) fetchNotifications();
+    };
+    socket.on("new_notification", handleNewNotification);
+
+    return () => {
+      socket.off("connect", joinRooms);
+      socket.off("new_notification", handleNewNotification);
+    };
+  }, [socket, user?.id, user?.role, isNotificationOpen]);
+
+  useEffect(() => {
+    if (isNotificationOpen) {
+      fetchNotifications();
+    }
+  }, [isNotificationOpen]);
 
   const avatarUrl =
     user?.avatar?.trim() ||
@@ -257,13 +343,64 @@ export default function InventoryLayout() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => showToast("Không có thông báo mới", "info")}
-            className="p-1.5 rounded-full hover:bg-slate-100 transition-colors text-slate-600 relative"
-          >
-            <Bell size={20} />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full"></span>
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+              className="p-1.5 rounded-full hover:bg-slate-100 transition-colors text-slate-600 relative"
+            >
+              <Bell size={20} />
+              {unreadCount > 0 && (
+                <span className="absolute top-0.5 right-0.5 min-w-[14px] h-[14px] px-1 bg-rose-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {isNotificationOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsNotificationOpen(false)}></div>
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden flex flex-col max-h-[80vh]">
+                  <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                    <h3 className="font-bold text-slate-800">Thông báo</h3>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={handleMarkAllAsRead}
+                        className="text-xs font-semibold text-[#00285E] hover:text-[#F9A11B] transition-colors"
+                      >
+                        Đánh dấu đã đọc
+                      </button>
+                    )}
+                  </div>
+                  <div className="overflow-y-auto flex-1 p-2">
+                    {notifications.length === 0 ? (
+                      <div className="p-4 text-center text-slate-500 text-sm">Không có thông báo nào</div>
+                    ) : (
+                      notifications.map((notif: any) => (
+                        <div
+                          key={notif.id}
+                          onClick={() => {
+                            if (!notif.isRead) handleMarkAsRead(notif.id);
+                          }}
+                          className={`p-3 rounded-xl cursor-pointer transition-colors mb-1 ${notif.isRead ? "opacity-70 hover:bg-slate-50" : "bg-blue-50/50 hover:bg-blue-50 border border-blue-100/50"}`}
+                        >
+                          <div className="flex justify-between items-start gap-2 mb-1">
+                            <h4 className={`text-sm font-semibold ${notif.isRead ? "text-slate-700" : "text-slate-900"}`}>
+                              {notif.title}
+                            </h4>
+                            {!notif.isRead && <span className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0"></span>}
+                          </div>
+                          <p className="text-xs text-slate-500 line-clamp-2">{notif.content}</p>
+                          <span className="text-[10px] text-slate-400 mt-2 block font-medium">
+                            {new Date(notif.createdAt).toLocaleString("vi-VN")}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
           <img
             src={avatarUrl}
             alt="Inventory Manager Profile"
@@ -408,17 +545,65 @@ export default function InventoryLayout() {
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => showToast("Không có thông báo mới", "info")}
-                title="Thông báo"
-                className="w-10 h-10 rounded-xl flex items-center justify-center bg-white text-[#00285E] hover:bg-slate-50 transition-colors relative"
-              >
-                <Bell size={19} strokeWidth={2} />
-                <span className="absolute top-1.5 right-2 flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500 ring-2 ring-white"></span>
-                </span>
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                  title="Thông báo"
+                  className="w-10 h-10 rounded-xl flex items-center justify-center bg-white text-[#00285E] hover:bg-slate-50 transition-colors relative"
+                >
+                  <Bell size={19} strokeWidth={2} />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1.5 right-1.5 min-w-[16px] h-[16px] px-1 bg-rose-500 rounded-full ring-2 ring-white text-[10px] font-bold text-white flex items-center justify-center">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {isNotificationOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsNotificationOpen(false)}></div>
+                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden flex flex-col max-h-[80vh]">
+                      <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                        <h3 className="font-bold text-slate-800">Thông báo</h3>
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={handleMarkAllAsRead}
+                            className="text-xs font-semibold text-[#00285E] hover:text-[#F9A11B] transition-colors"
+                          >
+                            Đánh dấu đã đọc
+                          </button>
+                        )}
+                      </div>
+                      <div className="overflow-y-auto flex-1 p-2">
+                        {notifications.length === 0 ? (
+                          <div className="p-4 text-center text-slate-500 text-sm">Không có thông báo nào</div>
+                        ) : (
+                          notifications.map((notif: any) => (
+                            <div
+                              key={notif.id}
+                              onClick={() => {
+                                if (!notif.isRead) handleMarkAsRead(notif.id);
+                              }}
+                              className={`p-3 rounded-xl cursor-pointer transition-colors mb-1 ${notif.isRead ? "opacity-70 hover:bg-slate-50" : "bg-blue-50/50 hover:bg-blue-50 border border-blue-100/50"}`}
+                            >
+                              <div className="flex justify-between items-start gap-2 mb-1">
+                                <h4 className={`text-sm font-semibold ${notif.isRead ? "text-slate-700" : "text-slate-900"}`}>
+                                  {notif.title}
+                                </h4>
+                                {!notif.isRead && <span className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0"></span>}
+                              </div>
+                              <p className="text-xs text-slate-500 line-clamp-2">{notif.content}</p>
+                              <span className="text-[10px] text-slate-400 mt-2 block font-medium">
+                                {new Date(notif.createdAt).toLocaleString("vi-VN")}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
               <button
                 onClick={() => showToast("Mở trung tâm trợ giúp...", "info")}
                 title="Trợ giúp"

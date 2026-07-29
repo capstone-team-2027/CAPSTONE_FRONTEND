@@ -10,6 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { useFetchClient_v2 as useFetchClient } from "../../../hook/useFetchClient";
+import { useSocket } from "../../../hook/useSocket";
 import { TASK_ASSIGNMENT_ENDPOINTS } from "../../../constants/technician/taskAssignmentEndpoint";
 import { useNavigate } from "react-router-dom";
 
@@ -84,6 +85,7 @@ const formatStatus = (status: string) =>
 export default function TechnicianWorkHistory() {
   const navigate = useNavigate();
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
   const [workHistory, setWorkHistory] = useState<WorkHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -95,57 +97,72 @@ export default function TechnicianWorkHistory() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
+  const loadCompletedTasks = async () => {
+    setIsLoading(true);
+    setErrorMessage("");
+    try {
+      const response = (await fetchPrivate<
+        ApiEnvelope<CompletedTaskResponse[]>
+      >(TASK_ASSIGNMENT_ENDPOINTS.GET_COMPLETED_TASKS)) as ApiEnvelope<
+        CompletedTaskResponse[]
+      >;
+      const mappedItems = (response.data ?? []).map(
+        (assignment): WorkHistoryItem => {
+          const serviceOrder = assignment.task.serviceOrder;
+          const vehicle = serviceOrder.vehicle;
+          const customer = vehicle?.customer;
+          return {
+            id: assignment.id,
+            code: `SO-${serviceOrder.id}`,
+            customerName:
+              customer?.name ||
+              customer?.user?.fullName ||
+              "Khách vãng lai",
+            customerPhone:
+              customer?.phone || customer?.user?.phoneNumber || "",
+            vehiclePlate: vehicle?.license_plate || "—",
+            vehicleModel: vehicle?.model?.model_name || "",
+            services: [
+              assignment.task.catalog?.service_name ||
+                `Công việc #${assignment.task.id}`,
+            ],
+            startedAt: assignment.actual_start_time || undefined,
+            completedAt: assignment.actual_end_time || undefined,
+            status: assignment.status,
+            taskType: assignment.task.type || undefined,
+          };
+        },
+      );
+      setWorkHistory(mappedItems);
+    } catch (error) {
+      console.error("Lỗi khi tải lịch sử công việc:", error);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Không thể tải lịch sử công việc.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadCompletedTasks = async () => {
-      setIsLoading(true);
-      setErrorMessage("");
-      try {
-        const response = (await fetchPrivate<
-          ApiEnvelope<CompletedTaskResponse[]>
-        >(TASK_ASSIGNMENT_ENDPOINTS.GET_COMPLETED_TASKS)) as ApiEnvelope<
-          CompletedTaskResponse[]
-        >;
-        const mappedItems = (response.data ?? []).map(
-          (assignment): WorkHistoryItem => {
-            const serviceOrder = assignment.task.serviceOrder;
-            const vehicle = serviceOrder.vehicle;
-            const customer = vehicle?.customer;
-            return {
-              id: assignment.id,
-              code: `SO-${serviceOrder.id}`,
-              customerName:
-                customer?.name ||
-                customer?.user?.fullName ||
-                "Khách vãng lai",
-              customerPhone:
-                customer?.phone || customer?.user?.phoneNumber || "",
-              vehiclePlate: vehicle?.license_plate || "—",
-              vehicleModel: vehicle?.model?.model_name || "",
-              services: [
-                assignment.task.catalog?.service_name ||
-                  `Công việc #${assignment.task.id}`,
-              ],
-              startedAt: assignment.actual_start_time || undefined,
-              completedAt: assignment.actual_end_time || undefined,
-              status: assignment.status,
-              taskType: assignment.task.type || undefined,
-            };
-          },
-        );
-        setWorkHistory(mappedItems);
-      } catch (error) {
-        console.error("Lỗi khi tải lịch sử công việc:", error);
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Không thể tải lịch sử công việc.",
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    };
     void loadCompletedTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchPrivate]);
+
+  // QC reject có thể rút task khỏi lịch sử hoàn thành -> tự tải lại khi có thông báo mới
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      void loadCompletedTasks();
+    };
+    socket.on("new_notification", handleNewNotification);
+    return () => {
+      socket.off("new_notification", handleNewNotification);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket]);
 
   useEffect(() => {
     if (!isFilterOpen) return;

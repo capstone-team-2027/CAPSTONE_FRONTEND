@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { useFetchClient } from "../../../hook/useFetchClient";
+import { useSocket } from "../../../hook/useSocket";
 import { APPROVED_QUOTE_API_ENDPOINTS } from "../../../constants/inventory/approvedQuoteApiEndPoint";
 
 const PAGE_SIZE = 6;
@@ -173,6 +174,7 @@ export default function InventoryApprovedQuotes() {
   }>();
 
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
   const navigate = useNavigate();
   const [localSearch, setLocalSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -200,6 +202,19 @@ export default function InventoryApprovedQuotes() {
     // Chỉ tải một lần khi mở trang; fetchPrivate không phải callback ổn định.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Có báo giá vừa được duyệt -> BE emit new_notification -> tự tải lại danh sách
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      void handleGetApprovedQuotes();
+    };
+    socket.on("new_notification", handleNewNotification);
+    return () => {
+      socket.off("new_notification", handleNewNotification);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket]);
 
   const handleExportStock = async (quotation: QuotationRow) => {
     const serviceOrderId = getQuoteInfo(quotation).serviceOrderId;

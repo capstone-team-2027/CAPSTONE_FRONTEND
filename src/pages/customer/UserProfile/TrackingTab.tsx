@@ -8,11 +8,13 @@ import {
   ShieldCheck,
   ClipboardList,
   CalendarClock,
-  MapPin,
+  Wrench,
+  User,
 } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { useSocket } from '../../../hook/useSocket';
 import { WAITING_TIME_API_ENDPOINTS } from '../../../constants/customer/waitingTimeApiEndpoint';
+import ProfileSectionHeader from './ProfileSectionHeader';
 
 import type { GetRepairProgressResponse } from '../../../model/dto/repairProgress.dto';
 
@@ -100,12 +102,12 @@ export default function TrackingTab() {
   const formatDateTime = (d?: string | null) =>
     d
       ? new Date(d).toLocaleString('vi-VN', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
       : '—';
 
   const getOrderStatusDisplay = (status?: string) => {
@@ -122,6 +124,26 @@ export default function TrackingTab() {
         return { label: 'Đã hoàn thành', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' };
       default:
         return { label: status || 'Không rõ', color: 'text-gray-600 bg-gray-50 border-gray-200' };
+    }
+  };
+
+  const getTaskStatusDisplay = (status?: string) => {
+    switch (status) {
+      case 'PENDING':
+      case 'ASSIGNED':
+        return { label: 'Chưa bắt đầu', color: 'text-gray-500 bg-gray-50 border-gray-200' };
+      case 'IN_PROGRESS':
+        return { label: 'Đang thực hiện', color: 'text-blue-600 bg-blue-50 border-blue-200' };
+      case 'PAUSED':
+        return { label: 'Tạm dừng', color: 'text-amber-600 bg-amber-50 border-amber-200' };
+      case 'WAITING_STOCK':
+        return { label: 'Chờ phụ tùng', color: 'text-rose-600 bg-rose-50 border-rose-200' };
+      case 'PENDING_QC':
+        return { label: 'Chờ kiểm định', color: 'text-violet-600 bg-violet-50 border-violet-200' };
+      case 'COMPLETED':
+        return { label: 'Hoàn thành', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' };
+      default:
+        return { label: status || 'Không rõ', color: 'text-gray-500 bg-gray-50 border-gray-200' };
     }
   };
 
@@ -143,6 +165,18 @@ export default function TrackingTab() {
     () => (taskTotal === 0 ? 0 : Math.round((doneCount / taskTotal) * 100)),
     [doneCount, taskTotal],
   );
+
+  // Dự kiến hoàn thành = hiện tại + tổng thời gian ước tính của các hạng mục chưa xong
+  const estimatedFinishTime = useMemo(() => {
+    if (!currentOrder) return null;
+    const remainingMinutes = (currentOrder.tasks ?? [])
+      .filter((t) => {
+        const status = t.assignments?.[0]?.status ?? t.status;
+        return status !== 'COMPLETED' && status !== 'PENDING_QC';
+      })
+      .reduce((sum, t) => sum + (t.catalog?.estimated_duration ?? 0), 0);
+    return new Date(Date.now() + remainingMinutes * 60 * 1000);
+  }, [currentOrder]);
 
   // Xong hết hạng mục nhưng đơn chưa đóng -> đang nghiệm thu trước khi giao xe
   const isAwaitingHandover = useMemo(
@@ -180,12 +214,10 @@ export default function TrackingTab() {
 
       {/* Header */}
       <div className="border-b border-gray-100 pb-5">
-        <h2 className="text-2xl font-display font-bold text-[#00285E] tracking-tight">
-          Theo dõi tiến độ sửa chữa
-        </h2>
-        <p className="text-xs text-gray-500 mt-1">
-          Cập nhật trạng thái sửa chữa xe của bạn theo thời gian thực.
-        </p>
+        <ProfileSectionHeader
+          title="Theo dõi tiến độ sửa chữa"
+          description="Cập nhật trạng thái sửa chữa xe của bạn theo thời gian thực."
+        />
       </div>
 
       {isLoading ? (
@@ -231,11 +263,10 @@ export default function TrackingTab() {
           <div className="flex border-b border-gray-100 -mt-2 mb-2">
             <button
               onClick={() => setFilterCategory('ACTIVE')}
-              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 ${
-                filterCategory === 'ACTIVE'
+              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 ${filterCategory === 'ACTIVE'
                   ? 'text-brand-orange border-brand-orange'
                   : 'text-gray-400 border-transparent hover:text-[#00285E]'
-              }`}
+                }`}
             >
               <span>Đang tiến hành</span>
               {activeCount > 0 && (
@@ -246,11 +277,10 @@ export default function TrackingTab() {
             </button>
             <button
               onClick={() => setFilterCategory('COMPLETED')}
-              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 ${
-                filterCategory === 'COMPLETED'
+              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 ${filterCategory === 'COMPLETED'
                   ? 'text-brand-orange border-brand-orange'
                   : 'text-gray-400 border-transparent hover:text-[#00285E]'
-              }`}
+                }`}
             >
               <span>Đã hoàn thành</span>
               {completedCount > 0 && (
@@ -284,11 +314,10 @@ export default function TrackingTab() {
                       <button
                         key={order.id}
                         onClick={() => setSelectedOrderIndex(idx)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 ${
-                          isActive
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 ${isActive
                             ? 'bg-[#00285E] text-white border-[#00285E] shadow-md'
                             : 'bg-white text-gray-500 border-gray-200 hover:border-[#00285E]/40'
-                        }`}
+                          }`}
                       >
                         <Car className={`w-4 h-4 ${isActive ? 'text-brand-orange' : 'text-gray-400'}`} />
                         <span>{order.vehicle?.license_plate || 'Xe không rõ'}</span>
@@ -330,15 +359,13 @@ export default function TrackingTab() {
 
                   <div className="text-right">
                     <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                      {isOrderDone(currentOrder) ? 'Đã trả xe' : 'Dự kiến trả xe'}
+                      {isOrderDone(currentOrder) ? 'Đã trả xe' : 'Dự kiến hoàn thành'}
                     </span>
                     <span className="inline-flex items-center gap-1.5 text-base font-bold text-[#00285E] leading-none">
                       <CalendarClock size={16} className="text-brand-orange shrink-0" />
-                      {formatDateTime(
-                        isOrderDone(currentOrder)
-                          ? currentOrder.actual_finish_time
-                          : currentOrder.promised_finish_time,
-                      )}
+                      {isOrderDone(currentOrder)
+                        ? formatDateTime(currentOrder.actual_finish_time)
+                        : formatDateTime(estimatedFinishTime?.toISOString())}
                     </span>
                   </div>
                 </div>
@@ -350,11 +377,10 @@ export default function TrackingTab() {
                       Tiến độ công việc
                     </span>
                     <span
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${
-                        isAwaitingHandover
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${isAwaitingHandover
                           ? 'text-violet-600 bg-violet-50 border-violet-200'
                           : getOrderStatusDisplay(currentOrder.status).color
-                      }`}
+                        }`}
                     >
                       {isAwaitingHandover
                         ? 'Đang kiểm tra trước khi giao xe'
@@ -363,9 +389,8 @@ export default function TrackingTab() {
                   </div>
                   <div className="h-2.5 w-full rounded-full bg-slate-200/70 overflow-hidden">
                     <div
-                      className={`h-full rounded-full bg-[#00285E] transition-all duration-700 ${
-                        orderProgress < 100 || isAwaitingHandover ? 'bar-running' : ''
-                      }`}
+                      className={`h-full rounded-full bg-[#00285E] transition-all duration-700 ${orderProgress < 100 || isAwaitingHandover ? 'bar-running' : ''
+                        }`}
                       style={{ width: `${orderProgress}%` }}
                     />
                   </div>
@@ -379,6 +404,54 @@ export default function TrackingTab() {
                   </div>
                 </div>
               </motion.div>
+
+              {/* Danh sách hạng mục sửa chữa */}
+              {(currentOrder.tasks?.length ?? 0) > 0 && (
+                <motion.div
+                  key={`tasks-${currentOrder.id}`}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.03 }}
+                  className="bg-white rounded-2xl border border-gray-200/70 shadow-xs overflow-hidden"
+                >
+                  <div className="px-5 sm:px-6 py-4 border-b border-gray-100">
+                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                      Hạng mục sửa chữa
+                    </span>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {(currentOrder.tasks ?? []).map((task) => {
+                      const taskStatus = task.assignments?.[0]?.status ?? task.status;
+                      const cfg = getTaskStatusDisplay(taskStatus);
+                      const technicianName = task.assignments?.[0]?.technician?.fullName;
+                      return (
+                        <div
+                          key={task.id}
+                          className="flex flex-wrap items-center justify-between gap-2 px-5 sm:px-6 py-3.5"
+                        >
+                          <div className="min-w-0">
+                            <span className="flex items-center gap-1.5 text-sm font-semibold text-[#00285E] truncate">
+                              <Wrench size={13} className="text-gray-400 shrink-0" />
+                              {task.catalog?.service_name || `Hạng mục #${task.id}`}
+                            </span>
+                            {technicianName && (
+                              <span className="flex items-center gap-1.5 text-[11px] text-gray-400 mt-1">
+                                <User size={11} className="shrink-0" />
+                                {technicianName}
+                              </span>
+                            )}
+                          </div>
+                          <span
+                            className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold border ${cfg.color}`}
+                          >
+                            {cfg.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
 
               {/* Mốc thời gian */}
               <motion.div
@@ -402,10 +475,12 @@ export default function TrackingTab() {
                   </div>
                   <div>
                     <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                      Hẹn trả xe
+                      Dự kiến hoàn thành
                     </span>
                     <span className="block text-sm font-semibold text-[#00285E]">
-                      {formatDateTime(currentOrder.promised_finish_time)}
+                      {isOrderDone(currentOrder)
+                        ? formatDateTime(currentOrder.actual_finish_time)
+                        : formatDateTime(estimatedFinishTime?.toISOString())}
                     </span>
                   </div>
                   <div>
@@ -413,16 +488,14 @@ export default function TrackingTab() {
                       Hoàn tất thực tế
                     </span>
                     <span
-                      className={`block text-sm font-semibold ${
-                        currentOrder.actual_finish_time ? 'text-emerald-600' : 'text-gray-300'
-                      }`}
+                      className={`block text-sm font-semibold ${currentOrder.actual_finish_time ? 'text-emerald-600' : 'text-gray-300'
+                        }`}
                     >
                       {formatDateTime(currentOrder.actual_finish_time)}
                     </span>
                   </div>
                 </div>
               </motion.div>
-
 
             </>
           )}
