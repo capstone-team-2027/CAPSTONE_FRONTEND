@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import {useNavigate} from "react-router-dom";
 import {useFetchClient} from "../../../hook/useFetchClient";
+import { useSocket } from "../../../hook/useSocket";
 import {TASK_ASSIGNMENT_ENDPOINTS} from "../../../constants/technician/taskAssignmentEndpoint";
 // 1 báo cáo = các issues cùng task (gom nhiều hạng mục linh kiện)
 interface IssueReport {
@@ -53,6 +54,7 @@ export default function IssuesReportHistory() {
     null,
   );
   const {fetchPrivate} = useFetchClient();
+  const socket = useSocket();
   const [expandedCategories, setExpandedCategories] = useState<
     Record<string, boolean>
   >({});
@@ -60,6 +62,19 @@ export default function IssuesReportHistory() {
   useEffect(() => {
     handleGetIssuesReport();
   },[]);
+
+  // Có báo cáo mới -> BE emit new_notification -> tự tải lại danh sách
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      handleGetIssuesReport();
+    };
+    socket.on("new_notification", handleNewNotification);
+    return () => {
+      socket.off("new_notification", handleNewNotification);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket]);
 
   const handleGetIssuesReport = async () => {
     try {

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useFetchClient_v2 as useFetchClient } from '../../../hook/useFetchClient';
+import { useSocket } from '../../../hook/useSocket';
 import { SERVICE_ORDER_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
 
 export const SO_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
@@ -36,6 +37,7 @@ const ITEMS_PER_PAGE = 5;
 export default function ReceptionServiceOrderList() {
   const navigate = useNavigate();
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
 
   const [serviceOrders, setServiceOrders] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -46,6 +48,18 @@ export default function ReceptionServiceOrderList() {
   useEffect(() => {
     loadServiceOrders();
   }, []);
+
+  // Có cập nhật mới -> BE emit new_notification -> tự tải lại danh sách
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      loadServiceOrders();
+    };
+    socket.on('new_notification', handleNewNotification);
+    return () => {
+      socket.off('new_notification', handleNewNotification);
+    };
+  }, [socket]);
 
   const loadServiceOrders = async () => {
     try {

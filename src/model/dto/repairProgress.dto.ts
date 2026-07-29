@@ -12,14 +12,28 @@ export interface RepairVehicle {
   model?: RepairVehicleModel | null;
 }
 
+export interface RepairTaskTechnician {
+  id: number;
+  fullName: string | null;
+}
+
 export interface RepairTaskAssignment {
   id: number;
   status: string | null;
+  technician?: RepairTaskTechnician | null;
+}
+
+export interface RepairTaskCatalog {
+  id: number;
+  service_name: string;
+  estimated_duration?: number | null;
 }
 
 export interface RepairTask {
   id: number;
   status: string;
+  type?: string;
+  catalog?: RepairTaskCatalog | null;
   assignments?: RepairTaskAssignment[];
 }
 

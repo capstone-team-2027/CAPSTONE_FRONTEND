@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import {ISSUE_REPORTS_ENDPOINTS} from "../../../constants/reception/issueReportsApiEndPoints";
 import {useFetchClient} from "../../../hook/useFetchClient";
+import { useSocket } from "../../../hook/useSocket";
 import type { CreateQuotationRequest, GetServicesResponse, GetAllSparePartsResponse } from "../../../model/dto/quoteManagement.dto";
 import { QUOTE_MANAGEMENT_ENDPOINTS } from "../../../constants/reception/quoteManagementEndpoints";
 
@@ -134,6 +135,7 @@ export default function ReceptionIssuesReportHistory() {
   const navigate = useNavigate();
   // TODO: tự viết hàm fetch API rồi setIssues(data) + setIsLoading
   const {fetchPrivate} = useFetchClient();
+  const socket = useSocket();
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
@@ -596,6 +598,19 @@ export default function ReceptionIssuesReportHistory() {
   useEffect(() => {
     getIssueReports();
   },[]);
+
+  // Có báo cáo lỗi mới -> BE emit new_notification -> tự tải lại danh sách
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      getIssueReports();
+    };
+    socket.on("new_notification", handleNewNotification);
+    return () => {
+      socket.off("new_notification", handleNewNotification);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket]);
 
   const getIssueReports = async () => {
     try {

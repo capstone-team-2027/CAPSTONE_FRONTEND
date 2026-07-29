@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useFetchClient_v2 as useFetchClient } from '../../../hook/useFetchClient';
+import { useSocket } from '../../../hook/useSocket';
 import { TASK_ASSIGNMENT_ENDPOINTS } from '../../../constants/technician/taskAssignmentEndpoint';
 import { ArrowLeft, Loader2, Calendar, User, Car, CheckSquare, Clock } from 'lucide-react';
 
@@ -51,28 +52,44 @@ export default function TechnicianAssignmentsDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
 
   const [detailData, setDetailData] = useState<ServiceOrderDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchDetail = async () => {
-      try {
-        setIsLoading(true);
-        if (id) {
-          const response = (await fetchPrivate<ServiceOrderDetail>(
-            TASK_ASSIGNMENT_ENDPOINTS.GET_SERVICE_ORDER_DETAIL(id),
-          )) as ServiceOrderDetail;
-          setDetailData(response);
-        }
-      } catch (error) {
-        console.error('Lỗi khi tải chi tiết lệnh sửa chữa:', error);
-      } finally {
-        setIsLoading(false);
+  const fetchDetail = async () => {
+    try {
+      setIsLoading(true);
+      if (id) {
+        const response = (await fetchPrivate<ServiceOrderDetail>(
+          TASK_ASSIGNMENT_ENDPOINTS.GET_SERVICE_ORDER_DETAIL(id),
+        )) as ServiceOrderDetail;
+        setDetailData(response);
       }
-    };
+    } catch (error) {
+      console.error('Lỗi khi tải chi tiết lệnh sửa chữa:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchDetail();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, fetchPrivate]);
+
+  // Có cập nhật mới -> BE emit new_notification -> tự tải lại chi tiết
+  useEffect(() => {
+    if (!socket || !id) return;
+    const handleNewNotification = () => {
+      fetchDetail();
+    };
+    socket.on('new_notification', handleNewNotification);
+    return () => {
+      socket.off('new_notification', handleNewNotification);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket, id]);
 
   if (isLoading) {
     return (

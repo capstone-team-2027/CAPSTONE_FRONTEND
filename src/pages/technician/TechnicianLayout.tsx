@@ -62,6 +62,19 @@ export default function TechnicianLayout() {
     }
   };
 
+  const fetchUnreadCount = async () => {
+    try {
+      const response = await fetchPrivate(
+        NOTIFICATION_API_ENDPOINTS.GET_UNREAD_COUNT,
+      );
+      if (response?.count !== undefined) {
+        setUnreadCount(response.count);
+      }
+    } catch (error) {
+      console.error("Không lấy được số lượng thông báo:", error);
+    }
+  };
+
   const handleMarkAsRead = async (id: number) => {
     try {
       await fetchPrivate(NOTIFICATION_API_ENDPOINTS.MARK_AS_READ(id), "PUT");
@@ -122,28 +135,35 @@ export default function TechnicianLayout() {
       }
     };
 
-    const fetchUnreadCount = async () => {
-      try {
-        const response = await fetchPrivate(
-          NOTIFICATION_API_ENDPOINTS.GET_UNREAD_COUNT,
-        );
-        if (response?.count !== undefined) {
-          setUnreadCount(response.count);
-        }
-      } catch (error) {
-        console.error("Không lấy được số lượng thông báo:", error);
-      }
-    };
-
     const token = localStorage.getItem("token");
     if (token) {
       if (!user) fetchUserProfile();
       fetchUnreadCount();
-      // Optionally set up an interval to poll for new notifications every minute
+      // Poll dự phòng, vẫn giữ để không phụ thuộc hoàn toàn vào socket
       const intervalId = setInterval(fetchUnreadCount, 60000);
       return () => clearInterval(intervalId);
     }
   }, [dispatch, fetchPrivate, user]);
+
+  // Realtime: vào room riêng theo user để nhận notifyUser (task assigned/unassigned, QC reject...)
+  useEffect(() => {
+    if (!socket || !user?.id) return;
+
+    const joinUserRoom = () => socket.emit("join-user", user.id);
+    joinUserRoom();
+    socket.on("connect", joinUserRoom);
+
+    const handleNewNotification = () => {
+      fetchUnreadCount();
+      if (isNotificationOpen) fetchNotifications();
+    };
+    socket.on("new_notification", handleNewNotification);
+
+    return () => {
+      socket.off("connect", joinUserRoom);
+      socket.off("new_notification", handleNewNotification);
+    };
+  }, [socket, user?.id, isNotificationOpen]);
 
   const avatarUrl =
     user?.avatar?.trim() ||

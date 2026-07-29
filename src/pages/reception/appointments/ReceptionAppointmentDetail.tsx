@@ -21,6 +21,7 @@ import {
 import { useNavigate, useParams, useOutletContext } from 'react-router-dom';
 import type { AppointmentModel } from '../../../model/Appointment';
 import { useFetchClient } from '../../../hook/useFetchClient';
+import { useSocket } from '../../../hook/useSocket';
 import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
 
 
@@ -50,6 +51,7 @@ export default function ReceptionAppointmentDetail() {
   }>();
 
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
   const [appointment, setAppointment] = useState<AppointmentModel | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -138,6 +140,18 @@ export default function ReceptionAppointmentDetail() {
   useEffect(() => {
     loadAppointmentDetail();
   }, [id]);
+
+  // Có cập nhật mới -> BE emit new_notification -> tự tải lại chi tiết
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      loadAppointmentDetail();
+    };
+    socket.on('new_notification', handleNewNotification);
+    return () => {
+      socket.off('new_notification', handleNewNotification);
+    };
+  }, [socket, id]);
 
   if (isLoading) {
     return (

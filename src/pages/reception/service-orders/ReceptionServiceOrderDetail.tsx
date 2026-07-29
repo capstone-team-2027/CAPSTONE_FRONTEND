@@ -29,6 +29,7 @@ import {
 import { useNavigate, useParams, useOutletContext } from 'react-router-dom';
 import { SO_STATUS_CONFIG } from './ReceptionServiceOrderList';
 import { useFetchClient_v2 as useFetchClient } from '../../../hook/useFetchClient';
+import { useSocket } from '../../../hook/useSocket';
 import { SERVICE_ORDER_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
 
 const TASK_STATUS_LABELS: Record<string, string> = {
@@ -47,6 +48,7 @@ export default function ReceptionServiceOrderDetail() {
     showToast: (text: string, type?: 'success' | 'info' | 'warning') => void;
   }>();
   const { fetchPrivate, fetchPublic } = useFetchClient();
+  const socket = useSocket();
 
   const [order, setOrder] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -143,6 +145,18 @@ export default function ReceptionServiceOrderDetail() {
       loadOrderDetail(id);
     }
   }, [id]);
+
+  // Có cập nhật mới -> BE emit new_notification -> tự tải lại chi tiết
+  useEffect(() => {
+    if (!socket || !id) return;
+    const handleNewNotification = () => {
+      loadOrderDetail(id);
+    };
+    socket.on('new_notification', handleNewNotification);
+    return () => {
+      socket.off('new_notification', handleNewNotification);
+    };
+  }, [socket, id]);
 
   const loadOrderDetail = async (orderId: string) => {
     try {

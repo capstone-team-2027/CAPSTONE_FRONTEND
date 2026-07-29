@@ -8,11 +8,13 @@ import {
   ShieldCheck,
   ClipboardList,
   CalendarClock,
-  MapPin,
+  Wrench,
+  User,
 } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { useSocket } from '../../../hook/useSocket';
 import { WAITING_TIME_API_ENDPOINTS } from '../../../constants/customer/waitingTimeApiEndpoint';
+import ProfileSectionHeader from './ProfileSectionHeader';
 
 import type { GetRepairProgressResponse } from '../../../model/dto/repairProgress.dto';
 
@@ -125,6 +127,26 @@ export default function TrackingTab() {
     }
   };
 
+  const getTaskStatusDisplay = (status?: string) => {
+    switch (status) {
+      case 'PENDING':
+      case 'ASSIGNED':
+        return { label: 'Chưa bắt đầu', color: 'text-gray-500 bg-gray-50 border-gray-200' };
+      case 'IN_PROGRESS':
+        return { label: 'Đang thực hiện', color: 'text-blue-600 bg-blue-50 border-blue-200' };
+      case 'PAUSED':
+        return { label: 'Tạm dừng', color: 'text-amber-600 bg-amber-50 border-amber-200' };
+      case 'WAITING_STOCK':
+        return { label: 'Chờ phụ tùng', color: 'text-rose-600 bg-rose-50 border-rose-200' };
+      case 'PENDING_QC':
+        return { label: 'Chờ kiểm định', color: 'text-violet-600 bg-violet-50 border-violet-200' };
+      case 'COMPLETED':
+        return { label: 'Hoàn thành', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' };
+      default:
+        return { label: status || 'Không rõ', color: 'text-gray-500 bg-gray-50 border-gray-200' };
+    }
+  };
+
   const currentOrder = filteredOrders[selectedOrderIndex];
 
   // Tiến độ = tỉ lệ hạng mục đã làm xong. Trạng thái lấy từ Task_Assignment vì
@@ -143,6 +165,18 @@ export default function TrackingTab() {
     () => (taskTotal === 0 ? 0 : Math.round((doneCount / taskTotal) * 100)),
     [doneCount, taskTotal],
   );
+
+  // Dự kiến hoàn thành = hiện tại + tổng thời gian ước tính của các hạng mục chưa xong
+  const estimatedFinishTime = useMemo(() => {
+    if (!currentOrder) return null;
+    const remainingMinutes = (currentOrder.tasks ?? [])
+      .filter((t) => {
+        const status = t.assignments?.[0]?.status ?? t.status;
+        return status !== 'COMPLETED' && status !== 'PENDING_QC';
+      })
+      .reduce((sum, t) => sum + (t.catalog?.estimated_duration ?? 0), 0);
+    return new Date(Date.now() + remainingMinutes * 60 * 1000);
+  }, [currentOrder]);
 
   // Xong hết hạng mục nhưng đơn chưa đóng -> đang nghiệm thu trước khi giao xe
   const isAwaitingHandover = useMemo(
@@ -180,12 +214,10 @@ export default function TrackingTab() {
 
       {/* Header */}
       <div className="border-b border-gray-100 pb-5">
-        <h2 className="text-2xl font-display font-bold text-[#00285E] tracking-tight">
-          Theo dõi tiến độ sửa chữa
-        </h2>
-        <p className="text-xs text-gray-500 mt-1">
-          Cập nhật trạng thái sửa chữa xe của bạn theo thời gian thực.
-        </p>
+        <ProfileSectionHeader
+          title="Theo dõi tiến độ sửa chữa"
+          description="Cập nhật trạng thái sửa chữa xe của bạn theo thời gian thực."
+        />
       </div>
 
       {isLoading ? (
@@ -330,15 +362,13 @@ export default function TrackingTab() {
 
                   <div className="text-right">
                     <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                      {isOrderDone(currentOrder) ? 'Đã trả xe' : 'Dự kiến trả xe'}
+                      {isOrderDone(currentOrder) ? 'Đã trả xe' : 'Dự kiến hoàn thành'}
                     </span>
                     <span className="inline-flex items-center gap-1.5 text-base font-bold text-[#00285E] leading-none">
                       <CalendarClock size={16} className="text-brand-orange shrink-0" />
-                      {formatDateTime(
-                        isOrderDone(currentOrder)
-                          ? currentOrder.actual_finish_time
-                          : currentOrder.promised_finish_time,
-                      )}
+                      {isOrderDone(currentOrder)
+                        ? formatDateTime(currentOrder.actual_finish_time)
+                        : formatDateTime(estimatedFinishTime?.toISOString())}
                     </span>
                   </div>
                 </div>
@@ -380,6 +410,54 @@ export default function TrackingTab() {
                 </div>
               </motion.div>
 
+              {/* Danh sách hạng mục sửa chữa */}
+              {(currentOrder.tasks?.length ?? 0) > 0 && (
+                <motion.div
+                  key={`tasks-${currentOrder.id}`}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.03 }}
+                  className="bg-white rounded-2xl border border-gray-200/70 shadow-xs overflow-hidden"
+                >
+                  <div className="px-5 sm:px-6 py-4 border-b border-gray-100">
+                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                      Hạng mục sửa chữa
+                    </span>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {(currentOrder.tasks ?? []).map((task) => {
+                      const taskStatus = task.assignments?.[0]?.status ?? task.status;
+                      const cfg = getTaskStatusDisplay(taskStatus);
+                      const technicianName = task.assignments?.[0]?.technician?.fullName;
+                      return (
+                        <div
+                          key={task.id}
+                          className="flex flex-wrap items-center justify-between gap-2 px-5 sm:px-6 py-3.5"
+                        >
+                          <div className="min-w-0">
+                            <span className="flex items-center gap-1.5 text-sm font-semibold text-[#00285E] truncate">
+                              <Wrench size={13} className="text-gray-400 shrink-0" />
+                              {task.catalog?.service_name || `Hạng mục #${task.id}`}
+                            </span>
+                            {technicianName && (
+                              <span className="flex items-center gap-1.5 text-[11px] text-gray-400 mt-1">
+                                <User size={11} className="shrink-0" />
+                                {technicianName}
+                              </span>
+                            )}
+                          </div>
+                          <span
+                            className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold border ${cfg.color}`}
+                          >
+                            {cfg.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+
               {/* Mốc thời gian */}
               <motion.div
                 key={`time-${currentOrder.id}`}
@@ -402,10 +480,12 @@ export default function TrackingTab() {
                   </div>
                   <div>
                     <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                      Hẹn trả xe
+                      Dự kiến hoàn thành
                     </span>
                     <span className="block text-sm font-semibold text-[#00285E]">
-                      {formatDateTime(currentOrder.promised_finish_time)}
+                      {isOrderDone(currentOrder)
+                        ? formatDateTime(currentOrder.actual_finish_time)
+                        : formatDateTime(estimatedFinishTime?.toISOString())}
                     </span>
                   </div>
                   <div>
@@ -423,41 +503,6 @@ export default function TrackingTab() {
                 </div>
               </motion.div>
 
-              {/* Tracking Map Section */}
-              <motion.div
-                key={`map-${currentOrder.id}`}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="mt-6 bg-white rounded-2xl border border-gray-200/70 shadow-xs p-5 sm:p-6"
-              >
-                <div className="flex items-center gap-2 text-[#00285E] font-bold text-sm mb-4">
-                  <MapPin className="w-4 h-4 text-brand-orange" />
-                  <span>Vị trí phương tiện</span>
-                </div>
-                
-                <div className="w-full h-64 md:h-80 rounded-xl overflow-hidden border border-gray-200 relative group shadow-inner">
-                  <iframe 
-                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1m2!1s0x3135ab9bd9861ca1%3A0xe7887f7b72ca17a9!2zSGFub2ksIEhvw6BuIEtp4bq_bSwgSGFub2ksIFZpZXRuYW0!5e0!3m2!1sen!2s!4v1700000000000!5m2!1sen!2s" 
-                    width="100%" 
-                    height="100%" 
-                    style={{ border: 0 }} 
-                    allowFullScreen={false} 
-                    loading="lazy" 
-                    referrerPolicy="no-referrer-when-downgrade"
-                    title="Vehicle Location"
-                    className="filter contrast-125 saturate-50"
-                  ></iframe>
-                  <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-lg border border-white/50 max-w-[200px] transition-transform hover:scale-105">
-                    <h4 className="font-bold text-xs text-[#00285E] mb-1">AGM Intelligent Garage</h4>
-                    <p className="text-[10px] text-gray-500 font-medium">123 Đường Cầu Giấy, Quan Hoa, Hà Nội</p>
-                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-gray-200/60">
-                        <span className="w-1.5 h-1.5 rounded-full bg-brand-orange animate-pulse"></span>
-                        <span className="text-[9px] font-bold text-brand-orange uppercase tracking-wider">Xe đang đỗ tại xưởng</span>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
             </>
           )}
         </>

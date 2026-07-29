@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { MapTracking } from '../../../components/share/MapTracking';
+import ProfileSectionHeader from './ProfileSectionHeader';
 
 export default function MapTab() {
   return (
@@ -10,12 +11,10 @@ export default function MapTab() {
       className="flex flex-col gap-6 text-left h-full"
     >
       <div className="border-b border-gray-100 pb-5">
-        <h2 className="text-2xl font-display font-bold text-[#00285E] tracking-tight">
-          Bản đồ Cứu hộ & Vị trí
-        </h2>
-        <p className="text-xs text-gray-500 mt-1">
-          Chia sẻ vị trí xe hỏng của bạn để gọi xe cứu hộ từ AGM Intelligent Garage.
-        </p>
+        <ProfileSectionHeader
+          title="Bản đồ Cứu hộ & Vị trí"
+          description="Chia sẻ vị trí xe hỏng của bạn để gọi xe cứu hộ từ AGM Intelligent Garage."
+        />
       </div>
 
       <motion.div
