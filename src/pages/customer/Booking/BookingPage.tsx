@@ -1016,8 +1016,8 @@ export default function BookingPage() {
                     transition={{ duration: 0.5, ease: "easeOut" }}
                     className="max-w-6xl w-full rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col lg:flex-row relative z-10 border border-white/20"
                 >
-                    {/* LEFT SIDE: Booking Information - Glassmorphism Light */}
-                    <div className="flex-1 p-8 md:p-12 bg-white/90 backdrop-blur-xl flex flex-col">
+                    {/* LEFT SIDE: Booking Information - Pure White */}
+                    <div className="flex-1 p-8 md:p-12 bg-white flex flex-col">
                         <div className="flex items-center gap-4 mb-8">
                             <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 shadow-inner">
                                 <Check size={24} strokeWidth={2.5} />
@@ -1029,7 +1029,7 @@ export default function BookingPage() {
                         </div>
 
                         <div className="space-y-6 flex-grow">
-                            <div className="bg-white/60 p-6 rounded-2xl border border-white text-sm space-y-5 shadow-sm">
+                            <div className="bg-[#F8FAFC] p-6 rounded-2xl border border-slate-100 text-sm space-y-5 shadow-xs">
                                 <div className="flex justify-between items-center pb-4 border-b border-slate-200/60">
                                     <span className="text-gray-500">Hình thức</span>
                                     <span className="font-bold text-brand-blue">
@@ -1067,7 +1067,7 @@ export default function BookingPage() {
                         </div>
 
                         <div className="mt-8 pt-6 border-t border-dashed border-gray-300/50">
-                            <div className="flex items-center justify-between p-6 bg-gradient-to-r from-blue-50/80 to-transparent rounded-2xl border border-blue-100/50">
+                            <div className="flex items-center justify-between p-6 bg-blue-50/30 rounded-2xl border border-blue-50">
                                 <span className="font-bold text-brand-blue text-base">Tổng thanh toán</span>
                                 <span className="text-2xl font-extrabold font-display" style={{ color: COLORS.orange }}>
                                     {activeSelection?.price}

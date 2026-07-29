@@ -322,22 +322,12 @@ export default function ReceptionServiceOrderDetail() {
               disabled={!isEveryTaskFinished}
               title={!isEveryTaskFinished ? "Vui lòng hoàn thành tất cả hạng mục công việc trước khi thanh toán" : "Thanh toán hóa đơn dịch vụ"}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold shadow-md transition-all ${isEveryTaskFinished
-                  ? "bg-[#00285E] hover:bg-[#00285E]/90 text-white cursor-pointer shadow-md"
-                  : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+                ? "bg-[#00285E] hover:bg-[#00285E]/90 text-white cursor-pointer shadow-md"
+                : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
                 }`}
             >
               <CreditCard size={16} />
               Thanh toán dịch vụ
-            </button>
-          )}
-
-          {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && (
-            <button
-              onClick={() => setShowCancelModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-sm font-bold transition-colors cursor-pointer"
-            >
-              <XCircle size={16} />
-              Hủy hóa đơn dịch vụ
             </button>
           )}
         </div>
