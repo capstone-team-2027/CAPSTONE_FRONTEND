@@ -1679,6 +1679,14 @@ export default function ReceptionQuoteList() {
                           ` · ${selectedQuotation.vehicleColor}`}
                       </span>
                     </div>
+                    <div className="flex flex-col gap-1 pt-2 border-t border-slate-100 mt-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Tình trạng tiếp nhận
+                      </span>
+                      <span className="text-xs font-semibold text-slate-700 break-words">
+                        {selectedQuotation.task?.serviceOrder?.symptoms || "—"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

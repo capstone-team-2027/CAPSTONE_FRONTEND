@@ -122,7 +122,7 @@ export default function ReceptionServiceOrderList() {
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
               <Wrench className="text-amber-500" size={28} />
-              Quản lý hóa đơn dịch vụ
+              Quản lý  dịch vụ
             </h1>
             <p className="text-slate-500 text-sm">
               Theo dõi, cập nhật trạng thái và xử lý yêu cầu hủy hóa đơn dịch vụ của khách hàng.
@@ -332,8 +332,8 @@ export default function ReceptionServiceOrderList() {
                   key={page}
                   onClick={() => setCurrentPage(page)}
                   className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${page === currentPage
-                      ? 'bg-[#00285E] text-white shadow-md'
-                      : 'text-slate-500 hover:bg-slate-100'
+                    ? 'bg-[#00285E] text-white shadow-md'
+                    : 'text-slate-500 hover:bg-slate-100'
                     }`}
                 >
                   {page}
