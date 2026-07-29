@@ -16,6 +16,8 @@ export const TASK_ASSIGNMENT_ENDPOINTS = {
     GET_COMPONENTS: `${API_BASE_URL}/api/technician/component`,
     GET_REPORT_HISTORY: `${API_BASE_URL}/api/technician/component`,
     GET_SPARE_PARTS: `${API_BASE_URL}/api/technician/spare-parts`,
+    CONFIRM_RECEIVED_PARTS: (serviceOrderId: string | number) =>
+        `${API_BASE_URL}/api/technician/service-orders/${serviceOrderId}/confirm-received-parts`,
     // Tra cứu chẩn đoán (Diagnostic Knowledge)
     GET_ALL_DIAGNOSTICS: `${API_BASE_URL}/api/technician/diagnostics`,
     SEARCH_DIAGNOSTICS: (keyword: string) =>

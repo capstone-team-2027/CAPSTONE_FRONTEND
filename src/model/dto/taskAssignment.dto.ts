@@ -104,3 +104,15 @@ export interface AiSuggestCausesResponse {
     ai_suggestion: string;
     disclaimer: string;
 }
+
+export type PauseTaskStatus = "PAUSED" | "WAITING_STOCK";
+
+export interface PauseTaskRequest {
+    taskAssignmentId: string | number;
+    reason?: string | null;
+    status: PauseTaskStatus;
+}
+
+export interface ResumeTaskRequest {
+    taskAssignmentId: string | number;
+}

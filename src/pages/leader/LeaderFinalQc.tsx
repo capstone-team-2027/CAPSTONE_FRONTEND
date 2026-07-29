@@ -243,10 +243,14 @@ export default function LeaderFinalQc() {
     setCurrentPage(1);
   }, [effectiveSearch]);
 
-  // Đơn chỉ nghiệm thu được khi mọi công việc đã COMPLETED (khớp ràng buộc BE)
+  // Nghiệm thu chỉ xét công việc sửa chữa (REPAIR) — task kiểm tra hoàn tất qua báo cáo lỗi, không cần nghiệm thu lại
+  const getRepairTasks = (o: GetFinalQcOrderResponse) =>
+    (o.tasks ?? []).filter((t) => t.type === "REPAIR");
+
+  // Đơn chỉ nghiệm thu được khi mọi công việc sửa chữa đã COMPLETED (khớp ràng buộc BE)
   const allTasksDone = (o: GetFinalQcOrderResponse) =>
-    (o.tasks ?? []).length > 0 &&
-    (o.tasks ?? []).every((t) => t.status === "COMPLETED");
+    getRepairTasks(o).length > 0 &&
+    getRepairTasks(o).every((t) => t.status === "COMPLETED");
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
@@ -375,7 +379,7 @@ export default function LeaderFinalQc() {
                       <td className="py-4 px-4">
                         <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md text-xs font-bold">
                           <Wrench size={11} className="text-slate-400" />
-                          {o.tasks?.length ?? 0} công việc
+                          {getRepairTasks(o).length} công việc
                         </span>
                       </td>
                       <td className="py-4 px-4">
@@ -574,11 +578,11 @@ export default function LeaderFinalQc() {
                     >
                       {rejectMode
                         ? `${rejectTaskIds.length} đã chọn`
-                        : `${selected.tasks?.length ?? 0} công việc`}
+                        : `${getRepairTasks(selected).length} công việc`}
                     </span>
                   </div>
                   <div className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden divide-y divide-slate-100">
-                    {(selected.tasks ?? []).map((task) => {
+                    {getRepairTasks(selected).map((task) => {
                       const cfg = getTaskStatus(task.status);
                       const tech = task.assignments?.[0]?.technician?.fullName;
                       const checked = rejectTaskIds.includes(task.id);

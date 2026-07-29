@@ -100,6 +100,7 @@ export interface GetQuotationDetailResponse {
   repair_price: number;
   amount: number;
   custom_item_name?: string | null;
+  status?: string | null;
   issue?: QuotationDetailIssue | null;
   sparePart: GetSparePartResponse | null;
   service_catalog: GetServicesResponse | null;

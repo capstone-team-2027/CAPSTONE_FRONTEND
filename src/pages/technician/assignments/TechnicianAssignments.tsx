@@ -20,6 +20,8 @@ import {
   X,
   Wrench,
   ClipboardList,
+  Package,
+  ImagePlus,
   Sparkles,
   Send,
 } from "lucide-react";
@@ -34,16 +36,27 @@ import type {
   VehicleModel,
   AiSuggestCausesRequest,
   AiSuggestCausesResponse,
+  PauseTaskRequest,
+  ResumeTaskRequest,
 } from "../../../model/dto/taskAssignment.dto";
 
 // ========== TYPES ==========
 interface AssignmentTask {
   taskId: number;
+  taskType?: string;
   serviceName: string;
   repairIssue?: string;
+  spareParts?: Array<{
+    name: string;
+    sku?: string;
+    quantity?: number;
+    isCustom: boolean;
+    status?: string;
+  }>;
   // Dùng cho modal tiến độ công việc
   taskAssignmentId?: number;
   status?: string;
+  qcRejectionReason?: string;
   estimatedDuration?: number | null;
 }
 
@@ -61,11 +74,18 @@ interface Assignment {
   appointmentDate: string;
   appointmentTime: string;
   assignedAt: string;
-  status: "ASSIGNED" | "IN_PROGRESS" | "PAUSED" | "PENDING_QC" | "COMPLETED";
+  status:
+    | "ASSIGNED"
+    | "IN_PROGRESS"
+    | "PAUSED"
+    | "WAITING_STOCK"
+    | "PENDING_QC"
+    | "COMPLETED";
   // Trạng thái của service order (khác assignment status) — quyết định luồng báo cáo
   orderStatus?: string;
   rejectedAt?: string;
   taskAssignmentId?: string | number;
+  hasUnstartedTasks?: boolean;
   bookingType: string;
   // INSPECTION: kiểm tra rồi tạo báo cáo sự cố | REPAIR: sửa chữa, cập nhật tiến độ
   taskType?: string;
@@ -89,6 +109,7 @@ interface TaskAssignmentApi {
   id: number;
   technician_id?: number;
   status?: string;
+  remarks?: string | null;
   createdAt?: string;
 }
 
@@ -104,10 +125,28 @@ interface ServiceTaskApi {
   quotationItem?: {
     id?: number;
     quantity?: number;
+    custom_item_name?: string | null;
+    status?: string | null;
+    sparePart?: {
+      id?: number;
+      name?: string | null;
+      sku?: string | null;
+    } | null;
     issue?: {
       id?: number;
       error_description?: string | null;
       note?: string | null;
+      quotationDetails?: Array<{
+        id?: number;
+        quantity?: number;
+        custom_item_name?: string | null;
+        status?: string | null;
+        sparePart?: {
+          id?: number;
+          name?: string | null;
+          sku?: string | null;
+        } | null;
+      }>;
       component?: {
         id?: number;
         name?: string | null;
@@ -147,6 +186,14 @@ interface RepairHistoryTask {
   catalog?: {
     service_name?: string;
   } | null;
+  quotationItem?: {
+    issue?: {
+      error_description?: string | null;
+      component?: {
+        name?: string | null;
+      } | null;
+    } | null;
+  } | null;
   repairNotes?: Array<{
     id: number;
     content?: string;
@@ -166,14 +213,6 @@ interface InspectionHistoryItem {
     } | null;
   } | null;
 }
-
-const ASSIGNMENT_STATUSES: Assignment["status"][] = [
-  "ASSIGNED",
-  "IN_PROGRESS",
-  "PAUSED",
-  "PENDING_QC",
-  "COMPLETED",
-];
 
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
@@ -195,7 +234,12 @@ const ASSIGNMENT_STATUS_CONFIG: Record<
   { label: string; className: string; icon: React.ElementType }
 > = {
   ASSIGNED: {
-    label: "Đã phân công",
+    label: "Chưa bắt đầu",
+    className: "bg-amber-50 text-amber-600 border border-amber-200",
+    icon: Clock,
+  },
+  PENDING: {
+    label: "Chưa bắt đầu",
     className: "bg-amber-50 text-amber-600 border border-amber-200",
     icon: Clock,
   },
@@ -209,6 +253,11 @@ const ASSIGNMENT_STATUS_CONFIG: Record<
     className: "bg-rose-50 text-rose-600 border border-rose-200",
     icon: XCircle,
   },
+  WAITING_STOCK: {
+    label: "Chờ phụ tùng",
+    className: "bg-amber-50 text-amber-700 border border-amber-200",
+    icon: Package,
+  },
   PENDING_QC: {
     label: "Chờ QC",
     className: "bg-violet-50 text-violet-700 border border-violet-200",
@@ -221,6 +270,67 @@ const ASSIGNMENT_STATUS_CONFIG: Record<
   },
 };
 
+const PART_STATUS_CONFIG: Record<
+  string,
+  { label: string; className: string }
+> = {
+  PENDING_DEPOSIT: {
+    label: "Đợi cọc",
+    className: "border-orange-200 bg-orange-50 text-orange-700",
+  },
+  WAITING_DEPOSIT: {
+    label: "Đợi cọc",
+    className: "border-orange-200 bg-orange-50 text-orange-700",
+  },
+  WAITING_STOCK: {
+    label: "Chờ nhập hàng",
+    className: "border-amber-200 bg-amber-50 text-amber-700",
+  },
+  ORDERED: {
+    label: "Đã đặt hàng",
+    className: "border-blue-200 bg-blue-50 text-blue-700",
+  },
+  PENDING: {
+    label: "Sẵn sàng",
+    className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  },
+  RECEIVED: {
+    label: "Đã nhận",
+    className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  },
+  EXPORTED: {
+    label: "Chờ nhận hàng",
+    className: "border-violet-200 bg-violet-50 text-violet-700",
+  },
+  WAITING_RECEIVE: {
+    label: "Chờ nhận hàng",
+    className: "border-violet-200 bg-violet-50 text-violet-700",
+  },
+  READY_FOR_RECEIPT: {
+    label: "Chờ nhận hàng",
+    className: "border-violet-200 bg-violet-50 text-violet-700",
+  },
+};
+
+const getPartStatusConfig = (status?: string) =>
+  PART_STATUS_CONFIG[status ?? ""] ?? {
+    label: status?.replaceAll("_", " ") || "Chưa cập nhật",
+    className: "border-slate-200 bg-slate-50 text-slate-500",
+  };
+
+const RECEIVABLE_PART_STATUSES = [
+  "EXPORTED",
+  "WAITING_RECEIVE",
+  "READY_FOR_RECEIPT",
+];
+const RECEIVED_PART_STATUSES = ["RECEIVED"];
+const getReceivableParts = (tasks: AssignmentTask[]) =>
+  tasks.flatMap((task) =>
+    (task.spareParts ?? []).filter((part) =>
+      RECEIVABLE_PART_STATUSES.includes(part.status ?? ""),
+    ),
+  );
+
 // Mock assignments removed to use API data
 
 const ITEMS_PER_PAGE = 5;
@@ -230,7 +340,7 @@ export default function TechnicianAssignments() {
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
-  const { fetchPrivate } = useFetchClient();
+  const { fetchPrivate, fetchPrivateForm } = useFetchClient();
   const [components, setComponents] = useState<GetComponentsResponse[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -288,6 +398,66 @@ export default function TechnicianAssignments() {
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null);
   const [taskActionMenuId, setTaskActionMenuId] = useState<number | null>(null);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [receivePartsTask, setReceivePartsTask] =
+    useState<AssignmentTask | null>(null);
+  const [receiveProofFile, setReceiveProofFile] = useState<File | null>(null);
+  const [receiveProofPreview, setReceiveProofPreview] = useState("");
+  const [isConfirmingReceive, setIsConfirmingReceive] = useState(false);
+
+  const closeReceivePartsModal = () => {
+    if (receiveProofPreview) URL.revokeObjectURL(receiveProofPreview);
+    setReceivePartsTask(null);
+    setReceiveProofFile(null);
+    setReceiveProofPreview("");
+  };
+
+  const confirmReceivedParts = async () => {
+    if (!receiveProofFile || !issueReportAssignment) return;
+    setIsConfirmingReceive(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", receiveProofFile);
+      await fetchPrivateForm(
+        TASK_ASSIGNMENT_ENDPOINTS.CONFIRM_RECEIVED_PARTS(
+          issueReportAssignment.serviceOrderId,
+        ),
+        "POST",
+        formData,
+      );
+      showToast("Đã xác nhận nhận phụ tùng!", "success");
+      closeReceivePartsModal();
+      setRefreshKey((prev) => prev + 1);
+    } catch (error: unknown) {
+      console.error("Lỗi khi xác nhận nhận phụ tùng:", error);
+      showToast(
+        getErrorMessage(error, "Đã xảy ra lỗi khi xác nhận nhận phụ tùng."),
+        "warning",
+      );
+    } finally {
+      setIsConfirmingReceive(false);
+    }
+  };
+
+  const openReceiveAllPartsModal = (assignment: Assignment) => {
+    const receivableParts = getReceivableParts(assignment.tasks);
+    const relatedTasks = assignment.tasks.filter((task) =>
+      task.spareParts?.some((part) =>
+        RECEIVABLE_PART_STATUSES.includes(part.status ?? ""),
+      ),
+    );
+
+    setReceivePartsTask({
+      taskId: -1,
+      taskType: "REPAIR",
+      serviceName:
+        [...new Set(relatedTasks.map((task) => task.serviceName))].join(", ") ||
+        "Phụ tùng của đơn dịch vụ",
+      repairIssue: `${relatedTasks.length} hạng mục có phụ tùng chờ nhận`,
+      spareParts: receivableParts,
+    });
+    setReceiveProofFile(null);
+    setReceiveProofPreview("");
+  };
 
   const updateTaskStatusInModal = (
     task: AssignmentTask,
@@ -310,7 +480,7 @@ export default function TechnicianAssignments() {
 
   const changeTaskRunningStatus = async (
     task: AssignmentTask,
-    action: "pause" | "resume",
+    action: "pause" | "wait_stock" | "resume",
   ) => {
     if (!task.taskAssignmentId) {
       showToast("Không tìm thấy thông tin phân công của công việc này.", "warning");
@@ -320,20 +490,38 @@ export default function TechnicianAssignments() {
     setTaskActionMenuId(null);
     setCompletingTaskId(task.taskId);
     try {
+      const payload: PauseTaskRequest | ResumeTaskRequest =
+        action === "resume"
+          ? { taskAssignmentId: task.taskAssignmentId }
+          : {
+              taskAssignmentId: task.taskAssignmentId,
+              reason:
+                action === "wait_stock"
+                  ? "Tạm dừng để chờ phụ tùng"
+                  : null,
+              status:
+                action === "wait_stock" ? "WAITING_STOCK" : "PAUSED",
+            };
+
       await fetchPrivate(
-        action === "pause"
-          ? TASK_ASSIGNMENT_ENDPOINTS.PAUSE_TASK
-          : TASK_ASSIGNMENT_ENDPOINTS.RESUME_TASK,
+        action === "resume"
+          ? TASK_ASSIGNMENT_ENDPOINTS.RESUME_TASK
+          : TASK_ASSIGNMENT_ENDPOINTS.PAUSE_TASK,
         "PUT",
-        {
-          taskAssignmentId: task.taskAssignmentId,
-          ...(action === "pause" ? { reason: null } : {}),
-        },
+        payload,
       );
-      updateTaskStatusInModal(task, action === "pause" ? "PAUSED" : "IN_PROGRESS");
+      const nextStatus =
+        action === "resume"
+          ? "IN_PROGRESS"
+          : action === "wait_stock"
+            ? "WAITING_STOCK"
+            : "PAUSED";
+      updateTaskStatusInModal(task, nextStatus);
       showToast(
         action === "pause"
           ? "Đã tạm dừng công việc."
+          : action === "wait_stock"
+            ? "Đã chuyển công việc sang chờ phụ tùng."
           : "Đã tiếp tục công việc.",
         "success",
       );
@@ -506,19 +694,29 @@ export default function TechnicianAssignments() {
   const repairHistoryRows = useMemo(
     () =>
       inspectionHistory.flatMap((task) => {
-        const content = task.catalog?.service_name || `Công việc #${task.id}`;
+        const issue = task.quotationItem?.issue;
+        const componentName = issue?.component?.name?.trim() ?? "";
+        const errorDescription = issue?.error_description?.trim() ?? "";
+        const issueText =
+          componentName && errorDescription
+            ? `${componentName} - ${errorDescription}`
+            : componentName || errorDescription;
+        const serviceName =
+          task.catalog?.service_name || `Công việc #${task.id}`;
         if (!task.repairNotes?.length) {
           return [
             {
               key: `task-${task.id}-empty`,
-              content,
+              serviceName,
+              issueText,
               guide: "Chưa có hướng dẫn",
             },
           ];
         }
         return task.repairNotes.map((note) => ({
           key: `task-${task.id}-note-${note.id}`,
-          content,
+          serviceName,
+          issueText,
           guide: note.content?.trim() || "Chưa có hướng dẫn",
         }));
       }),
@@ -571,19 +769,34 @@ export default function TechnicianAssignments() {
             const selectedAssignment =
               allAssignments.find((item) => item.status === "IN_PROGRESS") ??
               allAssignments.find((item) => item.status === "PAUSED") ??
+              allAssignments.find((item) => item.status === "WAITING_STOCK") ??
               allAssignments.find((item) => item.status === "ASSIGNED") ??
               allAssignments.find((item) => item.status === "PENDING_QC") ??
               allAssignments[0];
-
-            let status: Assignment["status"] = "ASSIGNED";
-            if (
-              selectedAssignment?.status &&
-              ASSIGNMENT_STATUSES.includes(
-                selectedAssignment.status as Assignment["status"],
-              )
-            ) {
-              status = selectedAssignment.status as Assignment["status"];
-            }
+            const unstartedAssignment = allAssignments.find(
+              (item) => item.status === "ASSIGNED",
+            );
+            const allTasksCompleted =
+              (so.tasks?.length ?? 0) > 0 &&
+              (so.tasks ?? []).every((task) => {
+                const assignment = task.assignments?.[0];
+                return (task.status ?? assignment?.status) === "COMPLETED";
+              });
+            const hasStartedTask = (so.tasks ?? []).some((task) =>
+              ["IN_PROGRESS", "PAUSED", "WAITING_STOCK"].includes(
+                task.status ?? "",
+              ) ||
+              task.assignments?.some((assignment) =>
+                ["IN_PROGRESS", "PAUSED", "WAITING_STOCK"].includes(
+                  assignment.status ?? "",
+                ),
+              ),
+            );
+            const status: Assignment["status"] = allTasksCompleted
+              ? "COMPLETED"
+              : hasStartedTask
+                ? "IN_PROGRESS"
+                : "ASSIGNED";
 
             const aptDate = so.appointment?.scheduled_time
               ? new Date(so.appointment.scheduled_time)
@@ -612,12 +825,46 @@ export default function TechnicianAssignments() {
                   t.assignments?.find(
                     (item) => item.id === selectedAssignment?.id,
                   ) ?? t.assignments?.[0];
+                const spareParts = (
+                  t.quotationItem?.issue?.quotationDetails ?? []
+                )
+                  .map((detail) => ({
+                    name:
+                      detail.sparePart?.name ||
+                      detail.custom_item_name ||
+                      "",
+                    sku: detail.sparePart?.sku ?? undefined,
+                    quantity: detail.quantity ?? 0,
+                    isCustom: Boolean(detail.custom_item_name),
+                    status: detail.status ?? undefined,
+                  }))
+                  .filter(
+                    (part, index, list) =>
+                      part.name &&
+                      list.findIndex(
+                        (item) =>
+                          item.name === part.name && item.sku === part.sku,
+                      ) === index,
+                  );
+                const taskStatus =
+                  t.status === "WAITING_STOCK" ||
+                  taskAssignment?.status === "WAITING_STOCK"
+                    ? "WAITING_STOCK"
+                    : (t.status ?? taskAssignment?.status);
                 return {
                   taskId: t.id,
+                  taskType: t.type,
                   serviceName: t.catalog?.service_name || `Task #${t.id}`,
                   repairIssue: getRepairIssueText(t),
+                  spareParts,
                   taskAssignmentId: taskAssignment?.id,
-                  status: taskAssignment?.status ?? t.status,
+                  status: taskStatus,
+                  // Nghiệm thu bị từ chối chỉ để lại remarks khi task quay về IN_PROGRESS
+                  // (pause/wait_stock cũng dùng chung remarks nhưng gắn trạng thái khác)
+                  qcRejectionReason:
+                    taskStatus === "IN_PROGRESS" && taskAssignment?.remarks
+                      ? taskAssignment.remarks
+                      : undefined,
                   estimatedDuration: t.catalog?.estimated_duration ?? null,
                 };
               }),
@@ -629,13 +876,21 @@ export default function TechnicianAssignments() {
               assignedAt: selectedAssignment?.createdAt || so.createdAt,
               status: status,
               orderStatus: so.status,
-              taskAssignmentId: selectedAssignment?.id,
+              taskAssignmentId:
+                unstartedAssignment?.id ?? selectedAssignment?.id,
+              hasUnstartedTasks: Boolean(unstartedAssignment),
               bookingType: so.appointment?.booking_type || "WALK_IN",
-              taskType: so.tasks?.[0]?.type,
+              taskType:
+                so.tasks?.find((task) => task.type === "REPAIR")?.type ??
+                so.tasks?.[0]?.type,
               symptom: so.symptoms ?? "",
             };
           });
-          setAssignments(mappedData);
+          setAssignments(
+            mappedData.filter(
+              (assignment) => assignment.status !== "COMPLETED",
+            ),
+          );
         }
       } catch (error) {
         console.error("Lỗi khi tải danh sách phân công:", error);
@@ -645,6 +900,16 @@ export default function TechnicianAssignments() {
     };
     fetchAssignments();
   }, [fetchPrivate, refreshKey]);
+
+  useEffect(() => {
+    if (!issueReportAssignment) return;
+    const refreshed = assignments.find(
+      (a) => a.serviceOrderId === issueReportAssignment.serviceOrderId,
+    );
+    if (refreshed && refreshed !== issueReportAssignment) {
+      setIssueReportAssignment(refreshed);
+    }
+  }, [assignments, issueReportAssignment]);
 
   const handleStartTask = async (asg: Assignment) => {
     if (!asg.taskAssignmentId) {
@@ -658,11 +923,24 @@ export default function TechnicianAssignments() {
       const startedAssignment: Assignment = {
         ...asg,
         status: "IN_PROGRESS",
-        tasks: asg.tasks.map((task) =>
-          task.taskAssignmentId === asg.taskAssignmentId
-            ? { ...task, status: "IN_PROGRESS" }
-            : task,
-        ),
+        hasUnstartedTasks: false,
+        tasks: asg.tasks.map((task) => {
+          if (
+            task.status === "COMPLETED" ||
+            task.status === "PAUSED" ||
+            task.status === "IN_PROGRESS" ||
+            task.status === "WAITING_STOCK"
+          ) {
+            return task;
+          }
+
+          return {
+            ...task,
+            status: task.spareParts?.length
+              ? "WAITING_STOCK"
+              : "IN_PROGRESS",
+          };
+        }),
       };
       setAssignments((current) =>
         current.map((item) =>
@@ -1057,7 +1335,14 @@ export default function TechnicianAssignments() {
         asg.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
         asg.serviceOrderId.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchStatus = statusFilter === "all" || asg.status === statusFilter;
+      const matchStatus =
+        statusFilter === "all" ||
+        (statusFilter === "ASSIGNED"
+          ? asg.hasUnstartedTasks
+          : statusFilter === "IN_PROGRESS" ||
+              statusFilter === "COMPLETED"
+            ? asg.status === statusFilter
+            : asg.tasks.some((task) => task.status === statusFilter));
 
       return matchSearch && matchStatus;
     });
@@ -1076,9 +1361,8 @@ export default function TechnicianAssignments() {
   const kpiCounts = useMemo(
     () => ({
       total: assignments.length,
-      assigned: assignments.filter((a) => a.status === "ASSIGNED").length,
+      assigned: assignments.filter((a) => a.hasUnstartedTasks).length,
       inProgress: assignments.filter((a) => a.status === "IN_PROGRESS").length,
-      completed: assignments.filter((a) => a.status === "COMPLETED").length,
     }),
     [assignments],
   );
@@ -1126,7 +1410,7 @@ export default function TechnicianAssignments() {
       </div>
 
       {/* KPI CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           {
             label: "Tổng phân công",
@@ -1148,13 +1432,6 @@ export default function TechnicianAssignments() {
             icon: <CheckSquare size={22} />,
             color: "#3B82F6",
             bg: "#EFF6FF",
-          },
-          {
-            label: "Hoàn thành",
-            value: kpiCounts.completed,
-            icon: <CheckCircle2 size={22} />,
-            color: "#10B981",
-            bg: "#ECFDF5",
           },
         ].map((card, i) => (
           <div
@@ -1214,8 +1491,8 @@ export default function TechnicianAssignments() {
               <option value="ASSIGNED">Mới phân công</option>
               <option value="IN_PROGRESS">Đang thực hiện</option>
               <option value="PAUSED">Tạm dừng</option>
+              <option value="WAITING_STOCK">Chờ phụ tùng</option>
               <option value="PENDING_QC">Chờ QC</option>
-              <option value="COMPLETED">Hoàn thành</option>
             </select>
           </div>
         </div>
@@ -1273,8 +1550,11 @@ export default function TechnicianAssignments() {
               </thead>
               <tbody>
                 {paginatedData.map((asg) => {
-                  const statusCfg = ASSIGNMENT_STATUS_CONFIG[asg.status];
-                  const StatusIcon = statusCfg.icon;
+                  const hasProgressTask = asg.tasks.some((task) =>
+                    ["PENDING", "IN_PROGRESS", "PAUSED", "WAITING_STOCK"].includes(
+                      task.status ?? "",
+                    ),
+                  );
                   return (
                     <tr
                       key={asg.id}
@@ -1353,16 +1633,30 @@ export default function TechnicianAssignments() {
                         </span>
                       </td>
                       <td className="py-4 px-4 align-middle whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${statusCfg.className}`}
-                        >
-                          <StatusIcon size={12} className="shrink-0" />
-                          {statusCfg.label}
-                        </span>
+                        {(() => {
+                          const statusCfg =
+                            ASSIGNMENT_STATUS_CONFIG[asg.status] ??
+                            ASSIGNMENT_STATUS_CONFIG.PENDING;
+                          const StatusIcon = statusCfg.icon;
+
+                          return (
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${statusCfg.className}`}
+                            >
+                              <StatusIcon size={12} className="shrink-0" />
+                              {statusCfg.label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="py-4 px-4 align-middle">
                         <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                          {asg.status === "ASSIGNED" ? (
+                          {asg.orderStatus === "PENDING_QUOTATION" ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200">
+                              <CheckCircle2 size={13} />
+                              Đã báo cáo
+                            </span>
+                          ) : asg.hasUnstartedTasks ? (
                             <button
                               onClick={() => handleStartTask(asg)}
                               className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] transition-colors"
@@ -1370,12 +1664,7 @@ export default function TechnicianAssignments() {
                               <PlayCircle size={13} />
                               Bắt đầu làm
                             </button>
-                          ) : asg.orderStatus === "PENDING_QUOTATION" ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200">
-                              <CheckCircle2 size={13} />
-                              Đã báo cáo
-                            </span>
-                          ) : asg.status === "IN_PROGRESS" ? (
+                          ) : hasProgressTask ? (
                             <button
                               onClick={() => openIssueReportModal(asg)}
                               className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] transition-colors"
@@ -1623,7 +1912,9 @@ export default function TechnicianAssignments() {
 
               {/* SECTION: Tiến độ công việc */}
               {(() => {
-                const modalTasks = issueReportAssignment.tasks;
+                const modalTasks = issueReportAssignment.tasks.filter(
+                  (t) => t.taskType !== "INSPECTION",
+                );
                 const doneCount = modalTasks.filter(
                   (t) => t.status === "COMPLETED" || t.status === "PENDING_QC",
                 ).length;
@@ -1669,9 +1960,21 @@ export default function TechnicianAssignments() {
                           t.status === "COMPLETED" ||
                           t.status === "PENDING_QC";
                         const isPaused = t.status === "PAUSED";
+                        const isWaitingStock = t.status === "WAITING_STOCK";
+                        const receivedPartCount =
+                          t.spareParts?.filter((part) =>
+                            RECEIVED_PART_STATUSES.includes(part.status ?? ""),
+                          ).length ?? 0;
+                        const canUpdateTaskStatus =
+                          !t.spareParts?.length || receivedPartCount > 0;
+                        const allPartsReceived =
+                          !t.spareParts?.length ||
+                          receivedPartCount === t.spareParts.length;
                         const isSending = completingTaskId === t.taskId;
                         const taskStatusLabel = isDone
                           ? "Đã xong"
+                          : isWaitingStock
+                            ? "Chờ phụ tùng"
                           : isPaused
                             ? "Tạm dừng"
                             : "Đang thực hiện";
@@ -1701,6 +2004,64 @@ export default function TechnicianAssignments() {
                                     </span>
                                   </div>
                                 ) : null}
+                                {t.qcRejectionReason ? (
+                                  <div className="mt-1.5 flex max-w-full items-start gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700">
+                                    <AlertCircle size={12} className="mt-0.5 shrink-0" />
+                                    <span>
+                                      Nghiệm thu chưa đạt, cần sửa lại: {t.qcRejectionReason}
+                                    </span>
+                                  </div>
+                                ) : null}
+                                {t.spareParts?.length ? (
+                                  <div className="mt-1.5 flex max-w-full items-start gap-1.5 rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-xs text-blue-700">
+                                    <Package
+                                      size={12}
+                                      className="mt-0.5 shrink-0"
+                                    />
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <span className="font-semibold">
+                                          Phụ tùng:
+                                        </span>
+                                        <span className="ml-auto rounded-full border border-blue-100 bg-white px-2 py-0.5 text-[10px] font-bold text-[#00285E]">
+                                          Đã nhận {receivedPartCount}/
+                                          {t.spareParts.length}
+                                        </span>
+                                      </div>
+                                      <div className="mt-1 flex flex-wrap gap-1">
+                                        {t.spareParts.map((part) => {
+                                          const partStatus =
+                                            getPartStatusConfig(part.status);
+
+                                          return (
+                                            <span
+                                              key={`${part.name}-${part.sku ?? ""}`}
+                                              className="inline-flex flex-wrap items-center gap-1.5 rounded-md border border-blue-100 bg-white px-2 py-1 font-medium"
+                                            >
+                                              <span>
+                                                {part.isCustom ? (
+                                                  <span className="font-bold text-blue-600">
+                                                    (Đặt riêng){" "}
+                                                  </span>
+                                                ) : null}
+                                                {part.name}
+                                                {part.sku
+                                                  ? ` (${part.sku})`
+                                                  : ""}{" "}
+                                                - <strong>x{part.quantity ?? 1}</strong>
+                                              </span>
+                                              <span
+                                                className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${partStatus.className}`}
+                                              >
+                                                {partStatus.label}
+                                              </span>
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : null}
                                 <div className="flex items-center gap-2 mt-0.5">
                                   {t.estimatedDuration ? (
                                     <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
@@ -1715,8 +2076,7 @@ export default function TechnicianAssignments() {
                                   <CheckCircle2 size={13} />
                                   Hoàn thành
                                 </span>
-                              ) : issueReportAssignment.taskType ===
-                                "INSPECTION" ? (
+                              ) : t.taskType === "INSPECTION" ? (
                                 // Task kiểm tra: hoàn tất bằng cách gửi báo cáo lỗi bên dưới
                                 <span className="inline-flex self-start sm:self-auto items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200">
                                   Đang kiểm tra
@@ -1730,9 +2090,16 @@ export default function TechnicianAssignments() {
                                         current === t.taskId ? null : t.taskId,
                                       )
                                     }
-                                    disabled={isSending}
+                                    disabled={isSending || !canUpdateTaskStatus}
+                                    title={
+                                      canUpdateTaskStatus
+                                        ? "Cập nhật trạng thái công việc"
+                                        : "Cần xác nhận nhận ít nhất 1 phụ tùng trước khi cập nhật trạng thái"
+                                    }
                                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border active:scale-[0.97] transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                                      isPaused
+                                      isWaitingStock
+                                        ? "text-orange-700 bg-orange-50 border-orange-200 hover:bg-orange-100"
+                                        : isPaused
                                         ? "text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100"
                                         : "text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100"
                                     }`}
@@ -1748,7 +2115,7 @@ export default function TechnicianAssignments() {
 
                                   {taskActionMenuId === t.taskId ? (
                                     <div className="absolute right-0 top-full z-20 mt-2 w-36 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
-                                      {isPaused ? (
+                                      {isPaused || isWaitingStock ? (
                                         <button
                                           type="button"
                                           onClick={() =>
@@ -1759,23 +2126,43 @@ export default function TechnicianAssignments() {
                                           Tiếp tục
                                         </button>
                                       ) : (
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            changeTaskRunningStatus(t, "pause")
-                                          }
-                                          className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-amber-700 hover:bg-amber-50"
-                                        >
-                                          Tạm dừng
-                                        </button>
+                                        <>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              changeTaskRunningStatus(t, "pause")
+                                            }
+                                            className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-amber-700 hover:bg-amber-50"
+                                          >
+                                            Tạm dừng
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              changeTaskRunningStatus(
+                                                t,
+                                                "wait_stock",
+                                              )
+                                            }
+                                            className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-orange-700 hover:bg-orange-50"
+                                          >
+                                            Chờ phụ tùng
+                                          </button>
+                                        </>
                                       )}
                                       <button
                                         type="button"
+                                        disabled={!allPartsReceived}
+                                        title={
+                                          allPartsReceived
+                                            ? undefined
+                                            : "Còn phụ tùng chưa nhận đủ, chưa thể hoàn thành"
+                                        }
                                         onClick={() => {
                                           setTaskActionMenuId(null);
                                           setConfirmTask(t);
                                         }}
-                                        className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                                        className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                                       >
                                         Hoàn thành
                                       </button>
@@ -2054,13 +2441,31 @@ export default function TechnicianAssignments() {
                 </>
               ) : (
                 <div className="ml-auto flex items-center gap-2.5">
-                  {issueReportAssignment.taskType === "REPAIR" && (
+                  {issueReportAssignment.tasks.some(
+                    (task) => (task.spareParts?.length ?? 0) > 0,
+                  ) && (
                     <button
                       type="button"
-                      onClick={() => setShowIncidentIssueReport(true)}
-                      className="h-11 inline-flex items-center px-5 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/20 hover:brightness-110 active:scale-[0.98] transition-all"
+                      disabled={
+                        getReceivableParts(issueReportAssignment.tasks)
+                          .length === 0
+                      }
+                      onClick={() =>
+                        openReceiveAllPartsModal(issueReportAssignment)
+                      }
+                      title={
+                        getReceivableParts(issueReportAssignment.tasks)
+                          .length === 0
+                          ? "Kho chưa xuất phụ tùng để xác nhận nhận hàng"
+                          : "Xác nhận nhận phụ tùng kho đã xuất"
+                      }
+                      className="h-11 inline-flex items-center gap-2 px-5 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/20 hover:brightness-110 active:scale-[0.98] transition-all disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:hover:brightness-100 disabled:active:scale-100"
                     >
-                      Tạo báo cáo lỗi phát sinh
+                      <Package size={15} />
+                      {getReceivableParts(issueReportAssignment.tasks).length >
+                      0
+                        ? `Xác nhận đã nhận ${getReceivableParts(issueReportAssignment.tasks).length} phụ tùng`
+                        : "Xác nhận đã nhận"}
                     </button>
                   )}
                   <button
@@ -2845,8 +3250,15 @@ export default function TechnicianAssignments() {
                           <td className="px-4 py-4 text-center font-semibold text-slate-500">
                             {index + 1}
                           </td>
-                          <td className="px-4 py-4 font-semibold text-slate-800">
-                            {row.content}
+                          <td className="px-4 py-4">
+                            <p className="font-semibold text-slate-800">
+                              {row.serviceName}
+                            </p>
+                            {row.issueText && (
+                              <p className="mt-1 text-xs text-slate-500">
+                                {row.issueText}
+                              </p>
+                            )}
                           </td>
                           <td className="px-4 py-4 whitespace-pre-line leading-relaxed text-slate-600">
                             {row.guide}
@@ -2863,6 +3275,185 @@ export default function TechnicianAssignments() {
       )}
 
       {/* MODAL XÁC NHẬN HOÀN THÀNH */}
+      {receivePartsTask && issueReportAssignment && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/55 backdrop-blur-sm"
+            onClick={closeReceivePartsModal}
+          />
+          <div className="relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/5">
+            <div className="flex shrink-0 items-center justify-between bg-[#00285E] px-6 py-5 text-white">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#F9A11B]">
+                  <Package size={20} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/65">
+                    Phiếu xuất kho
+                  </p>
+                  <h3 className="mt-0.5 text-lg font-bold">
+                    Xác nhận nhận phụ tùng
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeReceivePartsModal}
+                className="rounded-full p-2 text-white/75 hover:bg-white/15 hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Xe tiếp nhận
+                  </p>
+                  <p className="mt-2 text-sm font-bold text-slate-800">
+                    {issueReportAssignment.vehiclePlate || "—"}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {issueReportAssignment.vehicleModel || "—"}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Dịch vụ
+                  </p>
+                  <p className="mt-2 text-sm font-bold text-slate-800">
+                    {receivePartsTask.serviceName}
+                  </p>
+                  <p className="mt-1 line-clamp-2 text-xs text-slate-500">
+                    {receivePartsTask.repairIssue || "Không có mô tả lỗi"}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                    Phụ tùng kho đã xuất
+                  </p>
+                  <span className="rounded-full bg-[#EDF3FF] px-2.5 py-1 text-[10px] font-bold text-[#00285E]">
+                    {
+                      receivePartsTask.spareParts?.filter((part) =>
+                        [
+                          "EXPORTED",
+                          "WAITING_RECEIVE",
+                          "READY_FOR_RECEIPT",
+                        ].includes(part.status ?? ""),
+                      ).length
+                    }{" "}
+                    phụ tùng
+                  </span>
+                </div>
+                <div className="overflow-hidden rounded-xl border border-slate-200">
+                  {receivePartsTask.spareParts
+                    ?.filter((part) =>
+                      [
+                        "EXPORTED",
+                        "WAITING_RECEIVE",
+                        "READY_FOR_RECEIPT",
+                      ].includes(part.status ?? ""),
+                    )
+                    .map((part) => (
+                      <div
+                        key={`${part.name}-${part.sku ?? ""}`}
+                        className="flex items-center justify-between gap-4 border-b border-slate-100 px-4 py-3 last:border-0"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-700">
+                            {part.isCustom ? (
+                              <span className="text-blue-600">
+                                (Đặt riêng){" "}
+                              </span>
+                            ) : null}
+                            {part.name}
+                          </p>
+                          <p className="mt-1 text-[11px] text-slate-400">
+                            {part.sku || "Không có SKU"}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-xs font-bold text-[#00285E]">
+                          SL: {part.quantity || 1}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-500">
+                  Ảnh phụ tùng khi nhận <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  id="receive-parts-proof"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    if (receiveProofPreview) {
+                      URL.revokeObjectURL(receiveProofPreview);
+                    }
+                    setReceiveProofFile(file);
+                    setReceiveProofPreview(
+                      file ? URL.createObjectURL(file) : "",
+                    );
+                  }}
+                />
+                <label
+                  htmlFor="receive-parts-proof"
+                  className="flex min-h-40 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 text-center transition-colors hover:border-[#00285E]/35 hover:bg-[#EDF3FF]/40"
+                >
+                  {receiveProofPreview ? (
+                    <img
+                      src={receiveProofPreview}
+                      alt="Ảnh xác nhận nhận phụ tùng"
+                      className="h-52 w-full object-contain"
+                    />
+                  ) : (
+                    <>
+                      <ImagePlus size={30} className="text-slate-400" />
+                      <p className="mt-2 text-sm font-bold text-slate-600">
+                        Chụp ảnh hoặc chọn ảnh
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        Ảnh thực tế phụ tùng nhận từ kho
+                      </p>
+                    </>
+                  )}
+                </label>
+              </div>
+            </div>
+
+            <div className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4">
+              <button
+                type="button"
+                onClick={closeReceivePartsModal}
+                className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={!receiveProofFile || isConfirmingReceive}
+                onClick={confirmReceivedParts}
+                className="flex items-center gap-2 rounded-xl bg-[#00285E] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#001E46] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {isConfirmingReceive ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : null}
+                Xác nhận đã nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmTask && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
           <div

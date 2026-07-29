@@ -250,7 +250,6 @@ export default function ReceptionLayout() {
       label: 'Hỗ trợ',
       items: [
         { name: "Báo cáo lỗi", icon: FileText, path: "/reception/issues" },
-        { name: "Lỗi phát sinh", icon: AlertTriangle, path: "/reception/additional-issues" },
         { name: "Phản hồi khách hàng", icon: MessageSquare, path: "/reception/feedback" },
       ],
     },

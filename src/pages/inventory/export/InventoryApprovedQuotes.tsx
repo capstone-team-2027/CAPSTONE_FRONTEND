@@ -99,10 +99,57 @@ interface ApprovedQuotation {
   task?: QuoteTask | null;
 }
 
+interface ApprovedQuoteTaskResponse {
+  id: number;
+  quotations?: Array<{
+    id: number;
+    approved_at: string;
+    note: string | null;
+    createdAt: string;
+    items?: QuotationItem[];
+    creator?: QuotationCreator | null;
+  }>;
+}
+
+interface ApprovedQuoteServiceOrderResponse {
+  id: number;
+  status: string;
+  createdAt: string;
+  vehicle?: QuoteVehicle | null;
+  tasks?: ApprovedQuoteTaskResponse[];
+}
+
 // Báo giá kèm mã BG-... sinh ở FE
 interface QuotationRow extends ApprovedQuotation {
   code: string;
 }
+
+const flattenApprovedQuoteServiceOrders = (
+  serviceOrders: ApprovedQuoteServiceOrderResponse[],
+): ApprovedQuotation[] =>
+  serviceOrders.flatMap((serviceOrder) =>
+    (serviceOrder.tasks ?? []).flatMap((task) =>
+      (task.quotations ?? []).map((quotation) => {
+        const items = quotation.items ?? [];
+
+        return {
+          ...quotation,
+          items,
+          total_amount: items.reduce(
+            (total, item) => total + Number(item.amount || 0),
+            0,
+          ),
+          task: {
+            id: task.id,
+            serviceOrder: {
+              id: serviceOrder.id,
+              vehicle: serviceOrder.vehicle,
+            },
+          },
+        };
+      }),
+    ),
+  );
 
 // Rút thông tin khách/xe/đơn dịch vụ từ cây task -> serviceOrder -> vehicle
 const getQuoteInfo = (q: ApprovedQuotation) => {
@@ -135,37 +182,49 @@ export default function InventoryApprovedQuotes() {
   const [quotations, setQuotations] = useState<ApprovedQuotation[]>([]);
   const [isExporting, setIsExporting] = useState(false);
 
-  useEffect(() => {
-    handleGetApprovedQuotes();
-  }, []);
-
   const handleGetApprovedQuotes = async () => {
     try {
-      const result = await fetchPrivate<ApprovedQuotation[]>(
+      const result = await fetchPrivate<ApprovedQuoteServiceOrderResponse[]>(
         APPROVED_QUOTE_API_ENDPOINTS.APPROVED_QUOTES,
         "GET",
       );
-      setQuotations(result.data);
+      setQuotations(flattenApprovedQuoteServiceOrders(result.data ?? []));
     } catch (error) {
-      console.error("Lỗi lấy danh sách báo giá đã duyệt", error);
+      console.error("Lỗi lấy danh sách phụ tùng cần xuất kho", error);
     }
   };
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void handleGetApprovedQuotes();
+    // Chỉ tải một lần khi mở trang; fetchPrivate không phải callback ổn định.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleExportStock = async (quotation: QuotationRow) => {
+    const serviceOrderId = getQuoteInfo(quotation).serviceOrderId;
+    if (!serviceOrderId) {
+      showToast("Không tìm thấy đơn dịch vụ của yêu cầu xuất kho", "warning");
+      return;
+    }
+
     setIsExporting(true);
     try {
       // BE lọc items theo detailIds -> phải gửi id các dòng phụ tùng cần xuất
       const detailIds = quotation.items.map((item) => item.id);
       await fetchPrivate(
-        APPROVED_QUOTE_API_ENDPOINTS.APPROVE_EXPORT(quotation.id),
+        APPROVED_QUOTE_API_ENDPOINTS.APPROVE_EXPORT(serviceOrderId),
         "POST",
         { detailIds },
       );
       showToast("Xuất kho thành công", "success");
       setSelected(null);
       handleGetApprovedQuotes();
-    } catch (error: any) {
-      showToast(error?.message ?? "Xuất kho thất bại", "warning");
+    } catch (error: unknown) {
+      showToast(
+        error instanceof Error ? error.message : "Xuất kho thất bại",
+        "warning",
+      );
     } finally {
       setIsExporting(false);
     }
@@ -263,11 +322,11 @@ export default function InventoryApprovedQuotes() {
           </button>
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
-              Báo giá đã duyệt
+              Danh sách phụ tùng cần xuất kho
             </h1>
             <p className="text-slate-500 text-sm">
-              Danh sách báo giá đã được khách hàng duyệt — sẵn sàng xuất kho phụ
-              tùng.
+              Theo dõi các phụ tùng cần chuẩn bị và xác nhận xuất kho cho đơn
+              dịch vụ.
             </p>
           </div>
         </div>
@@ -284,7 +343,7 @@ export default function InventoryApprovedQuotes() {
               {stats.total}
             </div>
             <p className="text-xs text-slate-400 font-medium mt-0.5">
-              Báo giá đã duyệt
+              Yêu cầu cần xuất
             </p>
           </div>
         </div>
@@ -322,10 +381,10 @@ export default function InventoryApprovedQuotes() {
         <div className="p-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
           <div className="flex items-center gap-2.5">
             <h2 className="text-lg font-bold text-slate-800 tracking-tight">
-              Danh sách báo giá
+              Phụ tùng cần xuất kho
             </h2>
             <span className="bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full text-xs font-bold">
-              {filtered.length} báo giá
+              {filtered.length} yêu cầu
             </span>
           </div>
 
@@ -336,7 +395,7 @@ export default function InventoryApprovedQuotes() {
             />
             <input
               type="text"
-              placeholder="Tìm mã báo giá, phụ tùng, SKU..."
+              placeholder="Tìm mã yêu cầu, phụ tùng, SKU..."
               value={localSearch}
               onChange={(e) => {
                 setLocalSearch(e.target.value);
@@ -352,7 +411,7 @@ export default function InventoryApprovedQuotes() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
-                <th className="py-4 px-6">Đơn báo giá</th>
+                <th className="py-4 px-6">Mã yêu cầu</th>
                 <th className="py-4 px-4">Người tạo</th>
                 <th className="py-4 px-4">Phụ tùng</th>
                 <th className="py-4 px-4">Tổng tiền</th>
@@ -368,7 +427,7 @@ export default function InventoryApprovedQuotes() {
                     colSpan={7}
                     className="py-14 text-center text-slate-400 text-sm"
                   >
-                    Không tìm thấy báo giá phù hợp...
+                    Không tìm thấy yêu cầu xuất kho phù hợp...
                   </td>
                 </tr>
               ) : (
@@ -449,7 +508,7 @@ export default function InventoryApprovedQuotes() {
         {/* Pagination */}
         <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between flex-wrap gap-3">
           <span className="text-xs font-medium text-slate-400">
-            Hiển thị {pageItems.length} / {filtered.length} báo giá
+            Hiển thị {pageItems.length} / {filtered.length} yêu cầu
           </span>
           <div className="flex items-center gap-1.5">
             <button
@@ -507,7 +566,7 @@ export default function InventoryApprovedQuotes() {
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-white leading-tight">
-                      Báo giá {selected.code}
+                      Yêu cầu xuất kho {selected.code}
                     </h3>
                     <span className="text-xs font-semibold text-emerald-300">
                       Đã duyệt · chờ xuất kho
@@ -523,7 +582,7 @@ export default function InventoryApprovedQuotes() {
               </div>
 
               <div className="overflow-y-auto flex-1 px-7 py-6 space-y-5 bg-slate-50/50">
-                {/* Thông tin báo giá */}
+                {/* Thông tin yêu cầu xuất kho */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
@@ -656,8 +715,8 @@ export default function InventoryApprovedQuotes() {
                   {hasLowStock && (
                     <p className="flex items-center gap-1.5 text-xs text-rose-500 mt-2 px-1">
                       <AlertCircle size={13} className="shrink-0" />
-                      Có phụ tùng không đủ tồn kho — không thể xuất kho báo giá
-                      này.
+                      Có phụ tùng không đủ tồn kho — chưa thể hoàn tất yêu cầu
+                      xuất kho này.
                     </p>
                   )}
                 </div>
