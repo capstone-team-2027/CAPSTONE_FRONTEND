@@ -23,6 +23,7 @@ import {
   Check,
   Printer,
   X,
+  Package,
   FileText,
   Banknote,
 } from 'lucide-react';
@@ -71,10 +72,10 @@ export default function ReceptionServiceOrderDetail() {
     if (method === 'ONLINE') {
       try {
         const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
-        const totalAmount = getOrderTotal();
+        const remainingAmount = getRemainingAmount();
         await fetchPublic(`${apiBaseUrl}/api/payment/init-payment`, 'POST', {
           orderId: order.id,
-          amount: totalAmount,
+          amount: remainingAmount,
         });
       } catch (err) {
         console.warn("Khởi tạo thanh toán PENDING:", err);
@@ -93,9 +94,9 @@ export default function ReceptionServiceOrderDetail() {
     if (showPaymentModal && paymentMethod === 'ONLINE' && !isPaymentSuccess && order?.id) {
       intervalId = setInterval(async () => {
         try {
-          const totalAmount = getOrderTotal();
+          const remainingAmount = getRemainingAmount();
           const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
-          const res = await fetchPublic(`${apiBaseUrl}/api/payment/check-status?bookingCode=${order.id}&amount=${totalAmount}`);
+          const res = await fetchPublic(`${apiBaseUrl}/api/payment/check-status?bookingCode=${order.id}&amount=${remainingAmount}`);
           if (res && res.success && res.isPaid) {
             clearInterval(intervalId);
             setIsPaymentSuccess(true);
@@ -105,7 +106,7 @@ export default function ReceptionServiceOrderDetail() {
                 id: `PAY-${Date.now()}`,
                 payment_status: 'PAID',
                 payment_method: 'ONLINE',
-                amount: totalAmount,
+                amount: getOrderTotal(),
                 paid_at: new Date().toISOString(),
               },
             }));
@@ -238,6 +239,32 @@ export default function ReceptionServiceOrderDetail() {
     }, 0);
   };
 
+  const getRemainingAmount = () => {
+    const total = getOrderTotal();
+    if (order.payment?.payment_status === 'DEPOSITED') {
+      const deposit = parseFloat(order.payment.amount) || 0;
+      return Math.max(0, total - deposit);
+    }
+    return total;
+  };
+
+  const getLaborTotal = () => {
+    if (!order.tasks || !Array.isArray(order.tasks)) return 0;
+    return order.tasks.reduce((sum: number, task: any) => {
+      const labor = parseFloat(task.quotationItem?.repair_price) || parseFloat(task.catalog?.labor_price) || 0;
+      return sum + labor;
+    }, 0);
+  };
+
+  const getPartsTotal = () => {
+    if (!order.tasks || !Array.isArray(order.tasks)) return 0;
+    return order.tasks.reduce((sum: number, task: any) => {
+      const total = parseFloat(task.catalog?.total_price) || 0;
+      const labor = parseFloat(task.quotationItem?.repair_price) || parseFloat(task.catalog?.labor_price) || 0;
+      return sum + Math.max(0, total - labor);
+    }, 0);
+  };
+
   const handleCancelOrder = () => {
     if (!cancelReason.trim()) {
       showToast('Vui lòng điền lý do hủy đơn.', 'warning');
@@ -305,6 +332,10 @@ export default function ReceptionServiceOrderDetail() {
               {isPaid ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap bg-emerald-100 text-emerald-700">
                   <CheckCircle2 size={12} /> Đã thanh toán
+                </span>
+              ) : order?.payment?.payment_status === 'DEPOSITED' ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap bg-amber-100 text-amber-700">
+                  <Clock size={12} /> Đã cọc (30%)
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap bg-slate-100 text-slate-600">
@@ -481,57 +512,158 @@ export default function ReceptionServiceOrderDetail() {
           )}
         </div>
 
-        {/* Services / Tasks detail list */}
-        <div className="space-y-3">
-          <h4 className="text-xs font-bold text-[#00285E] uppercase tracking-widest flex items-center gap-1.5">
-            <Wrench size={14} />
-            Hạng mục công việc tiếp nhận sửa chữa
-          </h4>
+        {/* Services & Labor / Spare Parts detailed breakdown if Quotation exists */}
+        {order.quotation ? (
+          <div className="space-y-6">
+            
+            {/* Services Table */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-[#00285E] uppercase tracking-widest flex items-center gap-1.5">
+                <Wrench size={14} />
+                Danh mục dịch vụ & Công thợ sửa chữa
+              </h4>
+              <div className="border border-slate-200/60 rounded-2xl overflow-hidden">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <th className="py-3.5 px-4 text-center w-12">STT</th>
+                      <th className="py-3.5 px-4">Tên dịch vụ kỹ thuật</th>
+                      <th className="py-3.5 px-4 text-right w-36">Chi phí sửa chữa</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                    {order.quotation.items.filter((item: any) => item.service_id || !item.spare_part_id).map((item: any, idx: number) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3.5 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
+                        <td className="py-3.5 px-4 text-left">
+                          <span className="font-semibold text-slate-800">
+                            {item.custom_item_name || item.service_catalog?.service_name || 'Dịch vụ sửa chữa'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-bold text-[#00285E] bg-slate-50/50">
+                          {formatPrice(parseFloat(item.repair_price) || 0)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
-          <div className="border border-slate-200/60 rounded-2xl overflow-hidden">
-            <table className="w-full text-left border-collapse text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  <th className="py-3.5 px-4 text-center w-12">STT</th>
-                  <th className="py-3.5 px-4">Tên dịch vụ kỹ thuật</th>
-                  <th className="py-3.5 px-4 text-center w-28">Thời gian</th>
-                  <th className="py-3.5 px-4 text-right w-36">Chi phí dịch vụ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                {(!order.tasks || order.tasks.length === 0) ? (
-                  <tr>
-                    <td colSpan={4} className="py-8 text-center text-slate-400 italic">
-                      Chưa có hạng mục dịch vụ nào trong phiếu thu này.
-                    </td>
+            {/* Spare Parts Table */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-[#00285E] uppercase tracking-widest flex items-center gap-1.5">
+                <Package size={14} />
+                Danh mục vật tư & Phụ tùng sử dụng
+              </h4>
+              <div className="border border-slate-200/60 rounded-2xl overflow-hidden">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <th className="py-3.5 px-4 text-center w-12">STT</th>
+                      <th className="py-3.5 px-4">Tên phụ tùng</th>
+                      <th className="py-3.5 px-4 text-center w-20">SL</th>
+                      <th className="py-3.5 px-4 text-right w-32">Đơn giá</th>
+                      <th className="py-3.5 px-4 text-right w-36">Thành tiền</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                    {order.quotation.items.filter((item: any) => item.spare_part_id).length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-slate-400 italic">
+                          Không có vật tư phụ tùng thay thế nào.
+                        </td>
+                      </tr>
+                    ) : (
+                      order.quotation.items.filter((item: any) => item.spare_part_id).map((item: any, idx: number) => {
+                        const totalItemPrice = (parseFloat(item.unit_price) || 0) * (item.quantity || 1);
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="py-3.5 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
+                            <td className="py-3.5 px-4 text-left">
+                              <div className="flex flex-col text-left">
+                                <span className="font-semibold text-slate-800">
+                                  {item.custom_item_name || item.sparePart?.name || 'Phụ tùng'}
+                                </span>
+                                {item.status === 'WAITING_DEPOSIT' && (
+                                  <span className="text-[9px] font-bold text-amber-600 uppercase mt-0.5">
+                                    Cần cọc linh kiện mới (30%)
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 text-center text-slate-500">
+                              {item.quantity || 1}
+                            </td>
+                            <td className="py-3.5 px-4 text-right text-slate-500">
+                              {formatPrice(parseFloat(item.unit_price) || 0)}
+                            </td>
+                            <td className="py-3.5 px-4 text-right font-bold text-[#00285E] bg-slate-50/50">
+                              {formatPrice(totalItemPrice)}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        ) : (
+          /* Fallback: Old Tasks list if no Quotation */
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold text-[#00285E] uppercase tracking-widest flex items-center gap-1.5">
+              <Wrench size={14} />
+              Hạng mục công việc tiếp nhận sửa chữa
+            </h4>
+
+            <div className="border border-slate-200/60 rounded-2xl overflow-hidden">
+              <table className="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    <th className="py-3.5 px-4 text-center w-12">STT</th>
+                    <th className="py-3.5 px-4">Tên dịch vụ kỹ thuật</th>
+                    <th className="py-3.5 px-4 text-center w-28">Thời gian</th>
+                    <th className="py-3.5 px-4 text-right w-36">Chi phí dịch vụ</th>
                   </tr>
-                ) : (
-                  order.tasks.map((task: any, idx: number) => (
-                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3.5 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
-                      <td className="py-3.5 px-4">
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-slate-800">{task.catalog?.service_name || 'Dịch vụ'}</span>
-                          {task.status && (
-                            <span className="text-[9px] font-bold text-blue-500 uppercase mt-0.5">
-                              Trạng thái: {TASK_STATUS_LABELS[task.status.toUpperCase()] || task.status}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 text-center text-slate-500">
-                        {task.catalog?.estimated_duration || 0} phút
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-bold text-[#00285E] bg-slate-50/50">
-                        {formatPrice(parseFloat(task.catalog?.total_price) || 0)}
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                  {(!order.tasks || order.tasks.length === 0) ? (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-slate-400 italic">
+                        Chưa có hạng mục dịch vụ nào trong phiếu thu này.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    order.tasks.map((task: any, idx: number) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3.5 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-slate-800">{task.catalog?.service_name || 'Dịch vụ'}</span>
+                            {task.status && (
+                              <span className="text-[9px] font-bold text-blue-500 uppercase mt-0.5">
+                                Trạng thái: {TASK_STATUS_LABELS[task.status.toUpperCase()] || task.status}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 text-center text-slate-500">
+                          {task.catalog?.estimated_duration || 0} phút
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-bold text-[#00285E] bg-slate-50/50">
+                          {formatPrice(parseFloat(task.catalog?.total_price) || 0)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Staff / Technicians list */}
         {(() => {
@@ -567,40 +699,79 @@ export default function ReceptionServiceOrderDetail() {
           );
         })()}
 
-        {/* Note section */}
-        {order.notes && (
-          <div className="space-y-2 text-left">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-              <StickyNote size={14} />
-              Ghi chú tiếp nhận
-            </h4>
-            <p className="text-xs text-slate-600 bg-slate-50 p-4 rounded-2xl border border-slate-100 font-medium leading-relaxed whitespace-pre-line">
-              {order.notes}
-            </p>
-          </div>
-        )}
-
-        {/* Dashed separator before totals */}
-        <div className="w-full border-t border-dashed border-slate-300 my-4" />
-
         {/* Totals Section */}
-        <div className="flex justify-end pt-4">
-          {/* Pricing summary */}
-          <div className="w-full max-w-sm space-y-3 text-sm font-semibold text-slate-650">
-            <div className="flex justify-between">
-              <span className="text-slate-400">Tổng tiền dịch vụ:</span>
-              <span className="text-slate-800">{formatPrice(getOrderTotal())}</span>
+        <div className="-mx-6 md:-mx-8 -mb-6 md:-mb-8 mt-8 bg-slate-50 border-t border-slate-200/80 p-6 md:p-8 rounded-b-3xl">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+            
+            {/* Col 1: Tiền công */}
+            <div className="flex-1 min-w-0 space-y-1 text-sm font-semibold text-left">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block whitespace-nowrap">Tiền công sửa chữa</span>
+              <span className="text-base font-black text-slate-800">{formatPrice(getLaborTotal())}</span>
+              <span className="text-[9.5px] text-slate-450 block font-normal whitespace-nowrap">Chi phí nhân công</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Thuế giá trị gia tăng (VAT):</span>
-              <span className="text-slate-800">Đã bao gồm</span>
+
+            {/* Col 2: Tiền phụ tùng */}
+            <div className="flex-1 min-w-0 space-y-1 text-sm font-semibold border-t md:border-t-0 md:border-l border-slate-200 md:pl-4 pt-4 md:pt-0 text-left">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block whitespace-nowrap">Tiền vật tư / phụ tùng</span>
+              <span className="text-base font-black text-slate-800">{formatPrice(getPartsTotal())}</span>
+              <span className="text-[9.5px] text-slate-450 block font-normal whitespace-nowrap">Chi phí linh kiện thay thế</span>
             </div>
-            <div className="flex justify-between items-center p-4 bg-[#EDF3FF] border border-[#D2E2FF] rounded-2xl shadow-inner mt-4">
-              <span className="text-[#00285E] font-black text-sm md:text-base uppercase tracking-wider">Tổng thanh toán:</span>
-              <span className="text-2xl font-black text-rose-600">
-                {formatPrice(getOrderTotal())}
+
+            {/* Col 3: Tổng chi phí dịch vụ */}
+            <div className="flex-1 min-w-0 space-y-1 text-sm font-semibold border-t md:border-t-0 md:border-l border-slate-200 md:pl-4 pt-4 md:pt-0 text-left">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block whitespace-nowrap">Tổng chi phí dịch vụ</span>
+              <span className="text-base font-black text-[#00285E]">{formatPrice(getOrderTotal())}</span>
+              <span className="text-[9.5px] text-slate-450 block font-normal whitespace-nowrap">Chưa trừ tiền đặt cọc</span>
+            </div>
+
+            {/* Col 4: Đã cọc / Trạng thái */}
+            <div className="flex-1 min-w-0 space-y-1 text-sm font-semibold border-t md:border-t-0 md:border-l border-slate-200 md:pl-4 pt-4 md:pt-0 text-left">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block whitespace-nowrap">Trạng thái thanh toán</span>
+              <div className="flex items-center gap-2 mt-1">
+                {order.payment?.payment_status === 'PAID' || order.payment?.payment_status === 'COMPLETED' ? (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 whitespace-nowrap">
+                    Đã thanh toán
+                  </span>
+                ) : order.payment?.payment_status === 'DEPOSITED' ? (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-700 whitespace-nowrap">
+                    Đã cọc (30%)
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 whitespace-nowrap">
+                    Chưa thanh toán
+                  </span>
+                )}
+              </div>
+              {order.payment?.payment_status === 'DEPOSITED' && (
+                <span className="text-[11px] font-bold text-amber-600 block mt-1 whitespace-nowrap">
+                  Đã cọc: -{formatPrice(parseFloat(order.payment.amount) || 0)}
+                </span>
+              )}
+              {(order.payment?.payment_status === 'PAID' || order.payment?.payment_status === 'COMPLETED') && (
+                <span className="text-[9.5px] text-emerald-600 block mt-1 whitespace-nowrap">
+                  Đã trả: {formatPrice(parseFloat(order.payment.amount) || getOrderTotal())}
+                </span>
+              )}
+            </div>
+
+            {/* Col 5: Tổng thanh toán còn lại */}
+            <div className="bg-[#EDF3FF] border border-[#D2E2FF] rounded-2xl p-3 shadow-inner text-right min-w-[170px] shrink-0">
+              <span className="text-[#00285E] font-black text-[11px] uppercase tracking-wider block mb-1 whitespace-nowrap">
+                {order.payment?.payment_status === 'PAID' || order.payment?.payment_status === 'COMPLETED'
+                  ? 'Còn lại:'
+                  : order.payment?.payment_status === 'DEPOSITED'
+                  ? 'Còn lại cần thu:'
+                  : 'Tổng chi phí:'}
+              </span>
+              <span className="text-lg font-black text-rose-600 block whitespace-nowrap">
+                {formatPrice(
+                  order.payment?.payment_status === 'PAID' || order.payment?.payment_status === 'COMPLETED'
+                    ? 0
+                    : getRemainingAmount()
+                )}
               </span>
             </div>
+
           </div>
         </div>
       </div>
@@ -755,9 +926,21 @@ export default function ReceptionServiceOrderDetail() {
                       <span className="text-slate-500 font-semibold">Biển số xe:</span>
                       <span className="font-bold text-[#00285E] bg-[#EDF3FF] px-2 py-0.5 rounded">{vehiclePlate}</span>
                     </div>
+                    {order.payment?.payment_status === 'DEPOSITED' && (
+                      <>
+                        <div className="flex justify-between items-center pb-4 border-b border-slate-200 text-xs">
+                          <span className="text-slate-500 font-semibold">Tổng chi phí dịch vụ:</span>
+                          <span className="font-bold text-slate-700">{formatPrice(getOrderTotal())}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-4 border-b border-slate-200 text-xs text-amber-600">
+                          <span className="font-semibold">Đã đặt cọc (30%):</span>
+                          <span className="font-bold">-{formatPrice(parseFloat(order.payment.amount) || 0)}</span>
+                        </div>
+                      </>
+                    )}
                     <div className="flex justify-between items-center text-lg">
-                      <span className="text-slate-600 font-bold">Số tiền cần thu:</span>
-                      <span className="text-2xl font-black text-rose-600">{formatPrice(getOrderTotal())}</span>
+                      <span className="text-slate-600 font-bold">Số tiền thực thu:</span>
+                      <span className="text-2xl font-black text-rose-600">{formatPrice(getRemainingAmount())}</span>
                     </div>
                   </div>
 
@@ -835,11 +1018,19 @@ export default function ReceptionServiceOrderDetail() {
                       </div>
                     </div>
 
-                    <div className="mt-6 pt-4 border-t border-dashed border-slate-300">
+                    <div className="mt-6 pt-4 border-t border-dashed border-slate-300 space-y-3">
+                      {order.payment?.payment_status === 'DEPOSITED' && (
+                        <div className="flex justify-between items-center text-xs font-semibold text-slate-600 px-1">
+                          <span>Đã đặt cọc (30%):</span>
+                          <span className="text-amber-600">-{formatPrice(parseFloat(order.payment.amount) || 0)}</span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between p-4 bg-[#EDF3FF] rounded-2xl border border-blue-100">
-                        <span className="font-bold text-[#00285E] text-sm">Tổng thanh toán</span>
+                        <span className="font-bold text-[#00285E] text-sm">
+                          {order.payment?.payment_status === 'DEPOSITED' ? 'Còn lại cần thanh toán' : 'Tổng thanh toán'}
+                        </span>
                         <span className="text-2xl font-black text-rose-600">
-                          {formatPrice(getOrderTotal())}
+                          {formatPrice(getRemainingAmount())}
                         </span>
                       </div>
                     </div>
@@ -866,7 +1057,7 @@ export default function ReceptionServiceOrderDetail() {
                       <div className="p-1 rounded-3xl bg-gradient-to-br from-white/40 to-white/10 shadow-2xl relative group">
                         <div className="bg-white p-4 rounded-[1.3rem] relative z-10">
                           <img
-                            src={`https://vietqr.app/img?acc=${import.meta.env.VITE_SEPAY_ACC || '0348714088'}&bank=${import.meta.env.VITE_SEPAY_BANK || 'MB'}&amount=${getOrderTotal()}&template=compact&showinfo=true&addInfo=SO-${order.id}`}
+                            src={`https://vietqr.app/img?acc=${import.meta.env.VITE_SEPAY_ACC || '0348714088'}&bank=${import.meta.env.VITE_SEPAY_BANK || 'MB'}&amount=${getRemainingAmount()}&template=compact&showinfo=true&addInfo=SO-${order.id}`}
                             alt="VietQR Payment Code"
                             className="w-52 h-52 rounded-xl object-contain mx-auto"
                           />

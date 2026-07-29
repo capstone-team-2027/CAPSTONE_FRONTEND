@@ -279,6 +279,10 @@ export default function ReceptionServiceOrderList() {
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-700 whitespace-nowrap">
                             Đã thanh toán
                           </span>
+                        ) : so.payment?.payment_status === 'DEPOSITED' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold bg-amber-100 text-amber-700 whitespace-nowrap">
+                            Đã cọc (30%)
+                          </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500 whitespace-nowrap">
                             Chưa thanh toán
