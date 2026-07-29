@@ -46,6 +46,7 @@ export interface FinalQcAssignment {
 export interface FinalQcTask {
   id: number;
   status: string;
+  type: string;
   catalog?: FinalQcServiceCatalog | null;
   assignments?: FinalQcAssignment[];
 }

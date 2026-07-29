@@ -494,8 +494,8 @@ export default function QuoteTrackingTab() {
             <div
               className="bg-white shadow-2xl overflow-hidden flex flex-col border border-slate-200"
               style={{
-                width: 'min(700px, calc(100vw - 32px))',
-                maxWidth: '700px',
+                width: 'min(768px, calc(100vw - 32px))',
+                maxWidth: '768px',
                 maxHeight: '86vh',
                 borderRadius: '20px',
               }}
@@ -579,11 +579,12 @@ export default function QuoteTrackingTab() {
                         </span>
                       )}
                     </div>
-                    {Number(selectedQuote.deposit_amount ?? 0) > 0 && (
-                      <p className="text-xs font-bold text-[#D97706] mt-3">
-                        Cần thu cọc: {formatCurrency(selectedQuote.deposit_amount)}
-                      </p>
-                    )}
+                    {Number(selectedQuote.deposit_amount ?? 0) > 0 &&
+                      !selectedQuote.deposit_paid_at && (
+                        <p className="text-xs font-bold text-[#D97706] mt-3">
+                          Cần thu cọc: {formatCurrency(selectedQuote.deposit_amount)}
+                        </p>
+                      )}
                     {selectedQuote.approved_at && (
                       <p className="text-xs text-slate-400 mt-2">
                         Duyệt lúc: {formatDate(selectedQuote.approved_at)}
@@ -647,8 +648,21 @@ export default function QuoteTrackingTab() {
                                 <td className="px-3 py-3.5">
                                   <p className="text-xs font-semibold text-slate-700">{getItemName(item)}</p>
                                   {isCustom && (
-                                    <span className="inline-flex mt-2 px-2 py-1 rounded-full bg-[#FFF3DA] text-[#C05600] text-[11px] font-semibold">
-                                      Phụ tùng đặt riêng · Cọc 30%
+                                    <span
+                                      className={`inline-flex mt-2 px-2 py-1 rounded-full text-[11px] font-semibold ${
+                                        item.status === "WAITING_DEPOSIT"
+                                          ? "bg-[#FFF3DA] text-[#C05600]"
+                                          : "bg-emerald-50 text-emerald-700"
+                                      }`}
+                                    >
+                                      Phụ tùng đặt riêng ·{" "}
+                                      {item.status === "WAITING_DEPOSIT"
+                                        ? "Cần cọc"
+                                        : "Đã cọc"}
+                                      :{" "}
+                                      {formatCurrency(
+                                        selectedQuote.deposit_amount ?? 0,
+                                      )}
                                     </span>
                                   )}
                                 </td>

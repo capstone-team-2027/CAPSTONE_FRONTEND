@@ -1858,12 +1858,23 @@ export default function ReceptionQuoteList() {
                                             </span>
                                           </div>
                                           {item.custom_item_name && (
-                                            <span className="mt-1 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                                              Phụ tùng đặt riêng · Cọc 30%:{" "}
+                                            <span
+                                              className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                                item.status ===
+                                                "WAITING_DEPOSIT"
+                                                  ? "bg-amber-50 text-amber-700"
+                                                  : "bg-emerald-50 text-emerald-700"
+                                              }`}
+                                            >
+                                              Phụ tùng đặt riêng ·{" "}
+                                              {item.status ===
+                                              "WAITING_DEPOSIT"
+                                                ? "Cần cọc"
+                                                : "Đã cọc"}
+                                              :{" "}
                                               {formatVND(
-                                                Math.round(
-                                                  Number(item.amount) * 0.3,
-                                                ),
+                                                selectedQuotation.deposit_amount ??
+                                                  0,
                                               )}
                                             </span>
                                           )}
