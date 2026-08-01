@@ -264,8 +264,8 @@ export default function TrackingTab() {
             <button
               onClick={() => setFilterCategory('ACTIVE')}
               className={`px-5 py-3 text-xs font-bold transition-all border-b-2 ${filterCategory === 'ACTIVE'
-                  ? 'text-brand-orange border-brand-orange'
-                  : 'text-gray-400 border-transparent hover:text-[#00285E]'
+                ? 'text-brand-orange border-brand-orange'
+                : 'text-gray-400 border-transparent hover:text-[#00285E]'
                 }`}
             >
               <span>Đang tiến hành</span>
@@ -278,8 +278,8 @@ export default function TrackingTab() {
             <button
               onClick={() => setFilterCategory('COMPLETED')}
               className={`px-5 py-3 text-xs font-bold transition-all border-b-2 ${filterCategory === 'COMPLETED'
-                  ? 'text-brand-orange border-brand-orange'
-                  : 'text-gray-400 border-transparent hover:text-[#00285E]'
+                ? 'text-brand-orange border-brand-orange'
+                : 'text-gray-400 border-transparent hover:text-[#00285E]'
                 }`}
             >
               <span>Đã hoàn thành</span>
@@ -315,8 +315,8 @@ export default function TrackingTab() {
                         key={order.id}
                         onClick={() => setSelectedOrderIndex(idx)}
                         className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 ${isActive
-                            ? 'bg-[#00285E] text-white border-[#00285E] shadow-md'
-                            : 'bg-white text-gray-500 border-gray-200 hover:border-[#00285E]/40'
+                          ? 'bg-[#00285E] text-white border-[#00285E] shadow-md'
+                          : 'bg-white text-gray-500 border-gray-200 hover:border-[#00285E]/40'
                           }`}
                       >
                         <Car className={`w-4 h-4 ${isActive ? 'text-brand-orange' : 'text-gray-400'}`} />
@@ -378,8 +378,8 @@ export default function TrackingTab() {
                     </span>
                     <span
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${isAwaitingHandover
-                          ? 'text-violet-600 bg-violet-50 border-violet-200'
-                          : getOrderStatusDisplay(currentOrder.status).color
+                        ? 'text-violet-600 bg-violet-50 border-violet-200'
+                        : getOrderStatusDisplay(currentOrder.status).color
                         }`}
                     >
                       {isAwaitingHandover

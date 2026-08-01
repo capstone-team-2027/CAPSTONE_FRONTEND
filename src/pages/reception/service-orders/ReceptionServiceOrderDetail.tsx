@@ -246,6 +246,11 @@ export default function ReceptionServiceOrderDetail() {
   };
 
   const getOrderTotal = () => {
+    if (order.quotation && Array.isArray(order.quotation.items)) {
+      return order.quotation.items.reduce((sum: number, item: any) => {
+        return sum + (parseFloat(item.amount) || 0);
+      }, 0);
+    }
     if (!order.tasks || !Array.isArray(order.tasks)) return 0;
     return order.tasks.reduce((sum: number, task: any) => {
       const price = parseFloat(task.catalog?.total_price) || 0;
@@ -254,6 +259,9 @@ export default function ReceptionServiceOrderDetail() {
   };
 
   const getRemainingAmount = () => {
+    if (order.payment?.payment_status === 'PAID' || order.payment?.payment_status === 'COMPLETED') {
+      return 0;
+    }
     const total = getOrderTotal();
     if (order.payment?.payment_status === 'DEPOSITED') {
       const deposit = parseFloat(order.payment.amount) || 0;
@@ -263,6 +271,11 @@ export default function ReceptionServiceOrderDetail() {
   };
 
   const getLaborTotal = () => {
+    if (order.quotation && Array.isArray(order.quotation.items)) {
+      return order.quotation.items.reduce((sum: number, item: any) => {
+        return sum + (parseFloat(item.repair_price) || 0);
+      }, 0);
+    }
     if (!order.tasks || !Array.isArray(order.tasks)) return 0;
     return order.tasks.reduce((sum: number, task: any) => {
       const labor = parseFloat(task.quotationItem?.repair_price) || parseFloat(task.catalog?.labor_price) || 0;
@@ -271,6 +284,13 @@ export default function ReceptionServiceOrderDetail() {
   };
 
   const getPartsTotal = () => {
+    if (order.quotation && Array.isArray(order.quotation.items)) {
+      return order.quotation.items.reduce((sum: number, item: any) => {
+        const unitPrice = parseFloat(item.unit_price) || 0;
+        const qty = parseInt(item.quantity) || 1;
+        return sum + (unitPrice * qty);
+      }, 0);
+    }
     if (!order.tasks || !Array.isArray(order.tasks)) return 0;
     return order.tasks.reduce((sum: number, task: any) => {
       const total = parseFloat(task.catalog?.total_price) || 0;
@@ -546,7 +566,7 @@ export default function ReceptionServiceOrderDetail() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                    {order.quotation.items.filter((item: any) => item.service_id || !item.spare_part_id).map((item: any, idx: number) => (
+                    {order.quotation.items.filter((item: any) => parseFloat(item.repair_price) > 0).map((item: any, idx: number) => (
                       <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                         <td className="py-3.5 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
                         <td className="py-3.5 px-4 text-left">
@@ -582,14 +602,14 @@ export default function ReceptionServiceOrderDetail() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                    {order.quotation.items.filter((item: any) => item.spare_part_id).length === 0 ? (
+                    {order.quotation.items.filter((item: any) => parseFloat(item.unit_price) > 0).length === 0 ? (
                       <tr>
                         <td colSpan={5} className="py-8 text-center text-slate-400 italic">
                           Không có vật tư phụ tùng thay thế nào.
                         </td>
                       </tr>
                     ) : (
-                      order.quotation.items.filter((item: any) => item.spare_part_id).map((item: any, idx: number) => {
+                      order.quotation.items.filter((item: any) => parseFloat(item.unit_price) > 0).map((item: any, idx: number) => {
                         const totalItemPrice = (parseFloat(item.unit_price) || 0) * (item.quantity || 1);
                         return (
                           <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
@@ -763,7 +783,7 @@ export default function ReceptionServiceOrderDetail() {
               )}
               {(order.payment?.payment_status === 'PAID' || order.payment?.payment_status === 'COMPLETED') && (
                 <span className="text-[9.5px] text-emerald-600 block mt-1 whitespace-nowrap">
-                  Đã trả: {formatPrice(parseFloat(order.payment.amount) || getOrderTotal())}
+                  Đã trả: {formatPrice(getOrderTotal())}
                 </span>
               )}
             </div>
@@ -1010,8 +1030,25 @@ export default function ReceptionServiceOrderDetail() {
                         </div>
 
                         <div className="pb-2 border-b border-slate-200/60 space-y-1.5">
-                          <span className="text-slate-500 font-semibold block mb-1">Hạng mục dịch vụ:</span>
-                          {(!order.tasks || order.tasks.length === 0) ? (
+                          <span className="text-slate-500 font-semibold block mb-1">Hạng mục thanh toán:</span>
+                          {order.quotation && Array.isArray(order.quotation.items) ? (
+                            <>
+                              {/* Công thợ */}
+                              {order.quotation.items.filter((item: any) => parseFloat(item.repair_price) > 0).map((item: any, idx: number) => (
+                                <div key={`q-srv-${idx}`} className="flex justify-between items-center text-slate-700">
+                                  <span>• {item.custom_item_name || item.service_catalog?.service_name || 'Dịch vụ'} (Công thợ)</span>
+                                  <span className="font-bold">{formatPrice(parseFloat(item.repair_price) || 0)}</span>
+                                </div>
+                              ))}
+                              {/* Phụ tùng */}
+                              {order.quotation.items.filter((item: any) => parseFloat(item.unit_price) > 0).map((item: any, idx: number) => (
+                                <div key={`q-part-${idx}`} className="flex justify-between items-center text-slate-500 pl-2">
+                                  <span>• Phụ tùng: {item.custom_item_name || item.sparePart?.name || 'Vật tư'} (x{item.quantity})</span>
+                                  <span className="font-bold">{formatPrice((parseFloat(item.unit_price) || 0) * (item.quantity || 1))}</span>
+                                </div>
+                              ))}
+                            </>
+                          ) : (!order.tasks || order.tasks.length === 0) ? (
                             <p className="text-slate-400 italic">Công dịch vụ sửa chữa tổng hợp</p>
                           ) : (
                             order.tasks.map((task: any, idx: number) => (
