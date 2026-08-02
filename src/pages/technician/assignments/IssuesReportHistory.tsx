@@ -225,7 +225,7 @@ export default function IssuesReportHistory() {
       </div>
 
       {/* KPI CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
             label: "Tổng báo cáo",
@@ -422,7 +422,7 @@ export default function IssuesReportHistory() {
                         <div className="flex items-center justify-center whitespace-nowrap">
                           <button
                             onClick={() => openReportDetail(report)}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:bg-[#00285E]/90 transition-colors"
                           >
                             <Eye size={13} />
                             Chi tiết
@@ -439,7 +439,7 @@ export default function IssuesReportHistory() {
 
         {/* PAGINATION */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t border-slate-100">
             <span className="text-xs font-semibold text-slate-400">
               Hiển thị {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
               {Math.min(currentPage * ITEMS_PER_PAGE, filteredReports.length)}{" "}
@@ -491,20 +491,20 @@ export default function IssuesReportHistory() {
           />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5">
             <div
-              className="relative flex items-start justify-between px-7 pt-7 pb-6 shrink-0 text-white overflow-hidden"
+              className="relative flex items-start justify-between px-4 sm:px-7 pt-5 sm:pt-7 pb-5 sm:pb-6 shrink-0 text-white overflow-hidden"
               style={{ backgroundColor: "#00285E" }}
             >
               <div className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-white/10" />
               <div className="absolute -bottom-14 -left-6 w-40 h-40 rounded-full bg-white/5" />
-              <div className="relative flex items-center gap-4">
+              <div className="relative flex items-center gap-4 min-w-0">
                 <div
                   className="flex items-center justify-center w-12 h-12 rounded-2xl shrink-0"
                   style={{ backgroundColor: "#F9A11B" }}
                 >
                   <ClipboardList size={24} className="text-white" />
                 </div>
-                <div className="space-y-1">
-                  <p className="text-[11px] font-bold text-white/80 uppercase tracking-widest">
+                <div className="space-y-1 min-w-0">
+                  <p className="text-[11px] font-bold text-white/80 uppercase tracking-widest truncate">
                     Báo cáo {selectedReport.code}
                   </p>
                   <h3 className="text-xl font-bold text-white leading-none">
@@ -514,15 +514,15 @@ export default function IssuesReportHistory() {
               </div>
               <button
                 onClick={() => setSelectedReport(null)}
-                className="relative p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+                className="relative p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors shrink-0"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div className="overflow-y-auto flex-1 px-7 py-6 space-y-5 bg-slate-50/50">
+            <div className="overflow-y-auto flex-1 px-4 sm:px-7 py-5 sm:py-6 space-y-5 bg-slate-50/50">
               {/* Thông tin khách hàng & xe */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
                     Khách hàng
@@ -679,10 +679,10 @@ export default function IssuesReportHistory() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
+            <div className="flex items-center justify-end px-4 sm:px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
               <button
                 onClick={() => setSelectedReport(null)}
-                className="px-6 py-2.5 rounded-full text-sm font-semibold text-white shadow-lg shadow-[#00285E]/20 hover:brightness-125 transition-all"
+                className="w-full sm:w-auto px-6 py-2.5 rounded-full text-sm font-semibold text-white shadow-lg shadow-[#00285E]/20 hover:brightness-125 transition-all"
                 style={{ backgroundColor: "#00285E" }}
               >
                 Đóng

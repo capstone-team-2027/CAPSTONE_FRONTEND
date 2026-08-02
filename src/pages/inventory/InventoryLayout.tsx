@@ -206,7 +206,7 @@ export default function InventoryLayout() {
         },
 
         {
-          name: "Phụ tùng cần xuất kho",
+          name: "Yêu cầu xuất kho",
           icon: FileCheck2,
           path: "/inventory/approved-quotes",
         },
@@ -239,7 +239,7 @@ export default function InventoryLayout() {
     if (path.includes("/import")) return "Lịch sử nhập kho";
     if (path.includes("/export")) return "Lịch sử xuất kho";
     if (path.includes("/stocktake")) return "Kiểm kê";
-    if (path.includes("/approved-quotes")) return "Phụ tùng cần xuất kho";
+    if (path.includes("/approved-quotes")) return "Yêu cầu xuất kho";
     if (path.includes("/suppliers")) return "Đối tác, nhà cung cấp";
     return "Tổng quan";
   }, [location.pathname]);

@@ -19,6 +19,7 @@ import {
   Video,
   PhoneCall,
   Users,
+  MessageCircle,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
@@ -29,7 +30,9 @@ import { useFetchClient_v2 as useFetchClient } from "../../hook/useFetchClient";
 import { loginSuccess, logout } from "../../store/slices/userSlice";
 import { PROFILE_API_ENDPOINTS } from "../../constants/common/profileEndpoints";
 import { NOTIFICATION_API_ENDPOINTS } from "../../constants/reception/notificationEndpoints";
+import { CHAT_API_ENDPOINTS } from "../../constants/reception/chatEndpoints";
 import { useSocket } from "../../hook/useSocket";
+import ReceptionChatPanel from "./ReceptionChatPanel";
 
 export default function ReceptionLayout() {
   const navigate = useNavigate();
@@ -58,6 +61,8 @@ export default function ReceptionLayout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotificationDropdown, setShowNotificationDropdown] =
     useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const desktopNotifRef = useRef<HTMLDivElement>(null);
   const mobileNotifRef = useRef<HTMLDivElement>(null);
   // Hẹn giờ tự đóng dropdown khi mở do có thông báo mới
@@ -126,6 +131,17 @@ export default function ReceptionLayout() {
 
   const socket = useSocket();
 
+  const loadChatUnreadCount = async () => {
+    try {
+      const response = await fetchPrivate(CHAT_API_ENDPOINTS.GET_UNREAD_COUNT);
+      if (response && typeof response.count === "number") {
+        setChatUnreadCount(response.count);
+      }
+    } catch (error) {
+      console.error("Lỗi khi tải số lượng tin nhắn chưa đọc", error);
+    }
+  };
+
   useEffect(() => {
     const loadNotifications = async () => {
       try {
@@ -156,6 +172,7 @@ export default function ReceptionLayout() {
     if (user) {
       loadNotifications();
       loadUnreadCount();
+      loadChatUnreadCount();
     }
 
     if (socket) {
@@ -206,16 +223,24 @@ export default function ReceptionLayout() {
         });
       };
 
+      const handleNewChatMessage = (payload: { message?: { sender_role?: string } }) => {
+        if (payload?.message?.sender_role === "CUSTOMER") {
+          loadChatUnreadCount();
+        }
+      };
+
       socket.on("new_notification", handleNewNotification);
       socket.on("incoming-video-call", handleIncomingCall);
       socket.on("call-answered", handleCallAnswered);
       socket.on("end-video-call", handleCallEnded);
+      socket.on("new_chat_message", handleNewChatMessage);
 
       return () => {
         socket.off("connect", joinRole);
         socket.off("new_notification", handleNewNotification);
         socket.off("incoming-video-call", handleIncomingCall);
         socket.off("call-answered", handleCallAnswered);
+        socket.off("new_chat_message", handleNewChatMessage);
         socket.off("end-video-call", handleCallEnded);
       };
     }
@@ -593,6 +618,21 @@ export default function ReceptionLayout() {
             </button>
             <NotificationDropdown />
           </div>
+          <button
+            onClick={() => {
+              const next = !isChatOpen;
+              setIsChatOpen(next);
+              if (!next) loadChatUnreadCount();
+            }}
+            className="p-1.5 rounded-full hover:bg-slate-100 transition-colors text-slate-600 relative"
+          >
+            <MessageCircle size={20} />
+            {chatUnreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full ring-2 ring-white">
+                {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+              </span>
+            )}
+          </button>
           <img
             src={avatarUrl}
             alt="Reception Profile"
@@ -665,6 +705,22 @@ export default function ReceptionLayout() {
                 <NotificationDropdown />
               </div>
               <button
+                onClick={() => {
+                  const next = !isChatOpen;
+                  setIsChatOpen(next);
+                  if (!next) loadChatUnreadCount();
+                }}
+                title="Tin nhắn khách hàng"
+                className="w-10 h-10 rounded-xl flex items-center justify-center bg-white text-[#00285E] hover:bg-slate-50 transition-colors relative"
+              >
+                <MessageCircle size={18} />
+                {chatUnreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full ring-2 ring-white">
+                    {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+                  </span>
+                )}
+              </button>
+              <button
                 onClick={() => showToast("Mở trung tâm trợ giúp...", "info")}
                 title="Trợ giúp"
                 className="w-10 h-10 rounded-xl flex items-center justify-center bg-white text-[#00285E] hover:bg-slate-50 transition-colors"
@@ -721,6 +777,15 @@ export default function ReceptionLayout() {
           </div>
         </footer>
       </main>
+
+      <ReceptionChatPanel
+        isOpen={isChatOpen}
+        onClose={() => {
+          setIsChatOpen(false);
+          loadChatUnreadCount();
+        }}
+        currentUserId={user?.id}
+      />
     </div>
   );
 }

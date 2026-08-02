@@ -11,4 +11,6 @@ export const PROFILE_API_ENDPOINTS = {
         `${API_BASE_URL}/api/customer/quotations/${id}/approve`,
     REJECT_QUOTATION: (id: number) =>
         `${API_BASE_URL}/api/customer/quotations/${id}/reject`,
+    GET_QUOTATION_BY_ID: (id: number) =>
+        `${API_BASE_URL}/api/customer/quotations/${id}`,
 };

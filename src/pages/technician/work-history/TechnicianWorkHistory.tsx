@@ -260,7 +260,7 @@ export default function TechnicianWorkHistory() {
       </div>
 
       <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-xs">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative min-w-0 flex-1">
             <Search
               size={16}
@@ -294,7 +294,7 @@ export default function TechnicianWorkHistory() {
             </button>
 
             {isFilterOpen && (
-              <div className="absolute right-0 top-full z-20 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
+              <div className="absolute right-0 top-full z-20 mt-2 w-[calc(100vw-2rem)] max-w-72 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
                 <p className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400">
                   Bộ lọc
                 </p>

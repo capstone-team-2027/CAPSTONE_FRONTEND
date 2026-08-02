@@ -244,7 +244,7 @@ export default function TechnicianRescuePage() {
             initial={{ opacity: 0, y: -20, x: '-50%' }}
             animate={{ opacity: 1, y: 16, x: '-50%' }}
             exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className={`fixed top-4 left-1/2 z-[1000] transform -translate-x-1/2 flex items-center gap-2 px-6 py-3 rounded-xl shadow-xl font-semibold text-white ${
+            className={`fixed top-4 left-1/2 z-[1000] transform -translate-x-1/2 flex items-center gap-2 px-4 sm:px-6 py-3 rounded-xl shadow-xl font-semibold text-white max-w-[90vw] ${
               toastMessage.type === 'success' ? 'bg-emerald-500' :
               toastMessage.type === 'error' ? 'bg-rose-500' : 
               toastMessage.type === 'warning' ? 'bg-amber-500' : 'bg-blue-500'
@@ -262,7 +262,7 @@ export default function TechnicianRescuePage() {
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-3xl p-16 flex flex-col items-center justify-center text-center shadow-xl border border-slate-200 max-w-lg mx-4"
+            className="bg-white rounded-3xl p-6 sm:p-16 flex flex-col items-center justify-center text-center shadow-xl border border-slate-200 max-w-lg mx-4"
           >
             <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mb-6 shadow-inner">
               <CarFront className="w-12 h-12 text-slate-300" />
@@ -332,14 +332,14 @@ export default function TechnicianRescuePage() {
           </div>
 
           {/* Floating UI Overlays */}
-          <div className="absolute inset-0 z-[400] pointer-events-none p-6 flex flex-col justify-between">
+          <div className="absolute inset-0 z-[400] pointer-events-none p-3 sm:p-6 flex flex-col justify-between">
             {/* Top Bar Overlay */}
-            <div className="flex justify-between items-start">
+            <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-start gap-3">
               {/* Left Customer Info */}
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl shadow-slate-900/10 border border-white p-5 pointer-events-auto max-w-sm"
+                className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl shadow-slate-900/10 border border-white p-4 sm:p-5 pointer-events-auto w-full sm:max-w-sm"
               >
                 <div className="flex items-center gap-3 mb-4">
                   <span className="bg-rose-100 p-2 rounded-lg text-rose-600">
@@ -349,15 +349,15 @@ export default function TechnicianRescuePage() {
                 </div>
 
                 <div className="flex items-center gap-4 mb-4">
-                  <img 
-                    src={rescueTask.customer?.user?.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=256&auto=format&fit=crop"} 
-                    alt="Avatar" 
-                    className="w-14 h-14 rounded-full border-2 border-white shadow-sm object-cover"
+                  <img
+                    src={rescueTask.customer?.user?.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=256&auto=format&fit=crop"}
+                    alt="Avatar"
+                    className="w-14 h-14 rounded-full border-2 border-white shadow-sm object-cover shrink-0"
                   />
-                  <div>
-                    <div className="font-bold text-slate-800">{rescueTask.customer?.name || rescueTask.customer?.user?.fullName || 'Khách Vãng Lai'}</div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-slate-800 truncate">{rescueTask.customer?.name || rescueTask.customer?.user?.fullName || 'Khách Vãng Lai'}</div>
                     <div className="text-slate-500 text-sm font-medium mt-0.5 flex items-center gap-1.5">
-                      <Phone size={14} /> {rescueTask.customer?.phone || rescueTask.customer?.user?.phoneNumber}
+                      <Phone size={14} className="shrink-0" /> <span className="truncate">{rescueTask.customer?.phone || rescueTask.customer?.user?.phoneNumber}</span>
                     </div>
                   </div>
                 </div>

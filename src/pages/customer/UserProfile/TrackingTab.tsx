@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
   Car,
@@ -21,6 +22,7 @@ import type { GetRepairProgressResponse } from '../../../model/dto/repairProgres
 type FilterCategory = 'ACTIVE' | 'COMPLETED';
 
 export default function TrackingTab() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { fetchPrivate } = useFetchClient();
   const socket = useSocket();
@@ -43,7 +45,7 @@ export default function TrackingTab() {
       setOrders(res?.data ?? []);
     } catch (err: any) {
       console.error('Lỗi khi tải thông tin theo dõi:', err);
-      if (!silent) setError(err.message || 'Đã xảy ra lỗi khi kết nối với máy chủ.');
+      if (!silent) setError(err.message || t('tracking.errors.loadFailed', 'Đã xảy ra lỗi khi kết nối với máy chủ.'));
     } finally {
       if (!silent) setIsLoading(false);
     }
@@ -113,17 +115,17 @@ export default function TrackingTab() {
   const getOrderStatusDisplay = (status?: string) => {
     switch (status) {
       case 'INSPECTING':
-        return { label: 'Đang kiểm tra', color: 'text-amber-600 bg-amber-50 border-amber-200' };
+        return { label: t('tracking.orderStatus.inspecting', 'Đang kiểm tra'), color: 'text-amber-600 bg-amber-50 border-amber-200' };
       case 'WAITING_FOR_PARTS':
-        return { label: 'Chờ phụ tùng', color: 'text-rose-600 bg-rose-50 border-rose-200' };
+        return { label: t('tracking.orderStatus.waitingForParts', 'Chờ phụ tùng'), color: 'text-rose-600 bg-rose-50 border-rose-200' };
       case 'IN_PROGRESS':
-        return { label: 'Đang sửa chữa', color: 'text-blue-600 bg-blue-50 border-blue-200' };
+        return { label: t('tracking.orderStatus.inProgress', 'Đang sửa chữa'), color: 'text-blue-600 bg-blue-50 border-blue-200' };
       case 'PENDING_QC':
-        return { label: 'Chờ kiểm định', color: 'text-violet-600 bg-violet-50 border-violet-200' };
+        return { label: t('tracking.orderStatus.pendingQc', 'Chờ kiểm định'), color: 'text-violet-600 bg-violet-50 border-violet-200' };
       case 'COMPLETED':
-        return { label: 'Đã hoàn thành', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' };
+        return { label: t('tracking.orderStatus.completed', 'Đã hoàn thành'), color: 'text-emerald-600 bg-emerald-50 border-emerald-200' };
       default:
-        return { label: status || 'Không rõ', color: 'text-gray-600 bg-gray-50 border-gray-200' };
+        return { label: status || t('tracking.orderStatus.unknown', 'Không rõ'), color: 'text-gray-600 bg-gray-50 border-gray-200' };
     }
   };
 
@@ -131,19 +133,19 @@ export default function TrackingTab() {
     switch (status) {
       case 'PENDING':
       case 'ASSIGNED':
-        return { label: 'Chưa bắt đầu', color: 'text-gray-500 bg-gray-50 border-gray-200' };
+        return { label: t('tracking.taskStatus.notStarted', 'Chưa bắt đầu'), color: 'text-gray-500 bg-gray-50 border-gray-200' };
       case 'IN_PROGRESS':
-        return { label: 'Đang thực hiện', color: 'text-blue-600 bg-blue-50 border-blue-200' };
+        return { label: t('tracking.taskStatus.inProgress', 'Đang thực hiện'), color: 'text-blue-600 bg-blue-50 border-blue-200' };
       case 'PAUSED':
-        return { label: 'Tạm dừng', color: 'text-amber-600 bg-amber-50 border-amber-200' };
+        return { label: t('tracking.taskStatus.paused', 'Tạm dừng'), color: 'text-amber-600 bg-amber-50 border-amber-200' };
       case 'WAITING_STOCK':
-        return { label: 'Chờ phụ tùng', color: 'text-rose-600 bg-rose-50 border-rose-200' };
+        return { label: t('tracking.taskStatus.waitingStock', 'Chờ phụ tùng'), color: 'text-rose-600 bg-rose-50 border-rose-200' };
       case 'PENDING_QC':
-        return { label: 'Chờ kiểm định', color: 'text-violet-600 bg-violet-50 border-violet-200' };
+        return { label: t('tracking.taskStatus.pendingQc', 'Chờ kiểm định'), color: 'text-violet-600 bg-violet-50 border-violet-200' };
       case 'COMPLETED':
-        return { label: 'Hoàn thành', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' };
+        return { label: t('tracking.taskStatus.completed', 'Hoàn thành'), color: 'text-emerald-600 bg-emerald-50 border-emerald-200' };
       default:
-        return { label: status || 'Không rõ', color: 'text-gray-500 bg-gray-50 border-gray-200' };
+        return { label: status || t('tracking.taskStatus.unknown', 'Không rõ'), color: 'text-gray-500 bg-gray-50 border-gray-200' };
     }
   };
 
@@ -215,28 +217,28 @@ export default function TrackingTab() {
       {/* Header */}
       <div className="border-b border-gray-100 pb-5">
         <ProfileSectionHeader
-          title="Theo dõi tiến độ sửa chữa"
-          description="Cập nhật trạng thái sửa chữa xe của bạn theo thời gian thực."
+          title={t('tracking.title', 'Theo dõi tiến độ sửa chữa')}
+          description={t('tracking.description', 'Cập nhật trạng thái sửa chữa xe của bạn theo thời gian thực.')}
         />
       </div>
 
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-200/70 shadow-xs">
           <div className="w-10 h-10 border-4 border-brand-orange border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs text-gray-400 mt-4">Đang tải dữ liệu theo dõi...</span>
+          <span className="text-xs text-gray-400 mt-4">{t('tracking.loading', 'Đang tải dữ liệu theo dõi...')}</span>
         </div>
       ) : error ? (
         <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-gray-200/70 shadow-xs text-center px-4">
           <div className="w-16 h-16 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-600 mb-4">
             <AlertCircle className="w-8 h-8 opacity-80" />
           </div>
-          <h3 className="font-bold text-sm text-[#00285E]">Không thể tải dữ liệu</h3>
+          <h3 className="font-bold text-sm text-[#00285E]">{t('tracking.loadErrorTitle', 'Không thể tải dữ liệu')}</h3>
           <p className="text-xs text-gray-400 mt-1 max-w-xs">{error}</p>
           <button
             onClick={() => loadData()}
             className="mt-5 px-5 py-2 bg-[#00285E] text-white rounded-xl text-xs font-bold shadow-md hover:brightness-110 transition-all cursor-pointer"
           >
-            Thử lại
+            {t('tracking.retry', 'Thử lại')}
           </button>
         </div>
       ) : orders.length === 0 ? (
@@ -245,16 +247,16 @@ export default function TrackingTab() {
             <CheckCircle2 className="w-10 h-10 text-emerald-500 opacity-80" />
           </div>
           <h3 className="font-bold text-base text-[#00285E]">
-            Không có xe nào đang ở trong xưởng
+            {t('tracking.emptyTitle', 'Không có xe nào đang ở trong xưởng')}
           </h3>
           <p className="text-xs text-gray-500 mt-2 max-w-md">
-            Hiện tại bạn không có lệnh sửa chữa nào đang được thực hiện hoặc vừa hoàn thành.
+            {t('tracking.emptyDesc', 'Hiện tại bạn không có lệnh sửa chữa nào đang được thực hiện hoặc vừa hoàn thành.')}
           </p>
           <button
             onClick={() => navigate('/phone-service')}
             className="mt-6 px-6 py-2.5 bg-brand-orange text-[#00285E] rounded-xl text-xs font-bold shadow-md shadow-brand-orange/20 hover:brightness-105 transition-all cursor-pointer"
           >
-            Đặt lịch bảo dưỡng ngay
+            {t('tracking.bookNow', 'Đặt lịch bảo dưỡng ngay')}
           </button>
         </div>
       ) : (
@@ -268,7 +270,7 @@ export default function TrackingTab() {
                 : 'text-gray-400 border-transparent hover:text-[#00285E]'
                 }`}
             >
-              <span>Đang tiến hành</span>
+              <span>{t('tracking.filters.active', 'Đang tiến hành')}</span>
               {activeCount > 0 && (
                 <span className="ml-1.5 px-1.5 py-0.5 text-[9px] bg-slate-100 text-slate-600 rounded-full font-bold">
                   {activeCount}
@@ -282,7 +284,7 @@ export default function TrackingTab() {
                 : 'text-gray-400 border-transparent hover:text-[#00285E]'
                 }`}
             >
-              <span>Đã hoàn thành</span>
+              <span>{t('tracking.filters.completed', 'Đã hoàn thành')}</span>
               {completedCount > 0 && (
                 <span className="ml-1.5 px-1.5 py-0.5 text-[9px] bg-slate-100 text-slate-600 rounded-full font-bold">
                   {completedCount}
@@ -296,11 +298,11 @@ export default function TrackingTab() {
               <div className="w-16 h-16 rounded-2xl bg-blue-50/50 flex items-center justify-center text-[#00285E] mb-4">
                 <ClipboardList className="w-8 h-8 opacity-60" />
               </div>
-              <h3 className="font-bold text-sm text-[#00285E]">Không tìm thấy xe</h3>
+              <h3 className="font-bold text-sm text-[#00285E]">{t('tracking.noVehicleFoundTitle', 'Không tìm thấy xe')}</h3>
               <p className="text-xs text-gray-400 mt-1 max-w-xs">
                 {filterCategory === 'ACTIVE'
-                  ? 'Tuyệt vời! Bạn không có chiếc xe nào đang phải sửa chữa.'
-                  : 'Bạn chưa có chiếc xe nào vừa hoàn thành sửa chữa gần đây.'}
+                  ? t('tracking.noVehicleActiveDesc', 'Tuyệt vời! Bạn không có chiếc xe nào đang phải sửa chữa.')
+                  : t('tracking.noVehicleCompletedDesc', 'Bạn chưa có chiếc xe nào vừa hoàn thành sửa chữa gần đây.')}
               </p>
             </div>
           ) : (
@@ -320,7 +322,7 @@ export default function TrackingTab() {
                           }`}
                       >
                         <Car className={`w-4 h-4 ${isActive ? 'text-brand-orange' : 'text-gray-400'}`} />
-                        <span>{order.vehicle?.license_plate || 'Xe không rõ'}</span>
+                        <span>{order.vehicle?.license_plate || t('tracking.unknownPlate', 'Xe không rõ')}</span>
                       </button>
                     );
                   })}
@@ -337,17 +339,17 @@ export default function TrackingTab() {
                 <div className="p-5 sm:p-6 flex flex-wrap items-start justify-between gap-5">
                   <div className="min-w-0">
                     <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2.5">
-                      Phương tiện
+                      {t('tracking.vehicle', 'Phương tiện')}
                     </span>
                     <div className="space-y-1.5">
                       <div className="flex items-baseline gap-3">
-                        <span className="w-16 shrink-0 text-xs text-gray-400">Biển số</span>
+                        <span className="w-16 shrink-0 text-xs text-gray-400">{t('tracking.plate', 'Biển số')}</span>
                         <span className="text-sm font-bold text-[#00285E] truncate">
                           {currentOrder.vehicle?.license_plate || '—'}
                         </span>
                       </div>
                       <div className="flex items-baseline gap-3">
-                        <span className="w-16 shrink-0 text-xs text-gray-400">Tên xe</span>
+                        <span className="w-16 shrink-0 text-xs text-gray-400">{t('tracking.vehicleName', 'Tên xe')}</span>
                         <span className="text-sm font-bold text-[#00285E] truncate">
                           {[currentOrder.vehicle?.model?.model_name, currentOrder.vehicle?.color]
                             .filter(Boolean)
@@ -359,7 +361,7 @@ export default function TrackingTab() {
 
                   <div className="text-right">
                     <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                      {isOrderDone(currentOrder) ? 'Đã trả xe' : 'Dự kiến hoàn thành'}
+                      {isOrderDone(currentOrder) ? t('tracking.returned', 'Đã trả xe') : t('tracking.estimatedFinish', 'Dự kiến hoàn thành')}
                     </span>
                     <span className="inline-flex items-center gap-1.5 text-base font-bold text-[#00285E] leading-none">
                       <CalendarClock size={16} className="text-brand-orange shrink-0" />
@@ -374,7 +376,7 @@ export default function TrackingTab() {
                 <div className="px-5 sm:px-6 py-5 border-t border-gray-100 bg-slate-50/50">
                   <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                     <span className="text-[11px] font-bold text-[#00285E] uppercase tracking-widest">
-                      Tiến độ công việc
+                      {t('tracking.workProgress', 'Tiến độ công việc')}
                     </span>
                     <span
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${isAwaitingHandover
@@ -383,7 +385,7 @@ export default function TrackingTab() {
                         }`}
                     >
                       {isAwaitingHandover
-                        ? 'Đang kiểm tra trước khi giao xe'
+                        ? t('tracking.awaitingHandover', 'Đang kiểm tra trước khi giao xe')
                         : getOrderStatusDisplay(currentOrder.status).label}
                     </span>
                   </div>
@@ -396,7 +398,7 @@ export default function TrackingTab() {
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
                     <span className="text-[11px] font-semibold text-[#00285E]">
-                      {doneCount}/{taskTotal} hạng mục hoàn tất
+                      {t('tracking.itemsCompleted', '{{done}}/{{total}} hạng mục hoàn tất', { done: doneCount, total: taskTotal })}
                     </span>
                     <span className="text-[11px] font-bold text-[#00285E] tabular-nums">
                       {orderProgress}%
@@ -416,7 +418,7 @@ export default function TrackingTab() {
                 >
                   <div className="px-5 sm:px-6 py-4 border-b border-gray-100">
                     <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
-                      Hạng mục sửa chữa
+                      {t('tracking.repairItemsTitle', 'Hạng mục sửa chữa')}
                     </span>
                   </div>
                   <div className="divide-y divide-gray-100">
@@ -432,7 +434,7 @@ export default function TrackingTab() {
                           <div className="min-w-0">
                             <span className="flex items-center gap-1.5 text-sm font-semibold text-[#00285E] truncate">
                               <Wrench size={13} className="text-gray-400 shrink-0" />
-                              {task.catalog?.service_name || `Hạng mục #${task.id}`}
+                              {task.catalog?.service_name || t('tracking.unnamedItem', 'Hạng mục #{{id}}', { id: task.id })}
                             </span>
                             {technicianName && (
                               <span className="flex items-center gap-1.5 text-[11px] text-gray-400 mt-1">
@@ -462,12 +464,12 @@ export default function TrackingTab() {
                 className="bg-white rounded-2xl border border-gray-200/70 shadow-xs p-5 sm:p-6"
               >
                 <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4">
-                  Mốc thời gian
+                  {t('tracking.timeline', 'Mốc thời gian')}
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                      Tiếp nhận xe
+                      {t('tracking.entryTime', 'Tiếp nhận xe')}
                     </span>
                     <span className="block text-sm font-semibold text-[#00285E]">
                       {formatDateTime(currentOrder.entry_time)}
@@ -475,7 +477,7 @@ export default function TrackingTab() {
                   </div>
                   <div>
                     <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                      Dự kiến hoàn thành
+                      {t('tracking.estimatedFinish', 'Dự kiến hoàn thành')}
                     </span>
                     <span className="block text-sm font-semibold text-[#00285E]">
                       {isOrderDone(currentOrder)
@@ -485,7 +487,7 @@ export default function TrackingTab() {
                   </div>
                   <div>
                     <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                      Hoàn tất thực tế
+                      {t('tracking.actualFinish', 'Hoàn tất thực tế')}
                     </span>
                     <span
                       className={`block text-sm font-semibold ${currentOrder.actual_finish_time ? 'text-emerald-600' : 'text-gray-300'
@@ -504,7 +506,7 @@ export default function TrackingTab() {
 
       <div className="flex items-center justify-center gap-1.5 pt-4 border-t border-gray-100 text-[8px] font-bold text-gray-400 uppercase tracking-widest mt-auto">
         <ShieldCheck className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-        <span>Dữ liệu được cập nhật tự động từ xưởng dịch vụ AGM Intelligent</span>
+        <span>{t('tracking.footerNote', 'Dữ liệu được cập nhật tự động từ xưởng dịch vụ AGM Intelligent')}</span>
       </div>
     </motion.div>
   );

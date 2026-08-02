@@ -5,6 +5,7 @@ const Header = lazy(() => import("./pages/customer/Header"));
 const Home = lazy(() => import("./pages/customer/home/Home"));
 const Services = lazy(() => import("./pages/customer/services/Services"));
 const Parts = lazy(() => import("./pages/customer/parts/Parts"));
+const News = lazy(() => import("./pages/customer/News/News"));
 const BookingPage = lazy(() => import("./pages/customer/booking/BookingPage"));
 const Signup = lazy(() => import("./pages/customer/home/SingUp"));
 const Footer = lazy(() => import("./pages/customer/Footer"));
@@ -103,6 +104,7 @@ function App() {
           <Route path="" element={<Home />} />
           <Route path="services" element={<Services />} />
           <Route path="parts" element={<Parts />} />
+          <Route path="news" element={<News />} />
           <Route path="phone-service" element={<BookingPage />} />
           <Route path="login" element={<Login />} />
           <Route path="oauth-success" element={<Login />} />

@@ -21,7 +21,6 @@ import {
   Wrench,
   ClipboardList,
   Package,
-  ImagePlus,
   Sparkles,
   Send,
 } from "lucide-react";
@@ -39,6 +38,7 @@ import type {
   AiSuggestCausesResponse,
   PauseTaskRequest,
   ResumeTaskRequest,
+  RequestablePartItem,
 } from "../../../model/dto/taskAssignment.dto";
 
 // ========== TYPES ==========
@@ -295,13 +295,21 @@ const PART_STATUS_CONFIG: Record<
     label: "Sẵn sàng",
     className: "border-emerald-200 bg-emerald-50 text-emerald-700",
   },
+  REQUESTED: {
+    label: "Đã yêu cầu xuất kho",
+    className: "border-amber-200 bg-amber-50 text-amber-700",
+  },
   RECEIVED: {
     label: "Đã nhận",
     className: "border-emerald-200 bg-emerald-50 text-emerald-700",
   },
-  EXPORTED: {
-    label: "Chờ nhận hàng",
+  WAITING_SIGNATURE: {
+    label: "Chờ ký nhận",
     className: "border-violet-200 bg-violet-50 text-violet-700",
+  },
+  EXPORTED: {
+    label: "Đã nhận (đã ký)",
+    className: "border-emerald-200 bg-emerald-50 text-emerald-700",
   },
   WAITING_RECEIVE: {
     label: "Chờ nhận hàng",
@@ -319,18 +327,9 @@ const getPartStatusConfig = (status?: string) =>
     className: "border-slate-200 bg-slate-50 text-slate-500",
   };
 
-const RECEIVABLE_PART_STATUSES = [
-  "EXPORTED",
-  "WAITING_RECEIVE",
-  "READY_FOR_RECEIPT",
-];
-const RECEIVED_PART_STATUSES = ["RECEIVED"];
-const getReceivableParts = (tasks: AssignmentTask[]) =>
-  tasks.flatMap((task) =>
-    (task.spareParts ?? []).filter((part) =>
-      RECEIVABLE_PART_STATUSES.includes(part.status ?? ""),
-    ),
-  );
+// Luồng xuất kho hiện tại kết thúc ở EXPORTED (thủ kho duyệt + KTV ký điện tử tại quầy)
+// RECEIVED giữ lại để tương thích dữ liệu cũ trước khi đổi luồng.
+const RECEIVED_PART_STATUSES = ["EXPORTED", "RECEIVED"];
 
 // Mock assignments removed to use API data
 
@@ -341,7 +340,7 @@ export default function TechnicianAssignments() {
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
-  const { fetchPrivate, fetchPrivateForm } = useFetchClient();
+  const { fetchPrivate } = useFetchClient();
   const socket = useSocket();
   const [components, setComponents] = useState<GetComponentsResponse[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -400,65 +399,79 @@ export default function TechnicianAssignments() {
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null);
   const [taskActionMenuId, setTaskActionMenuId] = useState<number | null>(null);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
-  const [receivePartsTask, setReceivePartsTask] =
-    useState<AssignmentTask | null>(null);
-  const [receiveProofFile, setReceiveProofFile] = useState<File | null>(null);
-  const [receiveProofPreview, setReceiveProofPreview] = useState("");
-  const [isConfirmingReceive, setIsConfirmingReceive] = useState(false);
+  // Yêu cầu xuất kho: KTV chọn phụ tùng PENDING của TẤT CẢ Task mình phụ trách trong cùng
+  // lệnh sửa chữa (1 nút gộp duy nhất, không tách theo từng Task) để gửi yêu cầu xuất kho.
+  const [requestExportServiceOrderId, setRequestExportServiceOrderId] =
+    useState<string | null>(null);
+  const [requestablePartsLoading, setRequestablePartsLoading] =
+    useState(false);
+  const [requestableParts, setRequestableParts] = useState<
+    RequestablePartItem[]
+  >([]);
+  const [selectedRequestablePartIds, setSelectedRequestablePartIds] =
+    useState<number[]>([]);
+  const [isSubmittingRequestExport, setIsSubmittingRequestExport] =
+    useState(false);
 
-  const closeReceivePartsModal = () => {
-    if (receiveProofPreview) URL.revokeObjectURL(receiveProofPreview);
-    setReceivePartsTask(null);
-    setReceiveProofFile(null);
-    setReceiveProofPreview("");
+  const closeRequestExportModal = () => {
+    setRequestExportServiceOrderId(null);
+    setRequestableParts([]);
+    setSelectedRequestablePartIds([]);
   };
 
-  const confirmReceivedParts = async () => {
-    if (!receiveProofFile || !issueReportAssignment) return;
-    setIsConfirmingReceive(true);
+  const openRequestExportModal = async (serviceOrderId: string) => {
+    setRequestExportServiceOrderId(serviceOrderId);
+    setRequestableParts([]);
+    setSelectedRequestablePartIds([]);
+    setRequestablePartsLoading(true);
     try {
-      const formData = new FormData();
-      formData.append("image", receiveProofFile);
-      await fetchPrivateForm(
-        TASK_ASSIGNMENT_ENDPOINTS.CONFIRM_RECEIVED_PARTS(
-          issueReportAssignment.serviceOrderId,
-        ),
-        "POST",
-        formData,
+      const response = await fetchPrivate<{ data: RequestablePartItem[] }>(
+        TASK_ASSIGNMENT_ENDPOINTS.GET_REQUESTABLE_PARTS(serviceOrderId),
       );
-      showToast("Đã xác nhận nhận phụ tùng!", "success");
-      closeReceivePartsModal();
-      setRefreshKey((prev) => prev + 1);
+      const parts = Array.isArray(response?.data) ? response.data : [];
+      setRequestableParts(parts);
+      setSelectedRequestablePartIds(parts.map((part) => part.id));
     } catch (error: unknown) {
-      console.error("Lỗi khi xác nhận nhận phụ tùng:", error);
+      console.error("Lỗi khi tải danh sách phụ tùng có thể yêu cầu:", error);
       showToast(
-        getErrorMessage(error, "Đã xảy ra lỗi khi xác nhận nhận phụ tùng."),
+        getErrorMessage(error, "Đã xảy ra lỗi khi tải danh sách phụ tùng."),
         "warning",
       );
+      closeRequestExportModal();
     } finally {
-      setIsConfirmingReceive(false);
+      setRequestablePartsLoading(false);
     }
   };
 
-  const openReceiveAllPartsModal = (assignment: Assignment) => {
-    const receivableParts = getReceivableParts(assignment.tasks);
-    const relatedTasks = assignment.tasks.filter((task) =>
-      task.spareParts?.some((part) =>
-        RECEIVABLE_PART_STATUSES.includes(part.status ?? ""),
-      ),
+  const toggleRequestablePart = (id: number) => {
+    setSelectedRequestablePartIds((current) =>
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id],
     );
+  };
 
-    setReceivePartsTask({
-      taskId: -1,
-      taskType: "REPAIR",
-      serviceName:
-        [...new Set(relatedTasks.map((task) => task.serviceName))].join(", ") ||
-        "Phụ tùng của đơn dịch vụ",
-      repairIssue: `${relatedTasks.length} hạng mục có phụ tùng chờ nhận`,
-      spareParts: receivableParts,
-    });
-    setReceiveProofFile(null);
-    setReceiveProofPreview("");
+  const submitRequestExport = async () => {
+    if (!requestExportServiceOrderId || selectedRequestablePartIds.length === 0) return;
+    setIsSubmittingRequestExport(true);
+    try {
+      await fetchPrivate(
+        TASK_ASSIGNMENT_ENDPOINTS.REQUEST_EXPORT(requestExportServiceOrderId),
+        "POST",
+        { detailIds: selectedRequestablePartIds },
+      );
+      showToast("Đã gửi yêu cầu xuất kho!", "success");
+      closeRequestExportModal();
+      setRefreshKey((prev) => prev + 1);
+    } catch (error: unknown) {
+      console.error("Lỗi khi gửi yêu cầu xuất kho:", error);
+      showToast(
+        getErrorMessage(error, "Đã xảy ra lỗi khi gửi yêu cầu xuất kho."),
+        "warning",
+      );
+    } finally {
+      setIsSubmittingRequestExport(false);
+    }
   };
 
   const updateTaskStatusInModal = (
@@ -1401,6 +1414,16 @@ export default function TechnicianAssignments() {
     });
   };
 
+  // Còn Task nào của lệnh sửa chữa đang mở modal thiếu phụ tùng để yêu cầu xuất kho không
+  const canRequestExportParts =
+    issueReportAssignment?.tasks
+      .filter((t) => t.taskType !== "INSPECTION")
+      .some(
+        (t) =>
+          (t.status === "IN_PROGRESS" || t.status === "WAITING_STOCK") &&
+          t.spareParts?.some((part) => part.status === "PENDING"),
+      ) ?? false;
+
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* HEADER */}
@@ -1673,7 +1696,7 @@ export default function TechnicianAssignments() {
                           ) : asg.hasUnstartedTasks ? (
                             <button
                               onClick={() => handleStartTask(asg)}
-                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] transition-colors"
+                              className="flex items-center gap-1 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] transition-colors"
                             >
                               <PlayCircle size={13} />
                               Bắt đầu làm
@@ -1681,7 +1704,7 @@ export default function TechnicianAssignments() {
                           ) : hasProgressTask ? (
                             <button
                               onClick={() => openIssueReportModal(asg)}
-                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] transition-colors"
+                              className="flex items-center gap-1 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] transition-colors"
                             >
                               <ClipboardList size={13} />
                               Tiến độ công việc
@@ -1693,7 +1716,7 @@ export default function TechnicianAssignments() {
                                   `/technician/assignments/${asg.serviceOrderId}`,
                                 )
                               }
-                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+                              className="flex items-center gap-1 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
                             >
                               <Eye size={13} />
                               Chi tiết
@@ -1711,8 +1734,8 @@ export default function TechnicianAssignments() {
 
         {/* PAGINATION */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100">
-            <span className="text-xs font-semibold text-slate-400">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t border-slate-100">
+            <span className="text-xs font-semibold text-slate-400 text-center sm:text-left">
               Hiển thị {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
               {Math.min(
                 currentPage * ITEMS_PER_PAGE,
@@ -1720,7 +1743,7 @@ export default function TechnicianAssignments() {
               )}{" "}
               / {filteredAssignments.length} phân công
             </span>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-wrap justify-center">
               <button
                 onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
@@ -1733,7 +1756,7 @@ export default function TechnicianAssignments() {
                   <button
                     key={page}
                     onClick={() => setCurrentPage(page)}
-                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                    className={`w-9 h-9 sm:w-8 sm:h-8 rounded-lg text-xs font-bold transition-all ${
                       page === currentPage
                         ? "bg-[#00285E] text-white shadow-md"
                         : "text-slate-500 hover:bg-slate-100"
@@ -1798,20 +1821,20 @@ export default function TechnicianAssignments() {
           />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5">
             <div
-              className="relative flex items-start justify-between px-7 pt-7 pb-6 shrink-0 text-white overflow-hidden"
+              className="relative flex items-start justify-between px-4 sm:px-7 pt-5 sm:pt-7 pb-5 sm:pb-6 shrink-0 text-white overflow-hidden"
               style={{ backgroundColor: "#00285E" }}
             >
               <div className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-white/10" />
               <div className="absolute -bottom-14 -left-6 w-40 h-40 rounded-full bg-white/5" />
-              <div className="relative flex items-center gap-4">
+              <div className="relative flex items-center gap-3 sm:gap-4">
                 <div
-                  className="flex items-center justify-center w-12 h-12 rounded-2xl shrink-0"
+                  className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-2xl shrink-0"
                   style={{ backgroundColor: "#F9A11B" }}
                 >
                   <Wrench size={22} className="text-white" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white leading-none">
+                  <h3 className="text-lg sm:text-xl font-bold text-white leading-none">
                     Tiến độ công việc
                   </h3>
                 </div>
@@ -1826,9 +1849,9 @@ export default function TechnicianAssignments() {
               </div>
             </div>
 
-            <div className="overflow-y-auto flex-1 px-7 py-6 space-y-6 bg-slate-50/50">
+            <div className="overflow-y-auto flex-1 px-4 sm:px-7 py-4 sm:py-6 space-y-6 bg-slate-50/50">
               {/* SECTION: Thông tin khách hàng & xe */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-[#EDF3FF] rounded-2xl border border-[#c7d7f0] p-4">
                   <div className="flex items-center gap-1.5 mb-2.5">
                     <Users size={13} className="text-[#00285E]" />
@@ -1888,14 +1911,14 @@ export default function TechnicianAssignments() {
 
               {/* SECTION: Mô tả lỗi từ lễ tân + tra cứu lỗi */}
               <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
-                <div className="flex items-center justify-between gap-3 mb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
                   <div className="flex items-center gap-1.5">
-                    <ClipboardList size={13} className="text-slate-400" />
+                    <ClipboardList size={13} className="text-slate-400 shrink-0" />
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                       Mô tả lỗi tiếp nhận từ nhân viên
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 flex-wrap sm:shrink-0">
                     <button
                       onClick={
                         issueReportAssignment.taskType === "REPAIR"
@@ -2110,7 +2133,7 @@ export default function TechnicianAssignments() {
                                         ? "Cập nhật trạng thái công việc"
                                         : "Cần xác nhận nhận ít nhất 1 phụ tùng trước khi cập nhật trạng thái"
                                     }
-                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border active:scale-[0.97] transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-2 sm:py-1 rounded-lg text-xs font-bold border active:scale-[0.97] transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                                       isWaitingStock
                                         ? "text-orange-700 bg-orange-50 border-orange-200 hover:bg-orange-100"
                                         : isPaused
@@ -2135,7 +2158,7 @@ export default function TechnicianAssignments() {
                                           onClick={() =>
                                             changeTaskRunningStatus(t, "resume")
                                           }
-                                          className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                                          className="w-full rounded-lg px-3 py-2.5 sm:py-2 text-left text-xs font-semibold text-blue-700 hover:bg-blue-50"
                                         >
                                           Tiếp tục
                                         </button>
@@ -2146,7 +2169,7 @@ export default function TechnicianAssignments() {
                                             onClick={() =>
                                               changeTaskRunningStatus(t, "pause")
                                             }
-                                            className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-amber-700 hover:bg-amber-50"
+                                            className="w-full rounded-lg px-3 py-2.5 sm:py-2 text-left text-xs font-semibold text-amber-700 hover:bg-amber-50"
                                           >
                                             Tạm dừng
                                           </button>
@@ -2158,7 +2181,7 @@ export default function TechnicianAssignments() {
                                                 "wait_stock",
                                               )
                                             }
-                                            className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-orange-700 hover:bg-orange-50"
+                                            className="w-full rounded-lg px-3 py-2.5 sm:py-2 text-left text-xs font-semibold text-orange-700 hover:bg-orange-50"
                                           >
                                             Chờ phụ tùng
                                           </button>
@@ -2176,7 +2199,7 @@ export default function TechnicianAssignments() {
                                           setTaskActionMenuId(null);
                                           setConfirmTask(t);
                                         }}
-                                        className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                                        className="w-full rounded-lg px-3 py-2.5 sm:py-2 text-left text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                                       >
                                         Hoàn thành
                                       </button>
@@ -2415,19 +2438,19 @@ export default function TechnicianAssignments() {
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between gap-3 px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-4 sm:px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
               {issueReportAssignment.taskType === "INSPECTION" ? (
                 <>
-                  <span className="text-xs text-slate-400">
+                  <span className="text-xs text-slate-400 text-center sm:text-left">
                     {checkedIssueItems.length > 0
                       ? `${checkedIssueItems.length} lỗi sẽ được báo cáo`
                       : "Chọn lỗi phát hiện để hoàn tất kiểm tra"}
                   </span>
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2.5 flex-wrap">
                     <button
                       onClick={() => setIssueReportOpen(false)}
                       disabled={isSubmittingIssueReport}
-                      className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-40"
+                      className="h-11 flex-1 sm:flex-none px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-40"
                     >
                       Đóng
                     </button>
@@ -2437,7 +2460,7 @@ export default function TechnicianAssignments() {
                         isSubmittingIssueReport ||
                         checkedIssueItems.length === 0
                       }
-                      className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/25 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="h-11 flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/25 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isSubmittingIssueReport ? (
                         <>
@@ -2454,32 +2477,18 @@ export default function TechnicianAssignments() {
                   </div>
                 </>
               ) : (
-                <div className="ml-auto flex items-center gap-2.5">
-                  {issueReportAssignment.tasks.some(
-                    (task) => (task.spareParts?.length ?? 0) > 0,
-                  ) && (
+                <div className="sm:ml-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full">
+                  {canRequestExportParts && (
                     <button
                       type="button"
-                      disabled={
-                        getReceivableParts(issueReportAssignment.tasks)
-                          .length === 0
-                      }
                       onClick={() =>
-                        openReceiveAllPartsModal(issueReportAssignment)
+                        issueReportAssignment &&
+                        openRequestExportModal(issueReportAssignment.serviceOrderId)
                       }
-                      title={
-                        getReceivableParts(issueReportAssignment.tasks)
-                          .length === 0
-                          ? "Kho chưa xuất phụ tùng để xác nhận nhận hàng"
-                          : "Xác nhận nhận phụ tùng kho đã xuất"
-                      }
-                      className="h-11 inline-flex items-center gap-2 px-5 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/20 hover:brightness-110 active:scale-[0.98] transition-all disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:hover:brightness-100 disabled:active:scale-100"
+                      className="h-11 flex items-center justify-center gap-1.5 px-5 rounded-xl text-sm font-bold text-white bg-[#00285E] shadow-sm hover:bg-[#001E46] active:scale-[0.98] transition-all"
                     >
                       <Package size={15} />
-                      {getReceivableParts(issueReportAssignment.tasks).length >
-                      0
-                        ? `Xác nhận đã nhận ${getReceivableParts(issueReportAssignment.tasks).length} phụ tùng`
-                        : "Xác nhận đã nhận"}
+                      Yêu cầu xuất kho
                     </button>
                   )}
                   <button
@@ -2503,20 +2512,20 @@ export default function TechnicianAssignments() {
           />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5">
             <div
-              className="relative flex items-start justify-between px-7 pt-7 pb-6 shrink-0 text-white overflow-hidden"
+              className="relative flex items-start justify-between px-4 sm:px-7 pt-5 sm:pt-7 pb-5 sm:pb-6 shrink-0 text-white overflow-hidden"
               style={{ backgroundColor: "#00285E" }}
             >
               <div className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-white/10" />
               <div className="absolute -bottom-14 -left-6 w-40 h-40 rounded-full bg-white/5" />
-              <div className="relative flex items-center gap-4">
+              <div className="relative flex items-center gap-3 sm:gap-4">
                 <div
-                  className="flex items-center justify-center w-12 h-12 rounded-2xl shrink-0"
+                  className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-2xl shrink-0"
                   style={{ backgroundColor: "#F9A11B" }}
                 >
                   <AlertCircle size={22} className="text-white" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white leading-none">
+                  <h3 className="text-lg sm:text-xl font-bold text-white leading-none">
                     Tạo báo cáo lỗi phát sinh
                   </h3>
                   <span className="mt-2 block text-xs font-semibold text-white/60">
@@ -2533,8 +2542,8 @@ export default function TechnicianAssignments() {
               </button>
             </div>
 
-            <div className="overflow-y-auto flex-1 px-7 py-6 space-y-5 bg-slate-50/50">
-              <div className="grid grid-cols-2 gap-3">
+            <div className="overflow-y-auto flex-1 px-4 sm:px-7 py-4 sm:py-6 space-y-5 bg-slate-50/50">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-[#EDF3FF] rounded-2xl border border-[#c7d7f0] p-4">
                   <div className="flex items-center gap-1.5 mb-2.5">
                     <Users size={13} className="text-[#00285E]" />
@@ -2772,17 +2781,17 @@ export default function TechnicianAssignments() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3 px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
-              <span className="text-xs text-slate-400">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-4 sm:px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
+              <span className="text-xs text-slate-400 text-center sm:text-left">
                 {checkedIssueItems.length > 0
                   ? `${checkedIssueItems.length} lỗi sẽ được báo cáo`
                   : "Chọn lỗi phát sinh để gửi báo cáo"}
               </span>
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2.5 flex-wrap">
                 <button
                   onClick={() => setShowIncidentIssueReport(false)}
                   disabled={isSubmittingIssueReport}
-                  className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-40"
+                  className="h-11 flex-1 sm:flex-none px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-40"
                 >
                   Đóng
                 </button>
@@ -2791,7 +2800,7 @@ export default function TechnicianAssignments() {
                   disabled={
                     isSubmittingIssueReport || checkedIssueItems.length === 0
                   }
-                  className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/25 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="h-11 flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/25 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isSubmittingIssueReport ? (
                     <>
@@ -2819,7 +2828,7 @@ export default function TechnicianAssignments() {
             className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
           />
 <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5">            <div
-              className="flex items-center justify-between px-6 py-4 shrink-0"
+              className="flex items-center justify-between px-4 sm:px-6 py-4 shrink-0"
               style={{ backgroundColor: "#00285E" }}
             >
               <div className="flex items-center gap-2.5">
@@ -2838,8 +2847,8 @@ export default function TechnicianAssignments() {
               </button>
             </div>
 
-            <div className="px-6 py-4 border-b border-slate-100 shrink-0 space-y-3">
-              <div className="inline-flex rounded-xl bg-slate-100 p-1">
+            <div className="px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0 space-y-3">
+              <div className="inline-flex flex-wrap rounded-xl bg-slate-100 p-1">
                 <button
                   type="button"
                   onClick={() => changeLookupView("common")}
@@ -2912,7 +2921,7 @@ export default function TechnicianAssignments() {
 
                          {showFilterPanel && (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <select
                       value={diagMakeId}
                       onChange={(e) => {
@@ -2974,28 +2983,28 @@ export default function TechnicianAssignments() {
                 </div>
               )}
               </div>
-            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4 bg-slate-50/50">
-             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-  <div className="grid grid-cols-[56px_1.4fr_1.6fr] border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-widest text-slate-400">
-    <div className="px-3 py-2.5">STT</div>
-    <div className="px-3 py-2.5">
+            <div className="overflow-y-auto flex-1 px-4 sm:px-6 py-5 space-y-4 bg-slate-50/50">
+             <div className="overflow-x-auto overflow-hidden rounded-2xl border border-slate-200 bg-white">
+  <div className="grid grid-cols-[36px_1fr_1fr] sm:grid-cols-[56px_1.4fr_1.6fr] border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+    <div className="px-2 sm:px-3 py-2.5">STT</div>
+    <div className="px-2 sm:px-3 py-2.5">
       {lookupView === "common" ? "Các lỗi thường gặp" : "Lỗi đã gặp"}
     </div>
-    <div className="px-3 py-2.5">Nguyên nhân</div>
+    <div className="px-2 sm:px-3 py-2.5">Nguyên nhân</div>
   </div>
 
   {lookupRows.map((row, index) => (
     <div
       key={row.id}
-      className="grid grid-cols-[56px_1.4fr_1.6fr] border-b border-slate-100 last:border-b-0"
+      className="grid grid-cols-[36px_1fr_1fr] sm:grid-cols-[56px_1.4fr_1.6fr] border-b border-slate-100 last:border-b-0"
     >
-      <div className="px-3 py-3 text-sm font-semibold text-slate-500">
+      <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm font-semibold text-slate-500">
         {index + 1}
       </div>
-      <div className="px-3 py-3 text-sm text-slate-700 font-semibold">
+      <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm text-slate-700 font-semibold">
         {row.issue}
       </div>
-      <div className="px-3 py-3 text-sm text-slate-600 whitespace-pre-line leading-relaxed">
+      <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm text-slate-600 whitespace-pre-line leading-relaxed">
         {row.cause}
       </div>
     </div>
@@ -3016,25 +3025,25 @@ export default function TechnicianAssignments() {
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg h-[85vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5">
             {/* Header */}
             <div
-              className="flex items-center justify-between px-6 py-4 shrink-0"
+              className="flex items-center justify-between gap-2 px-4 sm:px-6 py-4 shrink-0"
               style={{ backgroundColor: "#00285E" }}
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 shrink-0 rounded-xl bg-white/10 text-white flex items-center justify-center">
                   <Sparkles size={16} />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-base font-bold text-white leading-tight">
                     Tham khảo AI
                   </h3>
-                  <span className="text-xs font-semibold text-white/60">
+                  <span className="block truncate text-xs font-semibold text-white/60">
                     {issueReportAssignment?.vehicleModel || "Chẩn đoán ô tô"}
                   </span>
                 </div>
               </div>
               <button
                 onClick={() => setAiChatOpen(false)}
-                className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+                className="shrink-0 p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
               >
                 <X size={18} />
               </button>
@@ -3129,7 +3138,7 @@ export default function TechnicianAssignments() {
           />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5">
             <div
-              className="flex items-center justify-between px-6 py-4 shrink-0"
+              className="flex items-center justify-between px-4 sm:px-6 py-4 shrink-0"
               style={{ backgroundColor: "#00285E" }}
             >
               <div className="flex items-center gap-2.5">
@@ -3148,7 +3157,7 @@ export default function TechnicianAssignments() {
               </button>
             </div>
 
-            <div className="px-6 py-4 border-b border-slate-100 shrink-0 space-y-3">
+            <div className="px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0 space-y-3">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                   <Search
@@ -3183,7 +3192,7 @@ export default function TechnicianAssignments() {
               </div>
 
               {showRepairFilter && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   <select
                     value={repairMakeId}
                     onChange={(e) => {
@@ -3231,7 +3240,7 @@ export default function TechnicianAssignments() {
               )}
             </div>
 
-            <div className="overflow-y-auto flex-1 px-6 py-5 bg-slate-50/50">
+            <div className="overflow-y-auto flex-1 px-4 sm:px-6 py-5 bg-slate-50/50">
               {isRepairLoading ? (
                 <div className="py-12 text-center">
                   <span className="inline-flex items-center gap-2 text-slate-400 text-sm">
@@ -3288,180 +3297,120 @@ export default function TechnicianAssignments() {
         </div>
       )}
 
-      {/* MODAL XÁC NHẬN HOÀN THÀNH */}
-      {receivePartsTask && issueReportAssignment && (
+      {/* MODAL YÊU CẦU XUẤT KHO */}
+      {requestExportServiceOrderId && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-slate-900/55 backdrop-blur-sm"
-            onClick={closeReceivePartsModal}
+            onClick={closeRequestExportModal}
           />
           <div className="relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/5">
-            <div className="flex shrink-0 items-center justify-between bg-[#00285E] px-6 py-5 text-white">
+            <div className="flex shrink-0 items-center justify-between bg-[#00285E] px-4 sm:px-6 py-4 sm:py-5 text-white">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#F9A11B]">
+                <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-[#F9A11B]">
                   <Package size={20} />
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/65">
-                    Phiếu xuất kho
+                <div className="min-w-0">
+                  <p className="truncate text-[10px] font-bold uppercase tracking-widest text-white/65">
+                    {issueReportAssignment?.vehiclePlate || "Toàn bộ công việc của bạn"}
                   </p>
-                  <h3 className="mt-0.5 text-lg font-bold">
-                    Xác nhận nhận phụ tùng
+                  <h3 className="mt-0.5 text-base sm:text-lg font-bold">
+                    Yêu cầu xuất kho
                   </h3>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={closeReceivePartsModal}
+                onClick={closeRequestExportModal}
                 className="rounded-full p-2 text-white/75 hover:bg-white/15 hover:text-white"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    Xe tiếp nhận
-                  </p>
-                  <p className="mt-2 text-sm font-bold text-slate-800">
-                    {issueReportAssignment.vehiclePlate || "—"}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {issueReportAssignment.vehicleModel || "—"}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    Dịch vụ
-                  </p>
-                  <p className="mt-2 text-sm font-bold text-slate-800">
-                    {receivePartsTask.serviceName}
-                  </p>
-                  <p className="mt-1 line-clamp-2 text-xs text-slate-500">
-                    {receivePartsTask.repairIssue || "Không có mô tả lỗi"}
-                  </p>
-                </div>
-              </div>
+            <div className="flex-1 space-y-3 overflow-y-auto px-4 sm:px-6 py-5">
+              <p className="text-xs text-slate-500">
+                Chọn phụ tùng cần gửi yêu cầu xuất kho cho công việc này. Thủ
+                kho duyệt xong là hoàn tất, không cần xác nhận lại.
+              </p>
 
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                    Phụ tùng kho đã xuất
-                  </p>
-                  <span className="rounded-full bg-[#EDF3FF] px-2.5 py-1 text-[10px] font-bold text-[#00285E]">
-                    {
-                      receivePartsTask.spareParts?.filter((part) =>
-                        [
-                          "EXPORTED",
-                          "WAITING_RECEIVE",
-                          "READY_FOR_RECEIPT",
-                        ].includes(part.status ?? ""),
-                      ).length
-                    }{" "}
-                    phụ tùng
-                  </span>
+              {requestablePartsLoading ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-500">
+                  <Loader2 size={16} className="animate-spin" />
+                  Đang tải danh sách phụ tùng...
                 </div>
+              ) : requestableParts.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                  Không có phụ tùng nào đang chờ yêu cầu xuất kho.
+                </div>
+              ) : (
                 <div className="overflow-hidden rounded-xl border border-slate-200">
-                  {receivePartsTask.spareParts
-                    ?.filter((part) =>
-                      [
-                        "EXPORTED",
-                        "WAITING_RECEIVE",
-                        "READY_FOR_RECEIPT",
-                      ].includes(part.status ?? ""),
-                    )
-                    .map((part) => (
-                      <div
-                        key={`${part.name}-${part.sku ?? ""}`}
-                        className="flex items-center justify-between gap-4 border-b border-slate-100 px-4 py-3 last:border-0"
+                  {requestableParts.map((part) => {
+                    const checked = selectedRequestablePartIds.includes(
+                      part.id,
+                    );
+                    return (
+                      <label
+                        key={part.id}
+                        htmlFor={`requestable-part-${part.id}`}
+                        className="flex cursor-pointer items-center justify-between gap-3 sm:gap-4 border-b border-slate-100 px-4 py-3 last:border-0 hover:bg-slate-50"
                       >
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-700">
-                            {part.isCustom ? (
-                              <span className="text-blue-600">
-                                (Đặt riêng){" "}
-                              </span>
-                            ) : null}
-                            {part.name}
-                          </p>
-                          <p className="mt-1 text-[11px] text-slate-400">
-                            {part.sku || "Không có SKU"}
-                          </p>
+                        <div className="flex min-w-0 items-center gap-3">
+                          <input
+                            id={`requestable-part-${part.id}`}
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleRequestablePart(part.id)}
+                            className="h-5 w-5 sm:h-4 sm:w-4 shrink-0 rounded border-slate-300 text-[#00285E] focus:ring-[#00285E]"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-700">
+                              {part.sparePart?.name || "Phụ tùng"}
+                            </p>
+                            <p className="mt-1 text-[11px] text-slate-400">
+                              {part.sparePart?.sku || "Không có SKU"}
+                              {part.sparePart?.brand
+                                ? ` · ${part.sparePart.brand}`
+                                : ""}
+                              {typeof part.sparePart?.stock_quantity ===
+                              "number"
+                                ? ` · Tồn kho: ${part.sparePart.stock_quantity}`
+                                : ""}
+                            </p>
+                          </div>
                         </div>
                         <span className="shrink-0 text-xs font-bold text-[#00285E]">
                           SL: {part.quantity || 1}
                         </span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-500">
-                  Ảnh phụ tùng khi nhận <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  id="receive-parts-proof"
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0] ?? null;
-                    if (receiveProofPreview) {
-                      URL.revokeObjectURL(receiveProofPreview);
-                    }
-                    setReceiveProofFile(file);
-                    setReceiveProofPreview(
-                      file ? URL.createObjectURL(file) : "",
+                      </label>
                     );
-                  }}
-                />
-                <label
-                  htmlFor="receive-parts-proof"
-                  className="flex min-h-40 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 text-center transition-colors hover:border-[#00285E]/35 hover:bg-[#EDF3FF]/40"
-                >
-                  {receiveProofPreview ? (
-                    <img
-                      src={receiveProofPreview}
-                      alt="Ảnh xác nhận nhận phụ tùng"
-                      className="h-52 w-full object-contain"
-                    />
-                  ) : (
-                    <>
-                      <ImagePlus size={30} className="text-slate-400" />
-                      <p className="mt-2 text-sm font-bold text-slate-600">
-                        Chụp ảnh hoặc chọn ảnh
-                      </p>
-                      <p className="mt-1 text-xs text-slate-400">
-                        Ảnh thực tế phụ tùng nhận từ kho
-                      </p>
-                    </>
-                  )}
-                </label>
-              </div>
+                  })}
+                </div>
+              )}
             </div>
 
-            <div className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4">
+            <div className="flex shrink-0 flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3 border-t border-slate-100 bg-slate-50 px-4 sm:px-6 py-4">
               <button
                 type="button"
-                onClick={closeReceivePartsModal}
-                className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100"
+                onClick={closeRequestExportModal}
+                className="h-11 sm:h-auto rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100"
               >
                 Hủy
               </button>
               <button
                 type="button"
-                disabled={!receiveProofFile || isConfirmingReceive}
-                onClick={confirmReceivedParts}
-                className="flex items-center gap-2 rounded-xl bg-[#00285E] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#001E46] disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={
+                  selectedRequestablePartIds.length === 0 ||
+                  isSubmittingRequestExport ||
+                  requestablePartsLoading
+                }
+                onClick={submitRequestExport}
+                className="h-11 sm:h-auto flex items-center justify-center gap-2 rounded-xl bg-[#00285E] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#001E46] disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {isConfirmingReceive ? (
+                {isSubmittingRequestExport ? (
                   <Loader2 size={14} className="animate-spin" />
                 ) : null}
-                Xác nhận đã nhận
+                Gửi yêu cầu
               </button>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import type { ChangeEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -16,7 +17,24 @@ import {
   Loader2,
   MapPin,
 } from 'lucide-react';
-import { mockHistoryData } from './HistoryTab';
+import { useFetchClient } from '../../../hook/useFetchClient';
+import { SERVICE_HISTORY_API_ENDPOINTS } from '../../../constants/customer/serviceHistoryApiEndpoint';
+
+interface RecentActivityOrder {
+  id: number;
+  actual_finish_time: string | null;
+  vehicle?: { model?: { model_name: string } | null } | null;
+  tasks: Array<{
+    quotations: Array<{
+      total_amount: number | string;
+      items: Array<{
+        service_catalog?: { service_name: string } | null;
+        sparePart?: { name: string } | null;
+        custom_item_name?: string | null;
+      }>;
+    }>;
+  }>;
+}
 
 interface FormData {
   fullName: string;
@@ -55,6 +73,40 @@ export default function DashboardTab({
   onViewAllHistory,
 }: DashboardTabProps) {
   const { t } = useTranslation();
+  const { fetchPrivate } = useFetchClient();
+  const [recentOrders, setRecentOrders] = useState<RecentActivityOrder[]>([]);
+
+  useEffect(() => {
+    const loadRecentActivity = async () => {
+      try {
+        const response = await fetchPrivate<RecentActivityOrder[]>(
+          SERVICE_HISTORY_API_ENDPOINTS.GET_SERVICE_HISTORY,
+        );
+        setRecentOrders((response?.data ?? []).slice(0, 3));
+      } catch (error) {
+        console.error('Không tải được hoạt động gần đây:', error);
+      }
+    };
+    void loadRecentActivity();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const getOrderServiceName = (order: RecentActivityOrder) => {
+    const firstItem = order.tasks.flatMap((t) => t.quotations).flatMap((q) => q.items)[0];
+    return (
+      firstItem?.service_catalog?.service_name ||
+      firstItem?.sparePart?.name ||
+      firstItem?.custom_item_name ||
+      order.vehicle?.model?.model_name ||
+      'Dịch vụ'
+    );
+  };
+
+  const getOrderTotal = (order: RecentActivityOrder) =>
+    order.tasks
+      .flatMap((t) => t.quotations)
+      .reduce((sum, q) => sum + Number(q.total_amount), 0);
+
   const inputClass = (editing: boolean, isPhone = false) =>
     `w-full px-3 py-2 text-sm rounded-lg font-medium transition-all ${isPhone
       ? 'bg-slate-50 border border-slate-200 text-brand-blue/50 cursor-not-allowed focus:outline-none'
@@ -268,32 +320,43 @@ export default function DashboardTab({
             </div>
 
             <div className="border border-gray-100 shadow-inner rounded-xl divide-y divide-gray-100 overflow-hidden">
-              {mockHistoryData.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={onViewAllHistory}
-                  className="p-3.5 flex items-center justify-between hover:bg-gray-50/50 transition-colors cursor-pointer group"
-                  title={t('profile.historyTooltip', 'Xem chi tiết trong Lịch sử sửa chữa')}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-brand-blue shrink-0">
-                      <FileText className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-brand-blue group-hover:text-brand-orange transition-colors">
-                        {item.serviceName}
-                      </div>
-                      <div className="text-[10px] text-gray-400 mt-0.5">
-                        {item.date} • {item.status}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-brand-blue">{item.price}</span>
-                    <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-brand-blue group-hover:translate-x-0.5 transition-all" />
-                  </div>
+              {recentOrders.length === 0 ? (
+                <div className="p-4 text-center text-xs text-gray-400">
+                  {t('profile.noRecentActivity', 'Chưa có hoạt động nào.')}
                 </div>
-              ))}
+              ) : (
+                recentOrders.map((order) => (
+                  <div
+                    key={order.id}
+                    onClick={onViewAllHistory}
+                    className="p-3.5 flex items-center justify-between hover:bg-gray-50/50 transition-colors cursor-pointer group"
+                    title={t('profile.historyTooltip', 'Xem chi tiết trong Lịch sử dịch vụ')}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-brand-blue shrink-0">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-brand-blue group-hover:text-brand-orange transition-colors">
+                          {getOrderServiceName(order)}
+                        </div>
+                        <div className="text-[10px] text-gray-400 mt-0.5">
+                          {order.actual_finish_time
+                            ? new Date(order.actual_finish_time).toLocaleDateString('vi-VN')
+                            : '—'}{' '}
+                          • {t('history.status_HoanThanh', 'Hoàn thành')}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-brand-blue">
+                        {Number(getOrderTotal(order)).toLocaleString('vi-VN')} VND
+                      </span>
+                      <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-brand-blue group-hover:translate-x-0.5 transition-all" />
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </motion.div>
         </div>

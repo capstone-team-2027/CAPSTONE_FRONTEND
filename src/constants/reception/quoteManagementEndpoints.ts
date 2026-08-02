@@ -4,6 +4,7 @@
     QUOTE_MANAGEMENT: `${API_BASE_URL}/api/receptionist/quote`,
     APPROVE_QUOTE: (id: number) => `${API_BASE_URL}/api/receptionist/quotation/${id}/approve`,
     APPROVE_QUOTE_OTP: (id: number) => `${API_BASE_URL}/api/receptionist/quotation/${id}/approve-otp`,
+    GET_QUOTATION_BY_ID: (id: number) => `${API_BASE_URL}/api/receptionist/quotation/${id}`,
     GET_SPARE_PARTS: `${API_BASE_URL}/api/receptionist/spare-parts`,
     GET_SERVICES :`${API_BASE_URL}/api/receptionist/services`,
   }

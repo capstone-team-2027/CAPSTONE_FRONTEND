@@ -164,24 +164,25 @@ export const RescueMapModal: React.FC<RescueMapModalProps> = ({
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-          <div className="flex flex-col">
-            <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-              <span className="text-2xl">🚨</span> Vị trí cứu hộ khẩn cấp: {customerName}
+        <div className="p-3 sm:p-4 border-b border-slate-100 flex items-start sm:items-center justify-between gap-2 bg-slate-50">
+          <div className="flex flex-col min-w-0">
+            <h3 className="font-bold text-slate-800 text-base sm:text-lg flex items-center gap-2 min-w-0">
+              <span className="text-xl sm:text-2xl shrink-0">🚨</span>
+              <span className="truncate">Vị trí cứu hộ khẩn cấp: {customerName}</span>
             </h3>
             {distance && duration && (
-              <span className="text-sm font-semibold text-slate-500 mt-1">
+              <span className="text-xs sm:text-sm font-semibold text-slate-500 mt-1">
                 Khoảng cách: <span className="text-blue-600">{distance}</span> - Thời gian đến: <span className="text-blue-600">{duration}</span>
               </span>
             )}
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-200 rounded-md transition-colors text-slate-600">
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-200 rounded-md transition-colors text-slate-600 shrink-0">
             <X size={20} />
           </button>
         </div>
 
         {/* Map Area */}
-        <div className="w-full h-[60vh] min-h-[400px] relative z-0">
+        <div className="w-full h-[50vh] sm:h-[60vh] min-h-[320px] sm:min-h-[400px] relative z-0">
           <MapContainer center={garageLocation} zoom={13} style={{ width: '100%', height: '100%' }}>
             <TileLayer
               attribution='&copy; OpenStreetMap'
@@ -211,23 +212,23 @@ export const RescueMapModal: React.FC<RescueMapModalProps> = ({
           </MapContainer>
 
           {/* Action Overlay */}
-          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[400]">
+          <div className="absolute bottom-4 sm:bottom-6 left-1/2 transform -translate-x-1/2 z-[400] w-[calc(100%-2rem)] sm:w-auto px-2 sm:px-0">
             {simulationStatus === 'idle' && routeCoords.length > 0 && (
               <button
                 onClick={startSimulation}
-                className="flex items-center gap-2 px-6 py-3 bg-emerald-500 text-white font-bold rounded-full shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 hover:scale-105 transition-all animate-bounce"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-emerald-500 text-white text-sm sm:text-base font-bold rounded-full shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 hover:scale-105 transition-all animate-bounce"
               >
                 <Navigation size={20} />
                 ĐIỀU XE CỨU HỘ NGAY
               </button>
             )}
             {simulationStatus === 'running' && (
-              <div className="px-6 py-3 bg-white/90 backdrop-blur border border-emerald-200 text-emerald-700 font-bold rounded-full shadow-lg">
+              <div className="text-center px-4 sm:px-6 py-2.5 sm:py-3 bg-white/90 backdrop-blur border border-emerald-200 text-emerald-700 text-sm sm:text-base font-bold rounded-full shadow-lg">
                 Đang trên đường đến hỗ trợ khách hàng...
               </div>
             )}
             {simulationStatus === 'arrived' && (
-              <div className="px-6 py-3 bg-white/90 backdrop-blur border border-blue-200 text-blue-700 font-bold rounded-full shadow-lg">
+              <div className="text-center px-4 sm:px-6 py-2.5 sm:py-3 bg-white/90 backdrop-blur border border-blue-200 text-blue-700 text-sm sm:text-base font-bold rounded-full shadow-lg">
                 ✅ Xe cứu hộ đã tiếp cận hiện trường!
               </div>
             )}

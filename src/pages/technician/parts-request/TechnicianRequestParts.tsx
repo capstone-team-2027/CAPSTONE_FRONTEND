@@ -160,7 +160,7 @@ export default function TechnicianRequestParts() {
         <motion.div
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="bg-white rounded-2xl border border-emerald-200 shadow-xs p-10 text-center space-y-5"
+          className="bg-white rounded-2xl border border-emerald-200 shadow-xs p-6 sm:p-10 text-center space-y-5"
         >
           <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
             <CheckCircle2 size={40} className="text-emerald-600" />
@@ -207,10 +207,10 @@ export default function TechnicianRequestParts() {
         >
           <ArrowLeft size={24} />
         </button>
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
-            <PackagePlus className="text-amber-500" size={28} />
-            Yêu cầu thêm phụ tùng & dịch vụ
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
+            <PackagePlus className="text-amber-500 shrink-0" size={28} />
+            <span className="truncate">Yêu cầu thêm phụ tùng & dịch vụ</span>
           </h1>
           <p className="text-slate-500 text-sm">
             Yêu cầu phụ tùng hoặc dịch vụ bổ sung trong quá trình sửa chữa.
@@ -219,8 +219,8 @@ export default function TechnicianRequestParts() {
       </div>
 
       {/* VEHICLE INFO BANNER */}
-      <div className="bg-gradient-to-r from-[#EDF3FF] to-[#DCE8FF] p-5 rounded-2xl border border-[#DCE8FF]">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+      <div className="bg-gradient-to-r from-[#EDF3FF] to-[#DCE8FF] p-4 sm:p-5 rounded-2xl border border-[#DCE8FF]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Mã lệnh sửa chữa</p>
             <p className="font-bold text-[#00285E]">{MOCK_VEHICLE.repairOrderId}</p>
@@ -293,14 +293,14 @@ export default function TechnicianRequestParts() {
               </div>
             ) : (
               selectedServices.map(svc => (
-                <div key={svc.id} className="flex items-center justify-between px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                  <div>
-                    <p className="text-xs font-semibold text-slate-700">{svc.name}</p>
+                <div key={svc.id} className="flex items-center justify-between gap-2 px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-slate-700 truncate">{svc.name}</p>
                     <p className="text-[10px] text-slate-400">{svc.category} — {formatPrice(svc.price)}</p>
                   </div>
                   <button
                     onClick={() => removeService(svc.id)}
-                    className="p-1.5 rounded-lg hover:bg-rose-50 text-rose-400 hover:text-rose-600 transition-colors"
+                    className="p-1.5 rounded-lg hover:bg-rose-50 text-rose-400 hover:text-rose-600 transition-colors shrink-0"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -362,12 +362,12 @@ export default function TechnicianRequestParts() {
               </div>
             ) : (
               selectedParts.map(part => (
-                <div key={part.id} className="flex items-center justify-between px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                  <div className="flex-1 mr-3">
-                    <p className="text-xs font-semibold text-slate-700">{part.name}</p>
+                <div key={part.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex-1 sm:mr-3 min-w-0">
+                    <p className="text-xs font-semibold text-slate-700 truncate">{part.name}</p>
                     <p className="text-[10px] text-slate-400">{formatPrice(part.unitPrice)} / {part.unit}</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
                       <button
                         onClick={() => updatePartQuantity(part.id, part.quantity - 1)}
@@ -405,14 +405,14 @@ export default function TechnicianRequestParts() {
       </div>
 
       {/* COST ESTIMATION */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-4 sm:p-6">
         <div className="flex items-center gap-2 mb-4">
           <div className="w-8 h-8 rounded-lg bg-[#EDF3FF] flex items-center justify-center">
             <Calculator size={16} className="text-[#00285E]" />
           </div>
           <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Dự toán chi phí</h3>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-slate-50 rounded-xl p-4 text-center">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Chi phí dịch vụ</p>
             <p className="text-lg font-bold text-slate-800">{formatPrice(serviceCost)}</p>
@@ -431,7 +431,7 @@ export default function TechnicianRequestParts() {
       </div>
 
       {/* TECHNICIAN NOTES */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-4 sm:p-6">
         <div className="flex items-center gap-2 mb-3">
           <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
             <MessageSquare size={16} className="text-amber-600" />
