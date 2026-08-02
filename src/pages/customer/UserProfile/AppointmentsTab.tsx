@@ -246,7 +246,7 @@ export default function AppointmentsTab() {
     switch (status) {
       case 'PENDING':
         return {
-          label: t('appointments.status.pending', 'Chờ tiếp nhận'),
+          label: t('appointments.status.pending', 'Chờ thanh toán'),
           bg: 'bg-amber-50 text-amber-600 border border-amber-100',
           dot: 'bg-amber-500',
         };

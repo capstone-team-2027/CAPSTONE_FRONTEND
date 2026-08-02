@@ -577,7 +577,7 @@ export default function AppointmentList() {
               <CarFront size={20} className="text-amber-500" />
               Tiếp nhận & Cập nhật Thông tin Xe
             </h3>
-            
+
             {/* Display Customer & Vehicle Info Summary */}
             {(() => {
               const appt = appointments.find(a => a.id === selectedApptId) as any;
@@ -595,9 +595,9 @@ export default function AppointmentList() {
                       <span>{appt.customerPhone}</span>
                     </div>
                   </div>
-                  
+
                   <div className="h-px bg-slate-200/60 w-full" />
-                  
+
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 text-sm text-slate-700">
                     <div className="flex items-center gap-2">
                       <span className="px-2 py-1 bg-blue-100 text-[#00285E] font-bold rounded-lg border border-blue-200">
