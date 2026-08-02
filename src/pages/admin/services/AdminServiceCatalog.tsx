@@ -1868,7 +1868,7 @@ function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalP
             </div>
             <button
               onClick={() => {
-                const url = '/templates/service_catalog_import_template.csv';
+                const url = '/templates/service_catalog_import_template.csv?v=2';
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = 'service_catalog_import_template.csv';
