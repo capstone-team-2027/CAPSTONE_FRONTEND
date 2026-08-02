@@ -422,7 +422,7 @@ export default function IssuesReportHistory() {
                         <div className="flex items-center justify-center whitespace-nowrap">
                           <button
                             onClick={() => openReportDetail(report)}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:bg-[#00285E]/90 transition-colors"
                           >
                             <Eye size={13} />
                             Chi tiết

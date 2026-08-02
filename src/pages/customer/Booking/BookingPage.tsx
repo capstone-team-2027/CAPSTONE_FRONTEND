@@ -5,7 +5,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
     Calendar, Car, Settings,
     Check, ChevronRight, Phone, Clock, Edit2, ArrowLeft,
-    Sparkles, Upload, X, AlertTriangle, Banknote, Wrench, Video
+    Sparkles, Upload, X, AlertTriangle, Banknote, Wrench
 } from 'lucide-react';
 import { COLORS } from '../../../components/share/Color';
 import { useFetchClient_v2 } from '../../../hook/useFetchClient';
@@ -14,7 +14,6 @@ import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/customer/appointme
 import { GARAGE_CONFIG_API_ENDPOINTS } from '../../../constants/customer/garage_configurationsEndpoints';
 import { PROFILE_API_ENDPOINTS } from '../../../constants/customer/profileApiEndpoint';
 import { VEHICLE_MAKE_MODEL_API_ENDPOINTS } from '../../../constants/customer/vehicelMakeModelEndpoint';
-import { useSocket } from '../../../hook/useSocket';
 import SingleServicesSelector from './SingleServicesSelector';
 import ComboServicesSelector from './ComboServicesSelector';
 import InlineCalendar from './InlineCalendar';
@@ -34,18 +33,6 @@ export default function BookingPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { fetchPublic, fetchPrivate, fetchPrivateForm } = useFetchClient_v2();
-    const socket = useSocket();
-
-    const handleStartVideoCall = () => {
-        const roomId = `sos_${Date.now()}`;
-        if (socket) {
-            socket.emit('request-video-call', {
-                roomId,
-                timestamp: new Date()
-            });
-        }
-        navigate(`/video-call/${roomId}`);
-    };
 
     // Booking Flow State: 'CONSULTATION' | 'SPECIFIC'
     const [bookingFlow, setBookingFlow] = useState<'CONSULTATION' | 'SPECIFIC'>('SPECIFIC');
@@ -101,7 +88,7 @@ export default function BookingPage() {
         licensePlate: string | null;
     } | null>(null);
 
-    const [consultationType, setConsultationType] = useState<'AI_DIAGNOSIS' | 'CALL_BACK'>('AI_DIAGNOSIS');
+    const [consultationType, setConsultationType] = useState<'AI_DIAGNOSIS' | 'CALL_BACK'>('CALL_BACK');
     const [issueDescription, setIssueDescription] = useState('');
     const [issueImagePreview, setIssueImagePreview] = useState<string | null>(null);
     const [isImageFullScreen, setIsImageFullScreen] = useState(false);
@@ -1016,8 +1003,8 @@ export default function BookingPage() {
                     transition={{ duration: 0.5, ease: "easeOut" }}
                     className="max-w-6xl w-full rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col lg:flex-row relative z-10 border border-white/20"
                 >
-                    {/* LEFT SIDE: Booking Information - Glassmorphism Light */}
-                    <div className="flex-1 p-8 md:p-12 bg-white/90 backdrop-blur-xl flex flex-col">
+                    {/* LEFT SIDE: Booking Information - Pure White */}
+                    <div className="flex-1 p-8 md:p-12 bg-white flex flex-col">
                         <div className="flex items-center gap-4 mb-8">
                             <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 shadow-inner">
                                 <Check size={24} strokeWidth={2.5} />
@@ -1029,7 +1016,7 @@ export default function BookingPage() {
                         </div>
 
                         <div className="space-y-6 flex-grow">
-                            <div className="bg-white/60 p-6 rounded-2xl border border-white text-sm space-y-5 shadow-sm">
+                            <div className="bg-[#F8FAFC] p-6 rounded-2xl border border-slate-100 text-sm space-y-5 shadow-xs">
                                 <div className="flex justify-between items-center pb-4 border-b border-slate-200/60">
                                     <span className="text-gray-500">Hình thức</span>
                                     <span className="font-bold text-brand-blue">
@@ -1067,7 +1054,7 @@ export default function BookingPage() {
                         </div>
 
                         <div className="mt-8 pt-6 border-t border-dashed border-gray-300/50">
-                            <div className="flex items-center justify-between p-6 bg-gradient-to-r from-blue-50/80 to-transparent rounded-2xl border border-blue-100/50">
+                            <div className="flex items-center justify-between p-6 bg-blue-50/30 rounded-2xl border border-blue-50">
                                 <span className="font-bold text-brand-blue text-base">Tổng thanh toán</span>
                                 <span className="text-2xl font-extrabold font-display" style={{ color: COLORS.orange }}>
                                     {activeSelection?.price}
@@ -1125,13 +1112,7 @@ export default function BookingPage() {
 
     if (isSuccess) {
         return (
-            <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 text-left relative overflow-hidden">
-                {/* Immersive Background */}
-                <div className="absolute inset-0 z-0">
-                    <img src="/images/Service-Image.png" className="w-full h-full object-cover" alt="Garage Background" />
-                    <div className="absolute inset-0 bg-[#001C43]/90 backdrop-blur-md" />
-                </div>
-
+            <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 text-left relative overflow-hidden bg-[#F8FAFC]">
                 <motion.div
                     initial={{ opacity: 0, y: 50, scale: 0.9 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1221,10 +1202,10 @@ export default function BookingPage() {
                                     {bookingFlow !== 'CONSULTATION' && (
                                         <div className="flex flex-col gap-1.5">
                                             <span className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">Phương tiện</span>
-                                            <span className="font-bold text-brand-blue uppercase flex items-baseline">
-                                                <span className="text-xl mr-2">{vehiclePlate || 'N/A'}</span>
-                                                <span className="text-xs text-slate-500 normal-case">
-                                                    {vehicleBrand} {vehicleModel}
+                                            <span className="font-bold text-brand-blue flex items-baseline gap-2">
+                                                <span className="text-base">{vehicleBrand} {vehicleModel}</span>
+                                                <span className="text-xs text-slate-500 uppercase">
+                                                    {vehiclePlate || 'N/A'}
                                                 </span>
                                             </span>
                                         </div>
@@ -1349,37 +1330,6 @@ export default function BookingPage() {
                                             {bookingFlow === 'CONSULTATION' ? <Settings size={20} /> : <Car size={20} />}
                                         </div>
                                         <h2 className="text-xl md:text-2xl font-bold text-brand-blue font-display">{t('booking.selectBookingMode', 'Chọn hình thức đặt lịch')}</h2>
-                                    </div>
-
-                                    {/* Flow Switcher (Consultation vs Specific Service) */}
-                                    <div className="flex flex-col sm:flex-row p-1 bg-slate-100/80 rounded-2xl mb-8 max-w-2xl border border-slate-200/40 gap-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => { setBookingFlow('CONSULTATION'); setConsultationType('AI_DIAGNOSIS'); }}
-                                            className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${bookingFlow === 'CONSULTATION' && consultationType === 'AI_DIAGNOSIS' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'
-                                                }`}
-                                        >
-                                            <Sparkles size={14} />
-                                            {t('booking.aiConsultation', 'Tham khảo tư vấn AI')}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => { setBookingFlow('CONSULTATION'); setConsultationType('CALL_BACK'); }}
-                                            className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${bookingFlow === 'CONSULTATION' && consultationType === 'CALL_BACK' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'
-                                                }`}
-                                        >
-                                            <Phone size={14} />
-                                            Gọi điện tư vấn
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => { setBookingFlow('SPECIFIC'); }}
-                                            className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${bookingFlow === 'SPECIFIC' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'
-                                                }`}
-                                        >
-                                            <Settings size={14} />
-                                            {t('booking.serviceBooking', 'Đặt lịch dịch vụ')}
-                                        </button>
                                     </div>
 
                                     {/* CONSULTATION FLOW */}
@@ -1572,34 +1522,6 @@ export default function BookingPage() {
                                                 </div>
                                             )}
 
-                                            {/* Option 2: Callback Request (SOS Video Call Only) */}
-                                            {consultationType === 'CALL_BACK' && (
-                                                <div className="space-y-4 max-w-md">
-                                                    {/* Nút SOS Video Call */}
-                                                    <div className="bg-red-50/50 border border-red-100 rounded-2xl p-4 flex flex-col md:flex-row items-center gap-4 justify-between relative overflow-hidden mt-2">
-                                                        <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/5 rounded-full blur-2xl"></div>
-                                                        <div className="flex items-start gap-3 relative z-10 text-left">
-                                                            <div className="p-2.5 bg-red-100 text-red-600 rounded-xl shrink-0 mt-0.5 animate-pulse">
-                                                                <Video size={20} />
-                                                            </div>
-                                                            <div>
-                                                                <h4 className="text-red-700 font-bold text-sm mb-1">Cần hỗ trợ khẩn cấp (SOS)?</h4>
-                                                                <p className="text-xs text-red-600/80 leading-relaxed m-0">
-                                                                    Gọi Video trực tiếp với Lễ tân để quay trực tiếp tình trạng xe của bạn qua Camera.
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={handleStartVideoCall}
-                                                            className="shrink-0 w-full md:w-auto px-5 py-3 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl transition-all shadow-md hover:shadow-lg shadow-red-500/30 flex items-center justify-center gap-2 border-none cursor-pointer relative z-10"
-                                                        >
-                                                            <Video size={14} />
-                                                            Gọi Video Ngay
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            )}
                                         </div>
                                     )}
 
@@ -1607,11 +1529,11 @@ export default function BookingPage() {
                                     {bookingFlow === 'SPECIFIC' && (
                                         <div className="space-y-6 text-left">
                                             {customerVehicles.length > 0 && (
-                                                <div className="flex gap-2 p-1 bg-slate-100/60 rounded-xl max-w-sm border border-slate-200/20">
+                                                <div className="flex gap-2 p-1 bg-slate-100/60 rounded-xl border border-slate-200/20">
                                                     <button
                                                         type="button"
                                                         onClick={() => setVehicleInputMode('EXISTING')}
-                                                        className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all border-none cursor-pointer ${vehicleInputMode === 'EXISTING'
+                                                        className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-bold transition-all border-none cursor-pointer ${vehicleInputMode === 'EXISTING'
                                                             ? 'bg-[#00285E] text-white shadow-xs'
                                                             : 'text-slate-500 hover:text-slate-800 bg-transparent'
                                                             }`}
@@ -1629,7 +1551,7 @@ export default function BookingPage() {
                                                             setVehicleYear('');
                                                             setVehicleColor('');
                                                         }}
-                                                        className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all border-none cursor-pointer ${vehicleInputMode === 'NEW'
+                                                        className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-bold transition-all border-none cursor-pointer ${vehicleInputMode === 'NEW'
                                                             ? 'bg-[#00285E] text-white shadow-xs'
                                                             : 'text-slate-500 hover:text-slate-800 bg-transparent'
                                                             }`}
@@ -1945,11 +1867,11 @@ export default function BookingPage() {
                                     </div>
 
                                     {/* Category Mode Switcher */}
-                                    <div className="flex p-1 bg-slate-100/80 rounded-2xl mb-8 max-w-xl border border-slate-200/40">
+                                    <div className="flex p-1 bg-slate-100/60 rounded-xl mb-8 border border-slate-200/20">
                                         <button
                                             type="button"
                                             onClick={() => setServiceCategoryMode('SERVICES')}
-                                            className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceCategoryMode === 'SERVICES' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'}`}
+                                            className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceCategoryMode === 'SERVICES' ? 'bg-[#00285E] text-white shadow-xs' : 'text-slate-500 hover:text-slate-800 bg-transparent'}`}
                                         >
                                             <Settings size={14} />
                                             {t('booking.selectService', 'Chọn dịch vụ')}
@@ -1957,7 +1879,7 @@ export default function BookingPage() {
                                         <button
                                             type="button"
                                             onClick={() => setServiceCategoryMode('REPAIR')}
-                                            className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceCategoryMode === 'REPAIR' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'}`}
+                                            className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceCategoryMode === 'REPAIR' ? 'bg-[#00285E] text-white shadow-xs' : 'text-slate-500 hover:text-slate-800 bg-transparent'}`}
                                         >
                                             <Wrench size={14} />
                                             {t('booking.checkAndRepair', 'Kiểm tra và sửa chữa lỗi')}
@@ -1967,11 +1889,11 @@ export default function BookingPage() {
                                     {serviceCategoryMode === 'SERVICES' ? (
                                         <>
                                             {/* Subtype Switcher */}
-                                            <div className="flex p-1 bg-slate-100/80 rounded-2xl mb-8 max-w-xl border border-slate-200/40">
+                                            <div className="flex p-1 bg-slate-100/60 rounded-xl mb-8 border border-slate-200/20">
                                                 <button
                                                     type="button"
                                                     onClick={() => { setServiceSubtype('combo'); setServicePage(1); }}
-                                                    className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceSubtype === 'combo' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'
+                                                    className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceSubtype === 'combo' ? 'bg-[#00285E] text-white shadow-xs' : 'text-slate-500 hover:text-slate-800 bg-transparent'
                                                         }`}
                                                 >
                                                     <Sparkles size={14} />
@@ -1980,7 +1902,7 @@ export default function BookingPage() {
                                                 <button
                                                     type="button"
                                                     onClick={() => { setServiceSubtype('service'); setServicePage(1); }}
-                                                    className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceSubtype === 'service' ? 'bg-[#00285E] text-white shadow-md shadow-blue-900/10' : 'text-slate-600 hover:text-slate-950 hover:bg-white/50'
+                                                    className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${serviceSubtype === 'service' ? 'bg-[#00285E] text-white shadow-xs' : 'text-slate-500 hover:text-slate-800 bg-transparent'
                                                         }`}
                                                 >
                                                     <Settings size={14} />

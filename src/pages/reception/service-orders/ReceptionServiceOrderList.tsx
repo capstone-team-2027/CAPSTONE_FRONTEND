@@ -136,7 +136,7 @@ export default function ReceptionServiceOrderList() {
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
               <Wrench className="text-amber-500" size={28} />
-              Quản lý hóa đơn dịch vụ
+              Quản lý  dịch vụ
             </h1>
             <p className="text-slate-500 text-sm">
               Theo dõi, cập nhật trạng thái và xử lý yêu cầu hủy hóa đơn dịch vụ của khách hàng.
@@ -293,6 +293,10 @@ export default function ReceptionServiceOrderList() {
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-700 whitespace-nowrap">
                             Đã thanh toán
                           </span>
+                        ) : so.payment?.payment_status === 'DEPOSITED' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold bg-amber-100 text-amber-700 whitespace-nowrap">
+                            Đã cọc (30%)
+                          </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500 whitespace-nowrap">
                             Chưa thanh toán
@@ -341,18 +345,37 @@ export default function ReceptionServiceOrderList() {
               >
                 <ChevronLeft size={16} />
               </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                <button
-                  key={page}
-                  onClick={() => setCurrentPage(page)}
-                  className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${page === currentPage
-                      ? 'bg-[#00285E] text-white shadow-md'
-                      : 'text-slate-500 hover:bg-slate-100'
-                    }`}
-                >
-                  {page}
-                </button>
-              ))}
+              {(() => {
+                const pages: (number | string)[] = [];
+                if (totalPages <= 5) {
+                  for (let i = 1; i <= totalPages; i++) pages.push(i);
+                } else {
+                  if (currentPage <= 3) {
+                    pages.push(1, 2, 3, 4, '...', totalPages);
+                  } else if (currentPage >= totalPages - 2) {
+                    pages.push(1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+                  } else {
+                    pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+                  }
+                }
+                
+                return pages.map((page, index) => 
+                  page === '...' ? (
+                    <span key={`ellipsis-${index}`} className="w-8 h-8 flex items-center justify-center text-slate-400 text-xs font-bold tracking-widest">...</span>
+                  ) : (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page as number)}
+                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${page === currentPage
+                        ? 'bg-[#00285E] text-white shadow-md'
+                        : 'text-slate-500 hover:bg-slate-100'
+                        }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                );
+              })()}
               <button
                 onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}

@@ -104,12 +104,12 @@ export default function TrackingTab() {
   const formatDateTime = (d?: string | null) =>
     d
       ? new Date(d).toLocaleString('vi-VN', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
       : '—';
 
   const getOrderStatusDisplay = (status?: string) => {
@@ -265,11 +265,10 @@ export default function TrackingTab() {
           <div className="flex border-b border-gray-100 -mt-2 mb-2">
             <button
               onClick={() => setFilterCategory('ACTIVE')}
-              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 ${
-                filterCategory === 'ACTIVE'
-                  ? 'text-brand-orange border-brand-orange'
-                  : 'text-gray-400 border-transparent hover:text-[#00285E]'
-              }`}
+              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 ${filterCategory === 'ACTIVE'
+                ? 'text-brand-orange border-brand-orange'
+                : 'text-gray-400 border-transparent hover:text-[#00285E]'
+                }`}
             >
               <span>{t('tracking.filters.active', 'Đang tiến hành')}</span>
               {activeCount > 0 && (
@@ -280,11 +279,10 @@ export default function TrackingTab() {
             </button>
             <button
               onClick={() => setFilterCategory('COMPLETED')}
-              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 ${
-                filterCategory === 'COMPLETED'
-                  ? 'text-brand-orange border-brand-orange'
-                  : 'text-gray-400 border-transparent hover:text-[#00285E]'
-              }`}
+              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 ${filterCategory === 'COMPLETED'
+                ? 'text-brand-orange border-brand-orange'
+                : 'text-gray-400 border-transparent hover:text-[#00285E]'
+                }`}
             >
               <span>{t('tracking.filters.completed', 'Đã hoàn thành')}</span>
               {completedCount > 0 && (
@@ -318,11 +316,10 @@ export default function TrackingTab() {
                       <button
                         key={order.id}
                         onClick={() => setSelectedOrderIndex(idx)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 ${
-                          isActive
-                            ? 'bg-[#00285E] text-white border-[#00285E] shadow-md'
-                            : 'bg-white text-gray-500 border-gray-200 hover:border-[#00285E]/40'
-                        }`}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 ${isActive
+                          ? 'bg-[#00285E] text-white border-[#00285E] shadow-md'
+                          : 'bg-white text-gray-500 border-gray-200 hover:border-[#00285E]/40'
+                          }`}
                       >
                         <Car className={`w-4 h-4 ${isActive ? 'text-brand-orange' : 'text-gray-400'}`} />
                         <span>{order.vehicle?.license_plate || t('tracking.unknownPlate', 'Xe không rõ')}</span>
@@ -382,11 +379,10 @@ export default function TrackingTab() {
                       {t('tracking.workProgress', 'Tiến độ công việc')}
                     </span>
                     <span
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${
-                        isAwaitingHandover
-                          ? 'text-violet-600 bg-violet-50 border-violet-200'
-                          : getOrderStatusDisplay(currentOrder.status).color
-                      }`}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${isAwaitingHandover
+                        ? 'text-violet-600 bg-violet-50 border-violet-200'
+                        : getOrderStatusDisplay(currentOrder.status).color
+                        }`}
                     >
                       {isAwaitingHandover
                         ? t('tracking.awaitingHandover', 'Đang kiểm tra trước khi giao xe')
@@ -395,9 +391,8 @@ export default function TrackingTab() {
                   </div>
                   <div className="h-2.5 w-full rounded-full bg-slate-200/70 overflow-hidden">
                     <div
-                      className={`h-full rounded-full bg-[#00285E] transition-all duration-700 ${
-                        orderProgress < 100 || isAwaitingHandover ? 'bar-running' : ''
-                      }`}
+                      className={`h-full rounded-full bg-[#00285E] transition-all duration-700 ${orderProgress < 100 || isAwaitingHandover ? 'bar-running' : ''
+                        }`}
                       style={{ width: `${orderProgress}%` }}
                     />
                   </div>
@@ -495,9 +490,8 @@ export default function TrackingTab() {
                       {t('tracking.actualFinish', 'Hoàn tất thực tế')}
                     </span>
                     <span
-                      className={`block text-sm font-semibold ${
-                        currentOrder.actual_finish_time ? 'text-emerald-600' : 'text-gray-300'
-                      }`}
+                      className={`block text-sm font-semibold ${currentOrder.actual_finish_time ? 'text-emerald-600' : 'text-gray-300'
+                        }`}
                     >
                       {formatDateTime(currentOrder.actual_finish_time)}
                     </span>

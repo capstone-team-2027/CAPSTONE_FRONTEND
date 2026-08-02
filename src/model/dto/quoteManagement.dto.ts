@@ -52,6 +52,7 @@ export interface IssueHistoryVehicles{
 }
 export interface IssueHistoryServiceOrder{
     id: number;
+    symptoms?: string | null;
     vehicle?: IssueHistoryVehicles | null;
 }
 export interface IssueHistoryTask{

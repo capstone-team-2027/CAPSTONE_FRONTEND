@@ -8,7 +8,6 @@ import {
     LogOut,
     CheckCircle2,
     History,
-    ShieldCheck,
     Clock,
     MapPin,
     ReceiptText,
@@ -21,7 +20,6 @@ import DashboardTab from './DashboardTab';
 import QuoteTrackingTab from './QuoteTrackingTab';
 import AppointmentsTab from './AppointmentsTab';
 import HistoryTab from './HistoryTab';
-import WarrantyTab from './WarrantyTab';
 import TrackingTab from './TrackingTab';
 import MapTab from './MapTab';
 import type { RootState } from '../../../store/store';
@@ -34,7 +32,6 @@ const MENU_ITEMS = [
     { id: 'quoteTracking', label: 'Theo dõi báo giá', icon: ReceiptText },
     { id: 'appointments', label: 'Lịch hẹn', icon: Calendar },
     { id: 'history', label: 'Lịch sử dịch vụ', icon: History },
-    { id: 'warranty', label: 'Bảo hành', icon: ShieldCheck },
     { id: 'tracking', label: 'Theo dõi', icon: Clock },
     { id: 'map', label: 'Bản đồ', icon: MapPin },
 ] as const;
@@ -264,9 +261,6 @@ export default function UserProfile() {
 
             case 'history':
                 return <HistoryTab />;
-
-            case 'warranty':
-                return <WarrantyTab />;
 
             case 'tracking':
                 return <TrackingTab />;

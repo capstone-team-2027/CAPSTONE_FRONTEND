@@ -4,7 +4,6 @@ import {
   ClipboardList,
   Wrench,
   History,
-  Activity,
   CheckSquare,
   HelpCircle,
   LogOut,
@@ -177,7 +176,6 @@ export default function TechnicianLayout() {
       items: [
         { name: 'Cứu hộ khẩn cấp', icon: Siren, path: '/technician/rescue' },
         { name: "Phân công", icon: CheckSquare, path: "/technician/assignments" },
-        { name: "Cập nhật tiến độ", icon: Activity, path: "/technician/progress" },
       ],
     },
     {

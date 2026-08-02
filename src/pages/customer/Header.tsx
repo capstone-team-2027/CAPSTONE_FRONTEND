@@ -20,6 +20,7 @@ import { NOTIFICATION_API_ENDPOINTS } from '../../constants/customer/notificatio
 
 import ChatbotWidget from '../../components/chatbot/ChatbotWidget';
 import CustomerChatWidget from '../../components/chat/CustomerChatWidget';
+import VideoCallSOSWidget from '../../components/chat/VideoCallSOSWidget';
 
 type NavItem = { name: string; path: string };
 type NavLinkProps = {
@@ -610,6 +611,7 @@ export default function Navbar() {
             {/* AI Chatbot Widget */}
             <ChatbotWidget />
             {isAuthenticated && <CustomerChatWidget currentUserId={user?.id} />}
+            {isAuthenticated && <VideoCallSOSWidget />}
         </>
     );
 }

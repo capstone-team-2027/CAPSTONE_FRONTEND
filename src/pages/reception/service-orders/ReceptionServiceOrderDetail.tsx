@@ -23,6 +23,7 @@ import {
   Check,
   Printer,
   X,
+  Package,
   FileText,
   Banknote,
 } from 'lucide-react';
@@ -58,21 +59,29 @@ export default function ReceptionServiceOrderDetail() {
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [isPaymentSuccess, setIsPaymentSuccess] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'NONE' | 'CASH' | 'ONLINE'>('NONE');
 
   const isPaid = order?.payment?.payment_status === 'PAID' || order?.payment?.payment_status === 'COMPLETED';
 
-  const handleOpenPaymentModal = async () => {
+  const handleOpenPaymentModal = () => {
+    setPaymentMethod('NONE');
     setShowPaymentModal(true);
     setIsPaymentSuccess(false);
-    try {
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
-      const totalAmount = getOrderTotal();
-      await fetchPublic(`${apiBaseUrl}/api/payment/init-payment`, 'POST', {
-        orderId: order.id,
-        amount: totalAmount,
-      });
-    } catch (err) {
-      console.warn("Khởi tạo thanh toán PENDING:", err);
+  };
+
+  const handleSelectPaymentMethod = async (method: 'CASH' | 'ONLINE') => {
+    setPaymentMethod(method);
+    if (method === 'ONLINE') {
+      try {
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+        const remainingAmount = getRemainingAmount();
+        await fetchPublic(`${apiBaseUrl}/api/payment/init-payment`, 'POST', {
+          orderId: order.id,
+          amount: remainingAmount,
+        });
+      } catch (err) {
+        console.warn("Khởi tạo thanh toán PENDING:", err);
+      }
     }
   };
 
@@ -84,12 +93,12 @@ export default function ReceptionServiceOrderDetail() {
   // Poll payment status every 5 seconds like BookingPage.tsx
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval>;
-    if (showPaymentModal && !isPaymentSuccess && order?.id) {
+    if (showPaymentModal && paymentMethod === 'ONLINE' && !isPaymentSuccess && order?.id) {
       intervalId = setInterval(async () => {
         try {
-          const totalAmount = getOrderTotal();
+          const remainingAmount = getRemainingAmount();
           const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
-          const res = await fetchPublic(`${apiBaseUrl}/api/payment/check-status?bookingCode=${order.id}&amount=${totalAmount}`);
+          const res = await fetchPublic(`${apiBaseUrl}/api/payment/check-status?bookingCode=${order.id}&amount=${remainingAmount}`);
           if (res && res.success && res.isPaid) {
             clearInterval(intervalId);
             setIsPaymentSuccess(true);
@@ -99,7 +108,7 @@ export default function ReceptionServiceOrderDetail() {
                 id: `PAY-${Date.now()}`,
                 payment_status: 'PAID',
                 payment_method: 'ONLINE',
-                amount: totalAmount,
+                amount: getOrderTotal(),
                 paid_at: new Date().toISOString(),
               },
             }));
@@ -114,7 +123,32 @@ export default function ReceptionServiceOrderDetail() {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [showPaymentModal, isPaymentSuccess, order?.id]);
+  }, [showPaymentModal, paymentMethod, isPaymentSuccess, order?.id]);
+
+  const handleConfirmCashPayment = async () => {
+    setIsPaymentSuccess(true);
+    setOrder((prev: any) => ({
+      ...prev,
+      payment: {
+        id: `PAY-${Date.now()}`,
+        payment_status: 'PAID',
+        payment_method: 'CASH',
+        amount: getOrderTotal(),
+        paid_at: new Date().toISOString(),
+      },
+    }));
+    try {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+      await fetchPrivate(`${apiBaseUrl}/api/payment/confirm-payment`, 'POST', {
+        orderId: order.id,
+        amount: getOrderTotal(),
+        method: 'CASH',
+      });
+    } catch (err) {
+      console.warn("Cập nhật DB confirm-payment (CASH):", err);
+    }
+    showToast(`Xác nhận thanh toán tiền mặt thành công cho đơn SO-${order?.id}`, 'success');
+  };
 
   const handleSimulatePaymentSuccess = async () => {
     setIsPaymentSuccess(true);
@@ -130,9 +164,10 @@ export default function ReceptionServiceOrderDetail() {
     }));
     try {
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
-      await fetchPublic(`${apiBaseUrl}/api/payment/confirm-payment`, 'POST', {
+      await fetchPrivate(`${apiBaseUrl}/api/payment/confirm-payment`, 'POST', {
         orderId: order.id,
         amount: getOrderTotal(),
+        method: 'ONLINE',
       });
     } catch (err) {
       console.warn("Cập nhật DB confirm-payment:", err);
@@ -211,10 +246,56 @@ export default function ReceptionServiceOrderDetail() {
   };
 
   const getOrderTotal = () => {
+    if (order.quotation && Array.isArray(order.quotation.items)) {
+      return order.quotation.items.reduce((sum: number, item: any) => {
+        return sum + (parseFloat(item.amount) || 0);
+      }, 0);
+    }
     if (!order.tasks || !Array.isArray(order.tasks)) return 0;
     return order.tasks.reduce((sum: number, task: any) => {
       const price = parseFloat(task.catalog?.total_price) || 0;
       return sum + price;
+    }, 0);
+  };
+
+  const getRemainingAmount = () => {
+    if (order.payment?.payment_status === 'PAID' || order.payment?.payment_status === 'COMPLETED') {
+      return 0;
+    }
+    const total = getOrderTotal();
+    if (order.payment?.payment_status === 'DEPOSITED') {
+      const deposit = parseFloat(order.payment.amount) || 0;
+      return Math.max(0, total - deposit);
+    }
+    return total;
+  };
+
+  const getLaborTotal = () => {
+    if (order.quotation && Array.isArray(order.quotation.items)) {
+      return order.quotation.items.reduce((sum: number, item: any) => {
+        return sum + (parseFloat(item.repair_price) || 0);
+      }, 0);
+    }
+    if (!order.tasks || !Array.isArray(order.tasks)) return 0;
+    return order.tasks.reduce((sum: number, task: any) => {
+      const labor = parseFloat(task.quotationItem?.repair_price) || parseFloat(task.catalog?.labor_price) || 0;
+      return sum + labor;
+    }, 0);
+  };
+
+  const getPartsTotal = () => {
+    if (order.quotation && Array.isArray(order.quotation.items)) {
+      return order.quotation.items.reduce((sum: number, item: any) => {
+        const unitPrice = parseFloat(item.unit_price) || 0;
+        const qty = parseInt(item.quantity) || 1;
+        return sum + (unitPrice * qty);
+      }, 0);
+    }
+    if (!order.tasks || !Array.isArray(order.tasks)) return 0;
+    return order.tasks.reduce((sum: number, task: any) => {
+      const total = parseFloat(task.catalog?.total_price) || 0;
+      const labor = parseFloat(task.quotationItem?.repair_price) || parseFloat(task.catalog?.labor_price) || 0;
+      return sum + Math.max(0, total - labor);
     }, 0);
   };
 
@@ -249,8 +330,16 @@ export default function ReceptionServiceOrderDetail() {
     return 'Lịch hẹn';
   };
 
+  const hasTasks = order.tasks && order.tasks.length > 0;
+  const isEveryTaskFinished = hasTasks
+    ? order.tasks.every((task: any) => {
+      const statusUpper = task.status?.toUpperCase();
+      return statusUpper === 'COMPLETED' || statusUpper === 'CANCELLED';
+    })
+    : true;
+
   return (
-    <div className="flex-1 p-4 md:p-8 space-y-6 max-w-4xl w-full mx-auto">
+    <div className="flex-1 p-4 md:p-8 space-y-6 max-w-5xl w-full mx-auto">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
         <div className="flex items-start gap-3">
@@ -263,7 +352,7 @@ export default function ReceptionServiceOrderDetail() {
           </button>
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-1">
-              Chi tiết hóa đơn dịch vụ
+              Chi tiết dịch vụ
             </h1>
             <div className="flex items-center gap-3">
               <span className="text-sm font-bold text-slate-500">SO-{order.id}</span>
@@ -278,6 +367,10 @@ export default function ReceptionServiceOrderDetail() {
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap bg-emerald-100 text-emerald-700">
                   <CheckCircle2 size={12} /> Đã thanh toán
                 </span>
+              ) : order?.payment?.payment_status === 'DEPOSITED' ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap bg-amber-100 text-amber-700">
+                  <Clock size={12} /> Đã cọc (30%)
+                </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap bg-slate-100 text-slate-600">
                   <Clock size={12} /> Chưa thanh toán
@@ -291,20 +384,15 @@ export default function ReceptionServiceOrderDetail() {
           {!isPaid && order.status !== 'CANCELLED' && (
             <button
               onClick={handleOpenPaymentModal}
-              className="flex items-center gap-2 px-4 py-2.5 bg-[#00285E] hover:bg-[#00285E]/90 text-white rounded-xl text-sm font-bold shadow-md transition-all cursor-pointer"
+              disabled={!isEveryTaskFinished}
+              title={!isEveryTaskFinished ? "Vui lòng hoàn thành tất cả hạng mục công việc trước khi thanh toán" : "Thanh toán hóa đơn dịch vụ"}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold shadow-md transition-all ${isEveryTaskFinished
+                ? "bg-[#00285E] hover:bg-[#00285E]/90 text-white cursor-pointer shadow-md"
+                : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+                }`}
             >
               <CreditCard size={16} />
               Thanh toán dịch vụ
-            </button>
-          )}
-
-          {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && (
-            <button
-              onClick={() => setShowCancelModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-sm font-bold transition-colors cursor-pointer"
-            >
-              <XCircle size={16} />
-              Hủy hóa đơn dịch vụ
             </button>
           )}
         </div>
@@ -354,7 +442,7 @@ export default function ReceptionServiceOrderDetail() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-slate-100 pb-6">
           <div className="space-y-1 text-left">
             <h3 className="text-xl md:text-2xl font-black text-[#00285E] uppercase tracking-wider">
-              Phiếu Hóa Đơn Dịch Vụ
+              chi tiết dịch vụ
             </h3>
             <p className="text-xs text-slate-400 font-semibold">
               Mã lịch hẹn: {order.appointment_id ? `APT-${order.appointment_id}` : 'Trực tiếp'}
@@ -420,6 +508,10 @@ export default function ReceptionServiceOrderDetail() {
                 <span className="text-slate-400">Số ODO tiếp nhận:</span>
                 <span className="font-bold text-slate-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-250/50">{vehicleMileage}</span>
               </div>
+              <div className="flex flex-col gap-1 pt-2 border-t border-slate-100 mt-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tình trạng tiếp nhận</span>
+                <span className="text-xs font-semibold text-slate-800 break-words">{order.symptoms || '—'}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -454,57 +546,158 @@ export default function ReceptionServiceOrderDetail() {
           )}
         </div>
 
-        {/* Services / Tasks detail list */}
-        <div className="space-y-3">
-          <h4 className="text-xs font-bold text-[#00285E] uppercase tracking-widest flex items-center gap-1.5">
-            <Wrench size={14} />
-            Hạng mục công việc tiếp nhận sửa chữa
-          </h4>
+        {/* Services & Labor / Spare Parts detailed breakdown if Quotation exists */}
+        {order.quotation ? (
+          <div className="space-y-6">
+            
+            {/* Services Table */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-[#00285E] uppercase tracking-widest flex items-center gap-1.5">
+                <Wrench size={14} />
+                Danh mục dịch vụ & Công thợ sửa chữa
+              </h4>
+              <div className="border border-slate-200/60 rounded-2xl overflow-hidden">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <th className="py-3.5 px-4 text-center w-12">STT</th>
+                      <th className="py-3.5 px-4">Tên dịch vụ kỹ thuật</th>
+                      <th className="py-3.5 px-4 text-right w-36">Chi phí sửa chữa</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                    {order.quotation.items.filter((item: any) => parseFloat(item.repair_price) > 0).map((item: any, idx: number) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3.5 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
+                        <td className="py-3.5 px-4 text-left">
+                          <span className="font-semibold text-slate-800">
+                            {item.custom_item_name || item.service_catalog?.service_name || 'Dịch vụ sửa chữa'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-bold text-[#00285E] bg-slate-50/50">
+                          {formatPrice(parseFloat(item.repair_price) || 0)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
-          <div className="border border-slate-200/60 rounded-2xl overflow-hidden">
-            <table className="w-full text-left border-collapse text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  <th className="py-3.5 px-4 text-center w-12">STT</th>
-                  <th className="py-3.5 px-4">Tên dịch vụ kỹ thuật</th>
-                  <th className="py-3.5 px-4 text-center w-28">Thời gian</th>
-                  <th className="py-3.5 px-4 text-right w-36">Chi phí dịch vụ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                {(!order.tasks || order.tasks.length === 0) ? (
-                  <tr>
-                    <td colSpan={4} className="py-8 text-center text-slate-400 italic">
-                      Chưa có hạng mục dịch vụ nào trong phiếu thu này.
-                    </td>
+            {/* Spare Parts Table */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-[#00285E] uppercase tracking-widest flex items-center gap-1.5">
+                <Package size={14} />
+                Danh mục vật tư & Phụ tùng sử dụng
+              </h4>
+              <div className="border border-slate-200/60 rounded-2xl overflow-hidden">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <th className="py-3.5 px-4 text-center w-12">STT</th>
+                      <th className="py-3.5 px-4">Tên phụ tùng</th>
+                      <th className="py-3.5 px-4 text-center w-20">SL</th>
+                      <th className="py-3.5 px-4 text-right w-32">Đơn giá</th>
+                      <th className="py-3.5 px-4 text-right w-36">Thành tiền</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                    {order.quotation.items.filter((item: any) => parseFloat(item.unit_price) > 0).length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-slate-400 italic">
+                          Không có vật tư phụ tùng thay thế nào.
+                        </td>
+                      </tr>
+                    ) : (
+                      order.quotation.items.filter((item: any) => parseFloat(item.unit_price) > 0).map((item: any, idx: number) => {
+                        const totalItemPrice = (parseFloat(item.unit_price) || 0) * (item.quantity || 1);
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="py-3.5 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
+                            <td className="py-3.5 px-4 text-left">
+                              <div className="flex flex-col text-left">
+                                <span className="font-semibold text-slate-800">
+                                  {item.custom_item_name || item.sparePart?.name || 'Phụ tùng'}
+                                </span>
+                                {item.status === 'WAITING_DEPOSIT' && (
+                                  <span className="text-[9px] font-bold text-amber-600 uppercase mt-0.5">
+                                    Cần cọc linh kiện mới (30%)
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 text-center text-slate-500">
+                              {item.quantity || 1}
+                            </td>
+                            <td className="py-3.5 px-4 text-right text-slate-500">
+                              {formatPrice(parseFloat(item.unit_price) || 0)}
+                            </td>
+                            <td className="py-3.5 px-4 text-right font-bold text-[#00285E] bg-slate-50/50">
+                              {formatPrice(totalItemPrice)}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        ) : (
+          /* Fallback: Old Tasks list if no Quotation */
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold text-[#00285E] uppercase tracking-widest flex items-center gap-1.5">
+              <Wrench size={14} />
+              Hạng mục công việc tiếp nhận sửa chữa
+            </h4>
+
+            <div className="border border-slate-200/60 rounded-2xl overflow-hidden">
+              <table className="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    <th className="py-3.5 px-4 text-center w-12">STT</th>
+                    <th className="py-3.5 px-4">Tên dịch vụ kỹ thuật</th>
+                    <th className="py-3.5 px-4 text-center w-28">Thời gian</th>
+                    <th className="py-3.5 px-4 text-right w-36">Chi phí dịch vụ</th>
                   </tr>
-                ) : (
-                  order.tasks.map((task: any, idx: number) => (
-                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3.5 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
-                      <td className="py-3.5 px-4">
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-slate-800">{task.catalog?.service_name || 'Dịch vụ'}</span>
-                          {task.status && (
-                            <span className="text-[9px] font-bold text-blue-500 uppercase mt-0.5">
-                              Trạng thái: {TASK_STATUS_LABELS[task.status.toUpperCase()] || task.status}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 text-center text-slate-500">
-                        {task.catalog?.estimated_duration || 0} phút
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-bold text-[#00285E] bg-slate-50/50">
-                        {formatPrice(parseFloat(task.catalog?.total_price) || 0)}
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                  {(!order.tasks || order.tasks.length === 0) ? (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-slate-400 italic">
+                        Chưa có hạng mục dịch vụ nào trong phiếu thu này.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    order.tasks.map((task: any, idx: number) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3.5 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-slate-800">{task.catalog?.service_name || 'Dịch vụ'}</span>
+                            {task.status && (
+                              <span className="text-[9px] font-bold text-blue-500 uppercase mt-0.5">
+                                Trạng thái: {TASK_STATUS_LABELS[task.status.toUpperCase()] || task.status}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 text-center text-slate-500">
+                          {task.catalog?.estimated_duration || 0} phút
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-bold text-[#00285E] bg-slate-50/50">
+                          {formatPrice(parseFloat(task.catalog?.total_price) || 0)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Staff / Technicians list */}
         {(() => {
@@ -540,56 +733,79 @@ export default function ReceptionServiceOrderDetail() {
           );
         })()}
 
-        {/* Note section */}
-        {order.notes && (
-          <div className="space-y-2 text-left">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-              <StickyNote size={14} />
-              Ghi chú tiếp nhận
-            </h4>
-            <p className="text-xs text-slate-600 bg-slate-50 p-4 rounded-2xl border border-slate-100 font-medium leading-relaxed whitespace-pre-line">
-              {order.notes}
-            </p>
-          </div>
-        )}
-
-        {/* Dashed separator before totals */}
-        <div className="w-full border-t border-dashed border-slate-300 my-4" />
-
-        {/* Totals Section & Signatures */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-          {/* Signatures placeholders for document feel */}
-          <div className="grid grid-cols-2 gap-4 text-center text-xs font-semibold text-slate-400 pt-6">
-            <div className="space-y-12">
-              <span>Khách hàng ký nhận</span>
-              <div className="h-6 border-b border-dashed border-slate-200 max-w-[120px] mx-auto" />
-              <span className="text-[10px] text-slate-500 block font-bold mt-1">({customerName})</span>
+        {/* Totals Section */}
+        <div className="-mx-6 md:-mx-8 -mb-6 md:-mb-8 mt-8 bg-slate-50 border-t border-slate-200/80 p-6 md:p-8 rounded-b-3xl">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+            
+            {/* Col 1: Tiền công */}
+            <div className="flex-1 min-w-0 space-y-1 text-sm font-semibold text-left">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block whitespace-nowrap">Tiền công sửa chữa</span>
+              <span className="text-base font-black text-slate-800">{formatPrice(getLaborTotal())}</span>
+              <span className="text-[9.5px] text-slate-450 block font-normal whitespace-nowrap">Chi phí nhân công</span>
             </div>
-            <div className="space-y-12">
-              <span>Cố vấn dịch vụ ký</span>
-              <div className="h-6 border-b border-dashed border-slate-200 max-w-[120px] mx-auto" />
-              <span className="text-[10px] text-slate-500 block font-bold mt-1">({order.receptionist?.fullName || 'Lễ tân'})</span>
-            </div>
-          </div>
 
-          {/* Pricing summary */}
-          <div className="flex justify-end">
-            <div className="w-full max-w-sm space-y-3 text-sm font-semibold text-slate-650">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Tổng tiền dịch vụ:</span>
-                <span className="text-slate-800">{formatPrice(getOrderTotal())}</span>
+            {/* Col 2: Tiền phụ tùng */}
+            <div className="flex-1 min-w-0 space-y-1 text-sm font-semibold border-t md:border-t-0 md:border-l border-slate-200 md:pl-4 pt-4 md:pt-0 text-left">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block whitespace-nowrap">Tiền vật tư / phụ tùng</span>
+              <span className="text-base font-black text-slate-800">{formatPrice(getPartsTotal())}</span>
+              <span className="text-[9.5px] text-slate-450 block font-normal whitespace-nowrap">Chi phí linh kiện thay thế</span>
+            </div>
+
+            {/* Col 3: Tổng chi phí dịch vụ */}
+            <div className="flex-1 min-w-0 space-y-1 text-sm font-semibold border-t md:border-t-0 md:border-l border-slate-200 md:pl-4 pt-4 md:pt-0 text-left">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block whitespace-nowrap">Tổng chi phí dịch vụ</span>
+              <span className="text-base font-black text-[#00285E]">{formatPrice(getOrderTotal())}</span>
+              <span className="text-[9.5px] text-slate-450 block font-normal whitespace-nowrap">Chưa trừ tiền đặt cọc</span>
+            </div>
+
+            {/* Col 4: Đã cọc / Trạng thái */}
+            <div className="flex-1 min-w-0 space-y-1 text-sm font-semibold border-t md:border-t-0 md:border-l border-slate-200 md:pl-4 pt-4 md:pt-0 text-left">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block whitespace-nowrap">Trạng thái thanh toán</span>
+              <div className="flex items-center gap-2 mt-1">
+                {order.payment?.payment_status === 'PAID' || order.payment?.payment_status === 'COMPLETED' ? (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 whitespace-nowrap">
+                    Đã thanh toán
+                  </span>
+                ) : order.payment?.payment_status === 'DEPOSITED' ? (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-700 whitespace-nowrap">
+                    Đã cọc (30%)
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 whitespace-nowrap">
+                    Chưa thanh toán
+                  </span>
+                )}
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Thuế giá trị gia tăng (VAT):</span>
-                <span className="text-slate-800">Đã bao gồm</span>
-              </div>
-              <div className="flex justify-between items-center p-4 bg-[#EDF3FF] border border-[#D2E2FF] rounded-2xl shadow-inner mt-4">
-                <span className="text-[#00285E] font-black text-sm md:text-base uppercase tracking-wider">Tổng thanh toán:</span>
-                <span className="text-2xl font-black text-rose-600">
-                  {formatPrice(getOrderTotal())}
+              {order.payment?.payment_status === 'DEPOSITED' && (
+                <span className="text-[11px] font-bold text-amber-600 block mt-1 whitespace-nowrap">
+                  Đã cọc: -{formatPrice(parseFloat(order.payment.amount) || 0)}
                 </span>
-              </div>
+              )}
+              {(order.payment?.payment_status === 'PAID' || order.payment?.payment_status === 'COMPLETED') && (
+                <span className="text-[9.5px] text-emerald-600 block mt-1 whitespace-nowrap">
+                  Đã trả: {formatPrice(getOrderTotal())}
+                </span>
+              )}
             </div>
+
+            {/* Col 5: Tổng thanh toán còn lại */}
+            <div className="bg-[#EDF3FF] border border-[#D2E2FF] rounded-2xl p-3 shadow-inner text-right min-w-[170px] shrink-0">
+              <span className="text-[#00285E] font-black text-[11px] uppercase tracking-wider block mb-1 whitespace-nowrap">
+                {order.payment?.payment_status === 'PAID' || order.payment?.payment_status === 'COMPLETED'
+                  ? 'Còn lại:'
+                  : order.payment?.payment_status === 'DEPOSITED'
+                  ? 'Còn lại cần thu:'
+                  : 'Tổng chi phí:'}
+              </span>
+              <span className="text-lg font-black text-rose-600 block whitespace-nowrap">
+                {formatPrice(
+                  order.payment?.payment_status === 'PAID' || order.payment?.payment_status === 'COMPLETED'
+                    ? 0
+                    : getRemainingAmount()
+                )}
+              </span>
+            </div>
+
           </div>
         </div>
       </div>
@@ -674,134 +890,265 @@ export default function ReceptionServiceOrderDetail() {
       {showPaymentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md overflow-y-auto">
           {!isPaymentSuccess ? (
-            <div className="max-w-5xl w-full rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col lg:flex-row relative border border-white/20 my-8">
-              {/* Close Button */}
-              <button
-                onClick={() => setShowPaymentModal(false)}
-                className="absolute top-4 right-4 z-30 w-10 h-10 rounded-full bg-black/20 hover:bg-black/40 flex items-center justify-center text-white backdrop-blur-md transition-colors"
-              >
-                <X size={20} />
-              </button>
+            <>
+              {paymentMethod === 'NONE' && (
+                <div className="max-w-3xl w-full rounded-[2.5rem] bg-white shadow-2xl overflow-hidden flex flex-col relative my-8 p-8 md:p-10 text-center border border-slate-200">
+                  <button
+                    onClick={() => setShowPaymentModal(false)}
+                    className="absolute top-4 right-4 z-30 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                  <h3 className="text-2xl font-black text-[#00285E] mb-2 uppercase">Phương thức thanh toán</h3>
+                  <p className="text-slate-500 text-sm mb-8">Vui lòng chọn hình thức thanh toán cho hóa đơn SO-{order.id}</p>
 
-              {/* LEFT SIDE: Order Details */}
-              <div className="flex-1 p-8 md:p-10 bg-white/95 backdrop-blur-xl flex flex-col text-left">
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-12 h-12 rounded-2xl bg-[#00285E]/10 flex items-center justify-center text-[#00285E] shadow-inner">
-                    <FileText size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-extrabold text-[#00285E]">Chi tiết hóa đơn</h2>
-                    <p className="text-sm text-slate-500">Mã đơn: <span className="font-bold text-[#00285E]">SO-{order.id}</span></p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* CASH OPTION */}
+                    <button
+                      onClick={() => handleSelectPaymentMethod('CASH')}
+                      className="flex flex-col items-center justify-center p-8 bg-slate-50 hover:bg-emerald-50 border-2 border-slate-200 hover:border-emerald-400 rounded-3xl transition-all group"
+                    >
+                      <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <Banknote size={32} />
+                      </div>
+                      <h4 className="text-xl font-bold text-slate-800 mb-2 group-hover:text-emerald-700">Tiền mặt</h4>
+                      <p className="text-sm text-slate-500 font-medium">Khách hàng thanh toán bằng tiền mặt trực tiếp tại quầy</p>
+                    </button>
+
+                    {/* ONLINE OPTION */}
+                    <button
+                      onClick={() => handleSelectPaymentMethod('ONLINE')}
+                      className="flex flex-col items-center justify-center p-8 bg-slate-50 hover:bg-blue-50 border-2 border-slate-200 hover:border-blue-400 rounded-3xl transition-all group"
+                    >
+                      <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <QrCode size={32} />
+                      </div>
+                      <h4 className="text-xl font-bold text-slate-800 mb-2 group-hover:text-blue-700">Chuyển khoản (QR)</h4>
+                      <p className="text-sm text-slate-500 font-medium">Khách hàng quét mã VietQR bằng ứng dụng ngân hàng</p>
+                    </button>
                   </div>
                 </div>
+              )}
 
-                <div className="space-y-4 flex-grow">
-                  <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200/60 text-xs space-y-3">
-                    <div className="flex justify-between items-center pb-2.5 border-b border-slate-200/60">
-                      <span className="text-slate-500 font-semibold">Khách hàng</span>
-                      <span className="font-bold text-slate-800">{customerName} ({customerPhone})</span>
+              {paymentMethod === 'CASH' && (
+                <div className="max-w-2xl w-full rounded-[2.5rem] bg-white shadow-2xl overflow-hidden flex flex-col relative my-8 p-8 md:p-10 text-center border border-slate-200">
+                  <button
+                    onClick={() => setPaymentMethod('NONE')}
+                    className="absolute top-4 left-4 z-30 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
+                  >
+                    <ArrowLeft size={20} />
+                  </button>
+                  <button
+                    onClick={() => setShowPaymentModal(false)}
+                    className="absolute top-4 right-4 z-30 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+
+                  <div className="w-20 h-20 mx-auto bg-blue-50 text-[#00285E] rounded-full flex items-center justify-center mb-6">
+                    <Banknote size={40} />
+                  </div>
+                  <h3 className="text-2xl font-black text-[#00285E] mb-2 uppercase">Thanh toán Tiền mặt</h3>
+                  <p className="text-slate-500 mb-6">Xác nhận thu tiền mặt từ khách hàng cho hóa đơn SO-{order.id}</p>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 mb-8 text-left space-y-4">
+                    <div className="flex justify-between items-center pb-4 border-b border-slate-200">
+                      <span className="text-slate-500 font-semibold">Khách hàng:</span>
+                      <span className="font-bold text-slate-800">{customerName}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-4 border-b border-slate-200">
+                      <span className="text-slate-500 font-semibold">Biển số xe:</span>
+                      <span className="font-bold text-[#00285E] bg-[#EDF3FF] px-2 py-0.5 rounded">{vehiclePlate}</span>
+                    </div>
+                    {order.payment?.payment_status === 'DEPOSITED' && (
+                      <>
+                        <div className="flex justify-between items-center pb-4 border-b border-slate-200 text-xs">
+                          <span className="text-slate-500 font-semibold">Tổng chi phí dịch vụ:</span>
+                          <span className="font-bold text-slate-700">{formatPrice(getOrderTotal())}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-4 border-b border-slate-200 text-xs text-amber-600">
+                          <span className="font-semibold">Đã đặt cọc (30%):</span>
+                          <span className="font-bold">-{formatPrice(parseFloat(order.payment.amount) || 0)}</span>
+                        </div>
+                      </>
+                    )}
+                    <div className="flex justify-between items-center text-lg">
+                      <span className="text-slate-600 font-bold">Số tiền thực thu:</span>
+                      <span className="text-2xl font-black text-rose-600">{formatPrice(getRemainingAmount())}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleConfirmCashPayment}
+                    className="w-full py-4 bg-[#00285E] hover:bg-[#00285E]/90 text-white rounded-xl text-lg font-bold transition-colors shadow-lg shadow-[#00285E]/30"
+                  >
+                    Xác nhận ĐÃ THU ĐỦ TIỀN MẶT
+                  </button>
+                </div>
+              )}
+
+              {paymentMethod === 'ONLINE' && (
+                <div className="max-w-5xl w-full rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col lg:flex-row relative border border-white/20 my-8">
+                  {/* Close and Back Button */}
+                  <button
+                    onClick={() => setPaymentMethod('NONE')}
+                    className="absolute top-4 left-4 z-30 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 backdrop-blur-md transition-colors shadow-lg"
+                  >
+                    <ArrowLeft size={20} />
+                  </button>
+                  <button
+                    onClick={() => setShowPaymentModal(false)}
+                    className="absolute top-4 right-4 z-30 w-10 h-10 rounded-full bg-black/20 hover:bg-black/40 flex items-center justify-center text-white backdrop-blur-md transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+
+                  {/* LEFT SIDE: Order Details */}
+                  <div className="flex-1 p-8 md:p-10 bg-white/95 backdrop-blur-xl flex flex-col text-left">
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="w-12 h-12 rounded-2xl bg-[#00285E]/10 flex items-center justify-center text-[#00285E] shadow-inner">
+                        <FileText size={24} />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-extrabold text-[#00285E]">Chi tiết hóa đơn</h2>
+                        <p className="text-sm text-slate-500">Mã đơn: <span className="font-bold text-[#00285E]">SO-{order.id}</span></p>
+                      </div>
                     </div>
 
-                    <div className="flex justify-between items-center pb-2.5 border-b border-slate-200/60">
-                      <span className="text-slate-500 font-semibold">Phương tiện xe</span>
-                      <span className="font-bold text-[#00285E] bg-[#EDF3FF] px-2 py-0.5 rounded uppercase">
-                        {vehiclePlate} - {vehicleModel}
-                      </span>
+                    <div className="space-y-4 flex-grow">
+                      <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200/60 text-xs space-y-3">
+                        <div className="flex justify-between items-center pb-2.5 border-b border-slate-200/60">
+                          <span className="text-slate-500 font-semibold">Khách hàng</span>
+                          <span className="font-bold text-slate-800">{customerName} ({customerPhone})</span>
+                        </div>
+
+                        <div className="flex justify-between items-center pb-2.5 border-b border-slate-200/60">
+                          <span className="text-slate-500 font-semibold">Phương tiện xe</span>
+                          <span className="font-bold text-[#00285E] bg-[#EDF3FF] px-2 py-0.5 rounded uppercase">
+                            {vehiclePlate} - {vehicleModel}
+                          </span>
+                        </div>
+
+                        <div className="pb-2 border-b border-slate-200/60 space-y-1.5">
+                          <span className="text-slate-500 font-semibold block mb-1">Hạng mục thanh toán:</span>
+                          {order.quotation && Array.isArray(order.quotation.items) ? (
+                            <>
+                              {/* Công thợ */}
+                              {order.quotation.items.filter((item: any) => parseFloat(item.repair_price) > 0).map((item: any, idx: number) => (
+                                <div key={`q-srv-${idx}`} className="flex justify-between items-center text-slate-700">
+                                  <span>• {item.custom_item_name || item.service_catalog?.service_name || 'Dịch vụ'} (Công thợ)</span>
+                                  <span className="font-bold">{formatPrice(parseFloat(item.repair_price) || 0)}</span>
+                                </div>
+                              ))}
+                              {/* Phụ tùng */}
+                              {order.quotation.items.filter((item: any) => parseFloat(item.unit_price) > 0).map((item: any, idx: number) => (
+                                <div key={`q-part-${idx}`} className="flex justify-between items-center text-slate-500 pl-2">
+                                  <span>• Phụ tùng: {item.custom_item_name || item.sparePart?.name || 'Vật tư'} (x{item.quantity})</span>
+                                  <span className="font-bold">{formatPrice((parseFloat(item.unit_price) || 0) * (item.quantity || 1))}</span>
+                                </div>
+                              ))}
+                            </>
+                          ) : (!order.tasks || order.tasks.length === 0) ? (
+                            <p className="text-slate-400 italic">Công dịch vụ sửa chữa tổng hợp</p>
+                          ) : (
+                            order.tasks.map((task: any, idx: number) => (
+                              <div key={idx} className="flex justify-between items-center text-slate-700">
+                                <span>• {task.catalog?.service_name || 'Dịch vụ'}</span>
+                                <span className="font-bold">{formatPrice(parseFloat(task.catalog?.total_price || task.catalog?.labor_price) || 0)}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        <div className="flex justify-between items-center pt-1">
+                          <span className="text-slate-500 font-semibold">Trạng thái đơn</span>
+                          <span className="font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                            Chờ quét QR thanh toán
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="pb-2 border-b border-slate-200/60 space-y-1.5">
-                      <span className="text-slate-500 font-semibold block mb-1">Hạng mục dịch vụ:</span>
-                      {(!order.tasks || order.tasks.length === 0) ? (
-                        <p className="text-slate-400 italic">Công dịch vụ sửa chữa tổng hợp</p>
-                      ) : (
-                        order.tasks.map((task: any, idx: number) => (
-                          <div key={idx} className="flex justify-between items-center text-slate-700">
-                            <span>• {task.catalog?.service_name || 'Dịch vụ'}</span>
-                            <span className="font-bold">{formatPrice(parseFloat(task.catalog?.total_price || task.catalog?.labor_price) || 0)}</span>
-                          </div>
-                        ))
+                    <div className="mt-6 pt-4 border-t border-dashed border-slate-300 space-y-3">
+                      {order.payment?.payment_status === 'DEPOSITED' && (
+                        <div className="flex justify-between items-center text-xs font-semibold text-slate-600 px-1">
+                          <span>Đã đặt cọc (30%):</span>
+                          <span className="text-amber-600">-{formatPrice(parseFloat(order.payment.amount) || 0)}</span>
+                        </div>
                       )}
-                    </div>
-
-                    <div className="flex justify-between items-center pt-1">
-                      <span className="text-slate-500 font-semibold">Trạng thái đơn</span>
-                      <span className="font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                        Chờ quét QR thanh toán
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 pt-4 border-t border-dashed border-slate-300">
-                  <div className="flex items-center justify-between p-4 bg-[#EDF3FF] rounded-2xl border border-blue-100">
-                    <span className="font-bold text-[#00285E] text-sm">Tổng thanh toán</span>
-                    <span className="text-2xl font-black text-rose-600">
-                      {formatPrice(getOrderTotal())}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* RIGHT SIDE: Payment QR Details - Glassmorphism Dark (Matching BookingPage.tsx) */}
-              <div className="flex-1 p-8 md:p-10 relative overflow-hidden flex flex-col justify-center min-h-[480px] bg-slate-950/90 backdrop-blur-2xl text-center">
-                {/* Lighting Effects */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/20 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl z-0" />
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/20 rounded-full translate-y-1/3 -translate-x-1/3 blur-3xl z-0" />
-
-                <div className="relative z-10 text-center space-y-6 flex flex-col items-center">
-                  <div>
-                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-white/10 backdrop-blur-md border border-white/20 mb-4 shadow-xl">
-                      <Banknote size={28} className="text-[#F9A11B]" />
-                    </div>
-                    <h3 className="text-2xl font-extrabold text-white font-display mb-2">Thanh toán đơn hàng</h3>
-                    <p className="text-blue-100/80 text-xs leading-relaxed max-w-xs mx-auto font-light">
-                      Quét mã QR bằng ứng dụng ngân hàng hoặc ví điện tử bất kỳ để thanh toán.
-                    </p>
-                  </div>
-
-                  {/* QR Code Container */}
-                  <div className="p-1 rounded-3xl bg-gradient-to-br from-white/40 to-white/10 shadow-2xl relative group">
-                    <div className="bg-white p-4 rounded-[1.3rem] relative z-10">
-                      <img
-                        src={`https://vietqr.app/img?acc=${import.meta.env.VITE_SEPAY_ACC || '0348714088'}&bank=${import.meta.env.VITE_SEPAY_BANK || 'MB'}&amount=${getOrderTotal()}&template=compact&showinfo=true&addInfo=SO-${order.id}`}
-                        alt="VietQR Payment Code"
-                        className="w-52 h-52 rounded-xl object-contain mx-auto"
-                      />
-                      <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-600 font-medium flex items-center justify-center gap-1.5">
-                        <span>Nội dung CK:</span>
-                        <span className="font-mono font-bold text-[#00285E] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                          SO-{order.id}
+                      <div className="flex items-center justify-between p-4 bg-[#EDF3FF] rounded-2xl border border-blue-100">
+                        <span className="font-bold text-[#00285E] text-sm">
+                          {order.payment?.payment_status === 'DEPOSITED' ? 'Còn lại cần thanh toán' : 'Tổng thanh toán'}
                         </span>
-                        <button
-                          onClick={() => handleCopy(`SO-${order.id}`, 'Nội dung chuyển khoản')}
-                          className="p-1 text-slate-400 hover:text-[#00285E] rounded transition-colors"
-                        >
-                          <Copy size={13} />
-                        </button>
+                        <span className="text-2xl font-black text-rose-600">
+                          {formatPrice(getRemainingAmount())}
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Polling Spinner Indicator */}
-                  <div className="pt-1 w-full max-w-xs text-center space-y-2">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="w-5 h-5 border-2 border-[#F9A11B] border-t-transparent rounded-full animate-spin"></div>
-                      <p className="text-[11px] text-blue-100/70 leading-relaxed max-w-[250px] mx-auto">
-                        Hệ thống đang tự động chờ xác nhận thanh toán...
-                      </p>
-                    </div>
+                  {/* RIGHT SIDE: Payment QR Details - Glassmorphism Dark (Matching BookingPage.tsx) */}
+                  <div className="flex-1 p-8 md:p-10 relative overflow-hidden flex flex-col justify-center min-h-[480px] bg-slate-950/90 backdrop-blur-2xl text-center">
+                    {/* Lighting Effects */}
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/20 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl z-0" />
+                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/20 rounded-full translate-y-1/3 -translate-x-1/3 blur-3xl z-0" />
 
-                    {/* Test Bypass Option */}
-                    <button
-                      onClick={handleSimulatePaymentSuccess}
-                      className="text-[10px] text-amber-300/60 hover:text-amber-300 underline font-medium transition-colors"
-                    >
-                      [ Giả lập nhận tiền thành công (Demo) ]
-                    </button>
+                    <div className="relative z-10 text-center space-y-6 flex flex-col items-center">
+                      <div>
+                        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-white/10 backdrop-blur-md border border-white/20 mb-4 shadow-xl">
+                          <Banknote size={28} className="text-[#F9A11B]" />
+                        </div>
+                        <h3 className="text-2xl font-extrabold text-white font-display mb-2">Thanh toán đơn hàng</h3>
+                        <p className="text-blue-100/80 text-xs leading-relaxed max-w-xs mx-auto font-light">
+                          Quét mã QR bằng ứng dụng ngân hàng hoặc ví điện tử bất kỳ để thanh toán.
+                        </p>
+                      </div>
+
+                      {/* QR Code Container */}
+                      <div className="p-1 rounded-3xl bg-gradient-to-br from-white/40 to-white/10 shadow-2xl relative group">
+                        <div className="bg-white p-4 rounded-[1.3rem] relative z-10">
+                          <img
+                            src={`https://vietqr.app/img?acc=${import.meta.env.VITE_SEPAY_ACC || '0348714088'}&bank=${import.meta.env.VITE_SEPAY_BANK || 'MB'}&amount=${getRemainingAmount()}&template=compact&showinfo=true&addInfo=SO-${order.id}`}
+                            alt="VietQR Payment Code"
+                            className="w-52 h-52 rounded-xl object-contain mx-auto"
+                          />
+                          <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-600 font-medium flex items-center justify-center gap-1.5">
+                            <span>Nội dung CK:</span>
+                            <span className="font-mono font-bold text-[#00285E] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              SO-{order.id}
+                            </span>
+                            <button
+                              onClick={() => handleCopy(`SO-${order.id}`, 'Nội dung chuyển khoản')}
+                              className="p-1 text-slate-400 hover:text-[#00285E] rounded transition-colors"
+                            >
+                              <Copy size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Polling Spinner Indicator */}
+                      <div className="pt-1 w-full max-w-xs text-center space-y-2">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <div className="w-5 h-5 border-2 border-[#F9A11B] border-t-transparent rounded-full animate-spin"></div>
+                          <p className="text-[11px] text-blue-100/70 leading-relaxed max-w-[250px] mx-auto">
+                            Hệ thống đang tự động chờ xác nhận thanh toán...
+                          </p>
+                        </div>
+
+                        {/* Test Bypass Option */}
+                        <button
+                          onClick={handleSimulatePaymentSuccess}
+                          className="text-[10px] text-amber-300/60 hover:text-amber-300 underline font-medium transition-colors"
+                        >
+                          [ Giả lập nhận tiền thành công (Demo) ]
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              )}
+            </>
           ) : (
             /* TICKET SUCCESS VIEW (Matching BookingPage.tsx) */
             <div className="max-w-3xl w-full bg-white rounded-[2.5rem] shadow-2xl flex flex-col md:flex-row relative overflow-hidden my-8 border border-slate-200">

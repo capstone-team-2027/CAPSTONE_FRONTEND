@@ -1327,20 +1327,37 @@ export default function ReceptionQuoteList() {
               >
                 <ChevronLeft size={16} />
               </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                (page) => (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${page === currentPage
-                        ? "bg-[#00285E] text-white shadow-md"
-                        : "text-slate-500 hover:bg-slate-100"
-                      }`}
-                  >
-                    {page}
-                  </button>
-                ),
-              )}
+              {(() => {
+                const pages: (number | string)[] = [];
+                if (totalPages <= 5) {
+                  for (let i = 1; i <= totalPages; i++) pages.push(i);
+                } else {
+                  if (currentPage <= 3) {
+                    pages.push(1, 2, 3, 4, '...', totalPages);
+                  } else if (currentPage >= totalPages - 2) {
+                    pages.push(1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+                  } else {
+                    pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+                  }
+                }
+                
+                return pages.map((page, index) => 
+                  page === '...' ? (
+                    <span key={`ellipsis-${index}`} className="w-8 h-8 flex items-center justify-center text-slate-400 text-xs font-bold tracking-widest">...</span>
+                  ) : (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page as number)}
+                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${page === currentPage
+                          ? "bg-[#00285E] text-white shadow-md"
+                          : "text-slate-500 hover:bg-slate-100"
+                        }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                );
+              })()}
               <button
                 onClick={() =>
                   setCurrentPage(Math.min(totalPages, currentPage + 1))
@@ -1452,6 +1469,14 @@ export default function ReceptionQuoteList() {
                         {selectedQuotation.vehicleName || "—"}
                         {selectedQuotation.vehicleColor &&
                           ` · ${selectedQuotation.vehicleColor}`}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1 pt-2 border-t border-slate-100 mt-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Tình trạng tiếp nhận
+                      </span>
+                      <span className="text-xs font-semibold text-slate-700 break-words">
+                        {selectedQuotation.task?.serviceOrder?.symptoms || "—"}
                       </span>
                     </div>
                   </div>

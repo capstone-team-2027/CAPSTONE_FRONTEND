@@ -984,7 +984,10 @@ export default function LeaderAssignments() {
       {/* ── MODAL CHI TIẾT ĐƠN ── */}
       <AnimatePresence>
         {selected && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div
+            key="modal-selected"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          >
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1242,14 +1245,17 @@ export default function LeaderAssignments() {
                 </div>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
       {/* ── MODAL CHỌN KỸ THUẬT VIÊN ── */}
       <AnimatePresence>
         {isAssignOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <motion.div
+            key="modal-assign"
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          >
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1328,14 +1334,17 @@ export default function LeaderAssignments() {
                 </button>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
       {/* ── MODAL CHI TIẾT KỸ THUẬT VIÊN ── */}
       <AnimatePresence>
         {techDetail && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <motion.div
+            key="modal-tech-detail"
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+          >
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1511,14 +1520,17 @@ export default function LeaderAssignments() {
                 </button>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
       {/* ── MODAL ĐỔI KỸ THUẬT VIÊN ── */}
       <AnimatePresence>
         {isPickingTech && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <motion.div
+            key="modal-pick-tech"
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          >
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1597,14 +1609,17 @@ export default function LeaderAssignments() {
                 </button>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
       {/* ── MODAL CHI TIẾT ĐƠN ĐÃ PHÂN CÔNG ── */}
       <AnimatePresence>
         {historySelected && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div
+            key="modal-history-selected"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          >
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1883,7 +1898,7 @@ export default function LeaderAssignments() {
                 </div>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

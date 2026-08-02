@@ -1117,7 +1117,7 @@ const resources = {
         cta: {
           title: "Sẵn sàng trải nghiệm?",
           desc: "Chiếc xe của bạn xứng đáng được chăm sóc bởi những chuyên gia hàng đầu. Hãy đặt lịch hẹn ngay hôm nay để trải nghiệm dịch vụ chuẩn AGM Intelligent.",
-          consultBtn: "Tư vấn ngay",
+          consultBtn: "Đặt lịch ngay",
           schedule: "THỨ 2 - THỨ 7: 7:00 - 19:00"
         }
       }
