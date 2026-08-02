@@ -30,6 +30,7 @@ export interface ServiceItem {
     promoText?: string;
     category_id?: number;
     is_active?: boolean;
+    sparePartName?: string;
 }
 
 export interface ServiceCategoryInfo {

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { CheckCircle2, ChevronRight, Phone, ShieldCheck, Loader2 } from "lucide-react";
+import 'react-phone-input-2/lib/style.css';
+import * as PhoneInputLib from 'react-phone-input-2';
 
 import Logo from "../../../components/share/Logo";
 import { Button } from "../../../components/share/Button";
@@ -15,19 +17,117 @@ import {
 } from "../../../services/firebaseOtp";
 import { AUTH_API_ENDPOINTS } from '../../../constants/customer/authApiEndpoints';
 
-const PHONE_REGEX_VN = /^(0|\+84)(3|5|7|8|9)\d{8}$/;
+// ── resolve PhoneInput default export ─────────────────────────
+type Mod = { default?: unknown };
+function resolveDefault<T>(mod: unknown): T {
+  const m = mod as Mod;
+  if (m && typeof m === 'object' && 'default' in m) {
+    const d = m.default as unknown;
+    if (d && typeof d === 'object' && 'default' in (d as Mod)) return (d as Mod).default as T;
+    return d as T;
+  }
+  return mod as T;
+}
+type PhoneInputProps = {
+  country?: string;
+  value?: string;
+  onChange?: (value: string) => void;
+  onBlur?: () => void;
+  enableSearch?: boolean;
+  searchPlaceholder?: string;
+  inputProps?: { name?: string };
+  countryCodeEditable?: boolean;
+};
+const PhoneInput = resolveDefault<React.ComponentType<PhoneInputProps>>(PhoneInputLib);
 
-function normalizePhoneNumber(phoneNumber: string) {
-  return phoneNumber.replace(/\s+/g, "");
+// react-phone-input-2 trả số không có dấu "+" (vd "84987654321"),
+// còn Firebase OTP cần E.164 (+84987654321) -> thêm "+" trước khi dùng.
+const PHONE_REGEX_VN = /^\+84(3|5|7|8|9)\d{8}$/;
+
+function toE164(phoneNumber: string) {
+  const digits = phoneNumber.replace(/\D/g, "");
+  return digits ? `+${digits}` : "";
 }
 
 function validatePhoneNumber(phoneNumber: string) {
-  const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
-  if (!normalizedPhoneNumber) return "Vui lòng nhập số điện thoại.";
-  if (!PHONE_REGEX_VN.test(normalizedPhoneNumber))
-    return "Số điện thoại không hợp lệ. Ví dụ: 09xxxxxxxx hoặc +849xxxxxxxx.";
+  const e164 = toE164(phoneNumber);
+  if (!e164 || e164 === "+84") return "Vui lòng nhập số điện thoại.";
+  if (!PHONE_REGEX_VN.test(e164))
+    return "Số điện thoại không hợp lệ. Ví dụ: +849xxxxxxxx.";
   return "";
 }
+
+// ── PhoneInput styles (đồng bộ với trang Login) ───────────────
+const phoneStyles = `
+    .login-phone .react-tel-input .form-control {
+        width: 100% !important;
+        height: 56px !important;
+        background: white !important;
+        border: 1px solid #EFF6FF !important;
+        border-radius: 1rem !important;
+        padding: 0 20px 0 58px !important;
+        font-size: 14px !important;
+        color: ${COLORS.navy} !important;
+        letter-spacing: 0.3px !important;
+        outline: none !important;
+        transition: all 0.2s !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
+    }
+    .login-phone .react-tel-input .form-control:focus {
+        border-color: ${COLORS.orange} !important;
+        box-shadow: 0 0 0 4px ${COLORS.orange}18 !important;
+    }
+    .login-phone .react-tel-input .form-control::placeholder {
+        color: ${COLORS.navy}40 !important;
+    }
+    .login-phone .react-tel-input .flag-dropdown {
+        background: white !important;
+        border: 1px solid #EFF6FF !important;
+        border-right: none !important;
+        border-radius: 1rem 0 0 1rem !important;
+    }
+    .login-phone .react-tel-input .flag-dropdown:hover,
+    .login-phone .react-tel-input .flag-dropdown.open {
+        background: #F8FAFC !important;
+        border-color: ${COLORS.orange}80 !important;
+    }
+    .login-phone .react-tel-input .selected-flag {
+        background: transparent !important;
+        padding: 0 8px 0 14px !important;
+        border-radius: 1rem 0 0 1rem !important;
+    }
+    .login-phone .react-tel-input .country-list {
+        background: white !important;
+        border: 1px solid #EFF6FF !important;
+        border-radius: 0.75rem !important;
+        box-shadow: 0 8px 32px rgba(5,11,24,0.12) !important;
+        max-height: 220px !important;
+        margin-top: 4px !important;
+    }
+    .login-phone .react-tel-input .country-list .country {
+        color: ${COLORS.navy}CC !important;
+        font-size: 13px !important;
+        padding: 8px 14px !important;
+    }
+    .login-phone .react-tel-input .country-list .country:hover,
+    .login-phone .react-tel-input .country-list .country.highlight {
+        background: ${COLORS.orange}14 !important;
+        color: ${COLORS.orange} !important;
+    }
+    .login-phone .react-tel-input .search-box {
+        background: white !important;
+        border: 1px solid #EFF6FF !important;
+        border-radius: 0.5rem !important;
+        color: ${COLORS.navy} !important;
+        font-size: 13px !important;
+        padding: 7px 12px !important;
+        width: 100% !important;
+        outline: none !important;
+    }
+    .login-phone .react-tel-input .dial-code {
+        color: ${COLORS.navy}60 !important;
+    }
+`;
 
 export default function VerifyPhone() {
   const navigate = useNavigate();
@@ -44,10 +144,6 @@ export default function VerifyPhone() {
 
   const isPhoneValid = !validationMessage;
 
-  const handleChangePhoneNumber = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPhoneNumber(e.target.value);
-  };
-
   useEffect(() => {
     initRecaptcha("recaptcha-container").catch((err) => {
       console.error("Recaptcha init failed:", err);
@@ -61,7 +157,7 @@ export default function VerifyPhone() {
     e.preventDefault();
     setIsTouched(true);
     if (!isPhoneValid) return;
-    const normalizedPhone = normalizePhoneNumber(phoneNumber);
+    const normalizedPhone = toE164(phoneNumber);
     setIsLoading(true);
     setErrorMsg("");
     try {
@@ -81,6 +177,7 @@ export default function VerifyPhone() {
 
   return (
     <div className="min-h-[calc(100vh-80px)] flex items-stretch">
+      <style>{phoneStyles}</style>
       {/* LEFT */}
       <div
         className="hidden lg:flex w-[40%] relative overflow-hidden items-center justify-center p-16"
@@ -226,16 +323,18 @@ export default function VerifyPhone() {
                   Số Điện Thoại
                 </label>
 
-                <input
-                  value={phoneNumber}
-                  onChange={handleChangePhoneNumber}
-                  onBlur={() => setIsTouched(true)}
-                  placeholder="Nhập số điện thoại"
-                  className="w-full h-14 bg-white border border-blue-50 rounded-2xl text-sm outline-none transition-all shadow-sm focus:ring-4 focus:border-brand-orange px-5"
-                  style={{ color: COLORS.navy }}
-                  inputMode="tel"
-                  autoComplete="tel"
-                />
+                <div className="login-phone">
+                  <PhoneInput
+                    country="vn"
+                    value={phoneNumber}
+                    onChange={(val) => setPhoneNumber(val)}
+                    onBlur={() => setIsTouched(true)}
+                    enableSearch
+                    searchPlaceholder="Tìm quốc gia..."
+                    inputProps={{ name: 'phone' }}
+                    countryCodeEditable={false}
+                  />
+                </div>
 
                 {isTouched && !isPhoneValid && (
                   <p className="text-xs" style={{ color: "#DC2626" }}>

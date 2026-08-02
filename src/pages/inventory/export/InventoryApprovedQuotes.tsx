@@ -2,6 +2,9 @@ import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   FileText,
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Search,
   Calendar,
   X,
@@ -10,13 +13,18 @@ import {
   Package,
   PackageCheck,
   StickyNote,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import { useFetchClient } from "../../../hook/useFetchClient";
+import { useSocket } from "../../../hook/useSocket";
 import { APPROVED_QUOTE_API_ENDPOINTS } from "../../../constants/inventory/approvedQuoteApiEndPoint";
 
+const PAGE_SIZE = 6;
+
 const formatPrice = (v: number | string) =>
-  Number(v).toLocaleString("vi-VN") + "đ";
+  Number(v).toLocaleString("vi-VN") + " VND";
 
 const formatDate = (d: string) => {
   const date = new Date(d);
@@ -39,15 +47,125 @@ interface QuotationItem {
   sparePart: SparePartInfo;
 }
 
+interface QuotationCreator {
+  id: number;
+  fullName: string | null;
+}
+
+// task -> serviceOrder -> vehicle -> model/customer -> user
+interface QuoteVehicleModel {
+  id: number;
+  model_name: string;
+}
+
+interface QuoteCustomerUser {
+  id: number;
+  fullName: string | null;
+  phoneNumber: string | null;
+}
+
+interface QuoteCustomer {
+  id: number;
+  name: string | null;
+  phone: string | null;
+  user?: QuoteCustomerUser | null;
+}
+
+interface QuoteVehicle {
+  id: number;
+  color: string | null;
+  license_plate: string | null;
+  model?: QuoteVehicleModel | null;
+  customer?: QuoteCustomer | null;
+}
+
+interface QuoteServiceOrder {
+  id: number;
+  vehicle?: QuoteVehicle | null;
+}
+
+interface QuoteTask {
+  id: number;
+  serviceOrder?: QuoteServiceOrder | null;
+}
+
 interface ApprovedQuotation {
   id: number;
-  service_order_id: number;
   total_amount: number;
   approved_at: string;
   note: string | null;
   createdAt: string;
   items: QuotationItem[];
+  creator?: QuotationCreator | null;
+  task?: QuoteTask | null;
 }
+
+interface ApprovedQuoteTaskResponse {
+  id: number;
+  quotations?: Array<{
+    id: number;
+    approved_at: string;
+    note: string | null;
+    createdAt: string;
+    items?: QuotationItem[];
+    creator?: QuotationCreator | null;
+  }>;
+}
+
+interface ApprovedQuoteServiceOrderResponse {
+  id: number;
+  status: string;
+  createdAt: string;
+  vehicle?: QuoteVehicle | null;
+  tasks?: ApprovedQuoteTaskResponse[];
+}
+
+// Báo giá kèm mã BG-... sinh ở FE
+interface QuotationRow extends ApprovedQuotation {
+  code: string;
+}
+
+const flattenApprovedQuoteServiceOrders = (
+  serviceOrders: ApprovedQuoteServiceOrderResponse[],
+): ApprovedQuotation[] =>
+  serviceOrders.flatMap((serviceOrder) =>
+    (serviceOrder.tasks ?? []).flatMap((task) =>
+      (task.quotations ?? []).map((quotation) => {
+        const items = quotation.items ?? [];
+
+        return {
+          ...quotation,
+          items,
+          total_amount: items.reduce(
+            (total, item) => total + Number(item.amount || 0),
+            0,
+          ),
+          task: {
+            id: task.id,
+            serviceOrder: {
+              id: serviceOrder.id,
+              vehicle: serviceOrder.vehicle,
+            },
+          },
+        };
+      }),
+    ),
+  );
+
+// Rút thông tin khách/xe/đơn dịch vụ từ cây task -> serviceOrder -> vehicle
+const getQuoteInfo = (q: ApprovedQuotation) => {
+  const vehicle = q.task?.serviceOrder?.vehicle;
+  const customer = vehicle?.customer;
+  return {
+    serviceOrderId: q.task?.serviceOrder?.id ?? null,
+    customerName: customer?.name || customer?.user?.fullName || "Khách vãng lai",
+    customerPhone: customer?.phone || customer?.user?.phoneNumber || "",
+    vehiclePlate: vehicle?.license_plate || "",
+    vehicleName: vehicle?.model?.model_name || "",
+    vehicleColor: vehicle?.color || "",
+    creatorName: q.creator?.fullName || "",
+  };
+};
 
 export default function InventoryApprovedQuotes() {
   const { searchQuery, showToast } = useOutletContext<{
@@ -56,54 +174,147 @@ export default function InventoryApprovedQuotes() {
   }>();
 
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
+  const navigate = useNavigate();
   const [localSearch, setLocalSearch] = useState("");
-  const [selected, setSelected] = useState<ApprovedQuotation | null>(null);
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<QuotationRow | null>(null);
   const effectiveSearch = (searchQuery || localSearch).toLowerCase();
 
   const [quotations, setQuotations] = useState<ApprovedQuotation[]>([]);
-
-  useEffect(() => {
-    handleGetApprovedQuotes();
-  }, []);
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleGetApprovedQuotes = async () => {
     try {
-      const result = await fetchPrivate<ApprovedQuotation[]>(
+      const result = await fetchPrivate<ApprovedQuoteServiceOrderResponse[]>(
         APPROVED_QUOTE_API_ENDPOINTS.APPROVED_QUOTES,
         "GET",
       );
-      setQuotations(result.data);
+      setQuotations(flattenApprovedQuoteServiceOrders(result.data ?? []));
     } catch (error) {
-      console.error("Lỗi lấy danh sách báo giá đã duyệt", error);
+      console.error("Lỗi lấy danh sách phụ tùng cần xuất kho", error);
     }
   };
 
-  const handleExportStock = async (quotationId: number) => {
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void handleGetApprovedQuotes();
+    // Chỉ tải một lần khi mở trang; fetchPrivate không phải callback ổn định.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Có báo giá vừa được duyệt -> BE emit new_notification -> tự tải lại danh sách
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      void handleGetApprovedQuotes();
+    };
+    socket.on("new_notification", handleNewNotification);
+    return () => {
+      socket.off("new_notification", handleNewNotification);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket]);
+
+  const handleExportStock = async (quotation: QuotationRow) => {
+    const serviceOrderId = getQuoteInfo(quotation).serviceOrderId;
+    if (!serviceOrderId) {
+      showToast("Không tìm thấy đơn dịch vụ của yêu cầu xuất kho", "warning");
+      return;
+    }
+
+    setIsExporting(true);
     try {
+      // BE lọc items theo detailIds -> phải gửi id các dòng phụ tùng cần xuất
+      const detailIds = quotation.items.map((item) => item.id);
       await fetchPrivate(
-        APPROVED_QUOTE_API_ENDPOINTS.APPROVE_EXPORT(quotationId),
+        APPROVED_QUOTE_API_ENDPOINTS.APPROVE_EXPORT(serviceOrderId),
         "POST",
+        { detailIds },
       );
       showToast("Xuất kho thành công", "success");
+      setSelected(null);
       handleGetApprovedQuotes();
-    } catch (error: any) {
-      showToast(error?.message ?? "Xuất kho thất bại", "warning");
+    } catch (error: unknown) {
+      showToast(
+        error instanceof Error ? error.message : "Xuất kho thất bại",
+        "warning",
+      );
+    } finally {
+      setIsExporting(false);
     }
   };
 
+  // Thiếu tồn kho ở bất kỳ dòng nào -> chặn xuất kho
+  const hasLowStock = useMemo(
+    () =>
+      !!selected?.items.some(
+        (item) => item.sparePart.stock_quantity < item.quantity,
+      ),
+    [selected],
+  );
+
+  // Thông tin khách/xe của báo giá đang mở
+  const selectedInfo = useMemo(
+    () =>
+      selected
+        ? getQuoteInfo(selected)
+        : {
+            serviceOrderId: null,
+            customerName: "",
+            customerPhone: "",
+            vehiclePlate: "",
+            vehicleName: "",
+            vehicleColor: "",
+            creatorName: "",
+          },
+    [selected],
+  );
+
+  // Gắn mã BG-ddMMyyyy-stt (stt theo thứ tự createdAt trong cùng ngày), đồng bộ
+  // với cách đánh mã ở trang lịch sử báo giá bên lễ tân
+  const quotationRows = useMemo(() => {
+    const rows = quotations.map((q) => ({ ...q, code: "" }));
+    const counters: Record<string, number> = {};
+    [...rows]
+      .sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      )
+      .forEach((row) => {
+        const d = new Date(row.createdAt);
+        const dateKey = `${String(d.getDate()).padStart(2, "0")}${String(
+          d.getMonth() + 1,
+        ).padStart(2, "0")}${d.getFullYear()}`;
+        counters[dateKey] = (counters[dateKey] ?? 0) + 1;
+        row.code = `BG-${dateKey}-${String(counters[dateKey]).padStart(2, "0")}`;
+      });
+    return rows;
+  }, [quotations]);
+
   const filtered = useMemo(() => {
-    return quotations.filter(
-      (q) =>
-        String(q.id).includes(effectiveSearch) ||
-        String(q.service_order_id).includes(effectiveSearch) ||
+    return quotationRows.filter((q) => {
+      const info = getQuoteInfo(q);
+      return (
+        q.code.toLowerCase().includes(effectiveSearch) ||
+        info.customerName.toLowerCase().includes(effectiveSearch) ||
+        info.vehiclePlate.toLowerCase().includes(effectiveSearch) ||
         (q.note ?? "").toLowerCase().includes(effectiveSearch) ||
         q.items.some(
           (item) =>
             item.sparePart.name.toLowerCase().includes(effectiveSearch) ||
             item.sparePart.sku.toLowerCase().includes(effectiveSearch),
-        ),
-    );
-  }, [quotations, effectiveSearch]);
+        )
+      );
+    });
+  }, [quotationRows, effectiveSearch]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = filtered.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
 
   const stats = useMemo(() => {
     const total = quotations.length;
@@ -116,14 +327,23 @@ export default function InventoryApprovedQuotes() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* TITLE */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
-            Báo giá đã duyệt
-          </h1>
-          <p className="text-slate-500 text-sm">
-            Danh sách báo giá đã được khách hàng duyệt — sẵn sàng xuất kho phụ
-            tùng.
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
+              Danh sách phụ tùng cần xuất kho
+            </h1>
+            <p className="text-slate-500 text-sm">
+              Theo dõi các phụ tùng cần chuẩn bị và xác nhận xuất kho cho đơn
+              dịch vụ.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -138,7 +358,7 @@ export default function InventoryApprovedQuotes() {
               {stats.total}
             </div>
             <p className="text-xs text-slate-400 font-medium mt-0.5">
-              Báo giá đã duyệt
+              Yêu cầu cần xuất
             </p>
           </div>
         </div>
@@ -176,10 +396,10 @@ export default function InventoryApprovedQuotes() {
         <div className="p-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
           <div className="flex items-center gap-2.5">
             <h2 className="text-lg font-bold text-slate-800 tracking-tight">
-              Danh sách báo giá
+              Phụ tùng cần xuất kho
             </h2>
             <span className="bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full text-xs font-bold">
-              {filtered.length} báo giá
+              {filtered.length} yêu cầu
             </span>
           </div>
 
@@ -190,9 +410,12 @@ export default function InventoryApprovedQuotes() {
             />
             <input
               type="text"
-              placeholder="Tìm mã báo giá, phụ tùng, SKU..."
+              placeholder="Tìm mã yêu cầu, phụ tùng, SKU..."
               value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
+              onChange={(e) => {
+                setLocalSearch(e.target.value);
+                setPage(1);
+              }}
               className="w-full sm:w-64 bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
             />
           </div>
@@ -203,38 +426,43 @@ export default function InventoryApprovedQuotes() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
-                <th className="py-4 px-6">ID</th>
-                <th className="py-4 px-4">Đơn DV</th>
+                <th className="py-4 px-6">Mã yêu cầu</th>
+                <th className="py-4 px-4">Người tạo</th>
                 <th className="py-4 px-4">Phụ tùng</th>
                 <th className="py-4 px-4">Tổng tiền</th>
-                <th className="py-4 px-4">Ngày duyệt</th>
-                <th className="py-4 px-6 text-right">Thao tác</th>
+                <th className="py-4 px-4">Ngày tạo</th>
+                <th className="py-4 px-4">Trạng thái</th>
+                <th className="py-4 px-6">Thao tác</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {pageItems.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="py-14 text-center text-slate-400 text-sm"
                   >
-                    Không tìm thấy báo giá phù hợp...
+                    Không tìm thấy yêu cầu xuất kho phù hợp...
                   </td>
                 </tr>
               ) : (
-                filtered.map((q) => (
+                pageItems.map((q) => {
+                  const info = getQuoteInfo(q);
+                  return (
                   <tr
                     key={q.id}
                     onClick={() => setSelected(q)}
                     className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors cursor-pointer group"
                   >
                     <td className="py-4 px-6">
-                      <span className="font-bold text-slate-800 text-sm group-hover:text-[#00285E] transition-colors">
-                        {q.id}
+                      <span className="font-bold text-[#00285E] text-xs">
+                        {q.code}
                       </span>
                     </td>
-                    <td className="py-4 px-4 text-sm font-semibold text-slate-700">
-                      {q.service_order_id}
+                    <td className="py-4 px-4">
+                      <span className="text-sm font-semibold text-slate-700 truncate block max-w-[160px]">
+                        {info.creatorName || "—"}
+                      </span>
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex flex-wrap gap-1.5">
@@ -260,38 +488,68 @@ export default function InventoryApprovedQuotes() {
                     <td className="py-4 px-4">
                       <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500">
                         <Calendar size={13} className="text-slate-400" />
-                        {formatDate(q.approved_at)}
+                        {formatDate(q.createdAt)}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 whitespace-nowrap">
+                        <CheckCircle2 size={11} />
+                        Đã duyệt
                       </span>
                     </td>
                     <td className="py-4 px-6">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-start gap-2">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelected(q);
                           }}
                           title="Xem chi tiết"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                          className="h-8 flex items-center gap-1.5 px-3 rounded-lg text-[11px] font-bold text-white bg-[#00285E] hover:brightness-125 active:scale-[0.97] transition-all whitespace-nowrap"
                         >
-                          <Eye size={15} />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleExportStock(q.id);
-                          }}
-                          title="Chấp nhận xuất kho"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
-                        >
-                          <PackageCheck size={15} />
+                          <Eye size={13} />
+                          Xem chi tiết
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between flex-wrap gap-3">
+          <span className="text-xs font-medium text-slate-400">
+            Hiển thị {pageItems.length} / {filtered.length} yêu cầu
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={safePage === 1}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                onClick={() => setPage(n)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-colors ${n === safePage ? "bg-[#00285E] text-white shadow-sm" : "border border-slate-200 text-slate-600 hover:bg-white"}`}
+              >
+                {n}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage === totalPages}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -310,145 +568,215 @@ export default function InventoryApprovedQuotes() {
               initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 10 }}
-              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5"
             >
               {/* Header */}
-              <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white z-10">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <div
+                className="flex items-center justify-between px-7 py-5 shrink-0"
+                style={{ backgroundColor: "#00285E" }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center">
                     <FileText size={18} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-slate-800 leading-tight">
-                      Báo giá #{selected.id}
+                    <h3 className="text-lg font-bold text-white leading-tight">
+                      Yêu cầu xuất kho {selected.code}
                     </h3>
-                    <span className="text-xs font-bold text-emerald-600">
-                      Đã duyệt
+                    <span className="text-xs font-semibold text-emerald-300">
+                      Đã duyệt · chờ xuất kho
                     </span>
                   </div>
                 </div>
                 <button
                   onClick={() => setSelected(null)}
-                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+                  className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
                 >
                   <X size={18} />
                 </button>
               </div>
 
-              <div className="p-5 space-y-5">
-                {/* Info grid */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                      Đơn dịch vụ
-                    </span>
-                    <span className="text-sm font-bold text-slate-800">
-                      {selected.service_order_id}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
+              <div className="overflow-y-auto flex-1 px-7 py-6 space-y-5 bg-slate-50/50">
+                {/* Thông tin yêu cầu xuất kho */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
                       Ngày tạo
                     </span>
-                    <span className="text-sm font-bold text-slate-800">
-                      {formatDate(selected.createdAt)}
-                    </span>
+                    <div className="space-y-2">
+                      <div className="flex items-baseline gap-3">
+                        <span className="w-16 shrink-0 text-xs text-slate-400">
+                          Thời gian
+                        </span>
+                        <span className="text-sm font-semibold text-slate-800">
+                          {formatDate(selected.createdAt)}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-3">
+                        <span className="w-16 shrink-0 text-xs text-slate-400">
+                          Người tạo
+                        </span>
+                        <span className="text-sm font-semibold text-slate-800 truncate">
+                          {selectedInfo.creatorName || "—"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
                       Ngày duyệt
                     </span>
-                    <span className="text-sm font-bold text-emerald-700">
-                      {formatDate(selected.approved_at)}
-                    </span>
+                    <div className="space-y-2">
+                      <div className="flex items-baseline gap-3">
+                        <span className="w-16 shrink-0 text-xs text-slate-400">
+                          Thời gian
+                        </span>
+                        <span className="text-sm font-semibold text-emerald-600">
+                          {formatDate(selected.approved_at)}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-3">
+                        <span className="w-16 shrink-0 text-xs text-slate-400">
+                          Trạng thái
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+                          <CheckCircle2 size={11} />
+                          Đã duyệt
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Note */}
-                {selected.note && (
-                  <div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                {/* Phụ tùng cần xuất kho */}
+                <div>
+                  <div className="flex items-center justify-between mb-3 px-1">
+                    <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                      <Package size={14} className="text-slate-500" />
+                      Phụ tùng cần xuất kho
+                    </label>
+                    <span
+                      className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                      style={{ backgroundColor: "#00285E", color: "#fff" }}
+                    >
+                      {selected.items.length} phụ tùng
+                    </span>
+                  </div>
+                  <div className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[560px] text-left border-collapse text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
+                            <th className="py-3 px-4 align-middle">Phụ tùng</th>
+                            <th className="py-3 px-3 align-middle text-center w-16 whitespace-nowrap">
+                              SL cần
+                            </th>
+                            <th className="py-3 px-3 align-middle text-center w-20 whitespace-nowrap">
+                              Tồn kho
+                            </th>
+                            <th className="py-3 px-4 align-middle text-right whitespace-nowrap">
+                              Đơn giá
+                            </th>
+                            <th className="py-3 px-4 align-middle text-right whitespace-nowrap">
+                              Thành tiền
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selected.items.map((item) => {
+                            const isLowStock =
+                              item.sparePart.stock_quantity < item.quantity;
+                            return (
+                              <tr
+                                key={item.id}
+                                className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors"
+                              >
+                                <td className="py-3 px-4">
+                                  <span className="text-xs font-semibold text-slate-800 block truncate max-w-[200px]">
+                                    {item.sparePart.name}
+                                  </span>
+                                  <span className="text-[11px] text-slate-400">
+                                    {item.sparePart.sku}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 text-center text-xs font-semibold text-slate-700">
+                                  {item.quantity}
+                                </td>
+                                <td className="py-3 px-3 text-center">
+                                  <span
+                                    className={`text-xs font-bold ${isLowStock ? "text-rose-600" : "text-slate-700"}`}
+                                  >
+                                    {item.sparePart.stock_quantity}
+                                  </span>
+                                  {isLowStock && (
+                                    <span className="block text-[10px] font-semibold text-rose-500 mt-0.5">
+                                      Không đủ
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 text-right whitespace-nowrap text-xs text-slate-600 font-medium">
+                                  {formatPrice(item.unit_price)}
+                                </td>
+                                <td className="py-3 px-4 text-right whitespace-nowrap text-xs font-bold text-[#00285E]">
+                                  {formatPrice(item.amount)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  {hasLowStock && (
+                    <p className="flex items-center gap-1.5 text-xs text-rose-500 mt-2 px-1">
+                      <AlertCircle size={13} className="shrink-0" />
+                      Có phụ tùng không đủ tồn kho — chưa thể hoàn tất yêu cầu
+                      xuất kho này.
+                    </p>
+                  )}
+                </div>
+
+                {/* Ghi chú */}
+                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <StickyNote size={13} className="text-slate-400" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                       Ghi chú
                     </span>
-                    <p className="text-sm text-slate-600 bg-slate-50 rounded-xl px-4 py-3">
-                      {selected.note}
-                    </p>
                   </div>
-                )}
-
-                {/* Parts table */}
-                <div>
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">
-                    Phụ tùng cần xuất kho
-                  </span>
-                  <div className="border border-slate-100 rounded-xl overflow-hidden">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="bg-slate-50/70 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                          <th className="py-2.5 px-3">Phụ tùng</th>
-                          <th className="py-2.5 px-3 text-center">SL cần</th>
-                          <th className="py-2.5 px-3 text-center">Tồn kho</th>
-                          <th className="py-2.5 px-3 text-right">Đơn giá</th>
-                          <th className="py-2.5 px-3 text-right">
-                            Thành tiền
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selected.items.map((item) => {
-                          const isLowStock =
-                            item.sparePart.stock_quantity < item.quantity;
-                          return (
-                            <tr
-                              key={item.id}
-                              className="border-t border-slate-100"
-                            >
-                              <td className="py-2.5 px-3">
-                                <span className="text-sm font-bold text-slate-700 block">
-                                  {item.sparePart.name}
-                                </span>
-                                <span className="text-xs text-slate-400">
-                                  {item.sparePart.sku}
-                                </span>
-                              </td>
-                              <td className="py-2.5 px-3 text-center text-sm font-semibold text-slate-600">
-                                {item.quantity}
-                              </td>
-                              <td className="py-2.5 px-3 text-center">
-                                <span
-                                  className={`text-sm font-bold ${isLowStock ? "text-rose-600" : "text-emerald-600"}`}
-                                >
-                                  {item.sparePart.stock_quantity}
-                                </span>
-                                {isLowStock && (
-                                  <span className="block text-[10px] font-bold text-rose-500 mt-0.5">
-                                    Không đủ hàng
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-2.5 px-3 text-right text-sm font-semibold text-slate-600">
-                                {formatPrice(item.unit_price)}
-                              </td>
-                              <td className="py-2.5 px-3 text-right text-sm font-bold text-slate-800">
-                                {formatPrice(item.amount)}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                    {selected.note || "Không có ghi chú."}
+                  </p>
                 </div>
+              </div>
 
-                {/* Total */}
-                <div className="bg-slate-50 rounded-xl p-4 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-slate-500">
+              {/* Footer */}
+              <div className="flex items-center justify-between gap-3 px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
                     Tổng giá trị
                   </span>
-                  <span className="text-xl font-bold text-[#00285E]">
+                  <span className="text-lg font-bold text-[#00285E]">
                     {formatPrice(selected.total_amount)}
                   </span>
                 </div>
+                <button
+                  onClick={() => handleExportStock(selected)}
+                  disabled={hasLowStock || isExporting}
+                  className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-600/25 hover:shadow-emerald-600/40 hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100"
+                >
+                  {isExporting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Đang xuất kho...
+                    </>
+                  ) : (
+                    <>
+                      <PackageCheck size={16} />
+                      Xác nhận xuất kho
+                    </>
+                  )}
+                </button>
               </div>
             </motion.div>
           </div>

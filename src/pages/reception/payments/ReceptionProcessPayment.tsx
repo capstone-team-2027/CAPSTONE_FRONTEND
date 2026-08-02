@@ -196,11 +196,10 @@ export default function ReceptionProcessPayment() {
                       <button
                         key={order.id}
                         onClick={() => setSelectedOrderId(order.id)}
-                        className={`p-4 rounded-xl border-2 text-left transition-all flex flex-col gap-2 ${
-                          selectedOrderId === order.id
+                        className={`p-4 rounded-xl border-2 text-left transition-all flex flex-col gap-2 ${selectedOrderId === order.id
                             ? 'border-[#00285E] bg-[#E0ECFF]/20 shadow-sm'
                             : 'border-slate-200 bg-slate-50 hover:bg-slate-100/50'
-                        }`}
+                          }`}
                       >
                         <div className="flex justify-between items-center w-full">
                           <span className="text-sm font-extrabold text-[#00285E]">{order.id}</span>
@@ -338,11 +337,10 @@ export default function ReceptionProcessPayment() {
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('cash')}
-                        className={`p-3 rounded-xl border flex flex-col gap-1 items-center justify-center transition-all ${
-                          paymentMethod === 'cash'
+                        className={`p-3 rounded-xl border flex flex-col gap-1 items-center justify-center transition-all ${paymentMethod === 'cash'
                             ? 'border-[#00285E] bg-[#E0ECFF]/20 text-[#00285E] shadow-xs'
                             : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
+                          }`}
                       >
                         <Coins size={18} />
                         <span className="text-xs font-bold">Tiền mặt</span>
@@ -350,11 +348,10 @@ export default function ReceptionProcessPayment() {
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('card')}
-                        className={`p-3 rounded-xl border flex flex-col gap-1 items-center justify-center transition-all ${
-                          paymentMethod === 'card'
+                        className={`p-3 rounded-xl border flex flex-col gap-1 items-center justify-center transition-all ${paymentMethod === 'card'
                             ? 'border-[#00285E] bg-[#E0ECFF]/20 text-[#00285E] shadow-xs'
                             : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
+                          }`}
                       >
                         <CreditCard size={18} />
                         <span className="text-xs font-bold">Thẻ quẹt</span>
@@ -362,11 +359,10 @@ export default function ReceptionProcessPayment() {
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('transfer')}
-                        className={`p-3 rounded-xl border flex flex-col gap-1 items-center justify-center transition-all ${
-                          paymentMethod === 'transfer'
+                        className={`p-3 rounded-xl border flex flex-col gap-1 items-center justify-center transition-all ${paymentMethod === 'transfer'
                             ? 'border-[#00285E] bg-[#E0ECFF]/20 text-[#00285E] shadow-xs'
                             : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
+                          }`}
                       >
                         <Building size={18} />
                         <span className="text-xs font-bold">Chuyển khoản</span>
@@ -374,11 +370,10 @@ export default function ReceptionProcessPayment() {
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('ewallet')}
-                        className={`p-3 rounded-xl border flex flex-col gap-1 items-center justify-center transition-all ${
-                          paymentMethod === 'ewallet'
+                        className={`p-3 rounded-xl border flex flex-col gap-1 items-center justify-center transition-all ${paymentMethod === 'ewallet'
                             ? 'border-[#00285E] bg-[#E0ECFF]/20 text-[#00285E] shadow-xs'
                             : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
+                          }`}
                       >
                         <QrCode size={18} />
                         <span className="text-xs font-bold">Ví điện tử</span>

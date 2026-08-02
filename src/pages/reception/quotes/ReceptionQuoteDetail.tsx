@@ -170,10 +170,10 @@ export default function ReceptionQuoteDetail() {
       <div className="flex justify-between items-center">
         <button
           onClick={() => navigate('/reception/quotes')}
-          className="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors"
+          title="Quay lại"
+          className="w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
         >
-          <ArrowLeft size={16} />
-          <span>Quay lại danh sách</span>
+          <ArrowLeft size={24} />
         </button>
 
         <button

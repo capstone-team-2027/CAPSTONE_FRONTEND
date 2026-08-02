@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { 
+  ArrowLeft,
   CalendarDays, 
   ChevronLeft, 
   ChevronRight, 
@@ -8,6 +9,7 @@ import {
   Clock
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import type { RootState } from '../../../store/store';
 import type { UserModel } from '../../../model/User';
 import { useFetchClient } from '../../../hook/useFetchClient';
@@ -47,6 +49,7 @@ interface ShiftData {
 }
 
 export default function TechnicianMyShifts() {
+  const navigate = useNavigate();
   const { fetchPrivate } = useFetchClient();
   const user = useSelector((state: RootState) => state.user.user as UserModel | null);
   
@@ -116,14 +119,23 @@ export default function TechnicianMyShifts() {
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-            <CalendarDays className="text-[#00285E]" size={28} />
-            Lịch làm việc của tôi
-          </h1>
-          <p className="text-slate-500 mt-1 text-sm font-medium">
-            Xem lịch trực và khung giờ làm việc đã được phân công theo tuần.
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+              <CalendarDays className="text-[#00285E]" size={28} />
+              Lịch làm việc của tôi
+            </h1>
+            <p className="text-slate-500 mt-1 text-sm font-medium">
+              Xem lịch trực và khung giờ làm việc đã được phân công theo tuần.
+            </p>
+          </div>
         </div>
       </div>
 

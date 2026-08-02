@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Download, CheckCircle2, Eye, X, Calendar, User } from 'lucide-react';
+import ProfileSectionHeader from './ProfileSectionHeader';
 
 export interface HistoryItem {
     id: string;
@@ -91,14 +92,10 @@ export default function HistoryTab() {
             className="space-y-6 text-left"
         >
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h2 className="text-2xl font-display font-bold text-brand-blue tracking-tight">
-                        {t('history.title', 'Lịch Sử Sửa Chữa')}
-                    </h2>
-                    <p className="text-xs text-gray-500 mt-1">
-                        {t('history.description', 'Xem lại lịch sử sửa chữa, bảo dưỡng và các hóa đơn dịch vụ của bạn.')}
-                    </p>
-                </div>
+                <ProfileSectionHeader
+                    title={t('history.title', 'Lịch Sử Sửa Chữa')}
+                    description={t('history.description', 'Xem lại lịch sử sửa chữa, bảo dưỡng và các hóa đơn dịch vụ của bạn.')}
+                />
             </div>
 
             {/* Invoices Table */}
