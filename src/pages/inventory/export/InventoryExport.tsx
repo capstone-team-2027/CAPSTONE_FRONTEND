@@ -22,6 +22,14 @@ const formatPrice = (v: number | string) =>
   Number(v).toLocaleString("vi-VN") + " VND";
 
 const formatDate = (d: string) => new Date(d).toLocaleDateString("vi-VN");
+const formatDateTime = (d: string) =>
+  new Date(d).toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
 // 1 phiếu xuất đã gom theo receipt_code (GET /export)
 interface ExportReceipt {
@@ -30,6 +38,9 @@ interface ExportReceipt {
   item_count: number;
   total_amount: number;
   manager_name: string;
+  technician_name: string | null;
+  signature_method: string | null;
+  signed_at: string | null;
 }
 
 // 1 dòng phụ tùng trong phiếu (GET /export/:receiptCode)
@@ -39,7 +50,12 @@ interface ExportDetailLine {
   createdAt: string;
   quantity: number;
   unit_price: number;
+  signature_method: string | null;
+  proof_image_url: string | null;
+  received_at: string | null;
   part: { sku: string; name: string };
+  receiver: { id: number; fullName: string | null } | null;
+  manager: { id: number; fullName: string | null } | null;
 }
 
 const lineTotal = (r: ExportDetailLine) => r.quantity * Number(r.unit_price);
@@ -221,6 +237,7 @@ export default function InventoryExport() {
                 <th className="py-4 px-4">Ngày xuất</th>
                 <th className="py-4 px-4">Số phụ tùng</th>
                 <th className="py-4 px-4">Tổng giá trị</th>
+                <th className="py-4 px-4">Ký nhận</th>
                 <th className="py-4 px-6">Thao tác</th>
               </tr>
             </thead>
@@ -228,7 +245,7 @@ export default function InventoryExport() {
               {pageItems.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="py-14 text-center text-slate-400 text-sm"
                   >
                     Không tìm thấy phiếu xuất phù hợp...
@@ -263,6 +280,17 @@ export default function InventoryExport() {
                     </td>
                     <td className="py-4 px-4 text-sm font-bold text-slate-800">
                       {formatPrice(r.total_amount)}
+                    </td>
+                    <td className="py-4 px-4">
+                      {r.signature_method ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 whitespace-nowrap">
+                          Đã ký · {r.technician_name || "KTV"}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200 whitespace-nowrap">
+                          Chưa ký
+                        </span>
+                      )}
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex justify-start">
@@ -381,6 +409,45 @@ export default function InventoryExport() {
                       {formatDate(selected.exported_at)}
                     </span>
                   </div>
+                </div>
+
+                {/* Ký nhận */}
+                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
+                    Ký nhận
+                  </span>
+                  {(() => {
+                    const signedLine = detailLines.find((line) => line.proof_image_url);
+                    if (!signedLine) {
+                      return (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+                          Chưa ký nhận
+                        </span>
+                      );
+                    }
+                    return (
+                      <div className="flex items-start gap-4">
+                        <img
+                          src={signedLine.proof_image_url ?? undefined}
+                          alt="Chữ ký kỹ thuật viên"
+                          className="w-40 h-24 object-contain border border-slate-200 rounded-lg bg-slate-50"
+                        />
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-slate-800">
+                            {signedLine.receiver?.fullName || selected.technician_name || "—"}
+                          </p>
+                          {signedLine.received_at && (
+                            <p className="text-xs text-slate-400">
+                              Ký lúc {formatDateTime(signedLine.received_at)}
+                            </p>
+                          )}
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+                            Ký điện tử
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Phụ tùng đã xuất */}

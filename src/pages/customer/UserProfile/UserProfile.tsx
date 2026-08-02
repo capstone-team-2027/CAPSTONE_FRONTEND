@@ -33,7 +33,7 @@ const MENU_ITEMS = [
     { id: 'dashboard', label: 'Hồ sơ người dùng', icon: LayoutDashboard },
     { id: 'quoteTracking', label: 'Theo dõi báo giá', icon: ReceiptText },
     { id: 'appointments', label: 'Lịch hẹn', icon: Calendar },
-    { id: 'history', label: 'Lịch sử sửa chữa', icon: History },
+    { id: 'history', label: 'Lịch sử dịch vụ', icon: History },
     { id: 'warranty', label: 'Bảo hành', icon: ShieldCheck },
     { id: 'tracking', label: 'Theo dõi', icon: Clock },
     { id: 'map', label: 'Bản đồ', icon: MapPin },
@@ -280,7 +280,7 @@ export default function UserProfile() {
     };
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto font-sans">
+        <div className="min-h-screen bg-[#F8FAFC] py-8 px-4 sm:px-6 lg:px-8 max-w-[1600px] mx-auto font-sans">
             {/* TOAST */}
             <AnimatePresence>
                 {showToast && (

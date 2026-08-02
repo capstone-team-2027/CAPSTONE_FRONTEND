@@ -33,7 +33,7 @@ export default function Footer() {
                         <div className="lg:col-span-5">
                             <Link to="/" className="flex items-center gap-3 mb-8">
                                 <div className="w-11 h-11 p-2 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: COLORS.navy }}>
-                                    <img src="/images/logo.png" alt="Logo" className="w-full h-full object-contain" />
+                                    <img src="/images/logo1.png" alt="Logo" className="w-full h-full object-contain" />
                                 </div>
                                 <span className="text-2xl font-bold font-display tracking-tighter uppercase"
                                     style={{ color: COLORS.navy }}>

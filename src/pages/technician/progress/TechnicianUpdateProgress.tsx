@@ -230,7 +230,7 @@ export default function TechnicianUpdateProgress() {
 
       {/* HERO: thông tin xe + tiến độ tổng */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
-        <div className="p-6 pb-5">
+        <div className="p-4 sm:p-6 pb-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Khách hàng */}
             <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
@@ -284,8 +284,8 @@ export default function TechnicianUpdateProgress() {
         </div>
 
         {/* Tiến độ tổng */}
-        <div className="px-6 py-5 border-t border-slate-100 bg-slate-50/40">
-          <div className="flex items-baseline justify-between gap-4 mb-2.5">
+        <div className="px-4 sm:px-6 py-5 border-t border-slate-100 bg-slate-50/40">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 sm:gap-4 mb-2.5">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
               Tiến độ tổng quan
             </span>
@@ -309,7 +309,7 @@ export default function TechnicianUpdateProgress() {
 
       {/* DANH SÁCH CÔNG VIỆC */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-2">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
             Danh sách công việc
           </span>
@@ -326,7 +326,7 @@ export default function TechnicianUpdateProgress() {
             return (
               <div
                 key={task.id}
-                className="flex items-center gap-3 px-6 py-4 hover:bg-slate-50/70 transition-colors"
+                className="flex flex-wrap sm:flex-nowrap items-center gap-3 px-4 sm:px-6 py-4 hover:bg-slate-50/70 transition-colors"
               >
                 {/* Chấm trạng thái */}
                 <span
@@ -334,7 +334,7 @@ export default function TechnicianUpdateProgress() {
                   style={{ backgroundColor: statusOpt.color }}
                 />
 
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 basis-full sm:basis-auto">
                   <p className="font-semibold text-sm truncate text-slate-800">
                     {task.name}
                   </p>
@@ -350,7 +350,7 @@ export default function TechnicianUpdateProgress() {
                   ) : null}
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
                   <span
                     className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold"
                     style={{ backgroundColor: statusOpt.bg, color: statusOpt.color }}
@@ -362,7 +362,7 @@ export default function TechnicianUpdateProgress() {
                       onClick={() => completeTask(task)}
                       disabled={isSending}
                       title="Đánh dấu hoàn thành"
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 active:scale-[0.97] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 active:scale-[0.97] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSending ? (
                         <Loader2 size={13} className="animate-spin" />

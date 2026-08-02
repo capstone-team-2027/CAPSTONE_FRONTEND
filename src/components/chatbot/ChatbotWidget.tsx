@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MessageCircle, X, Send, Bot, User, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useFetchClient_v2 } from '../../hook/useFetchClient';
 import { COLORS } from '../share/Color';
 
@@ -11,12 +12,13 @@ type Message = {
 };
 
 export default function ChatbotWidget() {
+    const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([
         {
             id: '1',
             role: 'model',
-            content: 'Chào bạn! Mình là trợ lý ảo của Gara. Bạn cần hỗ trợ thông tin gì về dịch vụ, bảo hành hay cứu hộ không?'
+            content: t('chatbot.greeting', 'Chào bạn! Mình là trợ lý ảo của Gara. Bạn cần hỗ trợ thông tin gì về dịch vụ, bảo hành hay cứu hộ không?')
         }
     ]);
     const [inputText, setInputText] = useState('');
@@ -67,7 +69,7 @@ export default function ChatbotWidget() {
                 setMessages(prev => [...prev, {
                     id: (Date.now() + 1).toString(),
                     role: 'model',
-                    content: response.data.reply || response.data.answer || "Không có nội dung trả về."
+                    content: response.data.reply || response.data.answer || t('chatbot.noReply', 'Không có nội dung trả về.')
                 }]);
                 // Cập nhật lại context mới từ server trả về
                 if (response.data.context) {
@@ -79,7 +81,7 @@ export default function ChatbotWidget() {
             setMessages(prev => [...prev, {
                 id: (Date.now() + 1).toString(),
                 role: 'model',
-                content: 'Xin lỗi, hệ thống đang bận. Bạn vui lòng thử lại sau nhé!'
+                content: t('chatbot.errorReply', 'Xin lỗi, hệ thống đang bận. Bạn vui lòng thử lại sau nhé!')
             }]);
         } finally {
             setIsLoading(false);
@@ -107,10 +109,10 @@ export default function ChatbotWidget() {
                                     <Bot className="w-6 h-6 text-[#F9A11B]" />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-base leading-tight">Gara Assistant</h3>
+                                    <h3 className="font-bold text-base leading-tight">{t('chatbot.title', 'Gara Assistant')}</h3>
                                     <span className="text-xs text-white/70 flex items-center gap-1">
                                         <span className="w-2 h-2 rounded-full bg-green-400"></span>
-                                        Luôn sẵn sàng hỗ trợ
+                                        {t('chatbot.subtitle', 'Luôn sẵn sàng hỗ trợ')}
                                     </span>
                                 </div>
                             </div>
@@ -176,7 +178,7 @@ export default function ChatbotWidget() {
                                     type="text"
                                     value={inputText}
                                     onChange={(e) => setInputText(e.target.value)}
-                                    placeholder="Nhập câu hỏi của bạn..."
+                                    placeholder={t('chatbot.inputPlaceholder', 'Nhập câu hỏi của bạn...')}
                                     className="flex-1 bg-transparent border-none outline-none text-[14px] text-gray-700 py-1.5 px-2"
                                     disabled={isLoading}
                                 />

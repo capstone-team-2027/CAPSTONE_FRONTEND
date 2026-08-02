@@ -39,9 +39,10 @@ export interface AppointmentItem {
   price: number;
   status: 'PENDING' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   notes?: string;
-  bay: string;
-  advisor: string;
-  booking_type: 'SPECIFIC' | 'CONSULTATION';
+  // Giá trị thật của BE: CUSTOMER_SPECIFIC | CUSTOMER_REPAIR | RECEPTIONIST_SPECIFIC | RECEPTIONIST_REPAIR | CONSULTATION
+  booking_type: string;
+  // Nhóm hiển thị: mọi loại đặt lịch có dịch vụ cụ thể (*_SPECIFIC, *_REPAIR) đều là SERVICE
+  displayType: 'SERVICE' | 'CONSULTATION';
 }
 
 export default function AppointmentsTab() {
@@ -53,7 +54,7 @@ export default function AppointmentsTab() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [bookingTypeFilter, setBookingTypeFilter] = useState<'SPECIFIC' | 'CONSULTATION'>('SPECIFIC');
+  const [bookingTypeFilter, setBookingTypeFilter] = useState<'SERVICE' | 'CONSULTATION'>('SERVICE');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedAppt, setSelectedAppt] = useState<AppointmentItem | null>(null);
@@ -102,31 +103,31 @@ export default function AppointmentsTab() {
           const hasCombo = appt.appointmentDetails?.some((d: any) => d.combo);
           const hasCatalog = appt.appointmentDetails?.some((d: any) => d.catalog);
 
-          const serviceCategory = appt.booking_type === 'CONSULTATION'
-            ? 'Yêu cầu tư vấn'
-            : (hasCombo && hasCatalog)
-              ? 'Combo & Dịch vụ lẻ'
-              : hasCombo
-                ? 'Gói dịch vụ (Combo)'
-                : 'Dịch vụ lẻ';
+          // BE lưu booking_type thật là CUSTOMER_SPECIFIC/CUSTOMER_REPAIR/RECEPTIONIST_SPECIFIC/
+          // RECEPTIONIST_REPAIR/CONSULTATION — mọi loại không phải CONSULTATION đều là đặt dịch vụ
+          const displayType: 'SERVICE' | 'CONSULTATION' =
+            appt.booking_type === 'CONSULTATION' ? 'CONSULTATION' : 'SERVICE';
 
-          // Estimate price if not in DB
+          const serviceCategory = displayType === 'CONSULTATION'
+            ? t('appointments.consultationRequestLabel', 'Yêu cầu tư vấn')
+            : (hasCombo && hasCatalog)
+              ? t('appointments.comboAndSingle', 'Combo & Dịch vụ lẻ')
+              : hasCombo
+                ? t('appointments.comboPackageLabel', 'Gói dịch vụ (Combo)')
+                : t('appointments.singleServiceBadge', 'Dịch vụ lẻ');
+
+          // Tính tổng giá thật từ labor_price của dịch vụ/combo (BE đã include)
           let price = 0;
-          if (appt.booking_type === 'SPECIFIC') {
-            const priceMap: Record<number, number> = {
-              1: 500000,
-              2: 1200000,
-              3: 400000,
-              4: 800000,
-              5: 300000,
-              6: 0
-            };
+          if (displayType === 'SERVICE') {
             appt.appointmentDetails?.forEach((d: any) => {
-              if (d.catalog_id) {
-                price += priceMap[d.catalog_id] ?? 300000;
+              if (d.catalog) {
+                price += Number(d.catalog.labor_price) || 0;
               }
-              if (d.combo_id) {
-                price += 1500000; // default combo price fallback
+              if (d.combo) {
+                price += (d.combo.catalogs || []).reduce(
+                  (sum: number, c: any) => sum + (Number(c.labor_price) || 0),
+                  0,
+                );
               }
             });
           }
@@ -140,24 +141,23 @@ export default function AppointmentsTab() {
             vehiclePlate,
             vehicleImage: appt.vehicleImage || 'https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=200&q=80',
             serviceCategory,
-            serviceItems: serviceItems.length > 0 ? serviceItems : (appt.booking_type === 'CONSULTATION' ? ['Hỗ trợ tư vấn kỹ thuật'] : ['Khác']),
+            serviceItems: serviceItems.length > 0 ? serviceItems : (displayType === 'CONSULTATION' ? [t('appointments.supportRequest', 'Hỗ trợ tư vấn kỹ thuật')] : [t('appointments.other', 'Khác')]),
             comboItems,
             catalogItems,
             price,
             status: appt.status,
             notes: appt.notes,
-            bay: appt.bay || 'Đang sắp xếp',
-            advisor: appt.advisor || 'Đang phân phối',
-            booking_type: appt.booking_type
+            booking_type: appt.booking_type,
+            displayType
           };
         });
         setAppointments(mapped);
       } else {
-        setError("Không thể lấy danh sách lịch hẹn.");
+        setError(t('appointments.loadError', 'Không thể lấy danh sách lịch hẹn.'));
       }
     } catch (err: any) {
       console.error("Lỗi khi tải lịch hẹn:", err);
-      setError(err.message || "Đã xảy ra lỗi khi kết nối với máy chủ.");
+      setError(err.message || t('appointments.loadErrorConnection', 'Đã xảy ra lỗi khi kết nối với máy chủ.'));
     } finally {
       setIsLoading(false);
     }
@@ -178,11 +178,11 @@ export default function AppointmentsTab() {
             setSelectedAppt(null);
           }
         } else {
-          alert(response.message || "Không thể hủy lịch hẹn.");
+          alert(response.message || t('appointments.cancelFail', 'Không thể hủy lịch hẹn.'));
         }
       } catch (err: any) {
         console.error("Lỗi khi hủy lịch hẹn:", err);
-        alert(err.message || "Đã xảy ra lỗi khi hủy lịch hẹn.");
+        alert(err.message || t('appointments.cancelError', 'Đã xảy ra lỗi khi hủy lịch hẹn.'));
       }
     }
   };
@@ -224,15 +224,15 @@ export default function AppointmentsTab() {
 
   // Filter lists & counts based on selected booking type
   const currentAppointments = useMemo(() => {
-    return appointments.filter(appt => appt.booking_type === bookingTypeFilter);
+    return appointments.filter(appt => appt.displayType === bookingTypeFilter);
   }, [appointments, bookingTypeFilter]);
 
   const serviceAppointments = useMemo(() => {
-    return appointments.filter(appt => appt.booking_type === 'SPECIFIC');
+    return appointments.filter(appt => appt.displayType === 'SERVICE');
   }, [appointments]);
 
   const supportAppointments = useMemo(() => {
-    return appointments.filter(appt => appt.booking_type === 'CONSULTATION');
+    return appointments.filter(appt => appt.displayType === 'CONSULTATION');
   }, [appointments]);
 
   const filteredAppointments = useMemo(() => {
@@ -287,15 +287,15 @@ export default function AppointmentsTab() {
         <button
           type="button"
           onClick={() => {
-            setBookingTypeFilter('SPECIFIC');
+            setBookingTypeFilter('SERVICE');
             setSelectedStatus('ALL');
           }}
-          className={`px-5 py-3 text-xs font-bold transition-all border-b-2 relative ${bookingTypeFilter === 'SPECIFIC'
+          className={`px-5 py-3 text-xs font-bold transition-all border-b-2 relative ${bookingTypeFilter === 'SERVICE'
             ? 'text-brand-orange border-brand-orange'
             : 'text-gray-400 border-transparent hover:text-brand-blue'
             }`}
         >
-          <span>Lịch đặt dịch vụ</span>
+          <span>{t('appointments.serviceBookingsTab', 'Lịch đặt dịch vụ')}</span>
           {serviceAppointments.length > 0 && (
             <span className="ml-1.5 px-1.5 py-0.5 text-[9px] bg-slate-100 text-slate-600 rounded-full font-bold">
               {serviceAppointments.length}
@@ -313,7 +313,7 @@ export default function AppointmentsTab() {
             : 'text-gray-400 border-transparent hover:text-brand-blue'
             }`}
         >
-          <span>Lịch đặt hỗ trợ</span>
+          <span>{t('appointments.supportBookingsTab', 'Lịch đặt hỗ trợ')}</span>
           {supportAppointments.length > 0 && (
             <span className="ml-1.5 px-1.5 py-0.5 text-[9px] bg-slate-100 text-slate-600 rounded-full font-bold">
               {supportAppointments.length}
@@ -373,7 +373,7 @@ export default function AppointmentsTab() {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-gray-100 shadow-xs">
           <div className="w-10 h-10 border-4 border-brand-orange border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-xs text-gray-400 mt-4">Đang tải lịch hẹn...</span>
+          <span className="text-xs text-gray-400 mt-4">{t('appointments.loading', 'Đang tải lịch hẹn...')}</span>
         </div>
       ) : error ? (
         <div className="flex flex-col items-center justify-center py-16 bg-white rounded-3xl border border-gray-100 shadow-xs text-center px-4">
@@ -381,7 +381,7 @@ export default function AppointmentsTab() {
             <AlertCircle className="w-8 h-8 opacity-80" />
           </div>
           <h3 className="font-bold text-sm text-brand-blue">
-            Không thể tải danh sách lịch hẹn
+            {t('appointments.loadErrorTitle', 'Không thể tải danh sách lịch hẹn')}
           </h3>
           <p className="text-xs text-gray-400 mt-1 max-w-xs">
             {error}
@@ -390,7 +390,7 @@ export default function AppointmentsTab() {
             onClick={loadAppointments}
             className="mt-5 px-5 py-2 bg-brand-blue text-white rounded-xl text-xs font-bold shadow-md hover:bg-brand-blue/95 transition-all cursor-pointer"
           >
-            Thử lại
+            {t('appointments.retry', 'Thử lại')}
           </button>
         </div>
       ) : filteredAppointments.length === 0 ? (
@@ -404,16 +404,16 @@ export default function AppointmentsTab() {
           <p className="text-xs text-gray-400 mt-1 max-w-xs">
             {searchQuery
               ? t('appointments.noSearchQueryResults', 'Thử thay đổi từ khóa hoặc điều kiện lọc của bạn.')
-              : bookingTypeFilter === 'SPECIFIC'
-                ? 'Bạn chưa có lịch đặt dịch vụ nào tại Gara của chúng tôi.'
-                : 'Bạn chưa có lịch đặt hỗ trợ, tư vấn nào.'}
+              : bookingTypeFilter === 'SERVICE'
+                ? t('appointments.noServiceBookings', 'Bạn chưa có lịch đặt dịch vụ nào tại Gara của chúng tôi.')
+                : t('appointments.noSupportBookings', 'Bạn chưa có lịch đặt hỗ trợ, tư vấn nào.')}
           </p>
           {!searchQuery && (
             <button
               onClick={() => navigate('/phone-service')}
               className="mt-5 px-5 py-2 bg-brand-blue text-white rounded-xl text-xs font-bold shadow-md hover:bg-brand-blue/95 transition-all cursor-pointer"
             >
-              {bookingTypeFilter === 'SPECIFIC' ? t('appointments.bookNowLink', 'Đặt lịch hẹn ngay') : 'Yêu cầu hỗ trợ ngay'}
+              {bookingTypeFilter === 'SERVICE' ? t('appointments.bookNowLink', 'Đặt lịch hẹn ngay') : t('appointments.requestSupportNow', 'Yêu cầu hỗ trợ ngay')}
             </button>
           )}
         </div>
@@ -453,8 +453,8 @@ export default function AppointmentsTab() {
                   </span>
                 </div>
 
-                {/* Middle Vehicle & Service for SPECIFIC */}
-                {appt.booking_type === 'SPECIFIC' && (
+                {/* Middle Vehicle & Service for SERVICE */}
+                {appt.displayType === 'SERVICE' && (
                   <div className="flex gap-4 items-center bg-slate-50/70 p-3 rounded-xl border border-slate-100 mb-4">
                     <div className="w-16 h-12 rounded-lg overflow-hidden bg-gray-900 shrink-0 shadow-inner">
                       <img src={appt.vehicleImage} alt={appt.vehicleName} className="w-full h-full object-cover" />
@@ -474,16 +474,16 @@ export default function AppointmentsTab() {
                 )}
 
                 {/* Middle Support Query for CONSULTATION */}
-                {appt.booking_type === 'CONSULTATION' && (
+                {appt.displayType === 'CONSULTATION' && (
                   <div className="bg-amber-50/30 p-3.5 rounded-xl border border-amber-100/30 mb-4 text-xs text-left">
                     <div className="font-bold text-brand-blue flex items-center gap-1.5 mb-1.5">
                       <AlertCircle className="w-4 h-4 text-brand-orange" />
-                      Yêu cầu tư vấn hỗ trợ
+                      {t('appointments.supportRequestLabel', 'Yêu cầu tư vấn hỗ trợ')}
                     </div>
                     {appt.notes ? (
                       <p className="text-slate-600 line-clamp-2 italic">"{appt.notes}"</p>
                     ) : (
-                      <p className="text-gray-400 italic">Không có ghi chú chi tiết.</p>
+                      <p className="text-gray-400 italic">{t('appointments.noDetailedNotes', 'Không có ghi chú chi tiết.')}</p>
                     )}
                   </div>
                 )}
@@ -492,10 +492,10 @@ export default function AppointmentsTab() {
                 <div className="flex justify-between items-center border-t border-gray-100 pt-4 mt-auto">
                   <div className="flex flex-col text-left">
                     <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">
-                      {appt.booking_type === 'CONSULTATION' ? 'Chi phí tư vấn' : t('appointments.estCost', 'Chi phí ước tính')}
+                      {appt.displayType === 'CONSULTATION' ? t('appointments.consultationCost', 'Chi phí tư vấn') : t('appointments.estCost', 'Chi phí ước tính')}
                     </span>
                     <span className="font-mono font-bold text-sm text-brand-blue mt-0.5">
-                      {appt.booking_type === 'CONSULTATION' ? 'Miễn phí' : `${appt.price.toLocaleString()}đ`}
+                      {appt.displayType === 'CONSULTATION' ? t('appointments.free', 'Miễn phí') : `${appt.price.toLocaleString()}đ`}
                     </span>
                   </div>
 
@@ -574,7 +574,7 @@ export default function AppointmentsTab() {
                   </span>
                 </div>
 
-                {/* Timing & Bay Location */}
+                {/* Timing & Booking Code */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100/50 space-y-1">
                     <span className="text-[10px] text-gray-400 font-bold block">{t('appointments.apptTime', 'Thời gian hẹn')}</span>
@@ -586,17 +586,16 @@ export default function AppointmentsTab() {
                   </div>
 
                   <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100/50 space-y-1">
-                    <span className="text-[10px] text-gray-400 font-bold block">{t('appointments.apptBay', 'Khoang phục vụ')}</span>
+                    <span className="text-[10px] text-gray-400 font-bold block">{t('appointments.apptCode', 'Mã lịch hẹn')}</span>
                     <span className="font-bold text-brand-blue flex items-center gap-1 mt-0.5">
                       <MapPin className="w-3.5 h-3.5 text-brand-orange" />
-                      {selectedAppt.bay}
+                      {selectedAppt.id}
                     </span>
-                    <span className="text-[10px] text-slate-500 font-semibold block">{selectedAppt.advisor} (Cố vấn)</span>
                   </div>
                 </div>
 
                 {/* Vehicle Section */}
-                {selectedAppt.booking_type === 'SPECIFIC' && selectedAppt.vehiclePlate !== 'N/A' && (
+                {selectedAppt.displayType === 'SERVICE' && selectedAppt.vehiclePlate !== 'N/A' && (
                   <div className="space-y-2">
                     <h4 className="text-[10px] font-bold text-brand-blue uppercase tracking-wider">
                       {t('appointments.apptVehicle', 'Phương tiện đăng ký')}
@@ -617,7 +616,7 @@ export default function AppointmentsTab() {
                 )}
 
                 {/* Service Items Section */}
-                {selectedAppt.booking_type === 'SPECIFIC' && (
+                {selectedAppt.displayType === 'SERVICE' && (
                   <div className="space-y-2.5">
                     <div className="flex justify-between items-center">
                       <h4 className="text-[10px] font-bold text-brand-blue uppercase tracking-wider">
@@ -629,7 +628,7 @@ export default function AppointmentsTab() {
                       {selectedAppt.comboItems && selectedAppt.comboItems.length > 0 && selectedAppt.comboItems.map((item, idx) => (
                         <div key={`combo-${idx}`} className="p-3 bg-white hover:bg-slate-50/50 flex flex-col items-start gap-1 font-medium text-slate-700 text-left">
                           <div className="flex items-center gap-2">
-                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-purple-100 text-purple-600 uppercase tracking-widest shrink-0">Combo</span>
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-purple-100 text-purple-600 uppercase tracking-widest shrink-0">{t('appointments.comboBadge', 'Combo')}</span>
                             <span>{item.name}</span>
                           </div>
                           {item.services && item.services.length > 0 && (
@@ -645,7 +644,7 @@ export default function AppointmentsTab() {
                       ))}
                       {selectedAppt.catalogItems && selectedAppt.catalogItems.length > 0 && selectedAppt.catalogItems.map((item, idx) => (
                         <div key={`catalog-${idx}`} className="p-3 bg-white hover:bg-slate-50/50 flex items-center gap-2 font-medium text-slate-700 text-left">
-                          <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-brand-orange/10 text-brand-orange uppercase tracking-widest shrink-0">Dịch vụ lẻ</span>
+                          <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-brand-orange/10 text-brand-orange uppercase tracking-widest shrink-0">{t('appointments.singleServiceBadge', 'Dịch vụ lẻ')}</span>
                           <span>{item}</span>
                         </div>
                       ))}
@@ -663,7 +662,7 @@ export default function AppointmentsTab() {
                 {selectedAppt.notes && (
                   <div className="space-y-2">
                     <h4 className="text-[10px] font-bold text-brand-blue uppercase tracking-wider">
-                      {selectedAppt.booking_type === 'CONSULTATION' ? 'Nội dung yêu cầu tư vấn' : t('appointments.apptNotes', 'Ghi chú kỹ thuật / Yêu cầu')}
+                      {selectedAppt.displayType === 'CONSULTATION' ? t('appointments.consultationContent', 'Nội dung yêu cầu tư vấn') : t('appointments.apptNotes', 'Ghi chú kỹ thuật / Yêu cầu')}
                     </h4>
                     <div className="p-3.5 bg-amber-50/40 rounded-xl border border-amber-100/50 text-slate-600 leading-relaxed italic text-[11px] text-left">
                       "{selectedAppt.notes}"
@@ -674,10 +673,10 @@ export default function AppointmentsTab() {
                 {/* Total Cost Breakdown */}
                 <div className="border-t border-slate-100 pt-4 flex justify-between items-center">
                   <span className="font-bold text-brand-blue text-xs">
-                    {selectedAppt.booking_type === 'CONSULTATION' ? 'CHI PHÍ TƯ VẤN:' : t('appointments.apptTotal', 'TỔNG CHI PHÍ ƯỚC TÍNH:')}
+                    {selectedAppt.displayType === 'CONSULTATION' ? t('appointments.consultationCostLabel', 'CHI PHÍ TƯ VẤN:') : t('appointments.apptTotal', 'TỔNG CHI PHÍ ƯỚC TÍNH:')}
                   </span>
                   <span className="text-base font-mono font-bold text-brand-orange">
-                    {selectedAppt.booking_type === 'CONSULTATION' ? 'Miễn phí' : `${selectedAppt.price.toLocaleString()}đ`}
+                    {selectedAppt.displayType === 'CONSULTATION' ? t('appointments.free', 'Miễn phí') : `${selectedAppt.price.toLocaleString()}đ`}
                   </span>
                 </div>
               </div>

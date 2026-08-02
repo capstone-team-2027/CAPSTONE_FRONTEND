@@ -222,7 +222,7 @@ export default function TechnicianLayout() {
         </div>
         <button
           onClick={() => setIsMobileSidebarOpen(false)}
-          className="md:hidden p-1 rounded-lg hover:bg-slate-100 text-[#00285E] transition-colors"
+          className="lg:hidden p-1 rounded-lg hover:bg-slate-100 text-[#00285E] transition-colors"
         >
           <X size={20} />
         </button>
@@ -301,7 +301,7 @@ export default function TechnicianLayout() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F4F7F6] font-sans antialiased text-slate-800 flex flex-col md:flex-row relative">
+    <div className="min-h-screen bg-[#F4F7F6] font-sans antialiased text-slate-800 flex flex-col lg:flex-row relative">
       {/* Dynamic Toast Notifications */}
       <AnimatePresence>
         {toastMessage && (
@@ -326,7 +326,7 @@ export default function TechnicianLayout() {
       </AnimatePresence>
 
       {/* MOBILE HEADER BAR */}
-      <header className="md:hidden bg-white px-4 py-3 flex items-center justify-between border-b border-slate-100 shadow-sm z-30 sticky top-0">
+      <header className="lg:hidden bg-white px-4 py-3 flex items-center justify-between border-b border-slate-100 shadow-sm z-30 sticky top-0">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsMobileSidebarOpen(true)}
@@ -340,7 +340,21 @@ export default function TechnicianLayout() {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1 border border-slate-200 rounded-full p-0.5 bg-slate-50 select-none shrink-0">
+            <button
+              onClick={() => i18n.changeLanguage('vi')}
+              className={`px-2 py-1 text-[10px] font-bold rounded-full transition-all ${i18n.language === 'vi' ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              VI
+            </button>
+            <button
+              onClick={() => i18n.changeLanguage('en')}
+              className={`px-2 py-1 text-[10px] font-bold rounded-full transition-all ${i18n.language.startsWith('en') ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              EN
+            </button>
+          </div>
           <div className="relative">
             <button
               onClick={() => setIsNotificationOpen(!isNotificationOpen)}
@@ -361,7 +375,7 @@ export default function TechnicianLayout() {
                   className="fixed inset-0 z-40"
                   onClick={() => setIsNotificationOpen(false)}
                 ></div>
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden flex flex-col max-h-[80vh]">
+                <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-[320px] bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden flex flex-col max-h-[80vh]">
                   <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                     <h3 className="font-bold text-slate-800">Thông báo</h3>
                     {unreadCount > 0 && (
@@ -411,17 +425,25 @@ export default function TechnicianLayout() {
               </>
             )}
           </div>
+          <div className="hidden sm:flex flex-col text-right min-w-0 max-w-none">
+            <span className="font-bold text-slate-800 text-xs sm:text-sm tracking-tight leading-tight truncate">
+              {displayName}
+            </span>
+            <span className="text-[10px] text-slate-400 font-semibold tracking-wide uppercase truncate">
+              {displayRole}
+            </span>
+          </div>
           <img
             src={avatarUrl}
             alt="Technician Profile"
-            className="w-9 h-9 rounded-full object-cover border border-slate-200"
+            className="w-9 h-9 rounded-full object-cover border border-slate-200 shrink-0"
           />
         </div>
       </header>
 
       {/* SIDEBAR ON DESKTOP */}
       <aside
-        className="fixed inset-y-0 left-0 bg-[#EDF3FF] border-r border-[#D2E2FF] w-72 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:sticky md:h-screen md:flex md:flex-col shrink-0 hidden md:block"
+        className="fixed inset-y-0 left-0 bg-[#EDF3FF] border-r border-[#D2E2FF] w-72 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out z-40 lg:sticky lg:h-screen lg:flex lg:flex-col shrink-0 hidden lg:block"
         style={{ height: "100vh" }}
       >
         <SidebarContent />
@@ -429,7 +451,7 @@ export default function TechnicianLayout() {
 
       {/* MOBILE DRAWER SIDEBAR */}
       {isMobileSidebarOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
+        <div className="fixed inset-0 z-50 lg:hidden flex">
           <div
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"
             onClick={() => setIsMobileSidebarOpen(false)}
@@ -443,7 +465,7 @@ export default function TechnicianLayout() {
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col min-w-0 pb-16">
         {/* DESKTOP HEADER BAR */}
-        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-25">
+        <header className="hidden lg:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-25">
           {/* Search bar */}
 
 
@@ -486,7 +508,7 @@ export default function TechnicianLayout() {
                       className="fixed inset-0 z-40"
                       onClick={() => setIsNotificationOpen(false)}
                     ></div>
-                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden flex flex-col max-h-[80vh]">
+                    <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-[320px] bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden flex flex-col max-h-[80vh]">
                       <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                         <h3 className="font-bold text-slate-800">Thông báo</h3>
                         {unreadCount > 0 && (

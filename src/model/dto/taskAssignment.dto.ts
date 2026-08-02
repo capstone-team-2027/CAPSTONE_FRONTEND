@@ -116,3 +116,25 @@ export interface PauseTaskRequest {
 export interface ResumeTaskRequest {
     taskAssignmentId: string | number;
 }
+
+// ===== Yêu cầu xuất kho phụ tùng (Requestable parts / Request export) =====
+
+export interface RequestablePartSparePart {
+    id: number;
+    sku: string | null;
+    name: string;
+    brand?: string | null;
+    stock_quantity?: number | null;
+}
+
+export interface RequestablePartItem {
+    id: number;
+    quantity: number;
+    unit_price?: number | string | null;
+    amount?: number | string | null;
+    sparePart: RequestablePartSparePart | null;
+}
+
+export interface RequestExportRequest {
+    detailIds: number[];
+}

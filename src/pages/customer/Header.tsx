@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Menu, X, Home, Wrench, Cpu, Phone, User, Check, Trash2, Info, AlertTriangle } from 'lucide-react';
+import { Bell, Menu, X, Home, Wrench, Newspaper, Phone, User, Check, Trash2, Info, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import Logo from '../../components/share/Logo';
@@ -19,6 +19,7 @@ import { PROFILE_API_ENDPOINTS } from '../../constants/customer/profileApiEndpoi
 import { NOTIFICATION_API_ENDPOINTS } from '../../constants/customer/notificationEndpoints';
 
 import ChatbotWidget from '../../components/chatbot/ChatbotWidget';
+import CustomerChatWidget from '../../components/chat/CustomerChatWidget';
 
 type NavItem = { name: string; path: string };
 type NavLinkProps = {
@@ -340,7 +341,7 @@ export default function Navbar() {
     const currentNavItems: NavItem[] = [
         { name: t('nav.home', 'Trang chủ'), path: '/' },
         { name: t('nav.services', 'Dịch vụ'), path: '/services' },
-        { name: t('nav.parts', 'Linh kiện'), path: '/parts' },
+        { name: t('nav.news', 'Tin tức'), path: '/news' },
         { name: t('nav.team', 'Đội ngũ'), path: '/team' },
         { name: t('nav.booking', 'Đặt lịch ngay'), path: '/phone-service' },
     ];
@@ -348,7 +349,7 @@ export default function Navbar() {
     const currentMobileTabItems = [
         { name: t('nav.home', 'Trang chủ'), path: '/', icon: Home },
         { name: t('nav.services', 'Dịch vụ'), path: '/services', icon: Wrench },
-        { name: t('nav.parts', 'Linh kiện'), path: '/parts', icon: Cpu },
+        { name: t('nav.news', 'Tin tức'), path: '/news', icon: Newspaper },
         { name: t('nav.booking', 'Đặt lịch ngay'), path: '/phone-service', icon: Phone },
         { name: t('nav.profile', 'Cá nhân'), path: '/user-profile', icon: User },
     ];
@@ -608,6 +609,7 @@ export default function Navbar() {
 
             {/* AI Chatbot Widget */}
             <ChatbotWidget />
+            {isAuthenticated && <CustomerChatWidget currentUserId={user?.id} />}
         </>
     );
 }

@@ -136,12 +136,12 @@ export default function TechnicianAssignmentsDetail() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* THÔNG TIN KHÁCH HÀNG & XE */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs space-y-4">
+        <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200/60 shadow-xs space-y-4">
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
             <User size={20} className="text-[#D97706]" />
             Thông tin Khách hàng
           </h2>
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-slate-400 font-medium block">Họ tên</span>
               <span className="text-slate-800 font-semibold">{customer?.name || customer?.user?.fullName || 'Khách vãng lai'}</span>
@@ -156,7 +156,7 @@ export default function TechnicianAssignmentsDetail() {
             <Car size={20} className="text-[#3B82F6]" />
             Thông tin Xe
           </h2>
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-slate-400 font-medium block">Biển số xe</span>
               <span className="text-slate-800 font-bold">{vehicle?.license_plate || '--'}</span>
@@ -171,26 +171,26 @@ export default function TechnicianAssignmentsDetail() {
         </div>
 
         {/* THÔNG TIN LỊCH HẸN */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs space-y-4">
+        <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200/60 shadow-xs space-y-4">
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
             <Calendar size={20} className="text-[#10B981]" />
             Thông tin Lịch hẹn
           </h2>
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-slate-400 font-medium block">Trạng thái hẹn</span>
               <span className="text-slate-800 font-bold px-2 py-1 bg-[#EDF3FF] text-[#00285E] rounded-lg inline-block mt-1">
                 {appointment?.status || 'Đã xác nhận'}
               </span>
             </div>
-            <div className="col-span-2">
+            <div className="col-span-1 sm:col-span-2">
               <span className="text-slate-400 font-medium block">Thời gian hẹn</span>
               <span className="text-slate-800 font-semibold">
                 {appointment?.scheduled_time ? new Date(appointment.scheduled_time).toLocaleString('vi-VN') : '--'}
               </span>
             </div>
             {appointment?.notes && (
-              <div className="col-span-2">
+              <div className="col-span-1 sm:col-span-2">
                 <span className="text-slate-400 font-medium block">Ghi chú của khách</span>
                 <span className="text-slate-600 bg-amber-50 p-3 rounded-lg block mt-1 border border-amber-100/50">
                   {appointment.notes}
@@ -202,14 +202,14 @@ export default function TechnicianAssignmentsDetail() {
       </div>
 
       {/* DANH SÁCH CÔNG VIỆC */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs space-y-4">
+      <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200/60 shadow-xs space-y-4">
         <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
           <CheckSquare size={20} className="text-[#8B5CF6]" />
           Danh sách Công việc (Tasks)
         </h2>
         {tasks && tasks.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-slate-100">
-            <table className="w-full text-left border-collapse text-sm">
+            <table className="w-full min-w-[640px] text-left border-collapse text-sm">
               <thead className="bg-slate-50/50 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                 <tr>
                   <th className="py-3 px-4 border-b border-slate-100">Mã Task</th>
