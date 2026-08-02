@@ -336,7 +336,7 @@ export default function AdminServiceManagement() {
         if (res.success) {
           showToast(`Đã xóa danh mục "${name}" thành công`, 'success');
           loadCategories();
-          handleGetCategory(); 
+          handleGetCategory();
         } else {
           showToast(res.message || 'Lỗi khi xóa danh mục dịch vụ', 'warning');
         }
@@ -1200,7 +1200,7 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                  Danh mục 
+                  Danh mục
                 </label>
                 <select
                   value={categoryId}
@@ -1217,7 +1217,7 @@ function ServiceFormModal({ initial, categoryList, onClose, onRefresh, showToast
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                  Thời gian (phút) 
+                  Thời gian (phút)
                 </label>
                 <input
                   type="number"
