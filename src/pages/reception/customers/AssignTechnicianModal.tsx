@@ -52,7 +52,7 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
   const [loading, setLoading] = useState(false);
 
   // New State for Rescue Flow
-  const [isAccepted, setIsAccepted] = useState(false);
+  const [selectedTechnicianId, setSelectedTechnicianId] = useState<number | null>(null);
   const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
   const [distanceInfo, setDistanceInfo] = useState<{ distKm: number, durMin: number } | null>(null);
   const [estimatedPrice, setEstimatedPrice] = useState<number>(0);
@@ -83,7 +83,7 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
   // Fetch Route and Calculate Price
   useEffect(() => {
     if (isOpen) {
-      setIsAccepted(false); // Reset accept status on modal open
+      setSelectedTechnicianId(null); // Reset accept status on modal open
       
       if (customerLat && customerLng) {
         const fetchRoute = async () => {
@@ -199,26 +199,31 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
                   </div>
                 )}
 
-                {!isAccepted ? (
-                  <div className="flex gap-3 mt-2">
-                    <button
-                      onClick={onClose}
-                      className="flex-1 py-3 px-4 bg-white border border-rose-200 text-rose-600 font-bold rounded-xl hover:bg-rose-50 transition-colors flex justify-center items-center gap-2"
-                    >
-                      <XCircle size={20} /> Từ chối
-                    </button>
-                    <button
-                      onClick={() => setIsAccepted(true)}
-                      className="flex-1 py-3 px-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex justify-center items-center gap-2 shadow-lg shadow-emerald-600/20"
-                    >
-                      <CheckCircle size={20} /> Tiếp nhận
-                    </button>
-                  </div>
-                ) : (
-                  <div className="p-3 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl font-bold flex items-center gap-2 justify-center">
-                    <CheckCircle size={20} /> Đã tiếp nhận. Vui lòng chọn KTV bên phải!
-                  </div>
-                )}
+                <div className="flex gap-3 mt-2">
+                  <button
+                    onClick={onClose}
+                    className="flex-1 py-3 px-4 bg-white border border-rose-200 text-rose-600 font-bold rounded-xl hover:bg-rose-50 transition-colors flex justify-center items-center gap-2"
+                  >
+                    <XCircle size={20} /> Từ chối
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (selectedTechnicianId) {
+                        onAssign(selectedTechnicianId);
+                      } else {
+                        // Trình duyệt native alert hoặc chỉ disable là đủ vì đã có disabled attribute
+                      }
+                    }}
+                    disabled={!selectedTechnicianId}
+                    className={`flex-1 py-3 px-4 text-white font-bold rounded-xl transition-colors flex justify-center items-center gap-2 shadow-lg ${
+                      selectedTechnicianId 
+                        ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20' 
+                        : 'bg-slate-300 cursor-not-allowed shadow-none'
+                    }`}
+                  >
+                    <CheckCircle size={20} /> Tiếp nhận
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -229,17 +234,7 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
               <User size={18} className="text-[#00285E]" /> Danh sách Kỹ thuật viên
             </h4>
             
-            {/* Overlay if not accepted */}
-            {!isAccepted && (
-              <div className="absolute inset-0 z-10 bg-slate-100/60 backdrop-blur-[2px] flex items-center justify-center p-6">
-                <div className="bg-white p-4 rounded-xl shadow-lg border border-slate-200 text-center max-w-sm">
-                  <Navigation className="mx-auto text-slate-400 mb-2" size={32} />
-                  <p className="font-semibold text-slate-800">Chưa tiếp nhận</p>
-                  <p className="text-sm text-slate-500 mt-1">Vui lòng xem thông tin quãng đường và nhấn "Tiếp nhận" trước khi phân công KTV.</p>
-                </div>
-              </div>
-            )}
-
+            {/* Loading or Tech list */}
             {loading ? (
               <div className="text-center text-slate-500 py-8">Đang tải danh sách...</div>
             ) : technicians.length > 0 ? (
@@ -250,12 +245,12 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
                     <div 
                       key={tech.id}
                       onClick={() => {
-                        if (isAccepted) onAssign(tech.id);
+                        setSelectedTechnicianId(tech.id);
                       }}
-                      className={`p-4 rounded-xl border transition-all flex items-center gap-3 bg-white ${
-                        isAccepted 
-                          ? 'border-slate-200 hover:border-[#00285E] hover:shadow-md cursor-pointer' 
-                          : 'border-slate-200 opacity-60'
+                      className={`p-4 rounded-xl border transition-all flex items-center gap-3 bg-white cursor-pointer ${
+                        selectedTechnicianId === tech.id 
+                          ? 'border-[#00285E] ring-2 ring-[#00285E]/20 shadow-md' 
+                          : 'border-slate-200 hover:border-[#00285E]/50'
                       }`}
                     >
                       <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-white shrink-0 ${isLeader ? 'bg-amber-500' : 'bg-slate-400'}`}>
@@ -277,7 +272,7 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
                           <Star size={14} className="fill-amber-500" />
                           <span className="text-xs font-bold ml-1">{tech.skillLevel}</span>
                         </div>
-                        {isAccepted && <span className="text-xs text-[#00285E] font-semibold bg-blue-50 px-2 py-1 rounded-md">Chọn</span>}
+                        {selectedTechnicianId === tech.id && <span className="text-xs text-white bg-[#00285E] px-2 py-1 rounded-md">Đã chọn</span>}
                       </div>
                     </div>
                   )
