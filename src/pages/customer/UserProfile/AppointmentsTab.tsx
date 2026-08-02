@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/customer/appointmentsEndpoints';
+import ProfileSectionHeader from './ProfileSectionHeader';
 
 export interface AppointmentItem {
   id: string;
@@ -266,14 +267,10 @@ export default function AppointmentsTab() {
     >
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-5">
-        <div>
-          <h2 className="text-2xl font-display font-bold text-brand-blue tracking-tight">
-            {t('appointments.historyTitle', 'Lịch sử đặt lịch hẹn')}
-          </h2>
-          <p className="text-xs text-gray-500 mt-1">
-            {t('appointments.historyDesc', 'Theo dõi trạng thái, thời gian và chi tiết các lịch hẹn dịch vụ của bạn.')}
-          </p>
-        </div>
+        <ProfileSectionHeader
+          title={t('appointments.historyTitle', 'Lịch sử đặt lịch hẹn')}
+          description={t('appointments.historyDesc', 'Theo dõi trạng thái, thời gian và chi tiết các lịch hẹn dịch vụ của bạn.')}
+        />
 
         <button
           type="button"
@@ -632,17 +629,17 @@ export default function AppointmentsTab() {
                       {selectedAppt.comboItems && selectedAppt.comboItems.length > 0 && selectedAppt.comboItems.map((item, idx) => (
                         <div key={`combo-${idx}`} className="p-3 bg-white hover:bg-slate-50/50 flex flex-col items-start gap-1 font-medium text-slate-700 text-left">
                           <div className="flex items-center gap-2">
-                             <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-purple-100 text-purple-600 uppercase tracking-widest shrink-0">Combo</span>
-                             <span>{item.name}</span>
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-purple-100 text-purple-600 uppercase tracking-widest shrink-0">Combo</span>
+                            <span>{item.name}</span>
                           </div>
                           {item.services && item.services.length > 0 && (
-                             <ul className="mt-1 ml-9 pl-3 border-l-2 border-slate-100 space-y-1 text-[10px] text-slate-500 font-normal">
-                                {item.services.map((srv, sIdx) => (
-                                   <li key={sIdx} className="relative before:content-[''] before:absolute before:-left-3 before:top-1.5 before:w-1.5 before:h-[1px] before:bg-slate-200">
-                                      {srv}
-                                   </li>
-                                ))}
-                             </ul>
+                            <ul className="mt-1 ml-9 pl-3 border-l-2 border-slate-100 space-y-1 text-[10px] text-slate-500 font-normal">
+                              {item.services.map((srv, sIdx) => (
+                                <li key={sIdx} className="relative before:content-[''] before:absolute before:-left-3 before:top-1.5 before:w-1.5 before:h-[1px] before:bg-slate-200">
+                                  {srv}
+                                </li>
+                              ))}
+                            </ul>
                           )}
                         </div>
                       ))}

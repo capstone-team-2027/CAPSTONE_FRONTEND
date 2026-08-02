@@ -2,6 +2,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localho
 
 export const SERVICE_CATEGORY_API_ENDPOINTS = {
   LIST: `${API_BASE_URL}/api/admin/service-category`,
+  SEARCH: `${API_BASE_URL}/api/admin/service-category/search`,
   CREATE: `${API_BASE_URL}/api/admin/service-category`,
   DETAIL: (id: number | string) => `${API_BASE_URL}/api/admin/service-category/${id}`,
   UPDATE: (id: number | string) => `${API_BASE_URL}/api/admin/service-category/${id}`,

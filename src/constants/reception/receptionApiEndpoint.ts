@@ -11,4 +11,9 @@ export const RECEPTION_API = {
   QUOTE_DETAIL: (id: string) => `${BASE}/api/reception/quotes/${id}`,
   QUOTE_APPROVE: (id: string) => `${BASE}/api/reception/quotes/${id}/approve`,
   QUOTE_REJECT: (id: string) => `${BASE}/api/reception/quotes/${id}/reject`,
+  // test customer ở router dưới 
+  CUSTOMERS: `${BASE}/api/receptionist/customers`,
+  UPDATE_LOCATION: `${BASE}/api/receptionist/location`,
+  TECHNICIANS_WORKING_TODAY: `${BASE}/api/receptionist/technicians/working-today`,
+  ASSIGN_RESCUE: `${BASE}/api/receptionist/rescue/assign`,
 };

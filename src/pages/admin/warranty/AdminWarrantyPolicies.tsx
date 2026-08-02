@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import type { ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ShieldCheck,
@@ -10,6 +11,8 @@ import {
   AlertTriangle,
   FileText,
 } from 'lucide-react';
+
+const PAGE_SIZE = 6;
 import { useOutletContext } from 'react-router-dom';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { WARRANTY_POLICIES_API_ENDPOINTS } from '../../../constants/admin/warrantyPoliciesApiEndpoint';
@@ -37,31 +40,36 @@ export default function AdminWarrantyPolicies() {
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [page, setPage] = useState(1);
 
   // Modals state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState<WarrantyPolicy | null>(null);
 
   // Load policies from Backend API
-  const loadPolicies = async () => {
+  const loadPolicies = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetchPrivate(WARRANTY_POLICIES_API_ENDPOINTS.LIST_WARRANTY_POLICIES);
       if (response && response.success) {
-        setPolicies(response.data);
+        setPolicies(response.data as WarrantyPolicy[]);
       } else {
         setPolicies([]);
       }
-    } catch (error: any) {
-      showToast(error.message || 'Lỗi khi tải danh sách chính sách bảo hành', 'warning');
+    } catch (error) {
+      showToast((error as Error)?.message || 'Lỗi khi tải danh sách chính sách bảo hành', 'warning');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [fetchPrivate, showToast]);
 
   useEffect(() => {
-    loadPolicies();
-  }, []);
+    const fetchPolicies = async () => {
+      await loadPolicies();
+    };
+
+    void fetchPolicies();
+  }, [loadPolicies]);
 
   const handleOpenCreate = () => {
     setEditingPolicy(null);
@@ -100,8 +108,8 @@ export default function AdminWarrantyPolicies() {
           setEditingPolicy(null);
         }
       }
-    } catch (error: any) {
-      showToast(error.message || 'Lỗi lưu thông tin chính sách bảo hành', 'warning');
+    } catch (error) {
+      showToast((error as Error)?.message || 'Lỗi lưu thông tin chính sách bảo hành', 'warning');
     }
   };
 
@@ -124,8 +132,8 @@ export default function AdminWarrantyPolicies() {
         showToast(`Đã ${updatedStatus ? 'kích hoạt' : 'tạm dừng'} chính sách bảo hành thành công.`, 'success');
         loadPolicies();
       }
-    } catch (error: any) {
-      showToast(error.message || 'Lỗi thay đổi trạng thái chính sách', 'warning');
+    } catch (error) {
+      showToast((error as Error)?.message || 'Lỗi thay đổi trạng thái chính sách', 'warning');
     }
   };
 
@@ -145,6 +153,10 @@ export default function AdminWarrantyPolicies() {
       return matchesSearch && matchesStatus;
     });
   }, [policies, searchQuery, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredPolicies.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = filteredPolicies.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
@@ -178,7 +190,7 @@ export default function AdminWarrantyPolicies() {
             type="text"
             placeholder="Tìm theo tên, mã hoặc điều khoản..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
             className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold"
           />
         </div>
@@ -191,7 +203,7 @@ export default function AdminWarrantyPolicies() {
 
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
+            onChange={(e: ChangeEvent<HTMLSelectElement>) => { setStatusFilter(e.target.value as 'ALL' | 'ACTIVE' | 'INACTIVE'); setPage(1); }}
             className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 cursor-pointer"
           >
             <option value="ALL">Tất cả trạng thái</option>
@@ -230,7 +242,7 @@ export default function AdminWarrantyPolicies() {
                   </td>
                 </tr>
               ) : (
-                filteredPolicies.map((policy) => (
+                pageItems.map((policy) => (
                   <tr
                     key={policy.id}
                     className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors group"
@@ -310,6 +322,30 @@ export default function AdminWarrantyPolicies() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-sm text-slate-500">
+            Hiển thị {pageItems.length} trên {filteredPolicies.length} chính sách
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={safePage <= 1}
+              onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+              className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Trước
+            </button>
+            <span className="text-sm font-semibold text-slate-600">{safePage} / {totalPages}</span>
+            <button
+              type="button"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+              className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Tiếp
+            </button>
+          </div>
         </div>
       </div>
 

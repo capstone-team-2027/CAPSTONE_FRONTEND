@@ -9,16 +9,17 @@ import {
   Pencil,
   ChevronLeft,
   ChevronRight,
+  ArrowLeft,
   X,
 } from "lucide-react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import { type SparePartResponse, type UpdateSparePartRequest } from "../../../model/dto/sparePartManagement.dto";
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { SPARE_PART_API_ENDPOINTS } from "../../../constants/inventory/sparePartApiEnPoint";
 
 const PAGE_SIZE = 6;
 
-const formatPrice = (v: number) => Math.round(v).toLocaleString("vi-VN") + "đ";
+const formatPrice = (v: number) => Math.round(v).toLocaleString("vi-VN") + " VND";
 
 export default function InventoryParts() {
   const { searchQuery, setSearchQuery, showToast } = useOutletContext<{
@@ -26,6 +27,7 @@ export default function InventoryParts() {
     setSearchQuery: (q: string) => void;
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
+  const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<
     "all" | "in-stock" | "low" | "out"
   >("all");
@@ -158,13 +160,22 @@ export default function InventoryParts() {
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* TITLE */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
-          Quản lý phụ tùng
-        </h1>
-        <p className="text-slate-500 text-sm">
-          Quản lý danh mục phụ tùng và nhập kho theo phiếu.
-        </p>
+      <div className="flex items-start gap-3">
+        <button
+          onClick={() => navigate(-1)}
+          title="Quay lại"
+          className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+        >
+          <ArrowLeft size={24} />
+        </button>
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
+            Quản lý phụ tùng
+          </h1>
+          <p className="text-slate-500 text-sm">
+            Quản lý danh mục phụ tùng và nhập kho theo phiếu.
+          </p>
+        </div>
       </div>
 
       {/* SUMMARY CARDS */}
@@ -287,7 +298,7 @@ export default function InventoryParts() {
                 <th className="py-4 px-4">Số lượng</th>
                 <th className="py-4 px-4">Đơn giá bán</th>
                 <th className="py-4 px-4">Bảo hành</th>
-                <th className="py-4 px-6 text-right">Thao tác</th>
+                <th className="py-4 px-6">Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -346,9 +357,9 @@ export default function InventoryParts() {
                               : "—"}
                       </td>
                       <td className="py-4 px-6">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-start gap-1.5">
                           <button
-                            title="Sửa sản phẩm"
+                            title="Cập nhật sản phẩm"
                             onClick={() => {
                               setEditingPart(p);
                               setPriceInput(p.retail_price === 0 ? "" : Math.round(p.retail_price).toLocaleString("vi-VN"));
@@ -356,9 +367,10 @@ export default function InventoryParts() {
                               setMonthsInput(p.warranty_period_months === 0 ? "" : String(p.warranty_period_months));
                               setEditOpen(true);
                             }}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                            className="h-8 flex items-center gap-1.5 px-3 rounded-lg text-[11px] font-bold text-white bg-[#00285E] hover:brightness-125 active:scale-[0.97] transition-all whitespace-nowrap"
                           >
-                            <Pencil size={15} />
+                            <Pencil size={13} />
+                            Cập nhật
                           </button>
                         </div>
                       </td>

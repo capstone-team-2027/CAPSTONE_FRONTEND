@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { 
   Plus, 
@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { SERVICE_BAYS_API_ENDPOINTS } from '../../../constants/admin/serviceBayApiEndPoint';
+
+const PAGE_SIZE = 6;
 
 interface OutletContextType {
   showToast: (text: string, type?: 'success' | 'info' | 'warning') => void;
@@ -66,6 +68,7 @@ export default function AdminResources() {
   // Filter & Search states for Service Bays
   const [searchBayQuery, setSearchBayQuery] = useState('');
   const [filterBayStatus, setFilterBayStatus] = useState<string>('all');
+  const [bayPage, setBayPage] = useState(1);
 
   // Tools Mock Data (Interactive state to let user fully experience the UX)
   const [workshopTools] = useState<WorkshopTool[]>([
@@ -122,6 +125,7 @@ export default function AdminResources() {
   ]);
   const [searchToolQuery, setSearchToolQuery] = useState('');
   const [filterToolStatus, setFilterToolStatus] = useState<string>('all');
+  const [toolPage, setToolPage] = useState(1);
 
   // Helper to map frontend status to backend status
   const mapStatusToBackend = (status: string): 'available' | 'in_use' | 'maintenance' => {
@@ -133,42 +137,46 @@ export default function AdminResources() {
   };
 
   // Load Service Bays from API
-  const loadServiceBays = async () => {
+  const loadServiceBays = useCallback(async () => {
     setIsLoadingBays(true);
     try {
       const res = await fetchPrivate(SERVICE_BAYS_API_ENDPOINTS.LIST, 'GET');
       if (res.success && Array.isArray(res.data)) {
         // Normalize data if necessary
-        const normalized = res.data.map((bay: any) => {
-          let mappedStatus: 'AVAILABLE' | 'OCCUPIED' | 'MAINTENANCE' | 'OFFLINE' = 'AVAILABLE';
-          const s = (bay.status || '').toLowerCase();
+        const normalized = res.data.map((bay: Record<string, unknown>) => {
+          let mappedStatus: ServiceBay['status'] = 'AVAILABLE';
+          const s = String(bay.status || '').toLowerCase();
           if (s === 'available') mappedStatus = 'AVAILABLE';
           else if (s === 'in_use') mappedStatus = 'OCCUPIED';
           else if (s === 'maintenance') mappedStatus = 'MAINTENANCE';
-          
+
           return {
-            id: bay.id,
-            bay_name: bay.bay_name,
+            id: Number(bay.id),
+            bay_name: String(bay.bay_name || ''),
             status: mappedStatus,
             is_active: bay.is_active !== false,
-            current_service_order_id: bay.current_service_order_id
+            current_service_order_id: bay.current_service_order_id as number | null
           };
         });
         setServiceBays(normalized);
       } else {
         showToast(res.message || 'Không lấy được danh sách cầu sửa chữa từ máy chủ.', 'warning');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('loadServiceBays error:', err);
-      showToast(err.message || 'Lỗi kết nối khi tải danh sách cầu sửa chữa.', 'warning');
+      showToast((err as Error)?.message || 'Lỗi kết nối khi tải danh sách cầu sửa chữa.', 'warning');
     } finally {
       setIsLoadingBays(false);
     }
-  };
+  }, [fetchPrivate, showToast]);
 
   useEffect(() => {
-    loadServiceBays();
-  }, []);
+    const fetchBays = async () => {
+      await loadServiceBays();
+    };
+
+    void fetchBays();
+  }, [loadServiceBays]);
 
   // Validation logic for Service Bay
   const validateBayForm = () => {
@@ -236,9 +244,9 @@ export default function AdminResources() {
           showToast(res.message || 'Lỗi khi tạo mới cầu nâng.', 'warning');
         }
       }
-    } catch (err: any) {
-      console.error('handleSaveBay error:', err);
-      showToast(err.message || 'Lỗi kết nối khi lưu thông tin cầu nâng.', 'warning');
+    } catch (err) {
+      console.error('handleDeleteBay error:', err);
+      showToast((err as Error)?.message || 'Lỗi kết nối khi thực hiện xóa.', 'warning');
     }
   };
 
@@ -260,9 +268,9 @@ export default function AdminResources() {
       } else {
         showToast(res.message || 'Không thể cập nhật trạng thái hoạt động.', 'warning');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      showToast(err.message || 'Có lỗi xảy ra khi cập nhật trạng thái hoạt động.', 'warning');
+      showToast((err as Error)?.message || 'Có lỗi xảy ra khi cập nhật trạng thái hoạt động.', 'warning');
     }
   };
 
@@ -278,9 +286,9 @@ export default function AdminResources() {
       } else {
         showToast(res.message || 'Lỗi khi xóa cầu nâng.', 'warning');
       }
-    } catch (err: any) {
-      console.error('handleDeleteBay error:', err);
-      showToast(err.message || 'Lỗi kết nối khi thực hiện xóa.', 'warning');
+    } catch (err) {
+      console.error('handleSaveBay error:', err);
+      showToast((err as Error)?.message || 'Lỗi kết nối khi lưu thông tin cầu nâng.', 'warning');
     }
   };
 
@@ -361,20 +369,28 @@ export default function AdminResources() {
   };
 
   // Filtered Service Bays
-  const filteredBays = serviceBays.filter(bay => {
+  const filteredBays = useMemo(() => serviceBays.filter(bay => {
     const matchesSearch = bay.bay_name.toLowerCase().includes(searchBayQuery.toLowerCase());
     const matchesStatus = filterBayStatus === 'all' || 
                           (filterBayStatus === 'inactive' ? !bay.is_active : (bay.status === filterBayStatus && bay.is_active));
     return matchesSearch && matchesStatus;
-  });
+  }), [serviceBays, searchBayQuery, filterBayStatus]);
+
+  const bayTotalPages = Math.max(1, Math.ceil(filteredBays.length / PAGE_SIZE));
+  const baySafePage = Math.min(bayPage, bayTotalPages);
+  const bayPageItems = filteredBays.slice((baySafePage - 1) * PAGE_SIZE, baySafePage * PAGE_SIZE);
 
   // Filtered Tools
-  const filteredTools = workshopTools.filter(tool => {
+  const filteredTools = useMemo(() => workshopTools.filter(tool => {
     const matchesSearch = tool.tool_name.toLowerCase().includes(searchToolQuery.toLowerCase()) || 
                           tool.serial_number.toLowerCase().includes(searchToolQuery.toLowerCase());
     const matchesStatus = filterToolStatus === 'all' || tool.status === filterToolStatus;
     return matchesSearch && matchesStatus;
-  });
+  }), [workshopTools, searchToolQuery, filterToolStatus]);
+
+  const toolTotalPages = Math.max(1, Math.ceil(filteredTools.length / PAGE_SIZE));
+  const toolSafePage = Math.min(toolPage, toolTotalPages);
+  const toolPageItems = filteredTools.slice((toolSafePage - 1) * PAGE_SIZE, toolSafePage * PAGE_SIZE);
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto font-sans">
@@ -446,7 +462,7 @@ export default function AdminResources() {
                 type="text"
                 placeholder="Tìm kiếm cầu nâng theo tên..."
                 value={searchBayQuery}
-                onChange={(e) => setSearchBayQuery(e.target.value)}
+                onChange={(e) => { setSearchBayQuery(e.target.value); setBayPage(1); }}
                 className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
               />
             </div>
@@ -456,7 +472,7 @@ export default function AdminResources() {
               <span className="text-xs font-bold text-slate-400 whitespace-nowrap hidden sm:inline">Trạng thái:</span>
               <select
                 value={filterBayStatus}
-                onChange={(e) => setFilterBayStatus(e.target.value)}
+                onChange={(e) => { setFilterBayStatus(e.target.value); setBayPage(1); }}
                 className="w-full sm:w-48 bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E]"
               >
                 <option value="all">Tất cả trạng thái</option>
@@ -481,9 +497,10 @@ export default function AdminResources() {
               Không tìm thấy cầu sửa chữa nào phù hợp.
             </div>
           ) : (
-            /* Premium Grid Layout */
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredBays.map((bay) => {
+            <>
+              {/* Premium Grid Layout */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {bayPageItems.map((bay) => {
                 const statusDetails = getBayStatusDetails(bay.status, bay.is_active);
                 return (
                   <div
@@ -568,6 +585,31 @@ export default function AdminResources() {
                 );
               })}
             </div>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-slate-100 bg-slate-50/80">
+              <div className="text-sm text-slate-500">
+                Hiển thị {bayPageItems.length} trên {filteredBays.length} cầu nâng
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={baySafePage <= 1}
+                  onClick={() => setBayPage((prev) => Math.max(prev - 1, 1))}
+                >
+                  Trước
+                </button>
+                <span className="text-sm font-semibold text-slate-600">{baySafePage} / {bayTotalPages}</span>
+                <button
+                  type="button"
+                  className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={baySafePage >= bayTotalPages}
+                  onClick={() => setBayPage((prev) => Math.min(prev + 1, bayTotalPages))}
+                >
+                  Tiếp
+                </button>
+              </div>
+            </div>
+          </>
           )}
         </div>
       )}
@@ -584,7 +626,7 @@ export default function AdminResources() {
                 type="text"
                 placeholder="Tìm kiếm thiết bị theo tên hoặc số Seri..."
                 value={searchToolQuery}
-                onChange={(e) => setSearchToolQuery(e.target.value)}
+                onChange={(e) => { setSearchToolQuery(e.target.value); setToolPage(1); }}
                 className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
               />
             </div>
@@ -594,7 +636,7 @@ export default function AdminResources() {
               <span className="text-xs font-bold text-slate-400 whitespace-nowrap hidden sm:inline">Trạng thái:</span>
               <select
                 value={filterToolStatus}
-                onChange={(e) => setFilterToolStatus(e.target.value)}
+                onChange={(e) => { setFilterToolStatus(e.target.value); setToolPage(1); }}
                 className="w-full sm:w-48 bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E]"
               >
                 <option value="all">Tất cả trạng thái</option>
@@ -631,7 +673,7 @@ export default function AdminResources() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredTools.map((tool) => {
+                    {toolPageItems.map((tool) => {
                       const toolStatus = getToolStatusDetails(tool.status);
                       const attachedBay = serviceBays.find(b => b.id === tool.bay_id);
 
@@ -689,6 +731,30 @@ export default function AdminResources() {
                   </tbody>
                 </table>
               )}
+            </div>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-slate-100 bg-slate-50/80">
+              <div className="text-sm text-slate-500">
+                Hiển thị {toolPageItems.length} trên {filteredTools.length} thiết bị
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={toolSafePage <= 1}
+                  onClick={() => setToolPage((prev) => Math.max(prev - 1, 1))}
+                >
+                  Trước
+                </button>
+                <span className="text-sm font-semibold text-slate-600">{toolSafePage} / {toolTotalPages}</span>
+                <button
+                  type="button"
+                  className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={toolSafePage >= toolTotalPages}
+                  onClick={() => setToolPage((prev) => Math.min(prev + 1, toolTotalPages))}
+                >
+                  Tiếp
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -748,7 +814,7 @@ export default function AdminResources() {
                 </label>
                 <select
                   value={bayStatus}
-                  onChange={(e) => setBayStatus(e.target.value as any)}
+                  onChange={(e) => setBayStatus(e.target.value as ServiceBay['status'])}
                   className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E]"
                 >
                   <option value="AVAILABLE">Sẵn sàng</option>

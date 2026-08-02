@@ -13,7 +13,10 @@ import {
   Download,
   AlertTriangle,
   Briefcase,
+  Search,
 } from "lucide-react";
+
+const PAGE_SIZE = 6;
 import { useOutletContext } from "react-router-dom";
 import type { Role, StaffManagement } from "../../../model/dto/staffManagement.dto";
 import { useFetchClient } from "../../../hook/useFetchClient";
@@ -45,10 +48,31 @@ export default function AdminStaffManagement() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [customStartDate, setCustomStartDate] = useState<string>("");
   const [customEndDate, setCustomEndDate] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StaffStatus | "ALL">("ALL");
+  const [page, setPage] = useState(1);
   const [loadingError, setLoadingError] = useState<string | null>(null);
 
   const totalActive = staff.filter((s) => s.status === "ACTIVE").length;
   const totalTechnicians = staff.filter((s) => s.role.roleCode === "TECHNICIAN",).length;
+  const filteredStaff = useMemo(() => {
+    return staff.filter((s) => {
+      const searchMatch =
+        s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.phoneNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.role.roleName.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const statusMatch =
+        statusFilter === "ALL" ||
+        s.status === statusFilter;
+
+      return searchMatch && statusMatch;
+    });
+  }, [staff, searchTerm, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredStaff.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = filteredStaff.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   // Date range validation helper
   const isDateRangeInvalid = useMemo(() => {
@@ -330,16 +354,37 @@ export default function AdminStaffManagement() {
 
           {/* TABLE CARD */}
           <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
-            <div className="p-6 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-800 tracking-tight">
-                Danh sách nhân sự
-              </h2>
-              <button
-                onClick={() => showToast("Mở bộ lọc nâng cao...", "info")}
-                className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-slate-600"
-              >
-                <Filter size={16} />
-              </button>
+            <div className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800 tracking-tight">
+                  Danh sách nhân sự
+                </h2>
+                <p className="text-sm text-slate-500 mt-1">Tìm kiếm và quản lý hồ sơ nhân sự.</p>
+              </div>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+                <div className="relative w-full sm:w-72">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Tìm nhân sự theo tên, điện thoại hoặc vai trò..."
+                    value={searchTerm}
+                    onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+                  />
+                </div>
+                <div className="w-full sm:w-auto">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => { setStatusFilter(e.target.value as StaffStatus | "ALL"); setPage(1); }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E]"
+                  >
+                    <option value="ALL">Tất cả trạng thái</option>
+                    {STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -364,7 +409,7 @@ export default function AdminStaffManagement() {
                       </td>
                     </tr>
                   ) : (
-                    staff.map((s) => (
+                    pageItems.map((s) => (
                       <tr
                         key={s.id}
                         className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors group"
@@ -399,6 +444,30 @@ export default function AdminStaffManagement() {
                   )}
                 </tbody>
               </table>
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-sm text-slate-500">
+                Hiển thị {pageItems.length} trên {filteredStaff.length} nhân sự
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={safePage <= 1}
+                  className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Trước
+                </button>
+                <span className="text-sm font-semibold text-slate-600">{safePage} / {totalPages}</span>
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={safePage >= totalPages}
+                  className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Tiếp
+                </button>
+              </div>
             </div>
           </div>
         </>

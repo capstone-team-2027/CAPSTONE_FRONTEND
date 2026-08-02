@@ -32,6 +32,7 @@ type PhoneInputProps = {
     enableSearch?: boolean;
     searchPlaceholder?: string;
     inputProps?: { name?: string };
+    countryCodeEditable?: boolean;
 };
 const PhoneInput = resolveDefault<React.ComponentType<PhoneInputProps>>(PhoneInputLib);
 
@@ -174,6 +175,7 @@ export default function Login() {
                 else if (userData.role === 'RECEPTIONIST') navigate('/reception');
                 else if (userData.role === 'TECHNICIAN') navigate('/technician');
                 else if (userData.role === 'INVENTORY_MANAGER') navigate('/inventory');
+                else if (userData.role === 'TECHNICIAN_LEADER') navigate('/leader');
                 else navigate('/');
             } catch {
                 navigate('/login');
@@ -280,6 +282,9 @@ export default function Login() {
             }
             if (userData.role === "INVENTORY_MANAGER") {
                 navigate('/inventory');
+            }
+            if (userData.role === "TECHNICIAN_LEADER") {
+                navigate('/leader');
             }
         } catch (err: any) {
             setApiError(err.message || (isVi ? 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.' : 'Login failed. Please check your credentials.'));
@@ -407,6 +412,7 @@ export default function Login() {
                                     enableSearch
                                     searchPlaceholder={isVi ? 'Tìm quốc gia...' : 'Search country...'}
                                     inputProps={{ name: 'phone' }}
+                                    countryCodeEditable={false}
                                 />
                             </div>
                             {errors.phone && (

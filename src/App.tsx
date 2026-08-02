@@ -2,18 +2,21 @@ import { lazy, Suspense } from "react";
 import { Route, Routes, useLocation, Navigate } from "react-router-dom";
 
 const Header = lazy(() => import("./pages/customer/Header"));
-const Home = lazy(() => import("./pages/customer/Home/Home"));
+const Home = lazy(() => import("./pages/customer/home/Home"));
 const Services = lazy(() => import("./pages/customer/services/Services"));
-const Parts = lazy(() => import("./pages/customer/Parts/Parts"));
-const BookingPage = lazy(() => import("./pages/customer/Booking/BookingPage"));
-const Signup = lazy(() => import("./pages/customer/Home/SingUp"));
+const Parts = lazy(() => import("./pages/customer/parts/Parts"));
+const BookingPage = lazy(() => import("./pages/customer/booking/BookingPage"));
+const Signup = lazy(() => import("./pages/customer/home/SingUp"));
 const Footer = lazy(() => import("./pages/customer/Footer"));
-const Login = lazy(() => import("./pages/customer/Home/Login"));
+const Login = lazy(() => import("./pages/customer/home/Login"));
 const UserProfile = lazy(() => import("./pages/customer/UserProfile/UserProfile"));
-const ForgotPassword = lazy(() => import("./pages/customer/Home/ForgotPassword"));
-const Team = lazy(() => import("./pages/customer/Team/Team"));
-const OtpVerification = lazy(() => import("./pages/customer/Home/verify-otp"));
-const VerifyPhone = lazy(() => import("./pages/customer/Home/verify-phone"));
+const ForgotPassword = lazy(() => import("./pages/customer/home/ForgotPassword"));
+const Team = lazy(() => import("./pages/customer/team/Team"));
+const OtpVerification = lazy(() => import("./pages/customer/home/verify-otp"));
+const VerifyPhone = lazy(() => import("./pages/customer/home/verify-phone"));
+
+// Import component MapTracking để test
+const MapTrackingTest = lazy(() => import("./components/share/MapTracking").then(m => ({ default: m.MapTracking })));
 
 const VideoCallRoom = lazy(() => import("./pages/common/VideoCallRoom"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
@@ -35,6 +38,7 @@ const PartCategories = lazy(() => import("./pages/inventory/categories/Inventory
 const InventorySuppliers = lazy(() => import("./pages/inventory/suppliers/InventorySuppliers"));
 const InventoryApprovedQuotes = lazy(() => import("./pages/inventory/export/InventoryApprovedQuotes"));
 const InventoryExport = lazy(() => import("./pages/inventory/export/InventoryExport"));
+const InventoryWaitingStock = lazy(() => import("./pages/inventory/import/InventoryWaitingStock"));
 
 // Reception Page Imports
 const ReceptionLayout = lazy(() => import("./pages/reception/ReceptionLayout"));
@@ -48,14 +52,29 @@ const ReceptionServiceHistory = lazy(() => import("./pages/reception/service-his
 const ReceptionProcessPayment = lazy(() => import("./pages/reception/payments/ReceptionProcessPayment"));
 const ReceptionQuoteList = lazy(() => import("./pages/reception/quotes/ReceptionQuoteList"));
 const ReceptionQuoteDetail = lazy(() => import("./pages/reception/quotes/ReceptionQuoteDetail"));
+const ReceptionIssueReports = lazy(() => import("./pages/reception/issues-report/ReceptionIssuesReportHistory"));
+const ReceptionAdditionalIssues = lazy(() => import("./pages/reception/issues-report/ReceptionAdditionalIssues"));
+const ReceptionCustomerList = lazy(() => import("./pages/reception/customers/ReceptionCustomerList"));
+const ReceptionRescueCreateServiceOrder = lazy(() => import("./pages/reception/customers/ReceptionRescueCreateServiceOrder"));
+const ReceptionTechnicianList = lazy(() => import("./pages/reception/technicians/ReceptionTechnicianList"));
+
 
 // Technician Page Imports
 const TechnicianLayout = lazy(() => import("./pages/technician/TechnicianLayout"));
 const TechnicianAssignments = lazy(() => import("./pages/technician/assignments/TechnicianAssignments"));
 const TechnicianAssignmentsDetail = lazy(() => import("./pages/technician/assignments/TechnicianAssignmentsDetail"));
-const TechnicianRequestParts = lazy(() => import("./pages/technician/parts-request/TechnicianRequestParts"));
+const TechnicianWorkHistory = lazy(() => import("./pages/technician/work-history/TechnicianWorkHistory"));
 const TechnicianUpdateProgress = lazy(() => import("./pages/technician/progress/TechnicianUpdateProgress"));
 const TechnicianMyShifts = lazy(() => import("./pages/technician/my-shifts/TechnicianMyShifts"));
+const TechnicianIssuesReportHistory = lazy(() => import("./pages/technician/assignments/IssuesReportHistory"));
+const TechnicianRescuePage = lazy(() => import("./pages/technician/rescue/TechnicianRescuePage"));
+
+// Technician Leader Page Imports
+const LeaderLayout = lazy(() => import("./pages/leader/LeaderLayout"));
+const LeaderDashboard = lazy(() => import("./pages/leader/LeaderDashboard"));
+const LeaderAssignments = lazy(() => import("./pages/leader/LeaderAssignments"));
+const LeaderFinalQc = lazy(() => import("./pages/leader/LeaderFinalQc"));
+
 const LoadingScreen = () => (
   <div className="fixed inset-0 bg-slate-50/50 backdrop-blur-xs flex flex-col items-center justify-center z-50">
     <div className="relative w-16 h-16">
@@ -75,6 +94,7 @@ function App() {
     location.pathname.startsWith("/inventory") ||
     location.pathname.startsWith("/reception") ||
     location.pathname.startsWith("/technician") ||
+    location.pathname.startsWith("/leader") ||
     location.pathname.startsWith("/video-call");
   return (
     <Suspense fallback={<LoadingScreen />}>
@@ -92,6 +112,9 @@ function App() {
           <Route path="team" element={<Team />} />
           <Route path="otp-verification" element={<OtpVerification />} />
           <Route path="verify-phone" element={<VerifyPhone />} />
+
+          {/* Route test bản đồ */}
+          <Route path="test-map" element={<div className="container mx-auto p-4 md:p-10"><MapTrackingTest /></div>} />
         </Route>
 
         <Route path="/video-call/:roomId" element={<VideoCallRoom />} />
@@ -115,6 +138,7 @@ function App() {
           <Route path="parts" element={<InventoryParts />} />
           <Route path="categories" element={<PartCategories />} />
           <Route path="import" element={<ImportHistory />} />
+          <Route path="waiting-stock" element={<InventoryWaitingStock />} />
           <Route path="suppliers" element={<InventorySuppliers />} />
           <Route path="approved-quotes" element={<InventoryApprovedQuotes />} />
           <Route path="export" element={<InventoryExport />} />
@@ -124,11 +148,14 @@ function App() {
           <Route path="" element={<Navigate to="assignments" replace />} />
           <Route path="assignments" element={<TechnicianAssignments />} />
           <Route path="assignments/:id" element={<TechnicianAssignmentsDetail />} />
-          <Route path="parts-request" element={<TechnicianRequestParts />} />
-          <Route path="parts-request/:id" element={<TechnicianRequestParts />} />
+          <Route path="work-history" element={<TechnicianWorkHistory />} />
+          <Route path="parts-request" element={<Navigate to="/technician/work-history" replace />} />
+          <Route path="parts-request/:id" element={<Navigate to="/technician/work-history" replace />} />
           <Route path="progress" element={<TechnicianUpdateProgress />} />
           <Route path="progress/:id" element={<TechnicianUpdateProgress />} />
           <Route path="my-shifts" element={<TechnicianMyShifts />} />
+          <Route path="issues-reports" element={<TechnicianIssuesReportHistory />} />
+          <Route path="rescue" element={<TechnicianRescuePage />} />
         </Route>
 
         {/* Reception Dashboard */}
@@ -139,11 +166,21 @@ function App() {
           <Route path="service-orders" element={<ReceptionServiceOrderList />} />
           <Route path="service-orders/:id" element={<ReceptionServiceOrderDetail />} />
           <Route path="service-orders/create" element={<ReceptionCreateServiceOrder />} />
+          <Route path="customers" element={<ReceptionCustomerList />} />
+          <Route path="customers/rescue-service-order/:rescueId" element={<ReceptionRescueCreateServiceOrder />} />
           <Route path="feedback" element={<ReceptionReceiveFeedback />} />
           <Route path="service-history" element={<ReceptionServiceHistory />} />
           <Route path="payments" element={<ReceptionProcessPayment />} />
           <Route path="quotes" element={<ReceptionQuoteList />} />
           <Route path="quotes/:id" element={<ReceptionQuoteDetail />} />
+          <Route path="issues" element={<ReceptionIssueReports />} />
+          <Route path="additional-issues" element={<ReceptionAdditionalIssues />} />
+          <Route path="technicians" element={<ReceptionTechnicianList />} />
+        </Route>
+        <Route path="/leader" element={<LeaderLayout />}>
+          <Route path="" element={<LeaderDashboard />} />
+          <Route path="assignments" element={<LeaderAssignments />} />
+          <Route path="final-qc" element={<LeaderFinalQc />} />
         </Route>
       </Routes>
       {!isAdminPath && (

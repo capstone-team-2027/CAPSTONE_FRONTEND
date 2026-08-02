@@ -3,27 +3,27 @@ import type { ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     LayoutDashboard,
-    Car,
     Calendar,
-    Settings,
     HelpCircle,
     LogOut,
     CheckCircle2,
     History,
     ShieldCheck,
     Clock,
+    MapPin,
+    ReceiptText,
 } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { logout, loginSuccess } from '../../../store/slices/userSlice';
 
 import DashboardTab from './DashboardTab';
-import VehiclesTab from './VehiclesTab';
+import QuoteTrackingTab from './QuoteTrackingTab';
 import AppointmentsTab from './AppointmentsTab';
-import SettingsTab from './SettingsTab';
 import HistoryTab from './HistoryTab';
 import WarrantyTab from './WarrantyTab';
 import TrackingTab from './TrackingTab';
+import MapTab from './MapTab';
 import type { RootState } from '../../../store/store';
 import type { UserModel } from '../../../model/User';
 import { useFetchClient } from '../../../hook/useFetchClient';
@@ -31,12 +31,12 @@ import { PROFILE_API_ENDPOINTS } from '../../../constants/customer/profileApiEnd
 
 const MENU_ITEMS = [
     { id: 'dashboard', label: 'Hồ sơ người dùng', icon: LayoutDashboard },
-    { id: 'vehicles', label: 'Xe sở hữu', icon: Car },
+    { id: 'quoteTracking', label: 'Theo dõi báo giá', icon: ReceiptText },
     { id: 'appointments', label: 'Lịch hẹn', icon: Calendar },
     { id: 'history', label: 'Lịch sử sửa chữa', icon: History },
     { id: 'warranty', label: 'Bảo hành', icon: ShieldCheck },
     { id: 'tracking', label: 'Theo dõi', icon: Clock },
-    { id: 'settings', label: 'Cài đặt', icon: Settings },
+    { id: 'map', label: 'Bản đồ', icon: MapPin },
 ] as const;
 
 type TabId = typeof MENU_ITEMS[number]['id'];
@@ -49,7 +49,7 @@ export default function UserProfile() {
     }, [t]);
 
     const dispatch = useDispatch();
-    const { fetchPrivate, fetchPrivateForm } = useFetchClient();
+    const { fetchPrivateForm } = useFetchClient();
 
     const user = useSelector(
         (state: RootState) => state.user.user as UserModel | null
@@ -83,40 +83,6 @@ export default function UserProfile() {
         email: editOverrides.email ?? '',
         phone: editOverrides.phone ?? user?.phoneNumber ?? '',
         address: editOverrides.address ?? '',
-    };
-
-    // =====================================================
-    // SETTINGS DATA — derived từ Redux + settingsOverrides
-    // =====================================================
-
-    const [settingsOverrides, setSettingsOverrides] = useState<Partial<{
-        fullName: string;
-        email: string;
-        phone: string;
-        newPassword: string;
-        confirmPassword: string;
-        enable2FA: boolean;
-        notifyEmail: boolean;
-        notifySMS: boolean;
-        notifyPush: boolean;
-        language: string;
-        darkMode: boolean;
-    }>>({});
-
-    const [pendingSettingsAvatarFile, setPendingSettingsAvatarFile] = useState<File | null>(null);
-
-    const settingsData = {
-        fullName: settingsOverrides.fullName ?? user?.fullName ?? '',
-        email: settingsOverrides.email ?? '',
-        phone: settingsOverrides.phone ?? user?.phoneNumber ?? '',
-        newPassword: settingsOverrides.newPassword ?? '',
-        confirmPassword: settingsOverrides.confirmPassword ?? '',
-        enable2FA: settingsOverrides.enable2FA ?? false,
-        notifyEmail: settingsOverrides.notifyEmail ?? true,
-        notifySMS: settingsOverrides.notifySMS ?? false,
-        notifyPush: settingsOverrides.notifyPush ?? true,
-        language: settingsOverrides.language ?? 'Tiếng Việt',
-        darkMode: settingsOverrides.darkMode ?? false,
     };
 
     // =====================================================
@@ -155,7 +121,7 @@ export default function UserProfile() {
     // HANDLE AVATAR
     // =====================================================
 
-    const handleAvatarUpdate = (forSettings = false) => {
+    const handleAvatarUpdate = () => {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = 'image/*';
@@ -166,12 +132,7 @@ export default function UserProfile() {
             if (file) {
                 const previewUrl = URL.createObjectURL(file);
                 setAvatarPreview(previewUrl);
-
-                if (forSettings) {
-                    setPendingSettingsAvatarFile(file);
-                } else {
-                    setPendingAvatarFile(file);
-                }
+                setPendingAvatarFile(file);
             }
         };
 
@@ -272,77 +233,6 @@ export default function UserProfile() {
     };
 
     // =====================================================
-    // HANDLE SAVE SETTINGS
-    // =====================================================
-
-    const handleSettingsSave = async () => {
-        if (
-            settingsOverrides.newPassword &&
-            settingsOverrides.newPassword !== settingsOverrides.confirmPassword
-        ) {
-            alert(t('settings.passwordMismatch', 'Mật khẩu mới và xác nhận mật khẩu không khớp!'));
-            return;
-        }
-
-        setIsSubmitting(true);
-        try {
-            const form = new FormData();
-
-            const newFullName = settingsOverrides.fullName?.trim() ?? '';
-            if (newFullName) {
-                form.append('fullName', newFullName);
-            }
-
-            if (pendingSettingsAvatarFile) {
-                form.append('avatar', pendingSettingsAvatarFile);
-            }
-
-            if (!newFullName && !pendingSettingsAvatarFile) {
-                showSuccessToast(t('settings.updateSuccess', 'Đã lưu cài đặt thành công!'));
-                return;
-            }
-
-            const response = await fetchPrivateForm(
-                PROFILE_API_ENDPOINTS.UPDATE_PROFILE,
-                'PUT',
-                form,
-            );
-
-            syncUserToRedux(response.data);
-
-            setSettingsOverrides((prev) => ({
-                ...prev,
-                fullName: undefined,
-            }));
-            setPendingSettingsAvatarFile(null);
-            setAvatarPreview('');
-
-            showSuccessToast(t('settings.updateSuccess', 'Đã lưu cài đặt thành công!'));
-        } catch (error: any) {
-            alert(error.message || t('profile.updateFail', 'Cập nhật thất bại, vui lòng thử lại.'));
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    // =====================================================
-    // HANDLE CHANGE PASSWORD
-    // =====================================================
-    const handleChangePassword = async (data: any) => {
-        await fetchPrivate(
-            PROFILE_API_ENDPOINTS.CHANGE_PASSWORD,
-            'PUT',
-            data
-        );
-        showSuccessToast(t('settings.changePasswordSuccess', 'Đổi mật khẩu thành công!'));
-    };
-
-    const handleSettingChange = (field: string, value: string | boolean) => {
-        setSettingsOverrides((prev) => ({ ...prev, [field]: value }));
-    };
-
-
-    // =====================================================
     // RENDER TAB
     // =====================================================
 
@@ -355,7 +245,7 @@ export default function UserProfile() {
                         formData={formData}
                         isEditing={isEditing}
                         isSubmitting={isSubmitting}
-                        onAvatarUpdate={() => handleAvatarUpdate(false)}
+                        onAvatarUpdate={handleAvatarUpdate}
                         onInputChange={handleInputChange}
                         onSave={handleSave}
                         onEditToggle={setIsEditing}
@@ -366,8 +256,8 @@ export default function UserProfile() {
                     />
                 );
 
-            case 'vehicles':
-                return <VehiclesTab />;
+            case 'quoteTracking':
+                return <QuoteTrackingTab />;
 
             case 'appointments':
                 return <AppointmentsTab />;
@@ -381,18 +271,8 @@ export default function UserProfile() {
             case 'tracking':
                 return <TrackingTab />;
 
-            case 'settings':
-                return (
-                    <SettingsTab
-                        settingsData={settingsData}
-                        avatarUrl={avatarUrl}
-                        isSubmitting={isSubmitting}
-                        onAvatarUpdate={() => handleAvatarUpdate(true)}
-                        onSettingChange={handleSettingChange}
-                        onSave={handleSettingsSave}
-                        onChangePassword={handleChangePassword}
-                    />
-                );
+            case 'map':
+                return <MapTab />;
 
             default:
                 return null;
@@ -418,51 +298,47 @@ export default function UserProfile() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 {/* SIDEBAR */}
-                <div className="lg:col-span-3 flex flex-col gap-2 md:gap-3">
-                    <div className="hidden lg:block px-4 py-1">
-                        <h2 className="text-gray-400 font-bold text-base tracking-wide">
-                            {t('profile.title', 'Thông tin cá nhân')}
-                        </h2>
-                    </div>
-
+                <div className="lg:col-span-3 lg:sticky lg:top-24">
                     <motion.div
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="bg-[#F1F5F9] rounded-2xl p-3 md:p-4 flex flex-col justify-between border border-gray-200/60 shadow-sm min-h-auto lg:min-h-[580px]"
+                        className="bg-white rounded-2xl p-3 md:p-4 flex flex-col border border-gray-200/70 shadow-xs"
                     >
-                        <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-col lg:space-y-2 pt-1 lg:pt-2">
+                        <span className="hidden lg:block px-2 pt-1 pb-3 text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                            {t('profile.title', 'Thông tin cá nhân')}
+                        </span>
+
+                        <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-col lg:space-y-1">
                             {MENU_ITEMS.map((item) => {
                                 const IconComponent = item.icon;
                                 const isActive = activeTab === item.id;
 
                                 return (
-                                    <motion.button
+                                    <button
                                         key={item.id}
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
                                         onClick={() => setActiveTab(item.id)}
-                                        className={`w-full flex items-center gap-2.5 md:gap-3 px-3 py-2.5 md:px-4 md:py-3.5 rounded-xl font-bold text-xs md:text-sm transition-all text-left ${isActive
-                                            ? 'bg-[#F9A11B] text-brand-blue shadow-md shadow-orange-500/10'
-                                            : 'text-brand-blue/70 hover:bg-white/60 hover:text-brand-blue'
+                                        className={`w-full flex items-center gap-2.5 md:gap-3 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-semibold text-xs md:text-sm transition-colors text-left ${isActive
+                                            ? 'bg-[#F9A11B]/15 text-brand-blue'
+                                            : 'text-slate-500 hover:bg-slate-50 hover:text-brand-blue'
                                             }`}
                                     >
                                         <IconComponent
-                                            className={`w-4 h-4 md:w-5 md:h-5 shrink-0 ${isActive ? 'text-brand-blue' : 'text-brand-blue/60'
+                                            className={`w-4 h-4 md:w-[18px] md:h-[18px] shrink-0 ${isActive ? 'text-[#F9A11B]' : 'text-slate-400'
                                                 }`}
                                         />
                                         <span className="truncate">{t(`profile.tabs.${item.id}`, item.label)}</span>
-                                    </motion.button>
+                                    </button>
                                 );
                             })}
                         </div>
 
-                        <div className="pt-3 lg:pt-4 border-t border-gray-200/80 grid grid-cols-2 gap-2 lg:flex lg:flex-col lg:space-y-2 mt-3 lg:mt-auto">
+                        <div className="pt-2 mt-2 border-t border-gray-100 grid grid-cols-2 gap-2 lg:flex lg:flex-col lg:space-y-1">
                             <button
                                 onClick={() => alert(t('profile.supportMessage', 'Hệ thống hỗ trợ trực tuyến đang kết nối...'))}
-                                className="w-full flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-xl font-medium text-xs md:text-sm text-brand-blue/70 hover:bg-white/60 hover:text-brand-blue transition-all text-left bg-white/40 lg:bg-transparent"
+                                className="w-full flex items-center gap-2.5 md:gap-3 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-semibold text-xs md:text-sm text-slate-500 hover:bg-slate-50 hover:text-brand-blue transition-colors text-left"
                             >
-                                <HelpCircle className="w-4 h-4 md:w-5 md:h-5 text-brand-blue/60 shrink-0" />
+                                <HelpCircle className="w-4 h-4 md:w-[18px] md:h-[18px] text-slate-400 shrink-0" />
                                 <span className="truncate">{t('profile.support', 'Trợ giúp & Hỗ trợ')}</span>
                             </button>
 
@@ -475,9 +351,9 @@ export default function UserProfile() {
                                         window.location.href = '/login';
                                     }
                                 }}
-                                className="w-full flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-xl font-bold text-xs md:text-sm text-red-600 hover:bg-red-50 transition-all text-left group bg-red-50/30 lg:bg-transparent"
+                                className="w-full flex items-center gap-2.5 md:gap-3 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-semibold text-xs md:text-sm text-rose-600 hover:bg-rose-50 transition-colors text-left"
                             >
-                                <LogOut className="w-4 h-4 md:w-5 md:h-5 text-red-600 group-hover:translate-x-1 transition-transform shrink-0" />
+                                <LogOut className="w-4 h-4 md:w-[18px] md:h-[18px] text-rose-500 shrink-0" />
                                 <span className="truncate">{t('profile.logout', 'Đăng xuất')}</span>
                             </button>
                         </div>
@@ -486,17 +362,6 @@ export default function UserProfile() {
 
                 {/* MAIN CONTENT */}
                 <div className="lg:col-span-9 flex flex-col gap-6">
-                    <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.4 }}
-                        className="pt-1"
-                    >
-                        <h1 className="text-2xl font-display font-bold text-brand-blue">
-                            {t('profile.userProfile', 'Hồ sơ người dùng')}
-                        </h1>
-                    </motion.div>
-
                     {renderTabContent()}
                 </div>
             </div>

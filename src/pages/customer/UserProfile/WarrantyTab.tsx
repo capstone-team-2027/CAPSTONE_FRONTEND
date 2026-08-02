@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ShieldCheck } from 'lucide-react';
+import ProfileSectionHeader from './ProfileSectionHeader';
 
 interface WarrantyItem {
     id: string;
@@ -69,14 +70,10 @@ export default function WarrantyTab() {
         >
             {/* Part 2: Active Warranty Policies */}
             <div className="space-y-4">
-                <div>
-                    <h2 className="text-xl font-display font-bold text-brand-blue tracking-tight">
-                        {t('warranty.infoTitle', 'Thông Tin Bảo Hành')}
-                    </h2>
-                    <p className="text-xs text-gray-500 mt-1">
-                        {t('warranty.infoDesc', 'Theo dõi chính sách và thời hạn bảo hành cho các linh kiện đã được thay thế tại xưởng dịch vụ.')}
-                    </p>
-                </div>
+                <ProfileSectionHeader
+                    title={t('warranty.infoTitle', 'Thông Tin Bảo Hành')}
+                    description={t('warranty.infoDesc', 'Theo dõi chính sách và thời hạn bảo hành cho các linh kiện đã được thay thế tại xưởng dịch vụ.')}
+                />
 
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
                     <div className="overflow-x-auto">

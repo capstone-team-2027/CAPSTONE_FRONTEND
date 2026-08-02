@@ -3,13 +3,21 @@ import type { ConfirmationResult } from "firebase/auth";
 import { auth } from "../config/firebase";
 
 let recaptchaVerifier: RecaptchaVerifier | null = null;
+let recaptchaContainerId: string | null = null;
 
 export const initRecaptcha = async (containerId = "recaptcha-container") => {
-  if (recaptchaVerifier) return recaptchaVerifier;
+  if (recaptchaVerifier && recaptchaContainerId === containerId) {
+    return recaptchaVerifier;
+  }
+
+  if (recaptchaVerifier) {
+    recaptchaVerifier.clear();
+    recaptchaVerifier = null;
+  }
 
   const container = document.getElementById(containerId);
   if (container) {
-    container.innerHTML = "";
+    container.replaceChildren();
   }
 
   recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
@@ -18,13 +26,19 @@ export const initRecaptcha = async (containerId = "recaptcha-container") => {
     "expired-callback": () => {
       recaptchaVerifier?.clear();
       recaptchaVerifier = null;
+      recaptchaContainerId = null;
     },
   });
+  recaptchaContainerId = containerId;
 
   try {
     await recaptchaVerifier.render();
   } catch (err) {
+    recaptchaVerifier.clear();
+    recaptchaVerifier = null;
+    recaptchaContainerId = null;
     console.warn("reCAPTCHA render warning:", err);
+    throw err;
   }
   return recaptchaVerifier;
 };
@@ -32,16 +46,21 @@ export const initRecaptcha = async (containerId = "recaptcha-container") => {
 export const clearRecaptcha = () => {
   recaptchaVerifier?.clear();
   recaptchaVerifier = null;
+  if (recaptchaContainerId) {
+    document.getElementById(recaptchaContainerId)?.replaceChildren();
+  }
+  recaptchaContainerId = null;
 };
 
-export const sendOtp = async (phone: string): Promise<ConfirmationResult> => {
+export const sendOtp = async (
+  phone: string,
+  containerId = "recaptcha-container",
+): Promise<ConfirmationResult> => {
   const phoneE164 = phone.startsWith("+")
     ? phone
     : "+84" + phone.replace(/^0/, "");
 
-  if (!recaptchaVerifier) {
-    await initRecaptcha();
-  }
+  await initRecaptcha(containerId);
 
   return await signInWithPhoneNumber(auth, phoneE164, recaptchaVerifier!);
 };

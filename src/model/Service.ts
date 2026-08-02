@@ -22,4 +22,5 @@ export interface ServiceItem {
     discountPercentage?: number;
     promoText?: string;
     category_id?: number;
+    sparePartName?: string;
 }

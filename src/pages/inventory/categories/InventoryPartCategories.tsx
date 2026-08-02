@@ -1,7 +1,16 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Tags, Plus, Pencil, X } from "lucide-react";
-import { useOutletContext } from "react-router-dom";
+import {
+  Tags,
+  Plus,
+  Pencil,
+  ArrowLeft,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  X,
+} from "lucide-react";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import {
   type UpdatePartCategory,
   type CreatePartCategory,
@@ -10,13 +19,20 @@ import {
 import { PART_CATEGORY_API_ENDPOINTS } from "../../../constants/inventory/sparePartCategoryApiEndPoint";
 import { useFetchClient } from "../../../hook/useFetchClient";
 
+const PAGE_SIZE = 6;
+
 export default function PartCategories() {
-  const { showToast } = useOutletContext<{
+  const { searchQuery, showToast } = useOutletContext<{
+    searchQuery: string;
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
 
   const { fetchPrivate, fetchPrivateFormGeneric } = useFetchClient();
+  const navigate = useNavigate();
   const [categories, setCategories] = useState<GetPartCategory[]>([]);
+  const [localSearch, setLocalSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const effectiveSearch = (searchQuery || localSearch).toLowerCase();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [categoryName, setCategoryName] = useState<string>("");
@@ -24,6 +40,19 @@ export default function PartCategories() {
   const [isActive, setIsActive] = useState<boolean>(true);
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<GetPartCategory | null>(null);
+
+  const filtered = categories.filter(
+    (c) =>
+      (c.category_name ?? "").toLowerCase().includes(effectiveSearch) ||
+      (c.description ?? "").toLowerCase().includes(effectiveSearch),
+  );
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = filtered.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
 
   useEffect(() => {
     handleGetPartCategories();
@@ -98,13 +127,22 @@ export default function PartCategories() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* TITLE & ACTIONS */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
-            Danh mục phụ tùng
-          </h1>
-          <p className="text-slate-500 text-sm">
-            Quản lý các nhóm phân loại phụ tùng trong kho.
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
+              Danh mục phụ tùng
+            </h1>
+            <p className="text-slate-500 text-sm">
+              Quản lý các nhóm phân loại phụ tùng trong kho.
+            </p>
+          </div>
         </div>
         <button
           onClick={openCreate}
@@ -118,13 +156,32 @@ export default function PartCategories() {
       {/* TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
         {/* Toolbar */}
-        <div className="p-5 border-b border-slate-100 flex items-center gap-2.5">
-          <h2 className="text-lg font-bold text-slate-800 tracking-tight">
-            Danh sách danh mục
-          </h2>
-          <span className="bg-[#EDF3FF] text-[#00285E] px-2.5 py-0.5 rounded-full text-xs font-bold">
-            {categories.length} danh mục
-          </span>
+        <div className="p-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg font-bold text-slate-800 tracking-tight">
+              Danh sách danh mục
+            </h2>
+            <span className="bg-[#EDF3FF] text-[#00285E] px-2.5 py-0.5 rounded-full text-xs font-bold">
+              {filtered.length} danh mục
+            </span>
+          </div>
+
+          <div className="relative">
+            <Search
+              size={15}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              type="text"
+              placeholder="Tìm tên danh mục, mô tả..."
+              value={localSearch}
+              onChange={(e) => {
+                setLocalSearch(e.target.value);
+                setPage(1);
+              }}
+              className="w-full sm:w-64 bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+            />
+          </div>
         </div>
 
         {/* Table body */}
@@ -135,21 +192,23 @@ export default function PartCategories() {
                 <th className="py-4 px-6">Danh mục</th>
                 <th className="py-4 px-6">Mô tả</th>
                 <th className="py-4 px-4">Trạng thái</th>
-                <th className="py-4 px-6 text-right">Thao tác</th>
+                <th className="py-4 px-6">Thao tác</th>
               </tr>
             </thead>
             <tbody>
-              {categories.length === 0 ? (
+              {pageItems.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={3}
+                    colSpan={4}
                     className="py-14 text-center text-slate-400 text-sm"
                   >
-                    Chưa có danh mục nào...
+                    {effectiveSearch
+                      ? "Không tìm thấy danh mục phù hợp..."
+                      : "Chưa có danh mục nào..."}
                   </td>
                 </tr>
               ) : (
-                categories.map((c) => (
+                pageItems.map((c) => (
                   <tr
                     key={c.id}
                     className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors group"
@@ -182,13 +241,14 @@ export default function PartCategories() {
                       </div>
                     </td>
                     <td className="py-4 px-6">
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex items-center justify-start gap-1.5">
                         <button
                           onClick={() => openEdit(c)}
-                          title="Sửa danh mục"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                          title="Cập nhật danh mục"
+                          className="h-8 flex items-center gap-1.5 px-3 rounded-lg text-[11px] font-bold text-white bg-[#00285E] hover:brightness-125 active:scale-[0.97] transition-all whitespace-nowrap"
                         >
-                          <Pencil size={15} />
+                          <Pencil size={13} />
+                          Cập nhật
                         </button>
                       </div>
                     </td>
@@ -197,6 +257,38 @@ export default function PartCategories() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between flex-wrap gap-3">
+          <span className="text-xs font-medium text-slate-400">
+            Hiển thị {pageItems.length} / {filtered.length} danh mục
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={safePage === 1}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                onClick={() => setPage(n)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-colors ${n === safePage ? "bg-[#00285E] text-white shadow-sm" : "border border-slate-200 text-slate-600 hover:bg-white"}`}
+              >
+                {n}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage === totalPages}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       </div>
 

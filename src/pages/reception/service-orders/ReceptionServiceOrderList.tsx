@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
+  ArrowLeft,
   ClipboardPlus,
   Search,
   Filter,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useFetchClient_v2 as useFetchClient } from '../../../hook/useFetchClient';
+import { useSocket } from '../../../hook/useSocket';
 import { SERVICE_ORDER_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
 
 export const SO_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
@@ -35,6 +37,7 @@ const ITEMS_PER_PAGE = 5;
 export default function ReceptionServiceOrderList() {
   const navigate = useNavigate();
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
 
   const [serviceOrders, setServiceOrders] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -45,6 +48,18 @@ export default function ReceptionServiceOrderList() {
   useEffect(() => {
     loadServiceOrders();
   }, []);
+
+  // Có cập nhật mới -> BE emit new_notification -> tự tải lại danh sách
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      loadServiceOrders();
+    };
+    socket.on('new_notification', handleNewNotification);
+    return () => {
+      socket.off('new_notification', handleNewNotification);
+    };
+  }, [socket]);
 
   const loadServiceOrders = async () => {
     try {
@@ -110,14 +125,23 @@ export default function ReceptionServiceOrderList() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
-            <Wrench className="text-amber-500" size={28} />
-            Quản lý hóa đơn dịch vụ
-          </h1>
-          <p className="text-slate-500 text-sm">
-            Theo dõi, cập nhật trạng thái và xử lý yêu cầu hủy hóa đơn dịch vụ của khách hàng.
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
+              <Wrench className="text-amber-500" size={28} />
+              Quản lý hóa đơn dịch vụ
+            </h1>
+            <p className="text-slate-500 text-sm">
+              Theo dõi, cập nhật trạng thái và xử lý yêu cầu hủy hóa đơn dịch vụ của khách hàng.
+            </p>
+          </div>
         </div>
         <button
           onClick={() => navigate('/reception/service-orders/create')}
@@ -208,6 +232,7 @@ export default function ReceptionServiceOrderList() {
                   <th className="py-3 px-4">Xe</th>
                   <th className="py-3 px-4">Ngày tạo</th>
                   <th className="py-3 px-4">Tiến độ</th>
+                  <th className="py-3 px-4">Thanh toán</th>
                   <th className="py-3 px-4">Trạng thái</th>
                   <th className="py-3 px-4 text-center">Thao tác</th>
                 </tr>
@@ -262,6 +287,17 @@ export default function ReceptionServiceOrderList() {
                             </div>
                           );
                         })()}
+                      </td>
+                      <td className="py-4 px-4">
+                        {so.payment?.payment_status === 'PAID' || so.payment?.payment_status === 'COMPLETED' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-700 whitespace-nowrap">
+                            Đã thanh toán
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500 whitespace-nowrap">
+                            Chưa thanh toán
+                          </span>
+                        )}
                       </td>
                       <td className="py-4 px-4">
                         <span
