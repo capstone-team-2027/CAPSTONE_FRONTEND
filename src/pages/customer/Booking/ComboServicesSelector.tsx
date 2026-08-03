@@ -47,7 +47,7 @@ export default function ComboServicesSelector({
                             combo_name: c.combo_name,
                             category_id: c.catalogs?.[0]?.category_id || 1,
                             service_ids: serviceIds,
-                            discount_percentage: 10,
+                            discount_percentage: c.discount_percentage ?? 10,
                             is_active: c.is_active,
                             createdAt: c.createdAt || new Date().toISOString(),
                             originalPrice: (c.catalogs || []).reduce((sum: number, cat: any) => {
@@ -134,6 +134,11 @@ export default function ComboServicesSelector({
                         <div>
                             <div className="absolute top-4 right-4 flex items-center gap-1.5 flex-wrap justify-end">
 
+                                {combo.discount_percentage > 0 && (
+                                    <div className="text-[9px] font-bold px-2 py-0.5 rounded-lg shrink-0 bg-red-100 text-red-600">
+                                        -{combo.discount_percentage}%
+                                    </div>
+                                )}
                                 <div className="text-[9px] font-bold px-2 py-0.5 rounded-lg shrink-0 bg-brand-orange text-brand-blue">
                                     {t('booking.comboBadge', 'Combo')}
                                 </div>
@@ -159,9 +164,12 @@ export default function ComboServicesSelector({
                         <div className="flex justify-between items-end mt-4 pt-4 border-t border-slate-50">
                             <div>
                                 <div className="text-[9px] font-bold uppercase mb-0.5 text-gray-400">{t('booking.comboPrice', 'Giá combo')}</div>
-                                <div className="flex items-baseline gap-1.5">
+                                <div className="flex items-baseline gap-1.5 flex-wrap">
                                     {original > 0 ? (
-                                        <span className="text-base font-bold text-brand-orange">{t('booking.fromPrice', 'Từ {{price}}đ', { price: original.toLocaleString("vi-VN") })}</span>
+                                        <>
+                                            <span className="text-xs font-semibold text-slate-400 line-through">{original.toLocaleString("vi-VN")}đ</span>
+                                            <span className="text-base font-bold text-brand-orange">{(original * (1 - (combo.discount_percentage || 0)/100)).toLocaleString("vi-VN")}đ</span>
+                                        </>
                                     ) : (
                                         <span className="text-base font-bold text-brand-orange">Miễn phí</span>
                                     )}

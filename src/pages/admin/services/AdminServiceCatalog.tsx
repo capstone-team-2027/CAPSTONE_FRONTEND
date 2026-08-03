@@ -216,10 +216,6 @@ export default function AdminServiceManagement() {
         const responseData = result.data;
         const items = Array.isArray(responseData) ? responseData : responseData.items || [];
         const combosData = (items || []).map((c: any) => {
-          let discount = 10;
-          if (c.combo_name.toLowerCase().includes('toàn diện') || c.combo_name.toLowerCase().includes('làm đẹp')) {
-            discount = 15;
-          }
           let catId = 0;
           if (c.catalogs && c.catalogs.length > 0) {
             catId = c.catalogs[0].category_id || 0;
@@ -230,7 +226,7 @@ export default function AdminServiceManagement() {
             combo_name: c.combo_name,
             category_id: catId,
             service_ids: c.catalogs ? c.catalogs.map((item: any) => item.id) : [],
-            discount_percentage: discount,
+            discount_percentage: c.discount_percentage ?? 10,
             description: c.description || '',
             is_active: c.is_active,
             createdAt: c.createdAt,
@@ -1002,6 +998,7 @@ export default function AdminServiceManagement() {
                   <th className="py-4 px-6">Tên gói combo</th>
                   <th className="py-4 px-4">Mô tả</th>
                   <th className="py-4 px-4">Dịch vụ đi kèm</th>
+                  <th className="py-4 px-4">Giảm giá</th>
                   <th className="py-4 px-4">Tổng giá</th>
                   <th className="py-4 px-4">Trạng thái</th>
                   <th className="py-4 px-6 text-right">Thao tác</th>
@@ -1011,7 +1008,7 @@ export default function AdminServiceManagement() {
                 {filteredCombos.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="py-12 text-center text-slate-400 text-sm"
                     >
                       Không tìm thấy gói combo dịch vụ phù hợp...
@@ -1038,8 +1035,15 @@ export default function AdminServiceManagement() {
                           {getComboServicesNames(c.service_ids) || "—"}
                         </td>
 
-                        <td className="py-4 px-4 text-slate-900 font-black text-sm">
-                          {totalPrice.toLocaleString("vi-VN")} đ
+                        <td className="py-4 px-4 text-emerald-600 font-bold text-xs">
+                          {c.discount_percentage ? `${c.discount_percentage}%` : "0%"}
+                        </td>
+
+                        <td className="py-4 px-4">
+                          <div className="flex flex-col">
+                            <span className="text-slate-400 line-through text-xs font-semibold">{totalPrice.toLocaleString("vi-VN")} đ</span>
+                            <span className="text-slate-900 font-black text-sm">{Math.round(totalPrice * (1 - (c.discount_percentage || 0) / 100)).toLocaleString("vi-VN")} đ</span>
+                          </div>
                         </td>
 
                         <td className="py-4 px-4">
