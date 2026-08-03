@@ -1763,7 +1763,7 @@ interface ExcelRow {
 }
 
 function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalProps) {
-  const { fetchPrivate } = useFetchClient();
+  const { fetchPrivateForm } = useFetchClient();
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -1778,41 +1778,7 @@ function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalP
       return;
     }
     setFile(selected);
-
-    // Auto-map based on available categories
-    const firstCat = categories[0] || { id: 1, category_name: "Bảo dưỡng định kỳ" };
-    const secondCat = categories[1] || categories[0] || { id: 1, category_name: "Sửa chữa chung" };
-
-    // Fill realistic preview table items
-    setPreviewData([
-      {
-        service_name: "Bảo dưỡng định kỳ cấp 1 (5,000 km)",
-        category_name: firstCat.category_name,
-        category_id: firstCat.id,
-        description: "Thay nhớt động cơ, lọc nhớt, vệ sinh lọc gió, kiểm tra tổng quát gầm xe.",
-        price: 450000,
-        estimated_duration: 45,
-        is_active: true,
-      },
-      {
-        service_name: "Cân chỉnh thước lái 3D thông minh",
-        category_name: secondCat.category_name,
-        category_id: secondCat.id,
-        description: "Sử dụng máy Hunter 3D để căn chỉnh độ chụm và góc camber bánh xe.",
-        price: 600000,
-        estimated_duration: 60,
-        is_active: true,
-      },
-      {
-        service_name: "Vệ sinh hệ thống điều hòa chuyên sâu",
-        category_name: firstCat.category_name,
-        category_id: firstCat.id,
-        description: "Nội soi vệ sinh giàn lạnh, khử trùng bằng máy ozone, thay lọc gió điều hòa.",
-        price: 850000,
-        estimated_duration: 90,
-        is_active: true,
-      },
-    ]);
+    setPreviewData([]);
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -1823,37 +1789,29 @@ function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalP
   };
 
   const handleImport = async () => {
-    if (!file || previewData.length === 0) return;
+    if (!file) return;
     setIsUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
     try {
-      let successCount = 0;
-      for (const row of previewData) {
-        try {
-          const res = await fetchPrivate<any>(
-            SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG,
-            "POST",
-            {
-              category_id: row.category_id,
-              service_name: row.service_name,
-              description: row.description,
-              estimated_duration: row.estimated_duration,
-              is_active: row.is_active,
-            }
-          );
-          if (res.data && res.data.id) {
-            saveServicePrice(res.data.id, row.price);
-          }
-          successCount++;
-        } catch (e) {
-          console.error("Lỗi khi import dòng:", row.service_name, e);
-        }
-      }
+      const response = await fetchPrivateForm<any>(
+        SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG_IMPORT,
+        "POST",
+        formData
+      );
       setIsUploading(false);
+      const successCount = response.data?.successCount || 0;
+      const errors = response.data?.errors || [];
+      if (errors && errors.length > 0) {
+        const sample = errors.slice(0, 10).map((e: any) => `Dòng ${e.row}: ${e.message}`).join('\n');
+        alert(`Kết quả import: ${successCount} dịch vụ thành công.\nMột số lỗi:\n${sample}`);
+      }
       onImported(successCount);
-    } catch (err) {
+    } catch (err: any) {
       setIsUploading(false);
       console.error(err);
-      alert("Đã xảy ra lỗi khi kết nối máy chủ để import dữ liệu.");
+      alert(err?.message || "Đã xảy ra lỗi khi kết nối máy chủ để import dữ liệu.");
     }
   };
 
@@ -1913,7 +1871,15 @@ function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalP
               </div>
             </div>
             <button
-              onClick={() => alert("Đang tải file mẫu thiết kế (mẫu dịch vụ tiêu chuẩn).")}
+              onClick={() => {
+                const url = '/templates/service_catalog_import_template.csv?v=2';
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'service_catalog_import_template.csv';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+              }}
               className="px-4 py-2 bg-white border border-[#00285E] text-[#00285E] rounded text-xs font-bold hover:bg-[#EDF3FF] transition-colors shrink-0"
             >
               Tải mẫu
