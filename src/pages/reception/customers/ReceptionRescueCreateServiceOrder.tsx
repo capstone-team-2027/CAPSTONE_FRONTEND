@@ -32,8 +32,8 @@ import { SERVICE_ORDER_API_ENDPOINTS } from '../../../constants/reception/appoin
 import { useFetchClient, useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
 import { SEARCH_API_ENDPOINTS } from '../../../constants/reception/searchEndpoints';
-import SingleServicesSelector from '../../customer/booking/SingleServicesSelector';
-import ComboServicesSelector from '../../customer/booking/ComboServicesSelector';
+import SingleServicesSelector from '../../customer/Booking/SingleServicesSelector';
+import ComboServicesSelector from '../../customer/Booking/ComboServicesSelector';
 import { SERVICE_API_ENDPOINTS } from '../../../constants/customer/serviceApiEndpoints';
 import type { ServiceCombo, ServiceItem as CustomerServiceItem } from '../../../model/Service';
 import { useTranslation } from 'react-i18next';
@@ -509,7 +509,7 @@ export default function ReceptionRescueCreateServiceOrder() {
   const selectedTotal = useMemo(() => {
     const servicesPrice = mappedServices
       .filter((s) => selectedServiceIds.includes(s.id as number))
-      .reduce((sum, s) => sum + s.numericPrice, 0);
+      .reduce((sum, s) => sum + (s.numericPrice ?? 0), 0);
 
     let combosPrice = 0;
     if (selectedComboId) {
