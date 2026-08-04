@@ -216,10 +216,6 @@ export default function AdminServiceManagement() {
         const responseData = result.data;
         const items = Array.isArray(responseData) ? responseData : responseData.items || [];
         const combosData = (items || []).map((c: any) => {
-          let discount = 10;
-          if (c.combo_name.toLowerCase().includes('toàn diện') || c.combo_name.toLowerCase().includes('làm đẹp')) {
-            discount = 15;
-          }
           let catId = 0;
           if (c.catalogs && c.catalogs.length > 0) {
             catId = c.catalogs[0].category_id || 0;
@@ -230,7 +226,7 @@ export default function AdminServiceManagement() {
             combo_name: c.combo_name,
             category_id: catId,
             service_ids: c.catalogs ? c.catalogs.map((item: any) => item.id) : [],
-            discount_percentage: discount,
+            discount_percentage: c.discount_percentage ?? 10,
             description: c.description || '',
             is_active: c.is_active,
             createdAt: c.createdAt,
@@ -1002,6 +998,7 @@ export default function AdminServiceManagement() {
                   <th className="py-4 px-6">Tên gói combo</th>
                   <th className="py-4 px-4">Mô tả</th>
                   <th className="py-4 px-4">Dịch vụ đi kèm</th>
+                  <th className="py-4 px-4">Giảm giá</th>
                   <th className="py-4 px-4">Tổng giá</th>
                   <th className="py-4 px-4">Trạng thái</th>
                   <th className="py-4 px-6 text-right">Thao tác</th>
@@ -1011,7 +1008,7 @@ export default function AdminServiceManagement() {
                 {filteredCombos.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="py-12 text-center text-slate-400 text-sm"
                     >
                       Không tìm thấy gói combo dịch vụ phù hợp...
@@ -1038,8 +1035,15 @@ export default function AdminServiceManagement() {
                           {getComboServicesNames(c.service_ids) || "—"}
                         </td>
 
-                        <td className="py-4 px-4 text-slate-900 font-black text-sm">
-                          {totalPrice.toLocaleString("vi-VN")} đ
+                        <td className="py-4 px-4 text-emerald-600 font-bold text-xs">
+                          {c.discount_percentage ? `${c.discount_percentage}%` : "0%"}
+                        </td>
+
+                        <td className="py-4 px-4">
+                          <div className="flex flex-col">
+                            <span className="text-slate-400 line-through text-xs font-semibold">{totalPrice.toLocaleString("vi-VN")} đ</span>
+                            <span className="text-slate-900 font-black text-sm">{Math.round(totalPrice * (1 - (c.discount_percentage || 0) / 100)).toLocaleString("vi-VN")} đ</span>
+                          </div>
                         </td>
 
                         <td className="py-4 px-4">
@@ -1749,23 +1753,26 @@ interface ImportExcelModalProps {
 }
 
 interface ExcelRow {
+  row_index?: number;
   service_name: string;
   category_name: string;
-  category_id: number;
+  category_id?: number;
   description: string;
-  price: number;
+  labor_price: number;
   estimated_duration: number;
   is_active: boolean;
+  isValid?: boolean;
+  errors?: string[];
 }
 
 function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalProps) {
-  const { fetchPrivate } = useFetchClient();
+  const { fetchPrivateForm, fetchPrivate } = useFetchClient();
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [previewData, setPreviewData] = useState<ExcelRow[]>([]);
 
-  const handleSelectFile = (selected: File | null) => {
+  const handleSelectFile = async (selected: File | null) => {
     if (!selected) return;
     const validTypes = [".xlsx", ".xls", ".csv"];
     const ext = "." + selected.name.split(".").pop()?.toLowerCase();
@@ -1774,41 +1781,59 @@ function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalP
       return;
     }
     setFile(selected);
+    setPreviewData([]);
+    setIsUploading(true);
 
-    // Auto-map based on available categories
-    const firstCat = categories[0] || { id: 1, category_name: "Bảo dưỡng định kỳ" };
-    const secondCat = categories[1] || categories[0] || { id: 1, category_name: "Sửa chữa chung" };
+    const formData = new FormData();
+    formData.append("file", selected);
 
-    // Fill realistic preview table items
-    setPreviewData([
-      {
-        service_name: "Bảo dưỡng định kỳ cấp 1 (5,000 km)",
-        category_name: firstCat.category_name,
-        category_id: firstCat.id,
-        description: "Thay nhớt động cơ, lọc nhớt, vệ sinh lọc gió, kiểm tra tổng quát gầm xe.",
-        price: 450000,
-        estimated_duration: 45,
-        is_active: true,
-      },
-      {
-        service_name: "Cân chỉnh thước lái 3D thông minh",
-        category_name: secondCat.category_name,
-        category_id: secondCat.id,
-        description: "Sử dụng máy Hunter 3D để căn chỉnh độ chụm và góc camber bánh xe.",
-        price: 600000,
-        estimated_duration: 60,
-        is_active: true,
-      },
-      {
-        service_name: "Vệ sinh hệ thống điều hòa chuyên sâu",
-        category_name: firstCat.category_name,
-        category_id: firstCat.id,
-        description: "Nội soi vệ sinh giàn lạnh, khử trùng bằng máy ozone, thay lọc gió điều hòa.",
-        price: 850000,
-        estimated_duration: 90,
-        is_active: true,
-      },
-    ]);
+    try {
+      const response = await fetchPrivateForm<any>(
+        SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG_IMPORT_PREVIEW,
+        "POST",
+        formData
+      );
+      if (response.data && response.data.previewList) {
+        setPreviewData(response.data.previewList);
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || "Lỗi khi đọc file để xem trước.");
+      setFile(null);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRowChange = (index: number, field: keyof ExcelRow, value: any) => {
+    setPreviewData(prev => {
+      const newData = [...prev];
+      const row = { ...newData[index], [field]: value };
+      
+      const errors: string[] = [];
+      let isValid = true;
+      
+      if (!row.service_name || row.service_name.trim() === "") {
+        isValid = false;
+        errors.push("Tên dịch vụ không được để trống");
+      }
+      
+      if (field === 'category_id') {
+        const cat = categories.find(c => c.id === Number(value));
+        if (cat) row.category_name = cat.category_name;
+      }
+
+      if (!row.category_id) {
+        isValid = false;
+        errors.push("Danh mục không hợp lệ hoặc bị bỏ trống");
+      }
+
+      row.isValid = isValid;
+      row.errors = errors;
+
+      newData[index] = row;
+      return newData;
+    });
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -1819,37 +1844,32 @@ function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalP
   };
 
   const handleImport = async () => {
-    if (!file || previewData.length === 0) return;
+    if (!previewData || previewData.length === 0) return;
+    const validRows = previewData.filter(r => r.isValid);
+    if (validRows.length === 0) {
+        alert("Không có dòng dữ liệu nào hợp lệ để nhập.");
+        return;
+    }
     setIsUploading(true);
+
     try {
-      let successCount = 0;
-      for (const row of previewData) {
-        try {
-          const res = await fetchPrivate<any>(
-            SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG,
-            "POST",
-            {
-              category_id: row.category_id,
-              service_name: row.service_name,
-              description: row.description,
-              estimated_duration: row.estimated_duration,
-              is_active: row.is_active,
-            }
-          );
-          if (res.data && res.data.id) {
-            saveServicePrice(res.data.id, row.price);
-          }
-          successCount++;
-        } catch (e) {
-          console.error("Lỗi khi import dòng:", row.service_name, e);
-        }
-      }
+      const response = await fetchPrivate<any>(
+        SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG_IMPORT_CONFIRM,
+        "POST",
+        { servicesList: validRows }
+      );
       setIsUploading(false);
+      const successCount = response.data?.successCount || 0;
+      const errors = response.data?.errors || [];
+      if (errors && errors.length > 0) {
+        const sample = errors.slice(0, 10).map((e: any) => `Dòng ${e.row}: ${e.message}`).join('\n');
+        alert(`Kết quả import: ${successCount} dịch vụ thành công.\nMột số lỗi khi lưu:\n${sample}`);
+      }
       onImported(successCount);
-    } catch (err) {
+    } catch (err: any) {
       setIsUploading(false);
       console.error(err);
-      alert("Đã xảy ra lỗi khi kết nối máy chủ để import dữ liệu.");
+      alert(err?.message || "Đã xảy ra lỗi khi kết nối máy chủ để import dữ liệu.");
     }
   };
 
@@ -1909,7 +1929,15 @@ function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalP
               </div>
             </div>
             <button
-              onClick={() => alert("Đang tải file mẫu thiết kế (mẫu dịch vụ tiêu chuẩn).")}
+              onClick={() => {
+                const url = '/templates/service_catalog_import_template.csv?v=2';
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'service_catalog_import_template.csv';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+              }}
               className="px-4 py-2 bg-white border border-[#00285E] text-[#00285E] rounded text-xs font-bold hover:bg-[#EDF3FF] transition-colors shrink-0"
             >
               Tải mẫu
@@ -1967,31 +1995,97 @@ function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalP
           {/* PREVIEW TABLE */}
           {file && previewData.length > 0 && (
             <div className="space-y-2">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest block">
-                Xem trước dữ liệu import ({previewData.length} Dòng)
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest flex justify-between items-center">
+                <span>Xem trước dữ liệu import ({previewData.length} Dòng)</span>
+                <span className="text-[10px] text-amber-600 normal-case bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
+                  Bạn có thể chỉnh sửa trực tiếp dữ liệu tại đây
+                </span>
               </span>
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <div className="border border-slate-200 rounded-lg overflow-hidden max-h-[300px] overflow-y-auto">
                 <table className="w-full text-left border-collapse text-xs">
-                  <thead>
+                  <thead className="sticky top-0 bg-white z-10 shadow-sm">
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold">
-                      <th className="py-2.5 px-4">Tên dịch vụ</th>
-                      <th className="py-2.5 px-3">Phân loại</th>
-                      <th className="py-2.5 px-3 text-right">Giá</th>
-                      <th className="py-2.5 px-3 text-center">Thời gian</th>
-                      <th className="py-2.5 px-3 text-center">Trạng thái</th>
+                      <th className="py-2 px-3 w-10 text-center">#</th>
+                      <th className="py-2 px-3 min-w-[150px]">Tên dịch vụ</th>
+                      <th className="py-2 px-3 min-w-[120px]">Phân loại</th>
+                      <th className="py-2 px-3 w-28 text-right">Giá</th>
+                      <th className="py-2 px-3 w-20 text-center">Thời gian</th>
+                      <th className="py-2 px-3 w-20 text-center">Trạng thái</th>
+                      <th className="py-2 px-3 w-12 text-center">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody>
                     {previewData.map((row, idx) => (
-                      <tr key={idx} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                        <td className="py-2 px-4 font-semibold text-slate-800">{row.service_name}</td>
-                        <td className="py-2 px-3 text-slate-500">{row.category_name}</td>
-                        <td className="py-2 px-3 text-right font-bold text-[#00285E]">{row.price.toLocaleString("vi-VN")} đ</td>
-                        <td className="py-2 px-3 text-center font-semibold">{row.estimated_duration} phút</td>
-                        <td className="py-2 px-3 text-center">
-                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">
-                            Hoạt động
-                          </span>
+                      <tr key={idx} className={`border-b border-slate-100 last:border-0 hover:bg-slate-50/50 ${!row.isValid ? 'bg-red-50/30' : ''}`}>
+                        <td className="py-2 px-2 align-top text-center text-slate-400 font-semibold pt-3">{row.row_index}</td>
+                        <td className="py-2 px-2 align-top">
+                          <input 
+                            type="text" 
+                            value={row.service_name} 
+                            onChange={(e) => handleRowChange(idx, 'service_name', e.target.value)}
+                            className={`w-full text-xs font-semibold text-slate-800 border ${!row.service_name ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-white'} rounded px-2 py-1.5 focus:outline-none focus:border-[#00285E]`}
+                            placeholder="Nhập tên..."
+                          />
+                          {!row.isValid && row.errors && (
+                              <div className="text-[10px] text-red-500 font-medium mt-1 leading-tight">
+                                  {row.errors.join(", ")}
+                              </div>
+                          )}
+                        </td>
+                        <td className="py-2 px-2 align-top">
+                          <select 
+                            value={row.category_id || ""} 
+                            onChange={(e) => handleRowChange(idx, 'category_id', e.target.value ? Number(e.target.value) : undefined)}
+                            className={`w-full text-xs text-slate-600 border ${!row.category_id ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-white'} rounded px-2 py-1.5 focus:outline-none focus:border-[#00285E]`}
+                          >
+                            <option value="">-- Chọn danh mục --</option>
+                            {categories.map(c => (
+                              <option key={c.id} value={c.id}>{c.category_name}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="py-2 px-2 align-top text-right">
+                          <div className="relative flex items-center">
+                            <input 
+                              type="number" 
+                              min="0"
+                              value={row.labor_price} 
+                              onChange={(e) => handleRowChange(idx, 'labor_price', Number(e.target.value))}
+                              className="w-full text-xs text-right font-bold text-[#00285E] border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:border-[#00285E] bg-white pr-5"
+                            />
+                            <span className="absolute right-2 text-[#00285E] font-bold text-[10px]">đ</span>
+                          </div>
+                        </td>
+                        <td className="py-2 px-2 align-top text-center">
+                          <input 
+                            type="number" 
+                            min="0"
+                            value={row.estimated_duration} 
+                            onChange={(e) => handleRowChange(idx, 'estimated_duration', Number(e.target.value))}
+                            className="w-full text-xs text-center font-semibold border border-slate-200 bg-white rounded px-2 py-1.5 focus:outline-none focus:border-[#00285E]"
+                          />
+                        </td>
+                        <td className="py-2 px-2 align-top text-center">
+                          <label className="inline-flex items-center cursor-pointer mt-1.5 justify-center w-full">
+                            <input 
+                              type="checkbox" 
+                              checked={row.is_active} 
+                              onChange={(e) => handleRowChange(idx, 'is_active', e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-7 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500 relative"></div>
+                          </label>
+                        </td>
+                        <td className="py-2 px-2 align-top text-center">
+                          <button 
+                            onClick={() => {
+                              setPreviewData(prev => prev.filter((_, i) => i !== idx));
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors mt-0.5 inline-flex justify-center w-full"
+                            title="Xóa dòng này"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -2021,18 +2115,18 @@ function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalP
           </button>
           <button
             onClick={handleImport}
-            disabled={!file || isUploading}
+            disabled={!file || isUploading || previewData.filter(r => r.isValid).length === 0}
             className="px-6 py-2.5 bg-[#F9A11B] text-[#00285E] rounded text-sm font-bold shadow-md shadow-[#F9A11B]/20 hover:bg-[#E08F12] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isUploading ? (
               <>
                 <span className="w-4 h-4 border-2 border-[#00285E]/30 border-t-[#00285E] rounded-full animate-spin" />
-                <span>Đang nhập dữ liệu...</span>
+                <span>Đang xử lý...</span>
               </>
             ) : (
               <>
                 <Upload size={16} />
-                <span>Xác nhận nhập</span>
+                <span>Xác nhận nhập {previewData.filter(r => r.isValid).length > 0 ? previewData.filter(r => r.isValid).length : ''} dịch vụ</span>
               </>
             )}
           </button>

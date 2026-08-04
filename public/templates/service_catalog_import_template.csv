@@ -1,0 +1,3 @@
+﻿Tên dịch vụ;Mô tả;Danh mục;Giá;Thời gian (phút);Trạng thái
+Example Service A;Mô tả dịch vụ mẫu A;Bảo dưỡng định kỳ;150000;60;true
+Example Service B;Mô tả dịch vụ mẫu B;Sửa chữa và thay thế;120000;45;false
