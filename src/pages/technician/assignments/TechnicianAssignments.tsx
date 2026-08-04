@@ -360,6 +360,8 @@ export default function TechnicianAssignments() {
   const [issueNote, setIssueNote] = useState("");
   const [isSubmittingIssueReport, setIsSubmittingIssueReport] = useState(false);
   const [pickedCategories, setPickedCategories] = useState<string[]>([]);
+  // Nhóm nào đang mở rộng checklist chi tiết — mặc định mở khi vừa chọn, thu gọn khi bấm "Xác nhận"
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [catDropdownOpen, setCatDropdownOpen] = useState(false);
   const [catSearch, setCatSearch] = useState("");
   const [lookupOpen, setLookupOpen] = useState(false);
@@ -604,7 +606,17 @@ export default function TechnicianAssignments() {
   };
   const openIssueReportModal = (assignment: Assignment) => {
     setIssueReportAssignment(assignment);
-    setIssueTaskId(assignment.tasks[0]?.taskId ?? null);
+    // Không lấy đại tasks[0] — với REPAIR phải chọn đúng Task REPAIR (ưu tiên IN_PROGRESS),
+    // nếu không sẽ lỡ lấy nhầm Task INSPECTION đã COMPLETED từ trước, khiến BE báo 404
+    // "Không tìm thấy công việc sửa chữa được giao cho bạn" khi gửi báo cáo lỗi phát sinh.
+    const targetTask =
+      assignment.taskType === "REPAIR"
+        ? (assignment.tasks.find(
+            (t) => t.taskType === "REPAIR" && t.status === "IN_PROGRESS",
+          ) ?? assignment.tasks.find((t) => t.taskType === "REPAIR"))
+        : (assignment.tasks.find((t) => t.taskType === "INSPECTION") ??
+          assignment.tasks[0]);
+    setIssueTaskId(targetTask?.taskId ?? null);
     // Cha (parent_id null/0) = category, con (có parent_id) = item checkbox
     const categoryNameById = new Map(
       components
@@ -666,18 +678,23 @@ export default function TechnicianAssignments() {
     return groups;
   }, [issueChecklist]);
 
-  // Thêm/bỏ 1 nhóm lỗi từ dropdown (cộng dồn danh sách bên dưới)
+  // Thêm/bỏ 1 nhóm lỗi từ dropdown (cộng dồn danh sách bên dưới). Vừa thêm nhóm thì tự mở rộng
+  // checklist chi tiết luôn, để kỹ thuật viên tick ngay không cần thao tác thừa.
   const toggleCategory = (category: string) => {
     setPickedCategories((prev) =>
       prev.includes(category)
         ? prev.filter((c) => c !== category)
         : [...prev, category],
     );
+    setExpandedCategories((prev) =>
+      prev.includes(category) ? prev : [...prev, category],
+    );
   };
 
   // Bỏ 1 nhóm + gỡ tích các lỗi thuộc nhóm đó
   const removeCategory = (category: string) => {
     setPickedCategories((prev) => prev.filter((c) => c !== category));
+    setExpandedCategories((prev) => prev.filter((c) => c !== category));
     setIssueChecklist((prev) =>
       prev.map((item) =>
         item.category === category
@@ -685,6 +702,11 @@ export default function TechnicianAssignments() {
           : item,
       ),
     );
+  };
+
+  // Thu gọn checklist chi tiết của 1 nhóm sau khi đã tick xong (bấm "Xác nhận")
+  const collapseCategory = (category: string) => {
+    setExpandedCategories((prev) => prev.filter((c) => c !== category));
   };
 
   // Nhóm hiện trong dropdown, lọc theo search (khớp tên nhóm hoặc tên lỗi con)
@@ -1284,14 +1306,19 @@ export default function TechnicianAssignments() {
       })),
       note: issueNote.trim() || undefined,
     };
+    // Task INSPECTION -> báo cáo lỗi lần đầu (BE tự complete task + chuyển order PENDING_QUOTATION).
+    // Task REPAIR -> lỗi phát sinh giữa lúc đang sửa, phải gọi endpoint riêng (ADDITIONAL_ISSUES_REPORT)
+    // vì BE createIssueReports chỉ chấp nhận Task type INSPECTION, gọi nhầm sẽ bị BE từ chối.
+    const isAdditionalIssue = issueReportAssignment?.taskType === "REPAIR";
     try {
       setIsSubmittingIssueReport(true);
       await fetchPrivate(
-        TASK_ASSIGNMENT_ENDPOINTS.ISSUES_REPORT,
+        isAdditionalIssue
+          ? TASK_ASSIGNMENT_ENDPOINTS.ADDITIONAL_ISSUES_REPORT
+          : TASK_ASSIGNMENT_ENDPOINTS.ISSUES_REPORT,
         "POST",
         payload,
       );
-      // BE tự complete task + chuyển order sang PENDING_QUOTATION
       setShowIncidentIssueReport(false);
       setIssueReportOpen(false);
       showToast(
@@ -2237,13 +2264,17 @@ export default function TechnicianAssignments() {
                 );
               })()}
 
-              {/* SECTION: Ghi nhận lỗi (chỉ task kiểm tra) */}
-              {issueReportAssignment.taskType === "INSPECTION" && (
+              {/* SECTION: Ghi nhận lỗi — dùng chung cho cả kiểm tra ban đầu (INSPECTION) lẫn
+                  lỗi phát sinh giữa lúc đang sửa (REPAIR), chỉ khác endpoint gửi đi. */}
+              {(issueReportAssignment.taskType === "INSPECTION" ||
+                issueReportAssignment.taskType === "REPAIR") && (
                 <div>
                   <div className="flex items-center justify-between mb-3 px-1">
                     <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
                       <AlertCircle size={14} className="text-slate-500" />
-                      Ghi nhận lỗi phát hiện
+                      {issueReportAssignment.taskType === "REPAIR"
+                        ? "Ghi nhận lỗi phát sinh thêm"
+                        : "Ghi nhận lỗi phát hiện"}
                     </label>
                     {checkedIssueItems.length > 0 && (
                       <span
@@ -2350,72 +2381,123 @@ export default function TechnicianAssignments() {
                     </p>
                   ) : (
                     <div className="space-y-3">
-                      {pickedGroups.map((group) => (
-                        <div
-                          key={group.category}
-                          className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden"
-                        >
-                          <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
-                            <span className="text-sm font-semibold text-[#00285E]">
-                              {group.category}
-                            </span>
+                      {pickedGroups.map((group) => {
+                        const isExpanded = expandedCategories.includes(
+                          group.category,
+                        );
+                        const checkedCount = group.items.filter(
+                          (i) => i.checked,
+                        ).length;
+                        return (
+                          <div
+                            key={group.category}
+                            className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden"
+                          >
                             <button
                               type="button"
-                              onClick={() => removeCategory(group.category)}
-                              className="text-slate-400 hover:text-rose-500 transition-colors"
-                              title="Bỏ nhóm này"
+                              onClick={() =>
+                                setExpandedCategories((prev) =>
+                                  isExpanded
+                                    ? prev.filter((c) => c !== group.category)
+                                    : [...prev, group.category],
+                                )
+                              }
+                              className="w-full flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60 text-left"
                             >
-                              <X size={15} />
-                            </button>
-                          </div>
-                          <div className="p-2 space-y-1.5">
-                            {group.items.map((item) => (
-                              <div
-                                key={item.component_id}
-                                className="rounded-xl px-3 py-2.5 transition-colors border"
-                                style={{
-                                  backgroundColor: item.checked
-                                    ? "#EDF3FF"
-                                    : "transparent",
-                                  borderColor: item.checked
-                                    ? "#c7d7f0"
-                                    : "transparent",
-                                }}
-                              >
-                                <label className="flex items-center gap-3 cursor-pointer select-none">
-                                  <input
-                                    type="checkbox"
-                                    checked={item.checked}
-                                    onChange={() =>
-                                      toggleIssueChecklistItem(
-                                        item.component_id,
-                                      )
-                                    }
-                                    className="accent-[#00285E] shrink-0"
-                                  />
-                                  <span className="text-sm text-slate-700">
-                                    {item.component_name}
+                              <span className="flex items-center gap-2 min-w-0">
+                                <span className="text-sm font-semibold text-[#00285E] truncate">
+                                  {group.category}
+                                </span>
+                                {checkedCount > 0 && (
+                                  <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#00285E] text-white">
+                                    {checkedCount} lỗi đã chọn
                                   </span>
-                                </label>
-                                {item.checked && (
-                                  <input
-                                    type="text"
-                                    value={item.description}
-                                    onChange={(e) =>
-                                      updateIssueChecklistDescription(
-                                        item.component_id,
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="Mô tả chi tiết lỗi..."
-                                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-[#00285E] transition-colors"
-                                  />
                                 )}
-                              </div>
-                            ))}
+                              </span>
+                              <span className="flex items-center gap-2 shrink-0">
+                                <ChevronDown
+                                  size={16}
+                                  className={`text-slate-400 transition-transform ${
+                                    isExpanded ? "rotate-180" : ""
+                                  }`}
+                                />
+                                <span
+                                  role="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeCategory(group.category);
+                                  }}
+                                  className="text-slate-400 hover:text-rose-500 transition-colors"
+                                  title="Bỏ nhóm này"
+                                >
+                                  <X size={15} />
+                                </span>
+                              </span>
+                            </button>
+                            {isExpanded && (
+                              <>
+                                <div className="p-2 space-y-1.5">
+                                  {group.items.map((item) => (
+                                    <div
+                                      key={item.component_id}
+                                      className="rounded-xl px-3 py-2.5 transition-colors border"
+                                      style={{
+                                        backgroundColor: item.checked
+                                          ? "#EDF3FF"
+                                          : "transparent",
+                                        borderColor: item.checked
+                                          ? "#c7d7f0"
+                                          : "transparent",
+                                      }}
+                                    >
+                                      <label className="flex items-center gap-3 cursor-pointer select-none">
+                                        <input
+                                          type="checkbox"
+                                          checked={item.checked}
+                                          onChange={() =>
+                                            toggleIssueChecklistItem(
+                                              item.component_id,
+                                            )
+                                          }
+                                          className="accent-[#00285E] shrink-0"
+                                        />
+                                        <span className="text-sm text-slate-700">
+                                          {item.component_name}
+                                        </span>
+                                      </label>
+                                      {item.checked && (
+                                        <input
+                                          type="text"
+                                          value={item.description}
+                                          onChange={(e) =>
+                                            updateIssueChecklistDescription(
+                                              item.component_id,
+                                              e.target.value,
+                                            )
+                                          }
+                                          placeholder="Mô tả chi tiết lỗi..."
+                                          className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-[#00285E] transition-colors"
+                                        />
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="px-2 pb-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      collapseCategory(group.category)
+                                    }
+                                    className="w-full h-9 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:brightness-110 active:scale-[0.98] transition-all"
+                                  >
+                                    Xác nhận
+                                  </button>
+                                </div>
+                              </>
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
@@ -2477,27 +2559,55 @@ export default function TechnicianAssignments() {
                   </div>
                 </>
               ) : (
-                <div className="sm:ml-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full">
-                  {canRequestExportParts && (
+                <>
+                  <span className="text-xs text-slate-400 text-center sm:text-left">
+                    {checkedIssueItems.length > 0
+                      ? `${checkedIssueItems.length} lỗi phát sinh sẽ được báo cáo`
+                      : "Chọn lỗi phát sinh nếu có, hoặc yêu cầu xuất kho"}
+                  </span>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-wrap">
+                    {canRequestExportParts && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          issueReportAssignment &&
+                          openRequestExportModal(issueReportAssignment.serviceOrderId)
+                        }
+                        className="h-11 flex items-center justify-center gap-1.5 px-5 rounded-xl text-sm font-bold text-white bg-[#00285E] shadow-sm hover:bg-[#001E46] active:scale-[0.98] transition-all"
+                      >
+                        <Package size={15} />
+                        Yêu cầu xuất kho
+                      </button>
+                    )}
                     <button
-                      type="button"
-                      onClick={() =>
-                        issueReportAssignment &&
-                        openRequestExportModal(issueReportAssignment.serviceOrderId)
-                      }
-                      className="h-11 flex items-center justify-center gap-1.5 px-5 rounded-xl text-sm font-bold text-white bg-[#00285E] shadow-sm hover:bg-[#001E46] active:scale-[0.98] transition-all"
+                      onClick={() => setIssueReportOpen(false)}
+                      disabled={isSubmittingIssueReport}
+                      className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-40"
                     >
-                      <Package size={15} />
-                      Yêu cầu xuất kho
+                      Đóng
                     </button>
-                  )}
-                  <button
-                    onClick={() => setIssueReportOpen(false)}
-                    className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all"
-                  >
-                    Đóng
-                  </button>
-                </div>
+                    <button
+                      onClick={handleCreateIssuesReport}
+                      disabled={
+                        isSubmittingIssueReport ||
+                        checkedIssueItems.length === 0
+                      }
+                      className="h-11 flex items-center justify-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/25 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {isSubmittingIssueReport ? (
+                        <>
+                          <Loader2 size={15} className="animate-spin" />
+                          Đang gửi...
+                        </>
+                      ) : (
+                        <>
+                          <ClipboardList size={15} />
+                          Gửi báo cáo lỗi phát sinh
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </div>

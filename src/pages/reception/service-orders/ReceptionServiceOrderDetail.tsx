@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   Clock,
   AlertTriangle,
-  DollarSign,
   Loader2,
   CreditCard,
   QrCode,
@@ -53,9 +52,10 @@ export default function ReceptionServiceOrderDetail() {
 
   const [order, setOrder] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancelReason, setCancelReason] = useState('');
-  const [incurredCost, setIncurredCost] = useState('150000'); // 150k default if in progress
+  const [showCloseEarlyModal, setShowCloseEarlyModal] = useState(false);
+  const [closeEarlyReason, setCloseEarlyReason] = useState('');
+  const [completedItemIds, setCompletedItemIds] = useState<Set<number>>(new Set());
+  const [isClosingEarly, setIsClosingEarly] = useState(false);
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [isPaymentSuccess, setIsPaymentSuccess] = useState(false);
@@ -239,17 +239,15 @@ export default function ReceptionServiceOrderDetail() {
   const statusCfg = SO_STATUS_CONFIG[order.status] || SO_STATUS_CONFIG['INSPECTING'];
   const StatusIcon = statusCfg.icon;
 
-  const isAlreadyStarted = order.status !== 'INSPECTING' && order.status !== 'ASSIGNED';
-
   const formatPrice = (price: number) => {
-    return (price || 0).toLocaleString('vi-VN') + ' đ';
+    return (price || 0).toLocaleString('vi-VN') + ' VND';
   };
 
   const getOrderTotal = () => {
     if (order.quotation && Array.isArray(order.quotation.items)) {
-      return order.quotation.items.reduce((sum: number, item: any) => {
-        return sum + (parseFloat(item.amount) || 0);
-      }, 0);
+      return order.quotation.items
+        .filter((item: any) => item.status !== 'CANCELLED')
+        .reduce((sum: number, item: any) => sum + (parseFloat(item.amount) || 0), 0);
     }
     if (!order.tasks || !Array.isArray(order.tasks)) return 0;
     return order.tasks.reduce((sum: number, task: any) => {
@@ -272,9 +270,9 @@ export default function ReceptionServiceOrderDetail() {
 
   const getLaborTotal = () => {
     if (order.quotation && Array.isArray(order.quotation.items)) {
-      return order.quotation.items.reduce((sum: number, item: any) => {
-        return sum + (parseFloat(item.repair_price) || 0);
-      }, 0);
+      return order.quotation.items
+        .filter((item: any) => item.status !== 'CANCELLED')
+        .reduce((sum: number, item: any) => sum + (parseFloat(item.repair_price) || 0), 0);
     }
     if (!order.tasks || !Array.isArray(order.tasks)) return 0;
     return order.tasks.reduce((sum: number, task: any) => {
@@ -285,11 +283,13 @@ export default function ReceptionServiceOrderDetail() {
 
   const getPartsTotal = () => {
     if (order.quotation && Array.isArray(order.quotation.items)) {
-      return order.quotation.items.reduce((sum: number, item: any) => {
-        const unitPrice = parseFloat(item.unit_price) || 0;
-        const qty = parseInt(item.quantity) || 1;
-        return sum + (unitPrice * qty);
-      }, 0);
+      return order.quotation.items
+        .filter((item: any) => item.status !== 'CANCELLED')
+        .reduce((sum: number, item: any) => {
+          const unitPrice = parseFloat(item.unit_price) || 0;
+          const qty = parseInt(item.quantity) || 1;
+          return sum + (unitPrice * qty);
+        }, 0);
     }
     if (!order.tasks || !Array.isArray(order.tasks)) return 0;
     return order.tasks.reduce((sum: number, task: any) => {
@@ -299,17 +299,54 @@ export default function ReceptionServiceOrderDetail() {
     }, 0);
   };
 
-  const handleCancelOrder = () => {
-    if (!cancelReason.trim()) {
-      showToast('Vui lòng điền lý do hủy đơn.', 'warning');
+  // Mở modal đóng sớm đơn. Hạng mục đã COMPLETED/đã xuất kho được hiển thị riêng (luôn tính,
+  // không cần tick). Checklist chỉ áp dụng cho hạng mục đang dở dang — lễ tân tự tick sau khi
+  // xác nhận trực tiếp với kỹ thuật viên, không đoán trước để tránh tick nhầm.
+  const handleOpenCloseEarlyModal = () => {
+    setCompletedItemIds(new Set());
+    setCloseEarlyReason('');
+    setShowCloseEarlyModal(true);
+  };
+
+  // itemIds có thể là 1 id đơn (phụ tùng lẻ) hoặc nhiều id cùng lúc (1 group: dịch vụ + phụ tùng đi kèm)
+  const toggleCompletedItem = (itemIds: number | number[]) => {
+    const ids = Array.isArray(itemIds) ? itemIds : [itemIds];
+    setCompletedItemIds((prev) => {
+      const next = new Set(prev);
+      const allChecked = ids.every((id) => next.has(id));
+      ids.forEach((id) => (allChecked ? next.delete(id) : next.add(id)));
+      return next;
+    });
+  };
+
+  const handleConfirmCloseEarly = async () => {
+    if (!closeEarlyReason.trim()) {
+      showToast('Vui lòng điền lý do đóng sớm lệnh sửa chữa.', 'warning');
       return;
     }
 
-    const costValue = isAlreadyStarted ? parseFloat(incurredCost) || 0 : 0;
-
-    // TODO: Call API to cancel order
-    showToast(`Hủy hóa đơn dịch vụ SO-${order.id} chưa có API (đang phát triển)!`, 'info');
-    setShowCancelModal(false);
+    setIsClosingEarly(true);
+    try {
+      const res = await fetchPrivate(
+        SERVICE_ORDER_API_ENDPOINTS.CLOSE_EARLY(String(order.id)),
+        'PATCH',
+        {
+          completedQuotationItemIds: Array.from(completedItemIds),
+          reason: closeEarlyReason.trim(),
+        },
+      );
+      if (res && res.success) {
+        showToast(`Đã đóng sớm hóa đơn dịch vụ SO-${order.id} thành công.`, 'success');
+        setShowCloseEarlyModal(false);
+        await loadOrderDetail(String(order.id));
+      } else {
+        showToast(res?.message || 'Không thể đóng sớm lệnh sửa chữa.', 'warning');
+      }
+    } catch (error: any) {
+      showToast(error?.message || 'Lỗi khi đóng sớm lệnh sửa chữa.', 'warning');
+    } finally {
+      setIsClosingEarly(false);
+    }
   };
 
   // Helper cho data mapping
@@ -381,6 +418,16 @@ export default function ReceptionServiceOrderDetail() {
         </div>
 
         <div className="flex items-center gap-3">
+          {!isPaid && order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && order.quotation && (
+            <button
+              onClick={handleOpenCloseEarlyModal}
+              title="Đóng sớm lệnh sửa chữa khi khách hàng muốn dừng giữa chừng"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold border-2 border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-all"
+            >
+              <AlertTriangle size={16} />
+              Đóng đơn
+            </button>
+          )}
           {!isPaid && order.status !== 'CANCELLED' && (
             <button
               onClick={handleOpenPaymentModal}
@@ -397,6 +444,27 @@ export default function ReceptionServiceOrderDetail() {
           )}
         </div>
       </div>
+
+      {/* EARLY CLOSURE INFO CARD — hiển thị khi đơn được đóng sớm (COMPLETED nhưng dở dang có chủ đích),
+          nhận diện qua field early_closure_reason (chỉ có giá trị khi đóng sớm). */}
+      {order.status === 'COMPLETED' && order.early_closure_reason && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-3 print:hidden">
+          <h2 className="text-sm font-bold text-amber-800 flex items-center gap-2 uppercase tracking-widest">
+            <AlertTriangle size={16} />
+            Đơn đã đóng sớm theo yêu cầu khách hàng
+          </h2>
+          <p className="text-xs text-amber-700 leading-relaxed">
+            Lệnh sửa chữa này được chốt trước khi hoàn tất toàn bộ báo giá ban đầu. Các hạng mục chưa thực hiện đã bị loại khỏi
+            hóa đơn, chỉ tính đúng phần đã thực hiện thật (và phí công dở dang nếu có).
+          </p>
+          <div className="bg-white/70 border border-amber-100 rounded-lg p-3">
+            <span className="text-[10px] text-amber-500 uppercase font-bold block mb-1">Lý do đóng sớm</span>
+            <p className="text-xs font-semibold text-amber-800 whitespace-pre-line leading-relaxed">
+              {order.early_closure_reason}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* CANCELLED INFO CARD */}
       {order.status === 'CANCELLED' && (
@@ -549,8 +617,9 @@ export default function ReceptionServiceOrderDetail() {
         {/* Services & Labor / Spare Parts detailed breakdown if Quotation exists */}
         {order.quotation ? (
           <div className="space-y-6">
-            
-            {/* Services Table */}
+
+            {/* Services Table — gộp cả Task INSPECTION (miễn phí) và dịch vụ sửa chữa có phí
+                thành 1 danh sách thống nhất, vì cả hai đều là công việc kỹ thuật đã thực hiện. */}
             <div className="space-y-3">
               <h4 className="text-xs font-bold text-[#00285E] uppercase tracking-widest flex items-center gap-1.5">
                 <Wrench size={14} />
@@ -566,19 +635,41 @@ export default function ReceptionServiceOrderDetail() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                    {order.quotation.items.filter((item: any) => parseFloat(item.repair_price) > 0).map((item: any, idx: number) => (
-                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-3.5 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
-                        <td className="py-3.5 px-4 text-left">
-                          <span className="font-semibold text-slate-800">
-                            {item.custom_item_name || item.service_catalog?.service_name || 'Dịch vụ sửa chữa'}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-bold text-[#00285E] bg-slate-50/50">
-                          {formatPrice(parseFloat(item.repair_price) || 0)}
-                        </td>
-                      </tr>
-                    ))}
+                    {(() => {
+                      const inspectionRows = (order.tasks || [])
+                        .filter((t: any) => t.type === 'INSPECTION' && t.status !== 'CANCELLED')
+                        .map((task: any) => ({
+                          key: `inspection-${task.id}`,
+                          name: 'Kiểm tra tổng quát tình trạng xe',
+                          cost: 0,
+                        }));
+                      const serviceRows = order.quotation.items
+                        .filter((item: any) => parseFloat(item.repair_price) > 0 && item.status !== 'CANCELLED')
+                        .map((item: any, idx: number) => ({
+                          key: `service-${idx}`,
+                          name: item.custom_item_name || item.service_catalog?.service_name || 'Dịch vụ sửa chữa',
+                          cost: parseFloat(item.repair_price) || 0,
+                        }));
+                      const rows = [...inspectionRows, ...serviceRows];
+
+                      return rows.map((row, idx) => (
+                        <tr key={row.key} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="py-3.5 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
+                          <td className="py-3.5 px-4 text-left">
+                            <span className="font-semibold text-slate-800">{row.name}</span>
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            {row.cost > 0 ? (
+                              <span className="font-bold text-[#00285E]">{formatPrice(row.cost)}</span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold text-white bg-[#00285E]">
+                                Miễn phí
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ));
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -602,14 +693,14 @@ export default function ReceptionServiceOrderDetail() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                    {order.quotation.items.filter((item: any) => parseFloat(item.unit_price) > 0).length === 0 ? (
+                    {order.quotation.items.filter((item: any) => parseFloat(item.unit_price) > 0 && item.status !== 'CANCELLED').length === 0 ? (
                       <tr>
                         <td colSpan={5} className="py-8 text-center text-slate-400 italic">
                           Không có vật tư phụ tùng thay thế nào.
                         </td>
                       </tr>
                     ) : (
-                      order.quotation.items.filter((item: any) => parseFloat(item.unit_price) > 0).map((item: any, idx: number) => {
+                      order.quotation.items.filter((item: any) => parseFloat(item.unit_price) > 0 && item.status !== 'CANCELLED').map((item: any, idx: number) => {
                         const totalItemPrice = (parseFloat(item.unit_price) || 0) * (item.quantity || 1);
                         return (
                           <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
@@ -810,81 +901,287 @@ export default function ReceptionServiceOrderDetail() {
         </div>
       </div>
 
-      {/* CANCELLATION MODAL */}
-      {showCancelModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setShowCancelModal(false)} />
-          <div className="relative bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md mx-4 p-6 space-y-4">
-            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
-              <AlertTriangle size={22} className="text-rose-500" />
-              Yêu cầu hủy hóa đơn dịch vụ
-            </h3>
+      {/* EARLY CLOSURE MODAL — đóng sớm đơn khi khách muốn dừng giữa chừng.
+          Nguyên tắc: KHÔNG hủy đơn đã có chi phí thực tế — chỉ chốt đúng phần đã thực hiện thật.
+          Hạng mục KHÔNG tick sẽ bị loại khỏi hóa đơn cuối (không tính tiền), không tạo dòng bù trừ giả tạo. */}
+      {showCloseEarlyModal && (() => {
+        const allItems: any[] = order.quotation?.items || [];
+        const tasks: any[] = order.tasks || [];
 
-            {isAlreadyStarted ? (
-              <div className="bg-amber-50 border border-amber-100 text-amber-800 rounded-xl p-3 text-xs leading-relaxed space-y-1">
-                <p className="font-bold flex items-center gap-1">
-                  <AlertTriangle size={14} />
-                  Chú ý: Xe đã bước vào sửa chữa!
-                </p>
-                <p>
-                  Hóa đơn `{order.id}` hiện có trạng thái **{statusCfg.label}**. Theo quy định, nếu đã tháo lắp hoặc sửa một phần, bạn cần thu hồi chi phí phát sinh (ví dụ: công kiểm tra, phụ tùng đã bóc hộp, công tháo lắp).
-                </p>
+        // Mỗi Task ứng với đúng 1 dòng dịch vụ (quotationItem.service_id). Phụ tùng đi kèm cùng
+        // hạng mục sửa chữa được nhận diện qua cùng issue_id — đây là góc nhìn giống kỹ thuật viên:
+        // "Task này cần làm gì, và cần dùng phụ tùng gì".
+        const serviceItemIds = new Set(tasks.map((t: any) => t.quotationItem?.id).filter(Boolean));
+        const groups = tasks
+          .filter((t: any) => t.quotationItem)
+          .map((task: any) => {
+            const serviceItem = task.quotationItem;
+            const relatedParts = allItems.filter(
+              (i: any) => i.id !== serviceItem.id && i.spare_part_id && i.issue_id && i.issue_id === serviceItem.issue_id,
+            );
+            return { task, serviceItem, relatedParts };
+          });
+
+        // Phụ tùng không đi kèm task nào (không có issue_id khớp) — hiển thị riêng lẻ
+        const looseParts = allItems.filter(
+          (i: any) => i.spare_part_id && !groups.some((g) => g.relatedParts.some((p: any) => p.id === i.id)),
+        );
+
+        const isGroupFinished = (g: any) =>
+          g.task.status?.toUpperCase() === 'COMPLETED' || ['EXPORTED', 'RECEIVED'].includes(g.serviceItem.status);
+        const isPartFinished = (item: any) => ['EXPORTED', 'RECEIVED'].includes(item.status);
+
+        const finishedGroups = groups.filter(isGroupFinished);
+        const pendingGroups = groups.filter((g) => !isGroupFinished(g));
+        const finishedLooseParts = looseParts.filter(isPartFinished);
+        const pendingLooseParts = looseParts.filter((p: any) => !isPartFinished(p));
+
+        const groupAmount = (g: any) =>
+          (parseFloat(g.serviceItem.amount) || 0) + g.relatedParts.reduce((s: number, p: any) => s + (parseFloat(p.amount) || 0), 0);
+
+        const finishedTotal =
+          finishedGroups.reduce((sum, g) => sum + groupAmount(g), 0) +
+          finishedLooseParts.reduce((sum, p: any) => sum + (parseFloat(p.amount) || 0), 0);
+
+        const confirmedPendingTotal =
+          pendingGroups
+            .filter((g) => completedItemIds.has(g.serviceItem.id))
+            .reduce((sum, g) => sum + groupAmount(g), 0) +
+          pendingLooseParts
+            .filter((p: any) => completedItemIds.has(p.id))
+            .reduce((sum, p: any) => sum + (parseFloat(p.amount) || 0), 0);
+
+        const previewTotal = finishedTotal + confirmedPendingTotal;
+
+        const taskStatusLabel = (status: string | undefined) => {
+          const s = status?.toUpperCase();
+          if (s === 'IN_PROGRESS') return 'Đang thực hiện';
+          if (s === 'PAUSED') return 'Đang tạm dừng';
+          if (s === 'WAITING_STOCK') return 'Chờ phụ tùng';
+          if (s === 'COMPLETED') return 'Đã hoàn thành';
+          return 'Chưa bắt đầu';
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => !isClosingEarly && setShowCloseEarlyModal(false)} />
+            <div className="relative bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-xl mx-4 flex flex-col max-h-[92vh] overflow-hidden">
+
+              {/* Header — xanh navy đồng bộ brand */}
+              <div className="px-8 py-6 bg-[#00285E] shrink-0 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-2xl" />
+                <div className="flex items-center gap-3 relative z-10">
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+                    <AlertTriangle size={20} className="text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-white leading-tight">Đóng sớm lệnh sửa chữa</h3>
+                    <p className="text-[11px] text-blue-100/70 font-semibold mt-0.5">SO-{order.id} · Khách hàng muốn dừng giữa chừng</p>
+                  </div>
+                  <button
+                    onClick={() => !isClosingEarly && setShowCloseEarlyModal(false)}
+                    className="ml-auto w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors shrink-0"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               </div>
-            ) : (
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Hóa đơn `{order.id}` chưa bắt đầu thực hiện sửa chữa. Huỷ đơn này sẽ không tính thêm chi phí phát sinh.
-              </p>
-            )}
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                Lý do hủy hóa đơn <span className="text-rose-500">*</span>
-              </label>
-              <textarea
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                placeholder="Nhập lý do chi tiết từ chối tiếp tục sửa chữa..."
-                rows={3}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-300 transition-all resize-none"
-              />
-            </div>
+              <div className="flex-1 overflow-y-auto px-8 py-7 space-y-8">
+                {/* Ghi chú hướng dẫn */}
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex items-start gap-2.5">
+                  <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    Hạng mục <strong>đã hoàn thành</strong> luôn được tính đủ, không thể bỏ.
+                    Với hạng mục <strong>đang dở dang</strong>, hãy xác nhận trực tiếp với kỹ thuật viên phụ trách
+                    hạng mục nào thực sự đã xong trước khi tick.
+                  </p>
+                </div>
 
-            {isAlreadyStarted && (
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                  <DollarSign size={13} />
-                  Chi phí phát sinh thu hồi (đ)
-                </label>
-                <input
-                  type="number"
-                  value={incurredCost}
-                  onChange={(e) => setIncurredCost(e.target.value)}
-                  placeholder="VD: 150000"
-                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-300 transition-all font-semibold"
-                />
-                <span className="text-[10px] text-slate-400 font-semibold block mt-1">
-                  (Bao gồm công kiểm tra, tháo lắp, phụ tùng hao hụt)
-                </span>
+                {/* Nhóm đang thực hiện — checklist theo task, kèm phụ tùng cần dùng cho task đó */}
+                <div className="space-y-2">
+                  <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                    <Clock size={13} />
+                    Các hạng mục đang thực hiện — xác nhận với kỹ thuật viên
+                  </h4>
+                  <p className="text-[11px] text-slate-400 leading-relaxed px-1">
+                    Tick vào hạng mục nào <strong className="text-slate-500">kỹ thuật viên xác nhận đã thực sự làm xong</strong> — hạng mục đó sẽ được tính đủ tiền vào hóa đơn.
+                    Hạng mục <strong className="text-slate-500">không tick</strong> coi như chưa thực hiện, sẽ <strong className="text-slate-500">không tính tiền</strong> và bị hủy khỏi báo giá.
+                  </p>
+                  {(pendingGroups.length > 0 || pendingLooseParts.length > 0) ? (
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-100">
+                      {pendingGroups.map((g) => {
+                        const allIdsInGroup = [g.serviceItem.id, ...g.relatedParts.map((p: any) => p.id)];
+                        const isChecked = completedItemIds.has(g.serviceItem.id);
+                        const serviceLabel = g.serviceItem.custom_item_name || g.serviceItem.service_catalog?.service_name || 'Hạng mục dịch vụ';
+                        const groupTotal = groupAmount(g);
+                        return (
+                          <div key={g.serviceItem.id} className={`px-4 py-3 transition-colors ${isChecked ? 'bg-blue-50/60' : 'hover:bg-slate-50'}`}>
+                            <label className="flex items-center gap-3 text-sm cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => toggleCompletedItem(allIdsInGroup)}
+                                className="w-4 h-4 rounded accent-[#00285E] shrink-0"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <span className="font-semibold text-slate-800">{serviceLabel}</span>
+                                <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-500 bg-slate-100 uppercase align-middle">
+                                  {taskStatusLabel(g.task.status)}
+                                </span>
+                              </div>
+                              <span className={`font-bold shrink-0 ${isChecked ? 'text-[#00285E]' : 'text-slate-300 line-through'}`}>
+                                {formatPrice(groupTotal)}
+                              </span>
+                            </label>
+                            {g.relatedParts.length > 0 && (
+                              <div className="mt-2 ml-7 space-y-1.5 border-l-2 border-slate-200 pl-3">
+                                {g.relatedParts.map((p: any) => (
+                                  <div key={p.id} className="flex items-center gap-2 text-xs text-slate-500">
+                                    <Package size={12} className="text-slate-400 shrink-0" />
+                                    <span className="flex-1 min-w-0 truncate">{p.custom_item_name || p.sparePart?.name || 'Phụ tùng'} (x{p.quantity}) — cần cho hạng mục này</span>
+                                    <span className={`font-semibold shrink-0 ${isChecked ? 'text-slate-700' : 'text-slate-300 line-through'}`}>
+                                      {formatPrice(parseFloat(p.amount) || 0)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {pendingLooseParts.map((p: any) => {
+                        const isChecked = completedItemIds.has(p.id);
+                        return (
+                          <label
+                            key={p.id}
+                            className={`flex items-center gap-3 px-4 py-3 text-sm cursor-pointer transition-colors ${isChecked ? 'bg-blue-50/60' : 'hover:bg-slate-50'}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleCompletedItem(p.id)}
+                              className="w-4 h-4 rounded accent-[#00285E] shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <span className="font-semibold text-slate-800">{p.custom_item_name || p.sparePart?.name || 'Phụ tùng'}</span>
+                              <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-500 bg-slate-100 uppercase align-middle">
+                                Chưa xuất kho
+                              </span>
+                            </div>
+                            <span className={`font-bold shrink-0 ${isChecked ? 'text-[#00285E]' : 'text-slate-300 line-through'}`}>
+                              {formatPrice(parseFloat(p.amount) || 0)}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic px-1">Không còn hạng mục nào đang dở dang — mọi thứ đã hoàn thành hoặc đã sử dụng.</p>
+                  )}
+                </div>
+
+                {/* Nhóm đã hoàn thành — read-only, hiển thị kèm phụ tùng đi kèm từng task.
+                    Luôn hiển thị khối này (kể cả rỗng) để lễ tân thấy rõ cấu trúc 2 nhóm.
+                    Dùng chung tông màu slate với nhóm "đang thực hiện", chỉ khác icon check để phân biệt. */}
+                <div className="space-y-2">
+                  <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                    <CheckCircle2 size={13} />
+                    Đã hoàn thành / đã sử dụng — tự động tính
+                  </h4>
+                  {(finishedGroups.length > 0 || finishedLooseParts.length > 0) ? (
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-100">
+                      {finishedGroups.map((g) => {
+                        const serviceLabel = g.serviceItem.custom_item_name || g.serviceItem.service_catalog?.service_name || 'Hạng mục dịch vụ';
+                        return (
+                          <div key={g.serviceItem.id} className="px-4 py-3">
+                            <div className="flex items-center gap-3 text-sm">
+                              <CheckCircle2 size={16} className="text-slate-400 shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <span className="font-semibold text-slate-800">{serviceLabel}</span>
+                                <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-500 bg-slate-100 uppercase align-middle">
+                                  {taskStatusLabel(g.task.status)}
+                                </span>
+                              </div>
+                              <span className="font-bold text-slate-800 shrink-0">{formatPrice(parseFloat(g.serviceItem.amount) || 0)}</span>
+                            </div>
+                            {g.relatedParts.length > 0 && (
+                              <div className="mt-2 ml-7 space-y-1.5 border-l-2 border-slate-200 pl-3">
+                                {g.relatedParts.map((p: any) => (
+                                  <div key={p.id} className="flex items-center gap-2 text-xs text-slate-500">
+                                    <Package size={12} className="text-slate-400 shrink-0" />
+                                    <span className="flex-1 min-w-0 truncate">{p.custom_item_name || p.sparePart?.name || 'Phụ tùng'} (x{p.quantity})</span>
+                                    <span className="font-semibold text-slate-700 shrink-0">{formatPrice(parseFloat(p.amount) || 0)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {finishedLooseParts.map((p: any) => (
+                        <div key={p.id} className="flex items-center gap-3 px-4 py-3 text-sm">
+                          <CheckCircle2 size={16} className="text-slate-400 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <span className="font-semibold text-slate-800">{p.custom_item_name || p.sparePart?.name || 'Phụ tùng'}</span>
+                            <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-500 bg-slate-100 uppercase align-middle">
+                              Phụ tùng đã xuất kho
+                            </span>
+                          </div>
+                          <span className="font-bold text-slate-800 shrink-0">{formatPrice(parseFloat(p.amount) || 0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic px-1">Chưa có hạng mục nào được hoàn thành hoặc sử dụng.</p>
+                  )}
+                </div>
+
+                {/* Lý do */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                    Lý do đóng sớm <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    value={closeEarlyReason}
+                    onChange={(e) => setCloseEarlyReason(e.target.value)}
+                    placeholder="Lý do khách hàng muốn dừng..."
+                    rows={3}
+                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#00285E]/40 transition-all resize-none"
+                  />
+                </div>
               </div>
-            )}
 
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                onClick={() => { setShowCancelModal(false); setCancelReason(''); }}
-                className="px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
-              >
-                Đóng
-              </button>
-              <button
-                onClick={handleCancelOrder}
-                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-bold transition-colors"
-              >
-                Xác nhận hủy hóa đơn
-              </button>
+              {/* Footer: preview tổng tiền + actions */}
+              <div className="px-8 py-5 border-t border-slate-100 bg-slate-50 shrink-0 space-y-3">
+                <div className="flex flex-col px-1">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tổng tiền còn lại phải thanh toán</span>
+                  <span className="text-2xl font-black text-[#00285E] mt-1">
+                    {previewTotal.toLocaleString('vi-VN')} <span className="text-base font-bold">VND</span>
+                  </span>
+                </div>
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => setShowCloseEarlyModal(false)}
+                    disabled={isClosingEarly}
+                    className="px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    onClick={handleConfirmCloseEarly}
+                    disabled={isClosingEarly}
+                    className="px-5 py-2.5 bg-[#00285E] hover:bg-[#00285E]/90 text-white rounded-xl text-sm font-bold transition-colors disabled:opacity-60 flex items-center gap-2 shadow-md shadow-blue-900/20"
+                  >
+                    {isClosingEarly && <Loader2 size={14} className="animate-spin" />}
+                    Xác nhận đóng đơn
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* AUTOMATED QR PAYMENT MODAL MATCHING BOOKING PAGE STYLE */}
       {showPaymentModal && (
@@ -1034,14 +1331,14 @@ export default function ReceptionServiceOrderDetail() {
                           {order.quotation && Array.isArray(order.quotation.items) ? (
                             <>
                               {/* Công thợ */}
-                              {order.quotation.items.filter((item: any) => parseFloat(item.repair_price) > 0).map((item: any, idx: number) => (
+                              {order.quotation.items.filter((item: any) => parseFloat(item.repair_price) > 0 && item.status !== 'CANCELLED').map((item: any, idx: number) => (
                                 <div key={`q-srv-${idx}`} className="flex justify-between items-center text-slate-700">
                                   <span>• {item.custom_item_name || item.service_catalog?.service_name || 'Dịch vụ'} (Công thợ)</span>
                                   <span className="font-bold">{formatPrice(parseFloat(item.repair_price) || 0)}</span>
                                 </div>
                               ))}
                               {/* Phụ tùng */}
-                              {order.quotation.items.filter((item: any) => parseFloat(item.unit_price) > 0).map((item: any, idx: number) => (
+                              {order.quotation.items.filter((item: any) => parseFloat(item.unit_price) > 0 && item.status !== 'CANCELLED').map((item: any, idx: number) => (
                                 <div key={`q-part-${idx}`} className="flex justify-between items-center text-slate-500 pl-2">
                                   <span>• Phụ tùng: {item.custom_item_name || item.sparePart?.name || 'Vật tư'} (x{item.quantity})</span>
                                   <span className="font-bold">{formatPrice((parseFloat(item.unit_price) || 0) * (item.quantity || 1))}</span>

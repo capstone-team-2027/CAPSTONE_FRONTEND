@@ -26,6 +26,7 @@ import { useSocket } from '../../hook/useSocket';
 import { loginSuccess, logout } from "../../store/slices/userSlice";
 import { PROFILE_API_ENDPOINTS } from "../../constants/common/profileEndpoints";
 import { NOTIFICATION_API_ENDPOINTS } from "../../constants/technician/notificationEndpoints";
+import { AUTH_API_ENDPOINTS } from "../../constants/customer/authApiEndpoints";
 
 export default function TechnicianLayout() {
   const navigate = useNavigate();
@@ -278,9 +279,14 @@ export default function TechnicianLayout() {
           <span>Hỗ trợ</span>
         </button>
         <button
-          onClick={() => {
+          onClick={async () => {
             if (confirm("Bạn có chắc chắn muốn đăng xuất?")) {
               showToast("Đang đăng xuất tài khoản...", "warning");
+              try {
+                await fetchPrivate(AUTH_API_ENDPOINTS.LOGOUT, "POST");
+              } catch (err) {
+                console.error("Lỗi khi đăng xuất trên server:", err);
+              }
               localStorage.removeItem("token");
               localStorage.removeItem("userAvatar");
               dispatch(logout());

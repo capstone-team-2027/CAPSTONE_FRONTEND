@@ -112,6 +112,7 @@ export default function Navbar() {
 
     const user = useSelector((state: RootState) => state.user.user as UserModel | null);
     const isAuthenticated = !!localStorage.getItem('token');
+    const isAuthPage = ['/login', '/oauth-success', '/signup', '/forgot-password', '/otp-verification', '/verify-phone'].includes(location.pathname);
     const socket = useSocket();
 
     // =====================================================
@@ -133,6 +134,7 @@ export default function Navbar() {
     const getNotificationIcon = (notif: NotificationItem) => {
         if (notif.notificationType === 'SYSTEM') return AlertTriangle;
         if (notif.notificationType === 'SERVICE_ORDER') return Check;
+        if (notif.notificationType === 'MAINTENANCE_REMINDER') return Wrench;
         return Info;
     };
 
@@ -608,10 +610,10 @@ export default function Navbar() {
                 </div>
             </div>
 
-            {/* AI Chatbot Widget */}
-            <ChatbotWidget />
-            {isAuthenticated && <CustomerChatWidget currentUserId={user?.id} />}
-            {isAuthenticated && <VideoCallSOSWidget />}
+            {/* AI Chatbot Widget — chỉ hiện khi đã đăng nhập và không phải trang xác thực */}
+            {isAuthenticated && !isAuthPage && <ChatbotWidget />}
+            {isAuthenticated && !isAuthPage && <CustomerChatWidget currentUserId={user?.id} />}
+            {isAuthenticated && !isAuthPage && <VideoCallSOSWidget />}
         </>
     );
 }
