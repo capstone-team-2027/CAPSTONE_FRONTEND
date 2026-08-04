@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { Download, CheckCircle2, Eye, X, Calendar, User, Loader2, AlertCircle, Search, ReceiptText, Package } from 'lucide-react';
+import { Download, CheckCircle2, Eye, X, Calendar, User, Loader2, AlertCircle, Search, ReceiptText, Package, MessageSquare, Star } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ProfileSectionHeader from './ProfileSectionHeader';
@@ -51,6 +51,7 @@ interface ServiceOrderHistory {
         model?: { id: number; model_name: string } | null;
     } | null;
     payment: { id: number; payment_status: string; amount: number | string; payment_method: string | null } | null;
+    feedback?: { id: number; rating: number } | null;
     tasks: TaskSummary[];
 }
 
@@ -101,6 +102,10 @@ export default function HistoryTab() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedOrder, setSelectedOrder] = useState<ServiceOrderHistory | null>(null);
+    const [feedbackOrder, setFeedbackOrder] = useState<ServiceOrderHistory | null>(null);
+    const [rating, setRating] = useState(5);
+    const [feedbackText, setFeedbackText] = useState('');
+    const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
     const loadServiceHistory = async () => {
@@ -115,6 +120,35 @@ export default function HistoryTab() {
             setError(err?.message || 'Không thể tải lịch sử dịch vụ.');
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleSubmitFeedback = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!feedbackOrder) return;
+        setIsSubmittingFeedback(true);
+        try {
+            await fetchPrivate(SERVICE_HISTORY_API_ENDPOINTS.SUBMIT_FEEDBACK, 'POST', {
+                service_order_id: feedbackOrder.id,
+                rating,
+                comment: feedbackText
+            });
+            alert('Cảm ơn bạn đã đánh giá dịch vụ!');
+            
+            // Cập nhật lại state orders để hiện "Đã đánh giá" mà không cần reload
+            setOrders(prev => prev.map(order => 
+                order.id === feedbackOrder.id 
+                    ? { ...order, feedback: { id: Date.now(), rating } } 
+                    : order
+            ));
+            
+            setFeedbackOrder(null);
+            setRating(5);
+            setFeedbackText('');
+        } catch (err: any) {
+            alert(err?.message || 'Có lỗi xảy ra khi gửi đánh giá.');
+        } finally {
+            setIsSubmittingFeedback(false);
         }
     };
 
@@ -333,6 +367,24 @@ export default function HistoryTab() {
                                                 >
                                                     <Eye className="w-4 h-4" />
                                                 </button>
+                                                {isOrderPaid(row.order) && (
+                                                    row.order.feedback ? (
+                                                        <span
+                                                            className="flex items-center gap-1 p-2 border border-green-200 bg-green-50 text-green-600 rounded-lg text-xs font-semibold cursor-default"
+                                                            title="Đã đánh giá"
+                                                        >
+                                                            <CheckCircle2 className="w-4 h-4" />
+                                                        </span>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => setFeedbackOrder(row.order)}
+                                                            className="p-2 border border-gray-200 hover:bg-slate-50 text-amber-500 rounded-lg transition-colors"
+                                                            title="Đánh giá dịch vụ"
+                                                        >
+                                                            <MessageSquare className="w-4 h-4" />
+                                                        </button>
+                                                    )
+                                                )}
                                                 <button
                                                     onClick={() => void handleDownloadPdf(row)}
                                                     className="p-2 border border-gray-200 hover:bg-slate-50 text-gray-500 rounded-lg transition-colors"
@@ -350,7 +402,6 @@ export default function HistoryTab() {
                 )}
             </div>
 
-            {/* Invoice Detail Modal - đồng bộ màu/kích thước với modal chi tiết báo giá */}
             <AnimatePresence>
                 {selectedRow && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-[2px]">
@@ -383,6 +434,25 @@ export default function HistoryTab() {
                                     </div>
 
                                     <div className="flex items-center gap-2">
+                                        {isOrderPaid(selectedRow.order) && (
+                                            selectedRow.order.feedback ? (
+                                                <span
+                                                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-green-700 bg-green-100/90 transition-colors"
+                                                >
+                                                    <CheckCircle2 className="w-4 h-4" />
+                                                    Đã đánh giá ({selectedRow.order.feedback.rating} <Star className="w-3 h-3 fill-current inline -mt-0.5" />)
+                                                </span>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFeedbackOrder(selectedRow.order)}
+                                                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white bg-amber-500/20 hover:bg-amber-500/30 text-amber-100 transition-colors"
+                                                >
+                                                    <MessageSquare className="w-4 h-4" />
+                                                    Đánh giá
+                                                </button>
+                                            )
+                                        )}
                                         <button
                                             type="button"
                                             onClick={() => void handleDownloadPdf(selectedRow)}
@@ -529,6 +599,87 @@ export default function HistoryTab() {
                             </div>
                         </div>
                     </div>
+                )}
+            </AnimatePresence>
+
+            {/* Modal đánh giá phản hồi */}
+            <AnimatePresence>
+                {feedbackOrder && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden"
+                        >
+                            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                                <h3 className="text-lg font-bold text-[#00285E]">Đánh giá dịch vụ</h3>
+                                <button
+                                    onClick={() => setFeedbackOrder(null)}
+                                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                            
+                            <form onSubmit={handleSubmitFeedback} className="p-6">
+                                <div className="mb-6 flex flex-col items-center">
+                                    <p className="text-sm font-semibold text-slate-600 mb-3">Mức độ hài lòng của bạn</p>
+                                    <div className="flex items-center gap-2">
+                                        {[1, 2, 3, 4, 5].map((star) => (
+                                            <button
+                                                key={star}
+                                                type="button"
+                                                onClick={() => setRating(star)}
+                                                className={`p-1 transition-colors ${rating >= star ? 'text-amber-400' : 'text-slate-200'}`}
+                                            >
+                                                <Star className="w-8 h-8 fill-current" />
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-amber-500 font-medium mt-3 uppercase tracking-wider">
+                                        {rating === 5 ? 'Tuyệt vời' : rating === 4 ? 'Hài lòng' : rating === 3 ? 'Bình thường' : rating === 2 ? 'Không hài lòng' : 'Rất tệ'}
+                                    </p>
+                                </div>
+
+                                <div className="mb-6">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                                        Ý kiến đóng góp
+                                    </label>
+                                    <textarea
+                                        value={feedbackText}
+                                        onChange={(e) => setFeedbackText(e.target.value)}
+                                        placeholder="Chia sẻ trải nghiệm của bạn về dịch vụ..."
+                                        rows={4}
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 transition-all text-sm resize-none"
+                                    />
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFeedbackOrder(null)}
+                                        className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors"
+                                    >
+                                        Hủy
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmittingFeedback}
+                                        className="flex-1 px-4 py-2.5 rounded-xl bg-[#00285E] text-white font-semibold text-sm hover:bg-blue-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        {isSubmittingFeedback && <Loader2 className="w-4 h-4 animate-spin" />}
+                                        Gửi đánh giá
+                                    </button>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </motion.div>
                 )}
             </AnimatePresence>
         </motion.div>

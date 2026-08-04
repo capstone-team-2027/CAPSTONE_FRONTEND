@@ -2,7 +2,8 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localho
 
 export const SERVICE_CATALOG_API_ENDPOINTS = {
     SERVICE_CATALOG: `${API_BASE_URL}/api/admin/service-catalog`,
-    SERVICE_CATALOG_IMPORT: `${API_BASE_URL}/api/admin/service-catalog/import`,
+    SERVICE_CATALOG_IMPORT_PREVIEW: `${API_BASE_URL}/api/admin/service-catalog/import/preview`,
+    SERVICE_CATALOG_IMPORT_CONFIRM: `${API_BASE_URL}/api/admin/service-catalog/import/confirm`,
     SERVICE_CATALOG_SEARCH: `${API_BASE_URL}/api/admin/service-catalog/search`,
     SERVICE_CATEGORY: `${API_BASE_URL}/api/admin/service-categories`,
 };
