@@ -207,7 +207,9 @@ export default function AppointmentsTab() {
             status: appt.status,
             notes: appt.notes,
             booking_type: appt.booking_type,
-            displayType
+            displayType,
+            bay: appt.serviceOrder?.bay?.bay_name || 'Chưa phân công',
+            advisor: appt.serviceOrder?.receptionist?.fullName || 'Chưa phân công'
           };
         });
         setAppointments(mapped);
@@ -628,7 +630,6 @@ export default function AppointmentsTab() {
                           <MapPin className="w-3.5 h-3.5 text-brand-orange" />
                           {selectedAppt.bay}
                         </span>
-                        <span className="text-[10px] text-slate-500 font-semibold block">{selectedAppt.advisor}</span>
                       </div>
                     </div>
 
