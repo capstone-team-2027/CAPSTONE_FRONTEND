@@ -548,15 +548,6 @@ export default function AppointmentsTab() {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          {(appt.status === 'PENDING' || appt.status === 'CONFIRMED') && (
-                            <button
-                              onClick={() => handleCancelAppointment(appt.id, appt.dbId)}
-                              className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-650 rounded-lg transition-colors cursor-pointer"
-                              title={t('appointments.cancel', 'Hủy lịch hẹn')}
-                            >
-                              <Ban className="w-4 h-4" />
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -778,14 +769,7 @@ export default function AppointmentsTab() {
                 >
                   {t('common.close', 'Đóng')}
                 </button>
-                {(selectedAppt.status === 'PENDING' || selectedAppt.status === 'CONFIRMED') && (
-                  <button
-                    onClick={() => handleCancelAppointment(selectedAppt.id, selectedAppt.dbId)}
-                    className="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold transition-all text-xs cursor-pointer text-center"
-                  >
-                    {t('appointments.cancelAppt', 'Hủy lịch hẹn')}
-                  </button>
-                )}
+
               </div>
             </motion.div>
           </div>
