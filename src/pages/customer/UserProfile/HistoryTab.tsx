@@ -34,8 +34,18 @@ interface TaskAssignmentTechnician {
 
 interface TaskSummary {
     id: number;
+    catalog?: { id: number; service_name: string; labor_price: number | string } | null;
     assignments: TaskAssignmentTechnician[];
     quotations: QuotationSummary[];
+}
+
+interface AppointmentSummary {
+    id: number;
+    booking_type: string;
+    appointmentDetails?: {
+        catalog?: { id: number; service_name: string; labor_price: number | string } | null;
+        combo?: { id: number; combo_name: string } | null;
+    }[];
 }
 
 interface ServiceOrderHistory {
@@ -53,6 +63,7 @@ interface ServiceOrderHistory {
     payment: { id: number; payment_status: string; amount: number | string; payment_method: string | null } | null;
     feedback?: { id: number; rating: number } | null;
     tasks: TaskSummary[];
+    appointment?: AppointmentSummary | null;
 }
 
 const formatCurrency = (value?: number | string | null) =>
@@ -70,18 +81,73 @@ const isOrderPaid = (order: ServiceOrderHistory) =>
 
 // Gộp toàn bộ hạng mục + KTV phụ trách từ tất cả báo giá đã duyệt của 1 lệnh sửa chữa
 const flattenOrder = (order: ServiceOrderHistory) => {
-    const items = order.tasks.flatMap((t) => t.quotations.flatMap((q) => q.items));
-    const quotations = order.tasks.flatMap((t) => t.quotations);
+    let items = (order.tasks || []).flatMap((t) => (t.quotations || []).flatMap((q) => q.items));
+    const quotations = (order.tasks || []).flatMap((t) => t.quotations || []);
+    
+    // Nếu không có quotation (dịch vụ lẻ SPECIFIC)
+    if (items.length === 0) {
+        // Ưu tiên lấy trực tiếp từ Task (nếu có lưu catalog)
+        const taskItems = (order.tasks || [])
+            .filter(t => t.catalog)
+            .map((t, idx) => ({
+                id: t.catalog!.id || idx,
+                quantity: 1,
+                unit_price: 0,
+                repair_price: t.catalog!.labor_price || 0,
+                amount: t.catalog!.labor_price || 0,
+                custom_item_name: null,
+                sparePart: null,
+                service_catalog: { id: t.catalog!.id, service_name: t.catalog!.service_name }
+            } as QuotationItem));
+        
+        if (taskItems.length > 0) {
+            items = taskItems;
+        } else if (order.appointment?.appointmentDetails) {
+            // Hoặc fallback lấy từ Appointment Details
+            items = order.appointment.appointmentDetails.map((detail, idx) => {
+                if (detail.catalog) {
+                    return {
+                        id: detail.catalog.id || idx,
+                        quantity: 1,
+                        unit_price: 0,
+                        repair_price: detail.catalog.labor_price || 0,
+                        amount: detail.catalog.labor_price || 0,
+                        custom_item_name: null,
+                        sparePart: null,
+                        service_catalog: { id: detail.catalog.id, service_name: detail.catalog.service_name }
+                    } as QuotationItem;
+                } else if (detail.combo) {
+                    return {
+                        id: detail.combo.id || idx,
+                        quantity: 1,
+                        unit_price: 0,
+                        repair_price: 0,
+                        amount: 0,
+                        custom_item_name: detail.combo.combo_name,
+                        sparePart: null,
+                        service_catalog: null
+                    } as QuotationItem;
+                }
+                return null;
+            }).filter(Boolean) as QuotationItem[];
+        }
+    }
+
     const technicianNames = [
         ...new Set(
-            order.tasks
-                .flatMap((t) => t.assignments)
+            (order.tasks || [])
+                .flatMap((t) => t.assignments || [])
                 .map((a) => a.technician?.fullName)
                 .filter((name): name is string => Boolean(name)),
         ),
     ];
-    const totalAmount = quotations.reduce((sum, q) => sum + Number(q.total_amount), 0);
+    let totalAmount = quotations.reduce((sum, q) => sum + Number(q.total_amount), 0);
     const totalDeposit = quotations.reduce((sum, q) => sum + Number(q.deposit_amount ?? 0), 0);
+    
+    if (totalAmount === 0 && order.payment?.amount) {
+        totalAmount = Number(order.payment.amount);
+    }
+    
     return { items, technicianNames, totalAmount, totalDeposit };
 };
 
