@@ -266,7 +266,7 @@ export default function AdminStatistics() {
 
   const getLinePath = (ptList: typeof points, type: 'revenue' | 'orders') => {
     let path = '';
-    ptList.forEach((pt, index) => {
+    ptList.forEach((pt: (typeof points)[number], index: number) => {
       const y = type === 'revenue' ? pt.yRevenue : pt.yOrders;
       if (index === 0) {
         path += `M ${pt.x} ${y}`;
@@ -579,7 +579,7 @@ export default function AdminStatistics() {
                   )}
 
                   {/* Grid Lines */}
-                  {points.map((pt, i) => (
+                  {points.map((pt: (typeof points)[number], i: number) => (
                     <line key={`grid-${i}`} x1={pt.x} y1={padding} x2={pt.x} y2={chartHeight - padding} stroke="#E2E8F0" strokeWidth={1} strokeDasharray="4 4" />
                   ))}
 
@@ -592,7 +592,7 @@ export default function AdminStatistics() {
                   )}
 
                   {/* Data circles */}
-                  {points.map((pt, index) => (
+                  {points.map((pt: (typeof points)[number], index: number) => (
                     <g key={index}>
                       <circle cx={pt.x} cy={pt.yRevenue} r={4} fill={C.navy} stroke="#FFFFFF" strokeWidth={2} />
                       <circle cx={pt.x} cy={pt.yOrders} r={4} fill={C.orange} stroke="#FFFFFF" strokeWidth={2} />
@@ -600,7 +600,7 @@ export default function AdminStatistics() {
                   ))}
 
                   {/* X-axis labels */}
-                  {points.map((pt, i) => (
+                  {points.map((pt: (typeof points)[number], i: number) => (
                     <text key={i} x={pt.x} y={chartHeight - 12} textAnchor="middle" fill="#94A3B8" fontSize={11} fontWeight="600">
                       {pt.day}
                     </text>
