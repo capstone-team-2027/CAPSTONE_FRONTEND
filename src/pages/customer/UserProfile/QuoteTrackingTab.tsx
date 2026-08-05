@@ -8,6 +8,7 @@ import { useFetchClient } from '../../../hook/useFetchClient';
 import { useSocket } from '../../../hook/useSocket';
 import { PROFILE_API_ENDPOINTS } from '../../../constants/customer/profileApiEndpoint';
 import ProfileSectionHeader from './ProfileSectionHeader';
+import Pagination from '../../../components/share/Pagination';
 import type {
   CustomerQuotationActionResponse,
   GetQuotationResponse,
@@ -151,6 +152,8 @@ export default function QuoteTrackingTab() {
   const [selectedQuote, setSelectedQuote] = useState<CustomerQuotationRow | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<QuoteStatusFilter>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
@@ -378,6 +381,16 @@ export default function QuoteTrackingTab() {
     });
   }, [pendingQuotes, historyQuotes, searchTerm, statusFilter]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(quotes.length / ITEMS_PER_PAGE));
+  const paginatedQuotes = useMemo(
+    () => quotes.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE),
+    [quotes, currentPage],
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -465,7 +478,7 @@ export default function QuoteTrackingTab() {
                 </tr>
               </thead>
               <tbody>
-            {quotes.map((quote) => {
+            {paginatedQuotes.map((quote) => {
               const statusMeta = getStatusMeta(quote.status, t);
               const StatusIcon = statusMeta.icon;
               const visibleItems = quote.items.slice(0, 2);
@@ -544,6 +557,9 @@ export default function QuoteTrackingTab() {
             })}
               </tbody>
             </table>
+          </div>
+          <div className="px-4 pb-2">
+            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
           </div>
         </div>
       )}

@@ -5,6 +5,7 @@ import { Download, CheckCircle2, Eye, X, Calendar, User, Loader2, AlertCircle, S
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ProfileSectionHeader from './ProfileSectionHeader';
+import Pagination from '../../../components/share/Pagination';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { SERVICE_HISTORY_API_ENDPOINTS } from '../../../constants/customer/serviceHistoryApiEndpoint';
 
@@ -173,6 +174,8 @@ export default function HistoryTab() {
     const [feedbackText, setFeedbackText] = useState('');
     const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
 
     const loadServiceHistory = async () => {
         setIsLoading(true);
@@ -249,6 +252,16 @@ export default function HistoryTab() {
             );
         });
     }, [rows, searchTerm]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredRows.length / ITEMS_PER_PAGE));
+    const paginatedRows = useMemo(
+        () => filteredRows.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE),
+        [filteredRows, currentPage],
+    );
 
     const handleDownloadPdf = async (row: (typeof rows)[number]) => {
         try {
@@ -391,7 +404,7 @@ export default function HistoryTab() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 text-slate-600 font-medium">
-                                {filteredRows.map((row) => (
+                                {paginatedRows.map((row) => (
                                     <tr key={row.order.id} className="hover:bg-slate-50/50 transition-colors">
                                         <td className="p-4 font-mono font-bold text-brand-blue">{row.code}</td>
                                         <td className="p-4">{formatDate(row.order.actual_finish_time)}</td>
@@ -464,6 +477,7 @@ export default function HistoryTab() {
                                 ))}
                             </tbody>
                         </table>
+                        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
                     </div>
                 )}
             </div>

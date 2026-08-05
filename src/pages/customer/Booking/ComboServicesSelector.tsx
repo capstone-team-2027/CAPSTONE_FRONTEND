@@ -38,9 +38,12 @@ export default function ComboServicesSelector({
     useEffect(() => {
         const fetchCombos = async () => {
             try {
-                const res = await fetchPublic(`${SERVICE_API_ENDPOINTS.GET_COMBOS}?lang=${currentLang}&page=${page}&limit=4&search=${encodeURIComponent(searchText)}`);
-                if (res && res.data && res.data.items) {
-                    const mapped = res.data.items.map((c: any) => {
+                const res = await fetchPublic(`${SERVICE_API_ENDPOINTS.GET_COMBOS}?lang=${currentLang}&search=${encodeURIComponent(searchText)}`);
+                if (res && Array.isArray(res.data)) {
+                    const allCombos = res.data as any[];
+                    const start = (page - 1) * 4;
+                    const pageItems = allCombos.slice(start, start + 4);
+                    const mapped = pageItems.map((c: any) => {
                         const serviceIds = (c.catalogs || []).map((cat: any) => cat.id);
                         return {
                             id: c.id,
@@ -63,7 +66,7 @@ export default function ComboServicesSelector({
                         mapped.forEach((item: any) => map.set(item.id, item));
                         return Array.from(map.values());
                     });
-                    setTotalPages(res.data.totalPages || 1);
+                    setTotalPages(Math.max(1, Math.ceil(allCombos.length / 4)));
                 }
             } catch (err) {
                 console.error("Lỗi khi tải combos:", err);

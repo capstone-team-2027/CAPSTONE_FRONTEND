@@ -240,6 +240,10 @@ export default function UserProfile() {
                     <DashboardTab
                         avatarUrl={avatarUrl}
                         formData={formData}
+                        accountStatus={user?.status}
+                        membershipTier={user?.membershipTier}
+                        loyaltyPoints={user?.loyaltyPoints}
+                        joinedAt={user?.createdAt}
                         isEditing={isEditing}
                         isSubmitting={isSubmitting}
                         onAvatarUpdate={handleAvatarUpdate}

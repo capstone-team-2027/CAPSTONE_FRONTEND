@@ -370,6 +370,10 @@ export default function Navbar() {
                         phoneNumber: userData.phoneNumber,
                         avatar: userData.avatar,
                         role: userData.role,
+                        status: userData.status,
+                        membershipTier: userData.customerProfile?.membership_tier,
+                        loyaltyPoints: userData.customerProfile?.loyalty_points,
+                        createdAt: userData.createdAt,
                     })
                 );
             } catch (error) {

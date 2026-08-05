@@ -56,7 +56,7 @@ export default function Services() {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const { fetchPublic } = useFetchClient();
-    const [activeTab, setActiveTab] = useState('services');
+    const [activeTab, setActiveTab] = useState('all');
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedService, setSelectedService] = useState<ServiceItem | null>(null);
     const [selectedCombo, setSelectedCombo] = useState<any>(null);
@@ -88,7 +88,7 @@ export default function Services() {
                     setDbCategories(catRes.data);
                 }
                 const comboRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_COMBOS);
-                const comboItems = comboRes?.data?.items || [];
+                const comboItems = comboRes?.data || [];
                 if (comboItems.length > 0) {
                     const mappedCombos = comboItems.map((c: any) => ({
                         id: c.id,
@@ -117,7 +117,7 @@ export default function Services() {
                 const categoryId = activeTab !== 'all' ? activeTab : '';
                 const query = `page=${currentPage}&limit=${itemsPerPage}&search=${search}&category_id=${categoryId}`;
                 
-                const svcRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.GET_SERVICES}?${query}`);
+                const svcRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.SEARCH_SERVICES}?${query}`);
                 if (svcRes?.data) {
                     setDbServices(svcRes.data.items || []);
                     setTotalPages(svcRes.data.totalPages || 1);
@@ -286,7 +286,7 @@ export default function Services() {
             title: s.service_name,
             desc: s.description || "",
             icon: getServiceIcon(s.service_name, categoryName),
-            price: priceValue > 0 ? `Từ ${priceValue.toLocaleString("vi-VN")}đ` : "Liên hệ",
+            price: priceValue > 0 ? `${priceValue.toLocaleString("vi-VN")} VNĐ` : "Liên hệ",
             originalPrice: "",
             discountPercentage: undefined,
             promoText: "",
@@ -497,10 +497,6 @@ export default function Services() {
                                                     {t('services.discountLabel', 'Giảm {{percent}}%', { percent: service.discountPercentage })}
                                                 </div>
                                             )}
-                                            <div className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-md text-white text-[11px] font-bold shadow-md"
-                                                style={{ backgroundColor: `${COLORS.navy}F0` }}>
-                                                {service.price}
-                                            </div>
                                         </div>
 
                                         <div className="p-4 md:p-5 flex-grow flex flex-col justify-between">
@@ -514,18 +510,18 @@ export default function Services() {
                                                 </p>
 
                                                 {/* Price & Promo Info */}
-                                                <div className="mb-4 py-2 px-3 bg-slate-50 rounded-xl border border-gray-100 flex flex-col gap-1 text-left">
+                                                <div className="mb-4 py-2 px-3 rounded-xl flex flex-col gap-1 text-left" style={{ backgroundColor: COLORS.navy }}>
                                                     <div className="flex items-baseline justify-between">
-                                                        <span className="text-[10px] text-gray-400 font-medium">
-                                                            {service.originalPrice ? t('services.originalPriceLabel', 'Giá gốc:') : ''}
+                                                        <span className="text-[10px] text-white/70 font-medium">
+                                                            {service.originalPrice ? t('services.originalPriceLabel', 'Giá gốc:') : t('services.priceLabel', 'Giá:')}
                                                         </span>
                                                         <div className="flex items-baseline gap-1.5">
                                                             {service.originalPrice && (
-                                                                <span className="text-[10px] text-gray-400 line-through font-medium">
+                                                                <span className="text-[10px] text-white/50 line-through font-medium">
                                                                     {service.originalPrice}
                                                                 </span>
                                                             )}
-                                                            <span className="text-xs font-black text-brand-blue">
+                                                            <span className="text-xs font-black text-white">
                                                                 {service.price}
                                                             </span>
                                                         </div>

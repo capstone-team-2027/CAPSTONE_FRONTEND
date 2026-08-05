@@ -59,7 +59,7 @@ const LocationUpdater = ({ userLocation }: { userLocation: [number, number] | nu
 };
 
 export const MapTracking: React.FC = () => {
-  // Dữ liệu Gara cố định (FPT University Da Nang)
+  // Dữ liệu gara cố định tại 480 Trần Quốc Hoàn, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng
   const garageLocation: [number, number] = [15.9675, 108.2605]; 
   
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);

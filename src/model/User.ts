@@ -4,6 +4,9 @@ export interface UserModel {
     phoneNumber: string;
     avatar?: string;
     role?: string;
+    status?: 'PENDING' | 'ACTIVE' | 'INACTIVE' | 'BANNED';
+    membershipTier?: 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM';
+    loyaltyPoints?: number;
     createdAt?: string;
     updatedAt?: string;
 }
