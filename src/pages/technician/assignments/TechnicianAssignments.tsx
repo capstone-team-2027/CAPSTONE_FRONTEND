@@ -430,9 +430,9 @@ export default function TechnicianAssignments() {
       const response = await fetchPrivate<{ data: RequestablePartItem[] }>(
         TASK_ASSIGNMENT_ENDPOINTS.GET_REQUESTABLE_PARTS(serviceOrderId),
       );
-      const parts = Array.isArray(response?.data) ? response.data : [];
+      const parts: RequestablePartItem[] = Array.isArray(response?.data) ? response.data : [];
       setRequestableParts(parts);
-      setSelectedRequestablePartIds(parts.map((part) => part.id));
+      setSelectedRequestablePartIds(parts.map((part: RequestablePartItem) => part.id));
     } catch (error: unknown) {
       console.error("Lỗi khi tải danh sách phụ tùng có thể yêu cầu:", error);
       showToast(

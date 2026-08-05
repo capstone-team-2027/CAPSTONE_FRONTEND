@@ -130,7 +130,7 @@ export default function DashboardTab({
           APPOINTMENT_API_ENDPOINTS.GET_APPOINTMENTS,
         );
         const upcoming = (response?.data ?? []).filter(
-          (appt) => appt.status === 'PENDING' || appt.status === 'CONFIRMED',
+          (appt: { status: string }) => appt.status === 'PENDING' || appt.status === 'CONFIRMED',
         );
         setUpcomingAppointmentCount(upcoming.length);
       } catch (error) {
