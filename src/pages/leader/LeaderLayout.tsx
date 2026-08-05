@@ -23,6 +23,7 @@ import { useSocket } from '../../hook/useSocket';
 import { loginSuccess, logout } from '../../store/slices/userSlice';
 import { PROFILE_API_ENDPOINTS } from '../../constants/common/profileEndpoints';
 import { NOTIFICATION_API_ENDPOINTS } from '../../constants/technicianLeader/notificationEndpoints';
+import LogoutConfirmModal from '../../components/share/LogoutConfirmModal';
 
 export default function LeaderLayout() {
   const navigate = useNavigate();
@@ -35,6 +36,7 @@ export default function LeaderLayout() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'info' | 'warning'; text: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -220,16 +222,19 @@ export default function LeaderLayout() {
   );
 
   const handleLogout = () => {
-    if (confirm('Bạn có chắc chắn muốn đăng xuất?')) {
-      setIsMobileSidebarOpen(false);
-      showToast('Đang đăng xuất tài khoản...', 'warning');
-      localStorage.removeItem('token');
-      localStorage.removeItem('userAvatar');
-      dispatch(logout());
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 1000);
-    }
+    setShowLogoutConfirm(true);
+  };
+
+  const handleLogoutConfirm = () => {
+    setShowLogoutConfirm(false);
+    setIsMobileSidebarOpen(false);
+    showToast('Đang đăng xuất tài khoản...', 'warning');
+    localStorage.removeItem('token');
+    localStorage.removeItem('userAvatar');
+    dispatch(logout());
+    setTimeout(() => {
+      window.location.href = '/login';
+    }, 1000);
   };
 
   return (
@@ -559,6 +564,12 @@ export default function LeaderLayout() {
         </footer>
 
       </main>
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={handleLogoutConfirm}
+      />
 
     </div>
   );

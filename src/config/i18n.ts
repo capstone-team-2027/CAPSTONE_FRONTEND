@@ -613,15 +613,15 @@ const resources = {
             desc: "Chăm chút từng milimét hệ thống phanh và treo, mang lại sự êm ái và an toàn trên mọi địa hình."
           }
         },
-        ctaTitle: "Gia nhập đội ngũ của chúng tôi",
-        ctaDesc: "Bạn có đam mê với ô tô và mong muốn làm việc trong môi trường chuyên nghiệp, hiện đại? Chúng tôi luôn chào đón những tài năng mới.",
-        viewJobs: "Xem vị trí tuyển dụng",
-        sendResume: "Gửi hồ sơ"
+        ctaTitle: "Tin tưởng sử dụng dịch vụ của chúng tôi",
+        ctaDesc: "Đội ngũ kỹ thuật viên chuyên nghiệp, giàu kinh nghiệm luôn sẵn sàng chăm sóc chiếc xe của bạn với chất lượng tốt nhất.",
+        bookNow: "Đặt lịch ngay",
+        viewOverview: "Tổng quan hệ thống"
       },
       services: {
         heroTitle: "Dịch vụ chuyên nghiệp",
         heroDesc: "Nâng tầm trải nghiệm bảo dưỡng xe với đội ngũ kỹ thuật viên tay nghề cao và công nghệ chẩn đoán tiên tiến nhất. Chúng tôi cam kết mang lại sự an toàn tuyệt đối cho mọi hành trình của bạn.",
-        emergencyConsult: "Tư vấn nhanh",
+        emergencyConsult: "Gọi Hotline",
         forYourCar: "DÀNH CHO XE CỦA BẠN",
         catalogTitle: "Danh mục dịch vụ",
         searchPlaceholder: "Tìm kiếm dịch vụ bảo dưỡng...",
@@ -1742,15 +1742,15 @@ const resources = {
             desc: "Caring for every millimeter of the brake and suspension systems, offering smooth and safe rides on all terrains."
           }
         },
-        ctaTitle: "Join Our Team",
-        ctaDesc: "Are you passionate about cars and want to work in a professional, modern environment? We always welcome new talent.",
-        viewJobs: "View Open Positions",
-        sendResume: "Submit Resume"
+        ctaTitle: "Trust Our Service",
+        ctaDesc: "Our team of experienced, professional technicians is always ready to take care of your vehicle with the best quality.",
+        bookNow: "Book Now",
+        viewOverview: "System Overview"
       },
       services: {
         heroTitle: "Professional Services",
         heroDesc: "Elevate your maintenance experience with our highly skilled technicians and advanced diagnostics. We commit to bringing absolute safety to your journey.",
-        emergencyConsult: "Quick Consultation",
+        emergencyConsult: "Call Hotline",
         forYourCar: "FOR YOUR VEHICLE",
         catalogTitle: "Service Catalog",
         searchPlaceholder: "Search maintenance services...",

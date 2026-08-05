@@ -1115,12 +1115,12 @@ export default function BookingPage() {
         return (
             <div
                 className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 text-left relative overflow-hidden"
-                style={{ background: 'radial-gradient(circle at 20% 20%, #EAF1FF 0%, #F8FAFC 45%, #F8FAFC 100%)' }}
+                style={{ background: 'radial-gradient(circle at 20% 20%, #001C43 0%, #00193A 45%, #001024 100%)' }}
             >
                 {/* Decorative blurred blobs */}
-                <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-[#00285E]/10 blur-3xl pointer-events-none" />
-                <div className="absolute -bottom-32 -right-16 w-[28rem] h-[28rem] rounded-full bg-emerald-400/15 blur-3xl pointer-events-none" />
-                <div className="absolute top-1/3 right-10 w-52 h-52 rounded-full bg-[#F9A11B]/10 blur-3xl pointer-events-none hidden md:block" />
+                <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-white/5 blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-32 -right-16 w-[28rem] h-[28rem] rounded-full bg-emerald-400/20 blur-3xl pointer-events-none" />
+                <div className="absolute top-1/3 right-10 w-52 h-52 rounded-full bg-[#F9A11B]/20 blur-3xl pointer-events-none hidden md:block" />
 
                 <motion.div
                     initial={{ opacity: 0, y: 50, scale: 0.9 }}
@@ -1136,8 +1136,8 @@ export default function BookingPage() {
                             {/* Decorative Background */}
                             <div className="absolute top-0 right-0 w-full h-full opacity-10" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, #000 10px, #000 20px)' }}></div>
                             <div className="absolute top-0 left-0 w-32 h-32 bg-white/20 rounded-br-full blur-xl"></div>
-                            
-                            <motion.div 
+
+                            <motion.div
                                 initial={{ scale: 0 }}
                                 animate={{ scale: 1 }}
                                 transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
@@ -1145,7 +1145,7 @@ export default function BookingPage() {
                             >
                                 <Check className="w-10 h-10 text-emerald-500" strokeWidth={3.5} />
                             </motion.div>
-                            
+
                             <h2 className="text-3xl font-black text-white font-display tracking-tight mb-2 relative z-10">
                                 Thành Công!
                             </h2>

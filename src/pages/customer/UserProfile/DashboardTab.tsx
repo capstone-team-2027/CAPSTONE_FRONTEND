@@ -184,7 +184,6 @@ export default function DashboardTab({
   const tierProgressPercent = nextTier
     ? Math.min(100, Math.max(0, ((currentPoints - currentTierThreshold) / (nextTierThreshold - currentTierThreshold)) * 100))
     : 100;
-  const pointsToNextTier = nextTier ? Math.max(0, nextTierThreshold - currentPoints) : 0;
 
   const accountStatusMeta = {
     ACTIVE: { label: t('profile.status_ACTIVE', 'Hoạt động'), className: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
@@ -587,20 +586,6 @@ export default function DashboardTab({
             </motion.div>
           </motion.div>
         </div>
-
-        <p className="text-xs text-gray-400 italic text-center mt-2">
-          {nextTier
-            ? t('profile.pointsRemaining', 'Còn {{points}} điểm để đạt hạng {{tier}}', {
-                points: pointsToNextTier.toLocaleString('vi-VN'),
-                tier: membershipTierMeta ? {
-                  BRONZE: t('profile.tier_BRONZE', 'Thành viên Đồng'),
-                  SILVER: t('profile.tier_SILVER', 'Thành viên Bạc'),
-                  GOLD: t('profile.tier_GOLD', 'Thành viên Vàng'),
-                  PLATINUM: t('profile.tier_PLATINUM', 'Thành viên Bạch Kim'),
-                }[nextTier] : '',
-              })
-            : t('profile.maxTierReached', 'Bạn đã đạt hạng thành viên cao nhất!')}
-        </p>
       </motion.div>
 
       {/* Change Password Modal */}

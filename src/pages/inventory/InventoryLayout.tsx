@@ -6,7 +6,6 @@ import {
   Tags,
   ArrowDownToLine,
   ArrowUpFromLine,
-  ClipboardCheck,
   Truck,
   FileCheck2,
   HelpCircle,
@@ -30,6 +29,7 @@ import { useSocket } from "../../hook/useSocket";
 import { loginSuccess, logout } from "../../store/slices/userSlice";
 import { PROFILE_API_ENDPOINTS } from "../../constants/common/profileEndpoints";
 import { NOTIFICATION_API_ENDPOINTS } from "../../constants/inventory/notificationEndpoints";
+import LogoutConfirmModal from "../../components/share/LogoutConfirmModal";
 
 export default function InventoryLayout() {
   const navigate = useNavigate();
@@ -45,6 +45,7 @@ export default function InventoryLayout() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [toastMessage, setToastMessage] = useState<{
     type: "success" | "info" | "warning";
     text: string;
@@ -182,7 +183,6 @@ export default function InventoryLayout() {
     {
       label: "Kho hàng",
       items: [
-        { name: "Kiểm kê", icon: ClipboardCheck, path: "/inventory/stocktake" },
         { name: "Phụ tùng", icon: Boxes, path: "/inventory/parts" },
         {
           name: "Danh mục phụ tùng",
@@ -238,7 +238,6 @@ export default function InventoryLayout() {
     if (path.includes("/waiting-stock")) return "Phụ tùng chờ nhập";
     if (path.includes("/import")) return "Lịch sử nhập kho";
     if (path.includes("/export")) return "Lịch sử xuất kho";
-    if (path.includes("/stocktake")) return "Kiểm kê";
     if (path.includes("/approved-quotes")) return "Yêu cầu xuất kho";
     if (path.includes("/suppliers")) return "Đối tác, nhà cung cấp";
     return "Tổng quan";
@@ -290,16 +289,19 @@ export default function InventoryLayout() {
   );
 
   const handleLogout = () => {
-    if (confirm("Bạn có chắc chắn muốn đăng xuất?")) {
-      setIsMobileSidebarOpen(false);
-      showToast("Đang đăng xuất tài khoản...", "warning");
-      localStorage.removeItem("token");
-      localStorage.removeItem("userAvatar");
-      dispatch(logout());
-      setTimeout(() => {
-        window.location.href = "/login";
-      }, 1000);
-    }
+    setShowLogoutConfirm(true);
+  };
+
+  const handleLogoutConfirm = () => {
+    setShowLogoutConfirm(false);
+    setIsMobileSidebarOpen(false);
+    showToast("Đang đăng xuất tài khoản...", "warning");
+    localStorage.removeItem("token");
+    localStorage.removeItem("userAvatar");
+    dispatch(logout());
+    setTimeout(() => {
+      window.location.href = "/login";
+    }, 1000);
   };
 
   return (
@@ -659,6 +661,12 @@ export default function InventoryLayout() {
           </div>
         </footer>
       </main>
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={handleLogoutConfirm}
+      />
     </div>
   );
 }
