@@ -2,6 +2,9 @@ import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowUpFromLine,
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Search,
   Calendar,
   X,
@@ -9,14 +12,24 @@ import {
   Eye,
   Loader2,
 } from "lucide-react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { EXPORT_LOG_API_ENDPOINTS } from "../../../constants/inventory/exportManagementApiEndPoint";
 
+const PAGE_SIZE = 6;
+
 const formatPrice = (v: number | string) =>
-  Number(v).toLocaleString("vi-VN") + "đ";
+  Number(v).toLocaleString("vi-VN") + " VND";
 
 const formatDate = (d: string) => new Date(d).toLocaleDateString("vi-VN");
+const formatDateTime = (d: string) =>
+  new Date(d).toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
 // 1 phiếu xuất đã gom theo receipt_code (GET /export)
 interface ExportReceipt {
@@ -25,6 +38,9 @@ interface ExportReceipt {
   item_count: number;
   total_amount: number;
   manager_name: string;
+  technician_name: string | null;
+  signature_method: string | null;
+  signed_at: string | null;
 }
 
 // 1 dòng phụ tùng trong phiếu (GET /export/:receiptCode)
@@ -34,7 +50,12 @@ interface ExportDetailLine {
   createdAt: string;
   quantity: number;
   unit_price: number;
+  signature_method: string | null;
+  proof_image_url: string | null;
+  received_at: string | null;
   part: { sku: string; name: string };
+  receiver: { id: number; fullName: string | null } | null;
+  manager: { id: number; fullName: string | null } | null;
 }
 
 const lineTotal = (r: ExportDetailLine) => r.quantity * Number(r.unit_price);
@@ -46,7 +67,9 @@ export default function InventoryExport() {
   }>();
 
   const { fetchPrivate } = useFetchClient();
+  const navigate = useNavigate();
   const [localSearch, setLocalSearch] = useState("");
+  const [page, setPage] = useState(1);
   const effectiveSearch = (searchQuery || localSearch).toLowerCase();
 
   const [receipts, setReceipts] = useState<ExportReceipt[]>([]);
@@ -104,6 +127,13 @@ export default function InventoryExport() {
     [receipts, effectiveSearch],
   );
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = filtered.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
+
   const stats = useMemo(() => {
     const totalReceipts = receipts.length;
     const totalValue = receipts.reduce(
@@ -117,13 +147,22 @@ export default function InventoryExport() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* TITLE */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
-            Lịch sử xuất kho
-          </h1>
-          <p className="text-slate-500 text-sm">
-            Danh sách các phiếu xuất kho đã thực hiện.
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
+              Lịch sử xuất kho
+            </h1>
+            <p className="text-slate-500 text-sm">
+              Danh sách các phiếu xuất kho đã thực hiện.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -179,7 +218,10 @@ export default function InventoryExport() {
               type="text"
               placeholder="Tìm mã phiếu, người xuất..."
               value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
+              onChange={(e) => {
+                setLocalSearch(e.target.value);
+                setPage(1);
+              }}
               className="w-full sm:w-64 bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
             />
           </div>
@@ -195,21 +237,22 @@ export default function InventoryExport() {
                 <th className="py-4 px-4">Ngày xuất</th>
                 <th className="py-4 px-4">Số phụ tùng</th>
                 <th className="py-4 px-4">Tổng giá trị</th>
-                <th className="py-4 px-6 text-right">Thao tác</th>
+                <th className="py-4 px-4">Ký nhận</th>
+                <th className="py-4 px-6">Thao tác</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {pageItems.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="py-14 text-center text-slate-400 text-sm"
                   >
                     Không tìm thấy phiếu xuất phù hợp...
                   </td>
                 </tr>
               ) : (
-                filtered.map((r) => (
+                pageItems.map((r) => (
                   <tr
                     key={r.receipt_code}
                     onClick={() => openDetail(r)}
@@ -238,17 +281,29 @@ export default function InventoryExport() {
                     <td className="py-4 px-4 text-sm font-bold text-slate-800">
                       {formatPrice(r.total_amount)}
                     </td>
+                    <td className="py-4 px-4">
+                      {r.signature_method ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 whitespace-nowrap">
+                          Đã ký · {r.technician_name || "KTV"}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200 whitespace-nowrap">
+                          Chưa ký
+                        </span>
+                      )}
+                    </td>
                     <td className="py-4 px-6">
-                      <div className="flex justify-end">
+                      <div className="flex justify-start">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             openDetail(r);
                           }}
                           title="Xem chi tiết"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                          className="h-8 flex items-center gap-1.5 px-3 rounded-lg text-[11px] font-bold text-white bg-[#00285E] hover:brightness-125 active:scale-[0.97] transition-all whitespace-nowrap"
                         >
-                          <Eye size={15} />
+                          <Eye size={13} />
+                          Xem chi tiết
                         </button>
                       </div>
                     </td>
@@ -257,6 +312,38 @@ export default function InventoryExport() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between flex-wrap gap-3">
+          <span className="text-xs font-medium text-slate-400">
+            Hiển thị {pageItems.length} / {filtered.length} phiếu xuất
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={safePage === 1}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                onClick={() => setPage(n)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-colors ${n === safePage ? "bg-[#00285E] text-white shadow-sm" : "border border-slate-200 text-slate-600 hover:bg-white"}`}
+              >
+                {n}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage === totalPages}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -322,6 +409,45 @@ export default function InventoryExport() {
                       {formatDate(selected.exported_at)}
                     </span>
                   </div>
+                </div>
+
+                {/* Ký nhận */}
+                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
+                    Ký nhận
+                  </span>
+                  {(() => {
+                    const signedLine = detailLines.find((line) => line.proof_image_url);
+                    if (!signedLine) {
+                      return (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+                          Chưa ký nhận
+                        </span>
+                      );
+                    }
+                    return (
+                      <div className="flex items-start gap-4">
+                        <img
+                          src={signedLine.proof_image_url ?? undefined}
+                          alt="Chữ ký kỹ thuật viên"
+                          className="w-40 h-24 object-contain border border-slate-200 rounded-lg bg-slate-50"
+                        />
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-slate-800">
+                            {signedLine.receiver?.fullName || selected.technician_name || "—"}
+                          </p>
+                          {signedLine.received_at && (
+                            <p className="text-xs text-slate-400">
+                              Ký lúc {formatDateTime(signedLine.received_at)}
+                            </p>
+                          )}
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+                            Ký điện tử
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Phụ tùng đã xuất */}

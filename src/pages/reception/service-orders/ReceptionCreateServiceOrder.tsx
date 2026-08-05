@@ -127,18 +127,26 @@ export default function ReceptionCreateServiceOrder() {
   const initialMode = searchParams.get('appointmentId') ? 'approved_record' : 'approved_record';
   const [mode, setMode] = useState<'approved_record' | 'first_time'>(initialMode);
 
+  const rescueId = searchParams.get('rescueId');
+
   // Search in Tab 1
   const [recordSearch, setRecordSearch] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
 
-  // Manual inputs in Tab 2
+  // Walk-in mode manual entry
   const [manualCustName, setManualCustName] = useState('');
   const [manualCustPhone, setManualCustPhone] = useState('');
+
+  // Vehicle Selection States for existing customers
+  const [vehicleInputMode, setVehicleInputMode] = useState<'EXISTING' | 'NEW'>('EXISTING');
+  const [selectedCustomerVehicleId, setSelectedCustomerVehicleId] = useState<string>('');
+
   const [manualVehiclePlate, setManualVehiclePlate] = useState('');
   const [manualVehicleVin, setManualVehicleVin] = useState('');
   const [manualVehicleYear, setManualVehicleYear] = useState('');
-  const [currentOdo, setCurrentOdo] = useState('');
+  const [currentOdo, setCurrentOdo] = useState(searchParams.get('odo') || '');
+  const [initialCondition, setInitialCondition] = useState(searchParams.get('condition') || '');
   const [bayId, setBayId] = useState('1'); // Cầu nâng (default 1)
 
   // Vehicle autocomplete states
@@ -216,7 +224,7 @@ export default function ReceptionCreateServiceOrder() {
   // Common fields
   const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
   const [selectedCombos, setSelectedCombos] = useState<Set<string>>(new Set());
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(''); // Mô tả tình trạng hỏng hóc
   const [receptionServiceMode, setReceptionServiceMode] = useState<'SERVICE' | 'REPAIR'>('SERVICE');
   const [serviceSearch, setServiceSearch] = useState('');
   const [activeServiceTab, setActiveServiceTab] = useState<'single' | 'combo' | 'category'>('single');
@@ -249,7 +257,8 @@ export default function ReceptionCreateServiceOrder() {
       try {
         const svcRes = await fetchPrivate(SERVICE_API_ENDPOINTS.GET_SERVICES);
         if (svcRes && svcRes.data) {
-          setDbServices(svcRes.data);
+          const servicesData = Array.isArray(svcRes.data) ? svcRes.data : (svcRes.data.items || []);
+          setDbServices(servicesData);
         }
       } catch (error) {
         console.error("Lỗi khi tải dữ liệu services:", error);
@@ -258,7 +267,8 @@ export default function ReceptionCreateServiceOrder() {
       try {
         const comboRes = await fetchPrivate(SERVICE_API_ENDPOINTS.GET_COMBOS);
         if (comboRes && comboRes.data) {
-          const mappedCombos = comboRes.data.map((c: any) => {
+          const comboData = Array.isArray(comboRes.data) ? comboRes.data : (comboRes.data.items || []);
+          const mappedCombos = comboData.map((c: any) => {
             const serviceIds = (c.catalogs || []).map((cat: any) => cat.id);
             return {
               id: c.id,
@@ -384,7 +394,7 @@ export default function ReceptionCreateServiceOrder() {
       const priceValue = s.price || s.base_price || 0;
       const discountPercent = s.discount_percentage || 0;
       const originalPriceValue = discountPercent > 0 && priceValue > 0 ? Math.round(priceValue / (1 - discountPercent / 100)) : 0;
-      const originalPriceStr = originalPriceValue > 0 ? `Từ ${originalPriceValue.toLocaleString("vi-VN")}đ` : "";
+      const originalPriceStr = originalPriceValue > 0 ? `Từ ${originalPriceValue.toLocaleString("vi-VN")} VND` : "";
 
       const ratingVal = s.rating || 5.0;
       const reviewVal = s.review_count || 0;
@@ -401,7 +411,7 @@ export default function ReceptionCreateServiceOrder() {
         id: s.id,
         title: s.service_name,
         desc: s.description || "",
-        price: priceValue > 0 ? `Từ ${priceValue.toLocaleString("vi-VN")}đ` : "Liên hệ",
+        price: priceValue > 0 ? `Từ ${priceValue.toLocaleString("vi-VN")} VND` : "Liên hệ",
         numericPrice: priceValue,
         originalPrice: originalPriceStr || undefined,
         discountPercentage: discountPercent > 0 ? discountPercent : undefined,
@@ -543,37 +553,23 @@ export default function ReceptionCreateServiceOrder() {
               plate: apt.vehicle?.license_plate || 'Chưa cập nhật',
               vin: apt.vehicle?.vin_number || '',
               model: apt.vehicle ? `${apt.vehicle.brand} ${apt.vehicle.model}`.trim() : 'Chưa cập nhật',
+              year: apt.vehicle?.year || '',
               appointmentDate: apt.appointmentDate,
               appointmentTime: apt.appointmentTime,
+              vehicleId: apt.vehicle?.id
             });
           });
         }
 
         // 2. Tùy chọn Tiếp nhận khách vãng lai (Không có lịch hẹn)
         if (customer) {
-          if (customer.vehicles && customer.vehicles.length > 0) {
-            customer.vehicles.forEach((v: any) => {
-              results.push({
-                type: 'customer',
-                id: customer.id,
-                name: customer.customer_name,
-                phone: customer.phone,
-                plate: v.license_plate || 'Chưa cập nhật',
-                vin: v.vin_number,
-                model: `${v.brand} ${v.model}`.trim() || 'Chưa cập nhật',
-                vehicleId: v.id
-              });
-            });
-          } else {
-            results.push({
-              type: 'customer',
-              id: customer.id,
-              name: customer.customer_name,
-              phone: customer.phone,
-              plate: 'Chưa cập nhật',
-              model: 'Chưa cập nhật',
-            });
-          }
+          results.push({
+            type: 'customer',
+            id: customer.id,
+            name: customer.customer_name,
+            phone: customer.phone,
+            vehicles: customer.vehicles || []
+          });
         }
 
         if (results.length > 0) {
@@ -597,6 +593,18 @@ export default function ReceptionCreateServiceOrder() {
     setSelectedRecord(record);
     setSelectedServiceIds([]);
     setSelectedComboId(null);
+
+    if (record.type === 'customer') {
+      if (record.vehicles && record.vehicles.length > 0) {
+        setVehicleInputMode('EXISTING');
+        const availableVehicle = record.vehicles.find((v: any) => !v.isInGarage);
+        setSelectedCustomerVehicleId(String(availableVehicle ? availableVehicle.id : record.vehicles[0].id));
+      } else {
+        setVehicleInputMode('NEW');
+        setSelectedCustomerVehicleId('');
+      }
+    }
+
     setRecordSearch('');
     setSearchResults([]);
   };
@@ -604,7 +612,7 @@ export default function ReceptionCreateServiceOrder() {
   const selectedTotal = useMemo(() => {
     const servicesPrice = mappedServices
       .filter((s) => selectedServiceIds.includes(s.id as number))
-      .reduce((sum, s) => sum + s.numericPrice, 0);
+      .reduce((sum, s) => sum + (s.numericPrice ?? 0), 0);
 
     let combosPrice = 0;
     if (selectedComboId) {
@@ -627,10 +635,24 @@ export default function ReceptionCreateServiceOrder() {
           showToast('Vui lòng tìm kiếm và chọn lịch hẹn hoặc hồ sơ khách hàng.', 'warning');
           return;
         }
-        if (!selectedRecord.vehicleId) {
-          showToast('Không tìm thấy thông tin xe. Vui lòng cập nhật xe trước.', 'warning');
-          return;
+        if (selectedRecord.type === 'appointment') {
+          if (!selectedRecord.vehicleId) {
+            showToast('Không tìm thấy thông tin xe trong lịch hẹn này.', 'warning');
+            return;
+          }
+        } else if (selectedRecord.type === 'customer') {
+          if (vehicleInputMode === 'EXISTING' && !selectedCustomerVehicleId) {
+            showToast('Vui lòng chọn xe.', 'warning');
+            return;
+          }
+          if (vehicleInputMode === 'NEW') {
+            if (!manualVehiclePlate.trim() || !vehicleBrand.trim() || !vehicleModel.trim()) {
+              showToast('Vui lòng điền đầy đủ thông tin Xe (Biển số, Hãng, Dòng xe).', 'warning');
+              return;
+            }
+          }
         }
+
       } else {
         if (!manualCustName.trim() || !manualCustPhone.trim() || !manualVehiclePlate.trim() || !vehicleBrand.trim() || !vehicleModel.trim()) {
           showToast('Vui lòng điền đầy đủ thông tin Khách hàng và Xe.', 'warning');
@@ -666,28 +688,53 @@ export default function ReceptionCreateServiceOrder() {
 
       // Prepare payload
       const estimated_finish_time = `${bookingDate}T${bookingTime}:00`;
+      let finalVehicleId = null;
+      let walkInPayload = undefined;
+
+      if (mode === 'first_time') {
+        walkInPayload = {
+          customer_name: manualCustName.trim() || undefined,
+          customer_phone: manualCustPhone.trim(),
+          vehicle_plate: manualVehiclePlate.trim(),
+          vehicle_vin: manualVehicleVin.trim() || undefined,
+          vehicle_year: manualVehicleYear || undefined,
+          brand_name: vehicleBrand.trim(),
+          model_name: vehicleModel.trim()
+        };
+      } else if (mode === 'approved_record') {
+        if (selectedRecord?.type === 'appointment') {
+          finalVehicleId = Number(selectedRecord.vehicleId);
+        } else if (selectedRecord?.type === 'customer') {
+          if (vehicleInputMode === 'EXISTING') {
+            finalVehicleId = Number(selectedCustomerVehicleId);
+          } else {
+            // Thêm mới xe cho khách hàng cũ
+            walkInPayload = {
+              customer_name: selectedRecord?.name || undefined,
+              customer_phone: selectedRecord?.phone,
+              vehicle_plate: manualVehiclePlate.trim(),
+              vehicle_vin: manualVehicleVin.trim() || undefined,
+              vehicle_year: manualVehicleYear || undefined,
+              brand_name: vehicleBrand.trim(),
+              model_name: vehicleModel.trim()
+            };
+          }
+        }
+      }
+
       const payload: any = {
         booking_type: finalBookingType || undefined,
-        vehicle_id: mode === 'approved_record' ? Number(selectedRecord.vehicleId) : null,
+        vehicle_id: finalVehicleId,
+        walk_in: walkInPayload,
         bay_id: Number(bayId) || null,
         current_odo: Number(currentOdo),
         estimated_finish_time: estimated_finish_time,
         service_ids: receptionServiceMode === 'SERVICE' ? selectedServiceIds : undefined,
         combo_ids: receptionServiceMode === 'SERVICE' && selectedComboId ? [selectedComboId] : undefined,
-        notes: receptionServiceMode === 'REPAIR' && notes.trim() ? notes.trim() : undefined
+        notes: notes.trim() ? notes.trim() : undefined,
+        symptoms: initialCondition.trim() ? initialCondition.trim() : undefined,
+        rescue_id: rescueId ? Number(rescueId) : undefined
       };
-
-      if (mode === 'first_time') {
-        payload.walk_in = {
-          customer_name: manualCustName,
-          customer_phone: manualCustPhone,
-          vehicle_plate: manualVehiclePlate,
-          vehicle_vin: manualVehicleVin,
-          vehicle_year: manualVehicleYear,
-          brand_name: vehicleBrand,
-          model_name: vehicleModel
-        };
-      }
 
       if (mode === 'approved_record' && selectedRecord?.type === 'appointment') {
         payload.appointment_id = Number(selectedRecord.id);
@@ -696,7 +743,13 @@ export default function ReceptionCreateServiceOrder() {
       const res = await fetchPrivate(SERVICE_ORDER_API_ENDPOINTS.CREATE, 'POST', payload);
       if (res.success) {
         showToast('Tạo hóa đơn dịch vụ thành công!', 'success');
-        setTimeout(() => navigate('/reception/appointments'), 1000);
+        setTimeout(() => {
+          if (rescueId) {
+            navigate('/reception/customers');
+          } else {
+            navigate('/reception/appointments');
+          }
+        }, 1000);
       } else {
         throw new Error(res.message || 'Lỗi khi tạo hóa đơn dịch vụ');
       }
@@ -705,18 +758,19 @@ export default function ReceptionCreateServiceOrder() {
     }
   };
 
-  const formatPrice = (price: number) => price.toLocaleString('vi-VN') + ' đ';
+  const formatPrice = (price: number) => price.toLocaleString('vi-VN') + ' VND';
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-5xl w-full mx-auto">
       <style>{phoneStyles}</style>
       {/* HEADER */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-start gap-3">
         <button
           onClick={() => navigate(-1)}
-          className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors"
+          title="Quay lại"
+          className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
         >
-          <ArrowLeft size={20} />
+          <ArrowLeft size={24} />
         </button>
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-1 flex items-center gap-2">
@@ -798,29 +852,36 @@ export default function ReceptionCreateServiceOrder() {
               {/* SEARCH RESULTS DROPDOWN */}
               {searchResults.length > 0 && (
                 <div className="absolute left-5 right-5 z-20 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto divide-y divide-slate-100">
-                  {searchResults.map((r, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => handleSelectRecord(r)}
-                      className="w-full px-4 py-3 text-left hover:bg-slate-50 flex items-center justify-between text-sm transition-colors"
-                    >
-                      <div className="flex flex-col">
-                        <span className="font-bold text-slate-800">
-                          {r.name} ({r.phone})
-                        </span>
-                        <span className="text-xs text-slate-400 font-semibold mt-0.5">
-                          Xe: {r.plate} • {r.model}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-right">
-                        <span className="text-[10px] font-bold text-[#00285E] bg-[#EDF3FF] px-2 py-0.5 rounded uppercase">
-                          {r.type === 'appointment' ? `Lịch hẹn: ${r.id}` : `Hồ sơ: ${r.id}`}
-                        </span>
-                        <UserCheck size={16} className="text-[#00285E]" />
-                      </div>
-                    </button>
-                  ))}
+                  {searchResults.map((r, i) => {
+                    const isDisabled = r.type === 'appointment' && r.isInGarage;
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        disabled={isDisabled}
+                        onClick={() => handleSelectRecord(r)}
+                        className={`w-full px-4 py-3 text-left flex items-center justify-between text-sm transition-colors ${isDisabled ? 'bg-rose-50/50 cursor-not-allowed' : 'hover:bg-slate-50'
+                          }`}
+                      >
+                        <div className="flex flex-col">
+                          <span className={`font-bold ${isDisabled ? 'text-rose-700' : 'text-slate-800'}`}>
+                            {r.name} ({r.phone})
+                          </span>
+                          <span className={`text-xs font-semibold mt-0.5 ${isDisabled ? 'text-rose-500' : 'text-slate-400'}`}>
+                            {r.type === 'appointment' ? `Xe: ${r.plate} • ${r.model}` : `Số lượng xe: ${r.vehicles?.length || 0}`}
+                            {isDisabled && ' (ĐANG TRONG XƯỞNG)'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-right">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${isDisabled ? 'text-rose-700 bg-rose-100' : 'text-[#00285E] bg-[#EDF3FF]'
+                            }`}>
+                            {r.type === 'appointment' ? `Lịch hẹn: ${r.id}` : `Hồ sơ: ${r.id}`}
+                          </span>
+                          <UserCheck size={16} className={isDisabled ? "text-rose-400" : "text-[#00285E]"} />
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -875,58 +936,285 @@ export default function ReceptionCreateServiceOrder() {
                   </div>
                 </div>
 
-                {/* READONLY VEHICLE INFO */}
-                <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
-                  <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
-                    <Car size={16} className="text-[#00285E]" />
-                    Thông tin Xe
-                  </h2>
-                  <div className="space-y-3">
-                    <FormReadonly label="Biển số" value={selectedRecord.plate} highlight />
-                    <FormReadonly label="Loại xe" value={selectedRecord.model} />
-                    <FormReadonly label="Năm SX" value={selectedRecord.year?.toString() || '—'} />
-                    <FormInput
-                      label="Số km hiện tại (ODO) *"
-                      value={currentOdo}
-                      onChange={setCurrentOdo}
-                      placeholder={selectedRecord.mileage ? `Lần trước: ${selectedRecord.mileage.toLocaleString('vi-VN')} km` : 'VD: 15000...'}
-                      type="number"
-                      icon={<Gauge size={14} className="text-slate-400" />}
-                    />
-                    <div className="pt-2">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                        <Clock size={14} className="text-slate-400" />
-                        Thời gian *
-                      </label>
-                      <div className="grid grid-cols-1 gap-3">
-                        <input
-                          type="date"
-                          value={bookingDate}
-                          onChange={(e) => setBookingDate(e.target.value)}
-                          min={minDateStr}
-                          className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
-                        />
-                        <select
-                          value={bookingTime}
-                          onChange={(e) => setBookingTime(e.target.value)}
-                          className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
-                        >
-                          <option value="">-- Chọn giờ --</option>
-                          {timeSlots.map(slot => (
-                            <option
-                              key={slot.time}
-                              value={slot.time}
-                              disabled={slot.isFull}
-                              className={slot.isFull ? 'text-gray-300' : ''}
-                            >
-                              {slot.time} ({slot.isFull ? 'Kín lịch' : slot.label})
-                            </option>
-                          ))}
-                        </select>
+                {/* VEHICLE INFO: READONLY OR EDITABLE */}
+                {selectedRecord.type === 'appointment' ? (
+                  <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
+                    <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
+                      <Car size={16} className="text-[#00285E]" />
+                      Thông tin Xe
+                    </h2>
+                    <div className="space-y-3">
+                      <FormReadonly label="Biển số" value={selectedRecord.plate} highlight />
+                      <FormReadonly label="Loại xe" value={selectedRecord.model} />
+                      <FormReadonly label="Năm SX" value={selectedRecord.year?.toString() || '—'} />
+                      <FormInput
+                        label="Số km hiện tại (ODO) *"
+                        value={currentOdo}
+                        onChange={setCurrentOdo}
+                        placeholder={selectedRecord.mileage ? `Lần trước: ${selectedRecord.mileage.toLocaleString('vi-VN')} km` : 'VD: 15000...'}
+                        type="number"
+                        icon={<Gauge size={14} className="text-slate-400" />}
+                      />
+                      <div className="pt-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                          <Clock size={14} className="text-slate-400" />
+                          Thời gian *
+                        </label>
+                        <div className="grid grid-cols-1 gap-3">
+                          <input
+                            type="date"
+                            value={bookingDate}
+                            onChange={(e) => setBookingDate(e.target.value)}
+                            min={minDateStr}
+                            className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
+                          />
+                          <select
+                            value={bookingTime}
+                            onChange={(e) => setBookingTime(e.target.value)}
+                            className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
+                          >
+                            <option value="">-- Chọn giờ --</option>
+                            {timeSlots.map(slot => (
+                              <option
+                                key={slot.time}
+                                value={slot.time}
+                                disabled={slot.isFull}
+                                className={slot.isFull ? 'text-gray-300' : ''}
+                              >
+                                {slot.time} ({slot.isFull ? 'Kín lịch' : slot.label})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
+                    <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
+                      <Car size={16} className="text-[#00285E]" />
+                      Thông tin Xe tiếp nhận
+                    </h2>
+
+                    <div className="flex gap-6 mb-2">
+                      {selectedRecord.vehicles && selectedRecord.vehicles.length > 0 && (
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            checked={vehicleInputMode === 'EXISTING'}
+                            onChange={() => {
+                              setVehicleInputMode('EXISTING');
+                              if (!selectedCustomerVehicleId) setSelectedCustomerVehicleId(String(selectedRecord.vehicles[0].id));
+                            }}
+                            className="accent-[#00285E]"
+                          />
+                          <span className="text-sm font-bold text-slate-700">Chọn xe đã có</span>
+                        </label>
+                      )}
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          checked={vehicleInputMode === 'NEW'}
+                          onChange={() => setVehicleInputMode('NEW')}
+                          className="accent-[#00285E]"
+                        />
+                        <span className="text-sm font-bold text-slate-700">Thêm xe mới</span>
+                      </label>
+                    </div>
+
+                    {vehicleInputMode === 'EXISTING' ? (
+                      <div className="space-y-4">
+                        <div className="mb-4">
+                          <select
+                            value={selectedCustomerVehicleId}
+                            onChange={(e) => setSelectedCustomerVehicleId(e.target.value)}
+                            className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm font-semibold text-slate-700 outline-none transition-all focus:border-[#00285E]"
+                          >
+                            {selectedRecord.vehicles?.map((v: any) => (
+                              <option key={v.id} value={v.id} disabled={v.isInGarage}>
+                                {v.license_plate} - {v.brand} {v.model} {v.isInGarage ? '(Đang trong xưởng)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        {/* Form Readonly For Selected Vehicle */}
+                        {(() => {
+                          const v = selectedRecord.vehicles?.find((x: any) => String(x.id) === selectedCustomerVehicleId);
+                          if (!v) return null;
+                          return (
+                            <div className="space-y-3 pt-3 border-t border-slate-100">
+                              <FormReadonly label="Biển số" value={v.license_plate} highlight />
+                              <FormReadonly label="Loại xe" value={`${v.brand} ${v.model}`.trim()} />
+                              <FormReadonly label="Năm SX" value={v.year?.toString() || '—'} />
+                              <FormInput
+                                label="Số km hiện tại (ODO) *"
+                                value={currentOdo}
+                                onChange={setCurrentOdo}
+                                placeholder={v.mileage ? `Lần trước: ${v.mileage.toLocaleString('vi-VN')} km` : 'VD: 15000...'}
+                                type="number"
+                                icon={<Gauge size={14} className="text-slate-400" />}
+                              />
+                              <div className="pt-2">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                                  <Clock size={14} className="text-slate-400" />
+                                  Thời gian *
+                                </label>
+                                <div className="grid grid-cols-1 gap-3">
+                                  <input
+                                    type="date"
+                                    value={bookingDate}
+                                    onChange={(e) => setBookingDate(e.target.value)}
+                                    min={minDateStr}
+                                    className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
+                                  />
+                                  <select
+                                    value={bookingTime}
+                                    onChange={(e) => setBookingTime(e.target.value)}
+                                    className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
+                                  >
+                                    <option value="">-- Chọn giờ --</option>
+                                    {timeSlots.map(slot => (
+                                      <option
+                                        key={slot.time}
+                                        value={slot.time}
+                                        disabled={slot.isFull}
+                                        className={slot.isFull ? 'text-gray-300' : ''}
+                                      >
+                                        {slot.time} ({slot.isFull ? 'Kín lịch' : slot.label})
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-4 pt-3 border-t border-slate-100">
+                        <FormInput
+                          label="Biển số xe *"
+                          value={manualVehiclePlate}
+                          onChange={setManualVehiclePlate}
+                          placeholder="VD: 51A-123.45..."
+                        />
+                        <div className="relative" ref={brandRef}>
+                          <FormInput
+                            label="Hãng xe *"
+                            value={vehicleBrand}
+                            onChange={(val) => {
+                              setVehicleBrand(val);
+                              setShowBrandSuggestions(true);
+                              setSelectedMakeId(null);
+                              setVehicleModel('');
+                            }}
+                            placeholder="VD: Toyota"
+                          />
+                          {showBrandSuggestions && brandSuggestions.length > 0 && (
+                            <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                              {brandSuggestions.map((brand: any) => (
+                                <div
+                                  key={brand.id}
+                                  className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm font-semibold text-slate-700"
+                                  onClick={() => {
+                                    setVehicleBrand(brand.make_name);
+                                    setSelectedMakeId(brand.id);
+                                    setShowBrandSuggestions(false);
+                                    setVehicleModel('');
+                                  }}
+                                >
+                                  {brand.make_name}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="relative" ref={modelRef}>
+                          <FormInput
+                            label="Dòng xe *"
+                            value={vehicleModel}
+                            onChange={(val) => {
+                              setVehicleModel(val);
+                              setShowModelSuggestions(true);
+                            }}
+                            placeholder="VD: Camry"
+                          />
+                          {showModelSuggestions && modelSuggestions.length > 0 && (
+                            <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                              {modelSuggestions.map((model: any) => (
+                                <div
+                                  key={model.id}
+                                  className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm font-semibold text-slate-700"
+                                  onClick={() => {
+                                    setVehicleModel(model.model_name);
+                                    setVehicleBrand(model.make?.make_name || vehicleBrand);
+                                    if (model.make_id) setSelectedMakeId(model.make_id);
+                                    setShowModelSuggestions(false);
+                                  }}
+                                >
+                                  {model.model_name} <span className="text-xs text-slate-400">({model.make?.make_name})</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <FormInput
+                          label="Số khung (VIN)"
+                          value={manualVehicleVin}
+                          onChange={setManualVehicleVin}
+                          placeholder="VD: 1XYZ234..."
+                        />
+                        <FormInput
+                          label="Năm sản xuất"
+                          value={manualVehicleYear}
+                          onChange={setManualVehicleYear}
+                          placeholder="VD: 2022..."
+                          type="number"
+                        />
+                        <FormInput
+                          label="ODO hiện tại (km) *"
+                          value={currentOdo}
+                          onChange={setCurrentOdo}
+                          placeholder="VD: 15000..."
+                          type="number"
+                          icon={<Gauge size={14} className="text-slate-400" />}
+                        />
+                        <div>
+                          <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                            <Clock size={14} className="text-slate-400" />
+                            Thời gian *
+                          </label>
+                          <div className="grid grid-cols-1 gap-3">
+                            <input
+                              type="date"
+                              value={bookingDate}
+                              onChange={(e) => setBookingDate(e.target.value)}
+                              min={minDateStr}
+                              className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
+                            />
+                            <select
+                              value={bookingTime}
+                              onChange={(e) => setBookingTime(e.target.value)}
+                              className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
+                            >
+                              <option value="">-- Chọn giờ --</option>
+                              {timeSlots.map(slot => (
+                                <option
+                                  key={slot.time}
+                                  value={slot.time}
+                                  disabled={slot.isFull}
+                                  className={slot.isFull ? 'text-gray-300' : ''}
+                                >
+                                  {slot.time} ({slot.isFull ? 'Kín lịch' : slot.label})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-16 text-center text-slate-400 font-semibold text-sm">
@@ -1214,6 +1502,9 @@ export default function ReceptionCreateServiceOrder() {
                     setServicePage={setServicePage}
                     dbCombos={dbCombos}
                     selectedComboId={selectedComboId}
+                    serviceTotalPages={1}
+                    searchText={serviceSearch}
+                    setSearchText={setServiceSearch}
                   />
                 )}
 
@@ -1249,16 +1540,38 @@ export default function ReceptionCreateServiceOrder() {
         )}
       </div>
 
-      {/* NOTES */}
+      {/* PAYMENT QR CODE (For SPECIFIC services) */}
+      {receptionServiceMode === 'SERVICE' && selectedTotal > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
+              QR Chuyển khoản (Dịch vụ lẻ/Combo)
+            </h2>
+            <p className="text-xs text-slate-500">Khách hàng có thể quét mã QR để chuyển khoản tạm ứng/thanh toán ngay.</p>
+            <div className="text-xl font-black text-[#00285E] mt-2">
+              {formatPrice(selectedTotal)}
+            </div>
+          </div>
+          <div className="shrink-0 p-2 border border-slate-200 rounded-2xl bg-white shadow-sm">
+            <img 
+              src={`https://vietqr.app/img?acc=${import.meta.env.VITE_SEPAY_ACC || '0348714088'}&bank=${import.meta.env.VITE_SEPAY_BANK || 'MB'}&amount=${selectedTotal}&template=compact&showinfo=true`}
+              alt="Mã QR thanh toán"
+              className="w-32 h-32 object-contain rounded-xl"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* INITIAL VEHICLE CONDITION */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
         <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 uppercase tracking-widest">
           <StickyNote size={16} className="text-[#00285E]" />
-          Ghi chú
+          Trạng thái tiếp nhận xe ban đầu
         </h2>
         <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Ghi chú thêm cho hóa đơn dịch vụ (tùy chọn)..."
+          value={initialCondition}
+          onChange={(e) => setInitialCondition(e.target.value)}
+          placeholder="Ghi chú về tình trạng xe khi tiếp nhận (ví dụ: xước xát thân vỏ, móp méo...)"
           rows={3}
           className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all resize-none"
         />

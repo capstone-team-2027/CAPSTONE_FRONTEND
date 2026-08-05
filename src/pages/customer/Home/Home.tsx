@@ -10,7 +10,10 @@ import {
     UserCheck,
     Clock,
     Calendar,
+    Car,
     Phone,
+    Mail,
+    MapPin,
     ArrowRight,
     Star,
     Cpu
@@ -27,63 +30,63 @@ export default function Home() {
 
     const teamMembers = [
         {
-            name: 'Sơn',
-            fullName: 'Đào Lưu Đức Sơn',
+            name: 'Bảo',
+            fullName: 'Nguyễn Quốc Bảo',
             role: i18n.language === 'vi' ? 'Kỹ thuật viên trưởng' : 'Head Technician',
             specialty: i18n.language === 'vi' ? 'Chuyên gia kỹ thuật dòng xe Đức' : 'German Car Specialist',
             experience: i18n.language === 'vi' ? '18 năm' : '18 years',
             tags: ['ASE Master', 'BMW Certified', 'Mercedes-Benz Specialist'],
             masterTechs: '24+',
             certifications: '47',
-            image: '/images/son.jpg',
+            image: '/images/bảo.jpeg',
             label: i18n.language === 'vi' ? 'Kỹ thuật viên dòng xe Đức' : 'German Car Master Tech'
         },
         {
-            name: 'Bình',
-            fullName: 'Trần Lương Bình',
+            name: 'Thiết',
+            fullName: 'Trần Văn Thiết',
             role: i18n.language === 'vi' ? 'Kỹ thuật viên cao cấp' : 'Senior Technician',
             specialty: i18n.language === 'vi' ? 'Chuyên gia hệ thống truyền động' : 'Drivetrain Specialist',
             experience: i18n.language === 'vi' ? '15 năm' : '15 years',
             tags: ['Porsche Certified', 'ASE Advanced', 'Audi Master'],
             masterTechs: '18+',
             certifications: '35',
-            image: '/images/binh.jpg',
+            image: '/images/thiết.jpeg',
             label: i18n.language === 'vi' ? 'Chuyên gia dòng xe Ý' : 'Italian Car Specialist'
         },
         {
-            name: 'Ngân',
-            fullName: 'Đỗ Thị Thu Ngân',
+            name: 'Hoàng',
+            fullName: 'Lê Minh Hoàng',
             role: i18n.language === 'vi' ? 'Chuyên gia chẩn đoán' : 'Diagnostics Specialist',
             specialty: i18n.language === 'vi' ? 'Kỹ thuật viên điện tử & ECU' : 'Electronics & ECU Technician',
             experience: i18n.language === 'vi' ? '12 năm' : '12 years',
             tags: ['Tesla Specialist', 'Electric Vehicle Master', 'MIT Graduate'],
             masterTechs: '12+',
             certifications: '28',
-            image: '/images/ngan.jpg',
+            image: '/images/hoàng.jpeg',
             label: i18n.language === 'vi' ? 'Chuyên gia điện tử' : 'Electronics Expert'
         },
         {
-            name: 'Thiện',
-            fullName: 'Lê Văn Thiện',
+            name: 'Minh',
+            fullName: 'Nguyễn Viết Minh',
             role: i18n.language === 'vi' ? 'Chuyên gia đồng sơn & thân vỏ' : 'Body & Paint Specialist',
             specialty: i18n.language === 'vi' ? 'Phục hồi xe cổ & sơn cao cấp' : 'Classic Car Restoration & Premium Paint',
             experience: i18n.language === 'vi' ? '20 năm' : '20 years',
             tags: ['Master Painter', 'Classic Car Restoration', 'Ferrari Grade'],
             masterTechs: '15+',
             certifications: '42',
-            image: '/images/thien.jpg',
+            image: '/images/minh.jpeg',
             label: i18n.language === 'vi' ? 'Bậc thầy phục chế xe cổ' : 'Classic Car Restoration Master'
         },
         {
-            name: 'Mạnh',
-            fullName: 'Phan Đức Mạnh',
+            name: 'Tuấn',
+            fullName: 'Hoàng Minh Tuấn',
             role: i18n.language === 'vi' ? 'Kỹ thuật viên hiệu năng' : 'Performance Technician',
             specialty: i18n.language === 'vi' ? 'Tuning & Nâng cấp hệ thống tăng áp' : 'Tuning & Turbochargers Upgrade',
             experience: i18n.language === 'vi' ? '14 năm' : '14 years',
             tags: ['Tuning Master', 'Turbo Specialist', 'Race Prep Expert'],
             masterTechs: '20+',
             certifications: '39',
-            image: '/images/manh.jpg',
+            image: '/images/tuấn.jpeg',
             label: i18n.language === 'vi' ? 'Chuyên gia tối ưu hiệu năng' : 'Performance Optimization Expert'
         }
     ];
@@ -92,63 +95,63 @@ export default function Home() {
 
     const techSpecs = [
         {
-            title: i18n.language === 'vi' ? 'Hệ thống tăng áp' : 'Turbocharger System',
-            displayTitle: i18n.language === 'vi' ? 'Bộ tăng áp động cơ' : 'Engine Turbocharger',
-            sub: i18n.language === 'vi' ? 'Hệ thống truyền động' : 'Drivetrain',
-            image: '/images/Turbocharger Assembly.png',
+            title: i18n.language === 'vi' ? 'Hệ thống lái tự động cấp độ cao' : 'Advanced Automated Driving System',
+            displayTitle: i18n.language === 'vi' ? 'Hệ thống lái tự động cấp độ cao (ADAS Level 3 & 4)' : 'Advanced Automated Driving System (ADAS Level 3 & 4)',
+            sub: i18n.language === 'vi' ? 'Hỗ trợ lái & An toàn' : 'Driver Assistance & Safety',
+            image: '/images/adas.jpg',
             icon: <Cpu size={22} />,
             desc: i18n.language === 'vi'
-                ? 'Dịch vụ tối ưu hóa và nâng cấp hệ thống tăng áp nhằm cung cấp công suất tối đa và độ bền bỉ vượt trội. Mỗi bộ phận đều được kiểm tra độ cân bằng động chính xác.'
-                : 'Optimization and upgrade services for turbocharger systems to deliver maximum power and outstanding durability. Each component is balanced dynamically.',
+                ? 'Công nghệ ADAS cấp độ 3 và 4 kết hợp camera, radar, cảm biến và trí tuệ nhân tạo để hỗ trợ xe tự động nhận diện môi trường, điều hướng và xử lý các tình huống giao thông phức tạp.'
+                : 'Level 3 and 4 ADAS combines cameras, radar, sensors, and artificial intelligence to help the vehicle perceive its surroundings, navigate, and handle complex traffic situations.',
             stats: [
-                { label: i18n.language === 'vi' ? 'Linh kiện' : 'Component', value: 'OEM' },
-                { label: i18n.language === 'vi' ? 'Thời gian TB' : 'Avg Time', value: '48h' },
-                { label: i18n.language === 'vi' ? 'Bảo hành' : 'Warranty', value: i18n.language === 'vi' ? '2 năm' : '2 years' }
+                { label: i18n.language === 'vi' ? 'Cấp độ tự động' : 'Automation Level', value: 'Level 3 & 4' },
+                { label: i18n.language === 'vi' ? 'Nhận diện' : 'Perception', value: 'AI 360°' },
+                { label: i18n.language === 'vi' ? 'Phản hồi' : 'Response', value: '<10ms' }
             ]
         },
         {
-            title: i18n.language === 'vi' ? 'Phanh gốm Carbon' : 'Carbon Ceramic Brakes',
-            displayTitle: i18n.language === 'vi' ? 'Hệ thống phanh gốm' : 'Ceramic Brake System',
-            sub: i18n.language === 'vi' ? 'Phanh & An toàn' : 'Brakes & Safety',
-            image: '/images/phanhgom.jpg',
+            title: i18n.language === 'vi' ? 'Hệ thống an toàn chủ động thông minh' : 'Intelligent Active Safety System',
+            displayTitle: i18n.language === 'vi' ? 'Hệ thống an toàn chủ động thông minh (Active Safety AI)' : 'Intelligent Active Safety System (Active Safety AI)',
+            sub: i18n.language === 'vi' ? 'AI & An toàn chủ động' : 'AI & Active Safety',
+            image: '/images/safe.webp',
             icon: <ShieldCheck size={22} />,
             desc: i18n.language === 'vi'
-                ? 'Ứng dụng vật liệu ma sát tiên tiến cho hiệu năng phanh vượt trội, không bị giảm hiệu suất khi ở nhiệt độ cực cao. Thích hợp cho xe hiệu năng cao và xe đua.'
-                : 'Utilizes advanced friction materials for superior brake performance with zero fade at extreme temperatures. Suitable for high-performance and race cars.',
+                ? 'Active Safety AI liên tục phân tích dữ liệu từ camera và cảm biến để phát hiện nguy cơ va chạm, cảnh báo người lái và chủ động can thiệp nhằm bảo vệ hành khách trong thời gian thực.'
+                : 'Active Safety AI continuously analyzes camera and sensor data to detect collision risks, alert the driver, and intervene proactively to protect passengers in real time.',
             stats: [
-                { label: i18n.language === 'vi' ? 'Tiêu chuẩn' : 'Standard', value: 'Track' },
-                { label: i18n.language === 'vi' ? 'Độ bền' : 'Durability', value: '100K km' },
-                { label: i18n.language === 'vi' ? 'Hiệu năng' : 'Performance', value: '+40%' }
+                { label: i18n.language === 'vi' ? 'Giám sát' : 'Monitoring', value: '360°' },
+                { label: i18n.language === 'vi' ? 'Phản hồi' : 'Response', value: '<10ms' },
+                { label: i18n.language === 'vi' ? 'Nhận diện' : 'Detection', value: 'AI Vision' }
             ]
         },
         {
-            title: i18n.language === 'vi' ? 'Hệ thống treo thích ứng' : 'Adaptive Suspension',
-            displayTitle: i18n.language === 'vi' ? 'Hệ thống treo chủ động' : 'Active Suspension System',
-            sub: i18n.language === 'vi' ? 'Khung gầm & Hệ thống treo' : 'Chassis & Suspension',
-            image: '/images/treo.jpg',
-            icon: <Wrench size={22} />,
+            title: i18n.language === 'vi' ? 'Công nghệ Pin Solid-State' : 'Solid-State Battery Technology',
+            displayTitle: i18n.language === 'vi' ? 'Công nghệ Pin Solid-State – Bước tiến mới cho xe điện' : 'Solid-State Battery Technology – A New Leap for Electric Vehicles',
+            sub: i18n.language === 'vi' ? 'Pin & Xe điện' : 'Battery & Electric Vehicles',
+            image: '/images/solid.webp',
+            icon: <Zap size={22} />,
             desc: i18n.language === 'vi'
-                ? 'Hiệu chuẩn giảm chấn điện tử để mang lại sự cân bằng hoàn hảo giữa cảm giác lái êm ái và khả năng xử lý thể thao. Chẩn đoán rò rỉ và lỗi cảm biến chính xác.'
-                : 'Calibrates electronic dampening to deliver the perfect balance between ride comfort and sport handling. Precise sensor diagnostics.',
+                ? 'Pin thể rắn thay thế chất điện phân lỏng bằng vật liệu rắn, giúp tăng mật độ năng lượng, rút ngắn thời gian sạc và nâng cao độ an toàn cho thế hệ xe điện tiếp theo.'
+                : 'Solid-state batteries replace liquid electrolytes with solid materials, increasing energy density, reducing charging time, and improving safety for the next generation of electric vehicles.',
             stats: [
-                { label: i18n.language === 'vi' ? 'Phản hồi' : 'Response', value: '10ms' },
-                { label: i18n.language === 'vi' ? 'Cảm biến' : 'Sensors', value: i18n.language === 'vi' ? '4 điểm' : '4-point' },
-                { label: i18n.language === 'vi' ? 'Độ chuẩn' : 'Accuracy', value: '99%' }
+                { label: i18n.language === 'vi' ? 'Mật độ năng lượng' : 'Energy Density', value: '+80%' },
+                { label: i18n.language === 'vi' ? 'Sạc nhanh' : 'Fast Charge', value: '15 phút' },
+                { label: i18n.language === 'vi' ? 'Phạm vi' : 'Range', value: '800 km' }
             ]
         },
         {
-            title: i18n.language === 'vi' ? 'Lập trình ECU chuyên sâu' : 'Advanced ECU Tuning',
-            displayTitle: i18n.language === 'vi' ? 'Tối ưu hóa ECU' : 'ECU Optimization',
-            sub: i18n.language === 'vi' ? 'Hệ thống điện & Điện tử' : 'Electrical & Electronics',
-            image: '/images/ECU.jpg',
+            title: i18n.language === 'vi' ? 'Kiểm soát hành trình' : 'Cruise Control',
+            displayTitle: i18n.language === 'vi' ? 'Kiểm soát hành trình CRUISE CONTROL' : 'CRUISE CONTROL',
+            sub: i18n.language === 'vi' ? 'Hỗ trợ lái & Tiện nghi' : 'Driver Assistance & Comfort',
+            image: '/images/cruise.jpg',
             icon: <Settings size={22} />,
             desc: i18n.language === 'vi'
-                ? 'Hiệu chỉnh phần mềm điều khiển động cơ nhằm tối ưu hóa công suất, mô-men xoắn và hiệu quả nhiên liệu. Đảm bảo các thông số vận hành luôn trong giới hạn an toàn.'
-                : 'Tunes engine control unit software to optimize power output, torque, and fuel efficiency while keeping operating parameters safely within limits.',
+                ? 'Hệ thống Cruise Control tự động duy trì tốc độ đã cài đặt, giúp người lái giảm thao tác chân ga, lái xe thoải mái hơn trên hành trình dài và tối ưu mức tiêu thụ nhiên liệu.'
+                : 'Cruise Control automatically maintains the selected speed, reducing accelerator input, improving comfort on long journeys, and optimizing fuel consumption.',
             stats: [
-                { label: i18n.language === 'vi' ? 'Công suất' : 'Power', value: '+25%' },
-                { label: i18n.language === 'vi' ? 'Mô-men xoắn' : 'Torque', value: '+30%' },
-                { label: i18n.language === 'vi' ? 'Độ trễ ga' : 'Throttle Lag', value: i18n.language === 'vi' ? 'Cực thấp' : 'Ultra-low' }
+                { label: i18n.language === 'vi' ? 'Duy trì tốc độ' : 'Speed Control', value: i18n.language === 'vi' ? 'Tự động' : 'Automatic' },
+                { label: i18n.language === 'vi' ? 'Khoảng cách' : 'Distance', value: 'Adaptive' },
+                { label: i18n.language === 'vi' ? 'Tiết kiệm' : 'Efficiency', value: '+15%' }
             ]
         }
     ];
@@ -448,9 +451,9 @@ export default function Home() {
                         <div className="hidden md:block absolute top-[44px] left-[15%] right-[15%] h-[2px] z-0"
                             style={{ backgroundColor: `${COLORS.orange}4D` }} />
                         {[
-                            { title: t('home.booking.step1.title'), desc: t('home.booking.step1.desc'), icon: <Settings size={22} /> },
-                            { title: t('home.booking.step2.title'), desc: t('home.booking.step2.desc'), icon: <Calendar size={22} /> },
-                            { title: t('home.booking.step3.title'), desc: t('home.booking.step3.desc'), icon: <UserCheck size={22} /> },
+                            { title: t('home.booking.step1.title'), desc: t('home.booking.step1.desc'), icon: <Car size={22} /> },
+                            { title: t('home.booking.step2.title'), desc: t('home.booking.step2.desc'), icon: <Settings size={22} /> },
+                            { title: t('home.booking.step3.title'), desc: t('home.booking.step3.desc'), icon: <Calendar size={22} /> },
                             { title: t('home.booking.step4.title'), desc: t('home.booking.step4.desc'), icon: <CheckCircle2 size={22} /> },
                         ].map((step, idx) => (
                             <div key={idx} className="relative z-10 text-center">
@@ -865,47 +868,43 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* Insights/Blog Section */}
-            <section className="py-40 bg-white">
+            {/* Contact Section */}
+            <section className="py-24 md:py-32 bg-white">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-20 gap-8">
-                        <div>
-                            <span className="font-bold text-[10px] tracking-[0.2em] uppercase mb-4 block" style={{ color: COLORS.orange }}>{t('home.news.label')}</span>
-                            <h2 className="text-6xl font-display uppercase tracking-tight" style={{ color: COLORS.navy }}>{t('home.news.title')}</h2>
-                        </div>
-                        <Link to="#" className="text-[11px] font-bold uppercase tracking-[0.2em] flex items-center gap-3 transition-all border-b-2 pb-2 group hover:opacity-60"
-                            style={{ color: COLORS.navy, borderColor: `${COLORS.navy}1A` }}>
-                            {t('home.news.viewAll')} <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                        </Link>
-                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-stretch">
+                        <div className="flex flex-col justify-center py-4 lg:py-8">
+                            <span className="font-bold text-[10px] tracking-[0.2em] uppercase mb-4 block" style={{ color: COLORS.orange }}>{t('home.contact.label')}</span>
+                            <h2 className="text-4xl md:text-6xl font-display uppercase tracking-tight leading-[1.05] mb-6" style={{ color: COLORS.navy }}>{t('home.contact.title')}</h2>
+                            <p className="text-sm leading-relaxed max-w-xl mb-10" style={{ color: `${COLORS.navy}80` }}>{t('home.contact.desc')}</p>
 
-                    <div className="flex md:grid md:grid-cols-3 overflow-x-auto md:overflow-x-visible snap-x snap-mandatory md:snap-none scrollbar-none gap-6 md:gap-12 pb-8 md:pb-0 px-4 md:px-0 -mx-4 md:mx-0">
-                        {[
-                            { title: t('home.news.article1.title'), date: t('home.news.date1'), tag: t('home.news.tag1'), image: '/images/The Science Behind Ceramic Coatings_ Why Your Investment Deserves Protection.png', desc: t('home.news.article1.desc') },
-                            { title: t('home.news.article2.title'), date: t('home.news.date2'), tag: t('home.news.tag2'), image: '/images/Understanding ECU Tuning_ Power Gains Without Compromising Reliability.png', desc: t('home.news.article2.desc') },
-                            { title: t('home.news.article3.title'), date: t('home.news.date3'), tag: t('home.news.tag3'), image: '/images/Winter Storage Guide_ Protecting Your Collector Vehicle Through the Cold Months.png', desc: t('home.news.article3.desc') }
-                        ].map((article, idx) => (
-                            <div key={idx} className="group cursor-pointer snap-align-start shrink-0 w-[82vw] md:w-auto">
-                                <div className="aspect-[16/10] rounded-[2.5rem] overflow-hidden mb-8 relative border border-blue-50 shadow-sm">
-                                    <img src={article.image} alt={article.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" />
-                                    <div className="absolute top-6 left-6 inline-flex px-4 py-1.5 bg-white/90 backdrop-blur-md rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-xl"
-                                        style={{ color: COLORS.navy }}>
-                                        {article.tag}
-                                    </div>
-                                </div>
-                                <div className="text-[10px] font-bold uppercase tracking-[0.2em] mb-5 inline-flex items-center gap-4"
-                                    style={{ color: `${COLORS.navy}4D` }}>
-                                    {article.tag} <span className="w-1 h-1 rounded-full" style={{ backgroundColor: '#BFDBFE' }}></span> {article.date}
-                                </div>
-                                <h4 className="text-2xl font-bold mb-5 transition-colors line-clamp-2 leading-tight group-hover:opacity-60"
-                                    style={{ color: COLORS.navy }}>
-                                    {article.title}
-                                </h4>
-                                <p className="text-[11px] leading-relaxed line-clamp-3 font-medium" style={{ color: `${COLORS.navy}66` }}>
-                                    {article.desc}
-                                </p>
+                            <div className="space-y-4">
+                                <a href="https://www.google.com/maps/search/?api=1&query=480+Tr%E1%BA%A7n+Qu%E1%BB%91c+Ho%C3%A0n%2C+H%C3%B2a+H%E1%BA%A3i%2C+Ng%C5%A9+H%C3%A0nh+S%C6%A1n%2C+%C4%90%C3%A0+N%E1%BA%B5ng" target="_blank" rel="noopener noreferrer" className="flex items-center gap-5 p-5 rounded-2xl border border-slate-100 hover:border-orange-200 hover:shadow-md transition-all group">
+                                    <span className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 group-hover:bg-orange-50 transition-colors"><MapPin size={22} style={{ color: COLORS.orange }} /></span>
+                                    <span>
+                                        <span className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t('home.contact.addressLabel')}</span>
+                                        <span className="font-bold text-sm" style={{ color: COLORS.navy }}>{t('home.contact.address')}</span>
+                                    </span>
+                                </a>
+                                <a href="tel:+84965147731" className="flex items-center gap-5 p-5 rounded-2xl border border-slate-100 hover:border-orange-200 hover:shadow-md transition-all group">
+                                    <span className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 group-hover:bg-orange-50 transition-colors"><Phone size={22} style={{ color: COLORS.orange }} /></span>
+                                    <span>
+                                        <span className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t('home.contact.phoneLabel')}</span>
+                                        <span className="font-bold text-sm" style={{ color: COLORS.navy }}>(+84) 965147731</span>
+                                    </span>
+                                </a>
+                                <a href="mailto:agmintelligent@gmail.com" className="flex items-center gap-5 p-5 rounded-2xl border border-slate-100 hover:border-orange-200 hover:shadow-md transition-all group">
+                                    <span className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 group-hover:bg-orange-50 transition-colors"><Mail size={22} style={{ color: COLORS.orange }} /></span>
+                                    <span>
+                                        <span className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Email</span>
+                                        <span className="font-bold text-sm" style={{ color: COLORS.navy }}>agmintelligent@gmail.com</span>
+                                    </span>
+                                </a>
                             </div>
-                        ))}
+                        </div>
+
+                        <div className="min-h-[480px] lg:min-h-[620px] rounded-[2rem] overflow-hidden border border-blue-50 shadow-xl shadow-blue-900/5">
+                            <iframe title={t('home.contact.mapTitle')} src="https://www.google.com/maps?q=480%20Tr%E1%BA%A7n%20Qu%E1%BB%91c%20Ho%C3%A0n%2C%20H%C3%B2a%20H%E1%BA%A3i%2C%20Ng%C5%A9%20H%C3%A0nh%20S%C6%A1n%2C%20%C4%90%C3%A0%20N%E1%BA%B5ng&output=embed" width="100%" height="100%" className="w-full h-full border-0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
+                        </div>
                     </div>
                 </div>
             </section>
@@ -941,7 +940,7 @@ export default function Home() {
 
                             <div className="hidden md:flex items-center gap-8" style={{ color: `${COLORS.white}66` }}>
                                 <div className="text-right">
-                                    <div className="text-[11px] uppercase font-bold tracking-[0.3em] mb-1" style={{ color: `${COLORS.white}66` }}>(555) 234-5678</div>
+                                    <a href="tel:+84965147731" className="text-[11px] uppercase font-bold tracking-[0.3em] mb-1 block hover:opacity-80" style={{ color: `${COLORS.white}66` }}>(+84) 965147731</a>
                                     <div className="text-[10px] uppercase font-bold tracking-[0.2em]" style={{ color: `${COLORS.white}40` }}>{t('home.cta.schedule')}</div>
                                 </div>
                                 <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center" style={{ color: `${COLORS.white}80` }}>

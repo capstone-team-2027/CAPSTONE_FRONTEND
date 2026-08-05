@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Check, Star, Settings } from 'lucide-react';
+import React from 'react';
+import { Check, Star, Settings, Search } from 'lucide-react';
 import type { ServiceItem, ServiceCombo } from '../../../model/Service';
 
 interface SingleServicesSelectorProps {
@@ -13,6 +13,9 @@ interface SingleServicesSelectorProps {
     setSelectedCategoryId: React.Dispatch<React.SetStateAction<number | null>>;
     servicePage: number;
     setServicePage: React.Dispatch<React.SetStateAction<number>>;
+    serviceTotalPages: number;
+    searchText: string;
+    setSearchText: React.Dispatch<React.SetStateAction<string>>;
     dbCombos?: ServiceCombo[];
     selectedComboId?: number | null;
 }
@@ -28,32 +31,33 @@ export default function SingleServicesSelector({
     setSelectedCategoryId,
     servicePage,
     setServicePage,
+    serviceTotalPages,
+    searchText,
+    setSearchText,
     dbCombos = [],
     selectedComboId = null,
 }: SingleServicesSelectorProps) {
-    const servicesPerPage = 16;
-
-    // Filter services by category (do not exclude combo services, just disable them in UI)
-    const filteredServices = useMemo(() => {
-        let list = mappedServices;
-        if (selectedCategoryId === null) return list;
-        return list.filter(s => s.category_id === selectedCategoryId);
-    }, [mappedServices, selectedCategoryId]);
-
     // Reset pagination to page 1 when category changes
     const handleCategoryChange = (catId: number | null) => {
         setSelectedCategoryId(catId);
         setServicePage(1);
     };
 
-    const totalServicePages = Math.ceil(filteredServices.length / servicesPerPage);
-    const currentServices = useMemo(() => {
-        const indexOfLast = servicePage * servicesPerPage;
-        const indexOfFirst = indexOfLast - servicesPerPage;
-        return filteredServices.slice(indexOfFirst, indexOfLast);
-    }, [filteredServices, servicePage, servicesPerPage]);
+    const currentServices = mappedServices;
     return (
         <>
+            {/* Search Input */}
+            <div className="mb-4 relative">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                    type="text"
+                    placeholder="Tìm kiếm dịch vụ..."
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-xs outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all shadow-sm text-brand-blue"
+                />
+            </div>
+
             {/* Category tabs */}
             <div className="flex gap-2 overflow-x-auto pb-3 mb-4 select-none scrollbar-thin">
                 <button
@@ -164,6 +168,12 @@ export default function SingleServicesSelector({
                                         <span className="line-clamp-2 leading-tight">{service.promoText}</span>
                                     </div>
                                 )}
+                                {service.sparePartName && (
+                                    <div className="mb-2 p-1 bg-emerald-50/40 rounded-md border border-emerald-100/40 flex items-start gap-1 text-[8px] text-emerald-700 font-medium text-left">
+                                        <span className="shrink-0">🔧</span>
+                                        <span className="line-clamp-2 leading-tight">Đã kèm: {service.sparePartName}</span>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex justify-between items-end mt-1.5 pt-1.5 border-t border-slate-50/70">
@@ -201,7 +211,7 @@ export default function SingleServicesSelector({
             </div>
 
             {/* Service Pagination Controls */}
-            {totalServicePages > 1 && (
+            {serviceTotalPages > 1 && (
                 <div className="flex justify-center items-center gap-1.5 mt-8">
                     <button
                         type="button"
@@ -214,7 +224,7 @@ export default function SingleServicesSelector({
                     >
                         Trước
                     </button>
-                    {Array.from({ length: totalServicePages }).map((_, index) => {
+                    {Array.from({ length: serviceTotalPages }).map((_, index) => {
                         const pageNumber = index + 1;
                         return (
                             <button
@@ -232,9 +242,9 @@ export default function SingleServicesSelector({
                     })}
                     <button
                         type="button"
-                        onClick={() => setServicePage(prev => Math.min(prev + 1, totalServicePages))}
-                        disabled={servicePage === totalServicePages}
-                        className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all ${servicePage === totalServicePages
+                        onClick={() => setServicePage(prev => Math.min(prev + 1, serviceTotalPages))}
+                        disabled={servicePage === serviceTotalPages}
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all ${servicePage === serviceTotalPages
                             ? 'text-gray-300 bg-gray-50/50 border border-gray-100 cursor-not-allowed'
                             : 'text-brand-blue bg-white border border-gray-200 hover:bg-gray-50'
                             }`}

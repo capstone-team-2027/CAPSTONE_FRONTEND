@@ -23,7 +23,7 @@ export default function InventoryDashboard() {
 
   // ── Quick stat strip (gọn, không phải 4-KPI kiểu admin) ──
   const stats = [
-    { id: 'value', label: 'Giá trị tồn kho', value: '1.85 tỷ đ', icon: <Wallet size={18} />, tint: 'text-blue-600 bg-blue-50' },
+    { id: 'value', label: 'Giá trị tồn kho', value: '1.85 tỷ VND', icon: <Wallet size={18} />, tint: 'text-blue-600 bg-blue-50' },
     { id: 'sku', label: 'Tổng SKU', value: '1,342', icon: <Boxes size={18} />, tint: 'text-[#00285E] bg-[#EDF3FF]' },
     { id: 'low', label: 'Sắp hết', value: '24', icon: <AlertTriangle size={18} />, tint: 'text-[#F9A11B] bg-amber-50' },
     { id: 'util', label: 'Lấp đầy kho', value: '72%', icon: <Warehouse size={18} />, tint: 'text-emerald-600 bg-emerald-50' },

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../components/share/Color';
 import { Button } from '../../components/share/Button';
+import Logo from '../../components/share/Logo';
 
 export default function Footer() {
     const { t } = useTranslation();
@@ -33,7 +34,7 @@ export default function Footer() {
                         <div className="lg:col-span-5">
                             <Link to="/" className="flex items-center gap-3 mb-8">
                                 <div className="w-11 h-11 p-2 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: COLORS.navy }}>
-                                    <img src="/images/logo.png" alt="Logo" className="w-full h-full object-contain" />
+                                    <img src="/images/logo1.png" alt="Logo" className="w-full h-full object-contain" />
                                 </div>
                                 <span className="text-2xl font-bold font-display tracking-tighter uppercase"
                                     style={{ color: COLORS.navy }}>
@@ -125,13 +126,19 @@ export default function Footer() {
                             <ul className="space-y-6 text-sm font-medium">
                                 <li className="flex items-start gap-4">
                                     <MapPin size={18} className="shrink-0" style={{ color: COLORS.orange }} />
-                                    <span className="leading-tight" style={{ color: `${COLORS.navy}66` }}>
-                                        FPT University<br />FUDA Campus
-                                    </span>
+                                    <a
+                                        href="https://www.google.com/maps/search/?api=1&query=480+Tr%E1%BA%A7n+Qu%E1%BB%91c+Ho%C3%A0n%2C+H%C3%B2a+H%E1%BA%A3i%2C+Ng%C5%A9+H%C3%A0nh+S%C6%A1n%2C+%C4%90%C3%A0+N%E1%BA%B5ng"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="leading-tight hover:underline"
+                                        style={{ color: `${COLORS.navy}66` }}
+                                    >
+                                        {t('home.contact.address', '480 Trần Quốc Hoàn, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng')}
+                                    </a>
                                 </li>
                                 <li className="flex items-center gap-4">
                                     <Phone size={18} className="shrink-0" style={{ color: COLORS.orange }} />
-                                    <span style={{ color: `${COLORS.navy}66` }}>(555) 234-5678</span>
+                                    <a href="tel:+84965147731" className="hover:underline" style={{ color: `${COLORS.navy}66` }}>(+84) 965147731</a>
                                 </li>
                                 <li className="flex items-center gap-4">
                                     <Mail size={18} className="shrink-0" style={{ color: COLORS.orange }} />

@@ -1,9 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Settings, Wrench, Zap, Car, ShieldCheck,
-    Droplets, Plus, Package, Wallet, UserCheck, Search, X, Clock
+    Droplets, Plus, Package, Wallet, UserCheck, Search, X, Clock, ChevronLeft, ChevronRight, CheckCircle2
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../../components/share/Color';
 import { Button } from '../../../components/share/Button';
@@ -20,6 +20,7 @@ interface ServiceCombo {
     discount_percentage: number;
     is_active: boolean;
     createdAt: string;
+    catalogs?: any[];
 }
 
 interface ServiceItem {
@@ -56,14 +57,23 @@ export default function Services() {
     const navigate = useNavigate();
     const { fetchPublic } = useFetchClient();
     const [activeTab, setActiveTab] = useState('all');
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState("");
     const [selectedService, setSelectedService] = useState<ServiceItem | null>(null);
+    const [selectedCombo, setSelectedCombo] = useState<any>(null);
     const [combos, setCombos] = useState<ServiceCombo[]>([]);
     const [dbServices, setDbServices] = useState<any[]>([]);
     const [dbCategories, setDbCategories] = useState<any[]>([]);
     const [_, setIsLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
     const [isSearchFocused, setIsSearchFocused] = useState(false);
+    
+    // Drag to scroll for Combo Slider
+    const comboSliderRef = useRef<HTMLDivElement>(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const startXRef = useRef(0);
+    const scrollLeftRef = useRef(0);
+    
     const itemsPerPage = 8;
 
     useEffect(() => {
@@ -71,71 +81,61 @@ export default function Services() {
     }, [searchQuery, activeTab]);
 
     useEffect(() => {
-        const loadDbData = async () => {
-            setIsLoading(true);
+        const loadCategoriesAndCombos = async () => {
             try {
                 const catRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_CATEGORIES);
-                const svcRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_SERVICES);
-                const comboRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_COMBOS);
-                if (catRes && catRes.data) {
+                if (catRes?.data) {
                     setDbCategories(catRes.data);
                 }
-                if (svcRes && svcRes.data) {
-                    setDbServices(svcRes.data);
-                }
-                if (comboRes && comboRes.data && comboRes.data.length > 0) {
-                    const mappedCombos = comboRes.data.map((c: any) => ({
+                const comboRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_COMBOS);
+                const comboItems = comboRes?.data || [];
+                if (comboItems.length > 0) {
+                    const mappedCombos = comboItems.map((c: any) => ({
                         id: c.id,
                         combo_name: c.combo_name,
                         category_id: c.catalogs?.[0]?.category_id || 1,
                         service_ids: c.catalogs?.map((cat: any) => cat.id) || [],
-                        discount_percentage: c.discount_percentage || 10,
+                        discount_percentage: c.discount_percentage ?? 10,
                         is_active: c.is_active,
                         createdAt: c.createdAt,
+                        catalogs: c.catalogs || [],
                     }));
                     setCombos(mappedCombos);
                 }
             } catch (error) {
-                console.error("Lỗi khi tải dữ liệu dịch vụ từ backend:", error);
+                console.error("Lỗi khi tải danh mục/combo từ backend:", error);
+            }
+        };
+        loadCategoriesAndCombos();
+    }, []);
+
+    useEffect(() => {
+        const fetchServices = async () => {
+            setIsLoading(true);
+            try {
+                const search = encodeURIComponent(searchQuery);
+                const categoryId = activeTab !== 'all' ? activeTab : '';
+                const query = `page=${currentPage}&limit=${itemsPerPage}&search=${search}&category_id=${categoryId}`;
+                
+                const svcRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.SEARCH_SERVICES}?${query}`);
+                if (svcRes?.data) {
+                    setDbServices(svcRes.data.items || []);
+                    setTotalPages(svcRes.data.totalPages || 1);
+                } else {
+                    setDbServices([]);
+                    setTotalPages(1);
+                }
+            } catch (error) {
+                console.error("Lỗi khi tải dịch vụ:", error);
             } finally {
                 setIsLoading(false);
             }
         };
-        loadDbData();
-    }, []);
-
-    useEffect(() => {
-        try {
-            const stored = localStorage.getItem("service_combos");
-            if (stored) {
-                setCombos(JSON.parse(stored));
-            } else {
-                const defaultCombos: ServiceCombo[] = [
-                    {
-                        id: 10001,
-                        combo_name: "Combo Bảo dưỡng Định kỳ Cơ bản",
-                        category_id: 1,
-                        service_ids: [1, 2, 3],
-                        discount_percentage: 10,
-                        is_active: true,
-                        createdAt: new Date().toISOString(),
-                    },
-                    {
-                        id: 10002,
-                        combo_name: "Combo Chăm sóc & Làm đẹp Toàn diện",
-                        category_id: 4,
-                        service_ids: [3, 4],
-                        discount_percentage: 15,
-                        is_active: true,
-                        createdAt: new Date().toISOString(),
-                    },
-                ];
-                setCombos(defaultCombos);
-            }
-        } catch (e) {
-            console.error(e);
-        }
-    }, []);
+        const timer = setTimeout(() => {
+            fetchServices();
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [currentPage, searchQuery, activeTab]);
 
     const getServicePriceValue = (id: number): number => {
         try {
@@ -166,12 +166,7 @@ export default function Services() {
     };
 
     const getServiceDiscount = (_serviceName: string, categoryName: string): number => {
-        const lowerC = (categoryName || "").toLowerCase();
-        if (lowerC.includes("bảo dưỡng")) return 10;
-        if (lowerC.includes("động cơ") || lowerC.includes("sửa chữa")) return 15;
-        if (lowerC.includes("lốp") || lowerC.includes("phanh")) return 20;
-        if (lowerC.includes("nội thất") || lowerC.includes("chăm sóc")) return 12;
-        if (lowerC.includes("điện") || lowerC.includes("chẩn đoán")) return 15;
+        // Return 0 to remove static discounts as requested
         return 0;
     };
 
@@ -198,15 +193,7 @@ export default function Services() {
     };
 
     const getServicePromoText = (serviceName: string, _categoryName: string): string => {
-        const lowerS = serviceName.toLowerCase();
-        if (lowerS.includes("cấp 1")) return "Tặng nước rửa kính cao cấp & kiểm tra lốp miễn phí";
-        if (lowerS.includes("cấp 2")) return "Tặng nước rửa kính cao cấp & vệ sinh lọc gió động cơ";
-        if (lowerS.includes("cấp 3")) return "Tặng nước rửa kính cao cấp & cân bằng động bánh xe miễn phí";
-        if (lowerS.includes("kim phun")) return "Giảm 15% gói vệ sinh kim phun buồng đốt đi kèm";
-        if (lowerS.includes("lốp") || lowerS.includes("bánh xe")) return "Miễn phí cân bằng động khi thay từ 2 lốp Michelin";
-        if (lowerS.includes("nội thất")) return "Tặng gói khử mùi cabin Ozon trị giá 200.000đ";
-        if (lowerS.includes("obd") || lowerS.includes("mã lỗi")) return "Miễn phí chẩn đoán lỗi OBD nhanh bằng máy chuyên dụng";
-        if (lowerS.includes("cứu hộ")) return "Hỗ trợ khẩn cấp 24/7 toàn khu vực nội thành";
+        // Return empty string to remove static promo texts as requested
         return "";
     };
 
@@ -290,161 +277,25 @@ export default function Services() {
             { id: 'repair', label: t('services.categories.repair', 'Sửa chữa') },
         ];
 
-    const services: ServiceItem[] = dbServices.length > 0
-        ? dbServices.map((s: any) => {
-            const categoryName = s.category?.category_name || "";
-            const discountPercent = getServiceDiscount(s.service_name, categoryName);
-            const priceValue = getServicePriceValue(s.id);
-            const originalPriceValue = discountPercent > 0 ? Math.round(priceValue / (1 - discountPercent / 100)) : 0;
-            const originalPriceStr = originalPriceValue > 0 ? `Từ ${originalPriceValue.toLocaleString("vi-VN")}đ` : "";
-            return {
-                id: s.id,
-                title: s.service_name,
-                desc: s.description || "",
-                icon: getServiceIcon(s.service_name, categoryName),
-                price: priceValue > 0 ? `Từ ${priceValue.toLocaleString("vi-VN")}đ` : "Liên hệ",
-                originalPrice: originalPriceStr,
-                discountPercentage: discountPercent > 0 ? discountPercent : undefined,
-                promoText: getServicePromoText(s.service_name, categoryName),
-                category: String(s.category_id),
-                image: getServiceImage(s.service_name, categoryName),
-                duration: s.estimated_duration ? `${s.estimated_duration} phút` : undefined,
-                details: getServiceDetails(s.service_name),
-            };
-        })
-        : [
-            {
-                id: 1,
-                title: t('services.list.periodic.title', 'Bảo Dưỡng Định Kỳ'),
-                desc: t('services.list.periodic.desc', 'Kiểm tra tổng quát và thay thế linh kiện hao mòn định kỳ để xe luôn vận hành êm ái.'),
-                icon: <Settings size={18} />,
-                price: t('services.list.periodic.price', 'Từ 500.000đ'),
-                originalPrice: t('services.list.periodic.originalPrice', 'Từ 550.000đ'),
-                discountPercentage: 10,
-                promoText: t('services.list.periodic.promoText', 'Tặng nước rửa kính cao cấp & kiểm tra lốp miễn phí'),
-                category: 'maintenance',
-                image: '/images/Precision Maintenance (1).png',
-                duration: t('services.list.periodic.duration', '60 - 120 phút'),
-                details: [
-                    t('services.list.periodic.details.0', 'Thay nhớt động cơ chính hãng phù hợp thông số xe.'),
-                    t('services.list.periodic.details.1', 'Kiểm tra và làm sạch lọc gió động cơ, lọc gió cabin.'),
-                    t('services.list.periodic.details.2', 'Kiểm tra hệ thống phanh, má phanh, đĩa phanh.'),
-                    t('services.list.periodic.details.3', 'Kiểm tra bình ắc quy và hệ thống chiếu sáng.'),
-                    t('services.list.periodic.details.4', 'Đọc lỗi lỗi hộp đen (OBD) bằng thiết bị chuyên dụng.')
-                ]
-            },
-            {
-                id: 2,
-                title: t('services.list.engine.title', 'Sửa Chữa Động Cơ'),
-                desc: t('services.list.engine.desc', 'Xử lý triệt để các vấn đề phức tạp của động cơ bởi các chuyên gia dày dạn kinh nghiệm.'),
-                icon: <Wrench size={18} />,
-                price: t('services.list.engine.price', 'Từ 1.200.000đ'),
-                originalPrice: t('services.list.engine.originalPrice', 'Từ 1.400.000đ'),
-                discountPercentage: 15,
-                promoText: t('services.list.engine.promoText', 'Giảm 15% gói vệ sinh kim phun buồng đốt đi kèm'),
-                category: 'repair',
-                image: '/images/Advanced Repair.png',
-                duration: t('services.list.engine.duration', 'Buổi hoặc ngày (tùy tình trạng)'),
-                details: [
-                    t('services.list.engine.details.0', 'Đo áp suất buồng đốt, kiểm tra tỉ số nén động cơ.'),
-                    t('services.list.engine.details.1', 'Xử lý hiện tượng rò rỉ dầu máy, hao nước làm mát.'),
-                    t('services.list.engine.details.2', 'Cân chỉnh cam, khắc phục tiếng gõ động cơ lạ.'),
-                    t('services.list.engine.details.3', 'Đại tu động cơ chuyên nghiệp theo tiêu chuẩn hãng.'),
-                    t('services.list.engine.details.4', 'Vệ sinh kim phun, họng hút và buồng đốt bằng máy chuyên dụng.')
-                ]
-            },
-            {
-                id: 3,
-                title: t('services.list.tireBrake.title', 'Dịch Vụ Lốp & Phanh'),
-                desc: t('services.list.tireBrake.desc', 'Đảm bảo an toàn tối đa với dịch vụ kiểm tra lốp, cân bằng động và bảo dưỡng hệ thống phanh.'),
-                icon: <Car size={18} />,
-                price: t('services.list.tireBrake.price', 'Từ 400.000đ'),
-                originalPrice: t('services.list.tireBrake.originalPrice', 'Từ 500.000đ'),
-                discountPercentage: 20,
-                promoText: t('services.list.tireBrake.promoText', 'Miễn phí cân bằng động khi thay từ 2 lốp Michelin'),
-                category: 'maintenance',
-                image: '/images/Vehicle Protection.png',
-                duration: t('services.list.tireBrake.duration', '30 - 60 phút'),
-                details: [
-                    t('services.list.tireBrake.details.0', 'Cân chỉnh thước lái 3D tiên tiến nhất hiện nay.'),
-                    t('services.list.tireBrake.details.1', 'Cân bằng động lốp xe triệt tiêu hiện tượng rung vô lăng.'),
-                    t('services.list.tireBrake.details.2', 'Láng đĩa phanh trực tiếp không cần tháo rời.'),
-                    t('services.list.tireBrake.details.3', 'Thay mới má phanh chính hãng nhập khẩu.'),
-                    t('services.list.tireBrake.details.4', 'Kiểm tra toàn bộ đường ống dẫn dầu và cụm heo phanh.')
-                ]
-            },
-            {
-                id: 4,
-                title: t('services.list.detailing.title', 'Chăm Sóc Nội Thất'),
-                desc: t('services.list.detailing.desc', 'Làm sạch sâu, khử mùi và bảo dưỡng các bề mặt da, nhựa bên trong xe như mới.'),
-                icon: <Droplets size={18} />,
-                price: t('services.list.detailing.price', 'Từ 800.000đ'),
-                originalPrice: t('services.list.detailing.originalPrice', 'Từ 900.000đ'),
-                discountPercentage: 12,
-                promoText: t('services.list.detailing.promoText', 'Tặng gói khử mùi cabin Ozon trị giá 200.000đ'),
-                category: 'maintenance',
-                image: '/images/Elite Detailing.png',
-                duration: t('services.list.detailing.duration', '120 - 240 phút'),
-                details: [
-                    t('services.list.detailing.details.0', 'Dọn nội thất toàn diện, hút bụi và giặt thảm sàn.'),
-                    t('services.list.detailing.details.1', 'Vệ sinh bề mặt da ghế bằng dung dịch chuyên sâu bảo vệ da.'),
-                    t('services.list.detailing.details.2', 'Khử trùng hệ thống điều hòa và khử mùi ozon cabin.'),
-                    t('services.list.detailing.details.3', 'Dưỡng bóng táp-lô, táp-pi cửa chống lão hóa tia UV.'),
-                    t('services.list.detailing.details.4', 'Làm sạch trần nỉ và cốp sau tỉ mỉ.')
-                ]
-            },
-            {
-                id: 5,
-                title: t('services.list.electronics.title', 'Chẩn Đoán Điện Tử'),
-                desc: t('services.list.electronics.desc', 'Sử dụng máy quét chuyên dụng để phát hiện chính xác mọi lỗi hệ thống điện tử trên xe.'),
-                icon: <Zap size={18} />,
-                price: t('services.list.electronics.price', 'Từ 300.000đ'),
-                originalPrice: t('services.list.electronics.originalPrice', 'Từ 350.000đ'),
-                discountPercentage: 15,
-                promoText: t('services.list.electronics.promoText', 'Miễn phí chẩn đoán lỗi OBD nhanh bằng máy chuyên dụng'),
-                category: 'repair',
-                image: '/images/Digital Diagnostics.png',
-                duration: t('services.list.electronics.duration', '30 - 45 phút'),
-                details: [
-                    t('services.list.electronics.details.0', 'Quét toàn bộ lỗi hệ thống điện thân xe, hộp điều khiển.'),
-                    t('services.list.electronics.details.1', 'Chẩn đoán lỗi cảm biến ABS, ESP, túi khí SRS.'),
-                    t('services.list.electronics.details.2', 'Kiểm tra tình trạng máy phát điện, máy khởi động.'),
-                    t('services.list.electronics.details.3', 'Cập nhật phần mềm hệ thống (ECU flashing) nếu có.'),
-                    t('services.list.electronics.details.4', 'Xóa các mã lỗi ảo phát sinh do sụt điện.')
-                ]
-            },
-            {
-                id: 6,
-                title: t('services.list.rescue.title', 'Cứu Hộ 24/7'),
-                desc: t('services.list.rescue.desc', 'Hỗ trợ khẩn cấp mọi lúc, mọi nơi khi xe gặp sự cố bất ngờ trên đường.'),
-                icon: <Zap size={18} />,
-                price: t('services.list.rescue.price', 'Liên hệ'),
-                originalPrice: '',
-                promoText: t('services.list.rescue.promoText', 'Hỗ trợ khẩn cấp 24/7 toàn khu vực nội thành'),
-                category: 'repair',
-                image: '/images/Performance Tuning.png',
-                duration: t('services.list.rescue.duration', 'Phản hồi trong 15 - 30 phút'),
-                details: [
-                    t('services.list.rescue.details.0', 'Hỗ trợ kích nổ ắc quy tại chỗ nhanh chóng.'),
-                    t('services.list.rescue.details.1', 'Hỗ trợ thay lốp dự phòng khẩn cấp.'),
-                    t('services.list.rescue.details.2', 'Cung cấp nhiên liệu khẩn cấp trên đường.'),
-                    t('services.list.rescue.details.3', 'Xe cẩu kéo chuyên dụng đưa về trung tâm gần nhất.'),
-                    t('services.list.rescue.details.4', 'Đội ngũ cứu hộ túc trực sẵn sàng 24 giờ mỗi ngày.')
-                ]
-            }
-        ];
-
-    const filteredServices = services.filter(service => {
-        const matchesCategory = activeTab === 'all' || service.category === activeTab;
-        const matchesSearch = service.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            service.desc.toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesCategory && matchesSearch;
+    const services: ServiceItem[] = dbServices.map((s: any) => {
+        const categoryName = s.category?.category_name || "";
+        const priceValue = getServicePriceValue(s.id);
+        
+        return {
+            id: s.id,
+            title: s.service_name,
+            desc: s.description || "",
+            icon: getServiceIcon(s.service_name, categoryName),
+            price: priceValue > 0 ? `${priceValue.toLocaleString("vi-VN")} VNĐ` : "Liên hệ",
+            originalPrice: "",
+            discountPercentage: undefined,
+            promoText: "",
+            category: String(s.category_id),
+            image: getServiceImage(s.service_name, categoryName),
+            duration: s.estimated_duration ? `${s.estimated_duration} phút` : undefined,
+            details: getServiceDetails(s.service_name),
+        };
     });
-
-    const indexOfLastItem = currentPage * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentItems = filteredServices.slice(indexOfFirstItem, indexOfLastItem);
-    const totalPages = Math.ceil(filteredServices.length / itemsPerPage);
 
     const handleBookNow = (serviceId: number) => {
         navigate(`/phone-service?serviceId=${serviceId}`);
@@ -452,6 +303,39 @@ export default function Services() {
 
     const handleBookCombo = (comboId: number) => {
         navigate(`/phone-service?comboId=${comboId}`);
+    };
+
+    const scrollComboSlider = (direction: 'left' | 'right') => {
+        if (comboSliderRef.current) {
+            const scrollAmount = comboSliderRef.current.offsetWidth * 0.8;
+            comboSliderRef.current.scrollBy({
+                left: direction === 'left' ? -scrollAmount : scrollAmount,
+                behavior: 'smooth'
+            });
+        }
+    };
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        if (!comboSliderRef.current) return;
+        setIsDragging(true);
+        startXRef.current = e.pageX - comboSliderRef.current.offsetLeft;
+        scrollLeftRef.current = comboSliderRef.current.scrollLeft;
+    };
+
+    const handleMouseLeave = () => {
+        setIsDragging(false);
+    };
+
+    const handleMouseUp = () => {
+        setIsDragging(false);
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!isDragging || !comboSliderRef.current) return;
+        e.preventDefault();
+        const x = e.pageX - comboSliderRef.current.offsetLeft;
+        const walk = (x - startXRef.current) * 1.5; // Drag sensitivity
+        comboSliderRef.current.scrollLeft = scrollLeftRef.current - walk;
     };
 
     return (
@@ -570,7 +454,7 @@ export default function Services() {
                     </div>
                 </div>
 
-                {filteredServices.length === 0 ? (
+                {services.length === 0 ? (
                     <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -593,7 +477,7 @@ export default function Services() {
                 ) : (
                     <>
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
-                            {currentItems.map((service) => {
+                            {services.map((service) => {
                                 const isRescue = service.title.toLowerCase().includes("cứu hộ");
                                 return (
                                     <motion.div
@@ -613,10 +497,6 @@ export default function Services() {
                                                     {t('services.discountLabel', 'Giảm {{percent}}%', { percent: service.discountPercentage })}
                                                 </div>
                                             )}
-                                            <div className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-md text-white text-[11px] font-bold shadow-md"
-                                                style={{ backgroundColor: `${COLORS.navy}F0` }}>
-                                                {service.price}
-                                            </div>
                                         </div>
 
                                         <div className="p-4 md:p-5 flex-grow flex flex-col justify-between">
@@ -630,18 +510,18 @@ export default function Services() {
                                                 </p>
 
                                                 {/* Price & Promo Info */}
-                                                <div className="mb-4 py-2 px-3 bg-slate-50 rounded-xl border border-gray-100 flex flex-col gap-1 text-left">
+                                                <div className="mb-4 py-2 px-3 rounded-xl flex flex-col gap-1 text-left" style={{ backgroundColor: COLORS.navy }}>
                                                     <div className="flex items-baseline justify-between">
-                                                        <span className="text-[10px] text-gray-400 font-medium">
-                                                            {service.originalPrice ? t('services.originalPriceLabel', 'Giá gốc:') : ''}
+                                                        <span className="text-[10px] text-white/70 font-medium">
+                                                            {service.originalPrice ? t('services.originalPriceLabel', 'Giá gốc:') : t('services.priceLabel', 'Giá:')}
                                                         </span>
                                                         <div className="flex items-baseline gap-1.5">
                                                             {service.originalPrice && (
-                                                                <span className="text-[10px] text-gray-400 line-through font-medium">
+                                                                <span className="text-[10px] text-white/50 line-through font-medium">
                                                                     {service.originalPrice}
                                                                 </span>
                                                             )}
-                                                            <span className="text-xs font-black text-brand-blue">
+                                                            <span className="text-xs font-black text-white">
                                                                 {service.price}
                                                             </span>
                                                         </div>
@@ -680,7 +560,7 @@ export default function Services() {
                         </div>
 
                         {/* Pagination Controls */}
-                        {totalPages > 1 && (
+                        {totalPages > 0 && (
                             <div className="flex justify-center items-center gap-1.5 mt-12">
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
@@ -725,26 +605,53 @@ export default function Services() {
 
             {/* ── SERVICE COMBOS ─────────────────────────────────── */}
             <section className="py-20 md:py-32 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-100" style={{ backgroundColor: '#F8FAFC' }}>
-                <div className="text-center mb-16">
-                    <span className="font-bold text-sm tracking-widest uppercase mb-4 block" style={{ color: COLORS.orange }}>
-                        {t('services.comboSubtitle', 'TIẾT KIỆM HƠN CHO BẠN')}
-                    </span>
-                    <h2 className="text-4xl md:text-5xl font-bold font-display text-[#00285E]">
-                        {t('services.comboTitle', 'Gói Combo Dịch vụ')}
-                    </h2>
-                    <p className="text-slate-500 text-sm mt-3 max-w-xl mx-auto font-medium">
-                        Tích hợp các gói chăm sóc, bảo dưỡng định kỳ xe ô tô chuyên nghiệp với chi phí ưu đãi tốt nhất.
-                    </p>
+                <div className="flex justify-between items-end mb-16">
+                    <div className="text-left">
+                        <span className="font-bold text-sm tracking-widest uppercase mb-4 block" style={{ color: COLORS.orange }}>
+                            {t('services.comboSubtitle', 'TIẾT KIỆM HƠN CHO BẠN')}
+                        </span>
+                        <h2 className="text-4xl md:text-5xl font-bold font-display text-[#00285E]">
+                            {t('services.comboTitle', 'Gói Combo Dịch vụ')}
+                        </h2>
+                        <p className="text-slate-500 text-sm mt-3 max-w-xl font-medium">
+                            Tích hợp các gói chăm sóc, bảo dưỡng định kỳ xe ô tô chuyên nghiệp với chi phí ưu đãi tốt nhất.
+                        </p>
+                    </div>
+                    {/* Slider Navigation Buttons */}
+                    <div className="hidden md:flex gap-3">
+                        <button 
+                            onClick={() => scrollComboSlider('left')}
+                            className="p-3 rounded-full bg-white border border-gray-200 text-[#00285E] hover:bg-[#00285E] hover:text-white transition-colors shadow-sm"
+                        >
+                            <ChevronLeft size={24} />
+                        </button>
+                        <button 
+                            onClick={() => scrollComboSlider('right')}
+                            className="p-3 rounded-full bg-white border border-gray-200 text-[#00285E] hover:bg-[#00285E] hover:text-white transition-colors shadow-sm"
+                        >
+                            <ChevronRight size={24} />
+                        </button>
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div 
+                    ref={comboSliderRef}
+                    onMouseDown={handleMouseDown}
+                    onMouseLeave={handleMouseLeave}
+                    onMouseUp={handleMouseUp}
+                    onMouseMove={handleMouseMove}
+                    className={`flex overflow-x-auto gap-6 md:gap-8 pb-8 pt-4 scrollbar-hide -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 ${
+                        isDragging ? 'cursor-grabbing select-none snap-none' : 'cursor-grab snap-x snap-mandatory'
+                    }`}
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                >
                     {combos.filter(c => c.is_active).map((combo) => {
                         const { totalOriginal, discounted } = calculateComboPrices(combo.service_ids, combo.discount_percentage);
                         return (
                             <motion.div
                                 key={combo.id}
-                                whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(10,35,87,0.12)' }}
-                                className="bg-white rounded-3xl p-6 md:p-8 border border-gray-200/60 shadow-xs flex flex-col justify-between relative overflow-hidden"
+                                whileHover={!isDragging ? { y: -8, boxShadow: '0 20px 40px rgba(10,35,87,0.12)' } : {}}
+                                className="bg-white rounded-3xl p-6 md:p-8 border border-gray-200/60 shadow-xs flex flex-col justify-between relative overflow-hidden min-w-[85vw] sm:min-w-[350px] md:min-w-[400px] snap-center shrink-0"
                             >
                                 {/* Discount badge */}
                                 <div className="absolute top-4 right-4 bg-red-500 text-white text-[10px] font-black uppercase px-2.5 py-1 rounded-md tracking-wider shadow-md">
@@ -763,11 +670,10 @@ export default function Services() {
                                     <div className="space-y-3 pt-2">
                                         <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block text-left">Dịch vụ đi kèm:</span>
                                         <div className="space-y-2">
-                                            {combo.service_ids.map((id) => {
-                                                const s = services.find(srv => srv.id === id);
-                                                const sName = s?.title || "Dịch vụ của gara";
+                                            {combo.catalogs?.map((cat: any) => {
+                                                const sName = cat.translations?.[0]?.name || cat.service_name || "Dịch vụ bảo dưỡng";
                                                 return (
-                                                    <div key={id} className="flex items-start gap-2.5 text-xs text-slate-600 font-semibold text-left">
+                                                    <div key={cat.id} className="flex items-start gap-2.5 text-xs text-slate-600 font-semibold text-left">
                                                         <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
                                                         <span>{sName}</span>
                                                     </div>
@@ -778,23 +684,30 @@ export default function Services() {
                                 </div>
 
                                 {/* Price & Button */}
-                                <div className="pt-8 mt-6 border-t border-slate-100 space-y-4">
-                                    <div className="flex justify-between items-baseline">
-                                        <div className="flex flex-col text-left">
-                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Giá gốc</span>
-                                            <span className="text-xs text-slate-400 line-through font-bold">{totalOriginal.toLocaleString("vi-VN")}đ</span>
+                                <div className="pt-6 mt-4 border-t border-slate-100 space-y-4">
+                                    <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100 flex flex-col gap-2.5">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-slate-500 font-semibold">Mua lẻ từng dịch vụ:</span>
+                                            <span className="text-sm text-slate-400 line-through font-bold">{totalOriginal.toLocaleString("vi-VN")}đ</span>
                                         </div>
-                                        <div className="flex flex-col text-right">
-                                            <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Giá Combo</span>
-                                            <span className="text-lg font-black text-[#00285E]">{discounted.toLocaleString("vi-VN")}đ</span>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-[#00285E] font-extrabold uppercase tracking-widest">Giá Combo:</span>
+                                            <span className="text-2xl font-black text-[#00285E]">{discounted.toLocaleString("vi-VN")}đ</span>
                                         </div>
+                                        {(totalOriginal - discounted) > 0 && (
+                                            <div className="mt-1 pt-2.5 border-t border-emerald-100 flex justify-between items-center bg-emerald-50/50 -mx-4 -mb-4 px-4 pb-3 rounded-b-2xl">
+                                                <span className="text-[10px] text-emerald-600 font-black uppercase tracking-wider mt-1">Tiết kiệm ngay:</span>
+                                                <span className="text-base font-black text-emerald-600 mt-1">{(totalOriginal - discounted).toLocaleString("vi-VN")}đ</span>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <button
-                                        onClick={() => handleBookCombo(combo.id)}
-                                        className="w-full py-3 bg-[#00285E] text-white hover:bg-[#00285E]/95 font-bold text-xs rounded-xl transition-all shadow-md shadow-[#00285E]/10 tracking-wider uppercase text-center block"
+                                        onClick={() => setSelectedCombo(combo)}
+                                        className="w-full py-3.5 bg-[#00285E] text-white hover:bg-[#00285E]/95 font-bold text-xs rounded-xl transition-all shadow-lg shadow-[#00285E]/20 tracking-widest uppercase text-center block relative overflow-hidden group"
                                     >
-                                        Đặt lịch combo
+                                        <span className="relative z-10">Hiện chi tiết</span>
+                                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out" />
                                     </button>
                                 </div>
                             </motion.div>
@@ -989,6 +902,120 @@ export default function Services() {
                                     {t('nav.booking', 'Đặt lịch ngay')}
                                 </button>
                             </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* ── COMBO DETAIL MODAL ──────────────────────────── */}
+            <AnimatePresence>
+                {selectedCombo && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        {/* Backdrop */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setSelectedCombo(null)}
+                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs"
+                        />
+
+                        {/* Modal content */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            transition={{ type: 'spring', duration: 0.5 }}
+                            className="bg-white rounded-3xl overflow-hidden shadow-2xl border border-gray-100 max-w-3xl w-full relative z-10 text-left flex flex-col max-h-[90vh]"
+                        >
+                            {/* Modal Header */}
+                            <div className="relative p-6 md:p-8 bg-[#00285E] text-white shrink-0">
+                                <button
+                                    onClick={() => setSelectedCombo(null)}
+                                    className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors border border-white/10"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                                <span className="px-3 py-1 bg-brand-orange text-[#00285E] font-black text-[10px] rounded-md tracking-widest uppercase inline-block mb-3">
+                                    Gói Dịch Vụ
+                                </span>
+                                <h3 className="text-2xl md:text-3xl font-black font-display tracking-tight">{selectedCombo.combo_name}</h3>
+                                {selectedCombo.description && (
+                                    <p className="text-white/70 text-sm mt-3 font-medium max-w-2xl leading-relaxed">{selectedCombo.description}</p>
+                                )}
+                            </div>
+
+                            {/* Modal Body */}
+                            <div className="p-6 md:p-8 overflow-y-auto space-y-6 flex-grow bg-slate-50/50">
+                                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Các dịch vụ đi kèm trong gói:</h4>
+                                <div className="space-y-3">
+                                    {selectedCombo.catalogs?.map((cat: any) => {
+                                                const sName = cat.translations?.[0]?.name || cat.service_name || "Dịch vụ bảo dưỡng";
+                                                const sPrice = cat.total_price !== undefined && cat.total_price !== null ? cat.total_price : (cat.labor_price || 0);
+                                                return (
+                                                    <div key={cat.id} className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                                                                <CheckCircle2 size={16} className="text-emerald-500" />
+                                                            </div>
+                                                            <span className="font-bold text-[#00285E] text-sm">{sName}</span>
+                                                        </div>
+                                                        <span className="font-bold text-slate-400 text-sm whitespace-nowrap">{Number(sPrice) > 0 ? Number(sPrice).toLocaleString("vi-VN") + "đ" : "Liên hệ"}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                </div>
+                            </div>
+
+                            {/* Modal Footer - Price Comparison & Action */}
+                            {(() => {
+                                const { totalOriginal, discounted } = calculateComboPrices(selectedCombo.service_ids, selectedCombo.discount_percentage);
+                                const savings = totalOriginal - discounted;
+                                return (
+                                    <div className="p-6 md:p-8 bg-white border-t border-slate-100 shrink-0">
+                                        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                                            <div className="w-full md:w-auto bg-slate-50/80 rounded-2xl p-4 md:p-5 border border-slate-100 flex-1 relative overflow-hidden">
+                                                {/* Background decoration */}
+                                                <div className="absolute -right-4 -top-4 w-24 h-24 bg-[#F9A11B]/5 rounded-full blur-xl" />
+                                                
+                                                <div className="flex justify-between items-center mb-2 relative z-10">
+                                                    <span className="text-xs text-slate-500 font-semibold">Tổng giá bán lẻ:</span>
+                                                    <span className="text-sm text-slate-400 line-through font-bold">{totalOriginal.toLocaleString("vi-VN")}đ</span>
+                                                </div>
+                                                <div className="flex justify-between items-center mb-3 relative z-10">
+                                                    <span className="text-xs text-[#00285E] font-extrabold uppercase tracking-widest">Giá ưu đãi:</span>
+                                                    <div className="flex items-center gap-2">
+                                                        {selectedCombo.discount_percentage > 0 && (
+                                                            <span className="px-2 py-0.5 bg-red-100 text-red-600 text-[10px] font-black rounded uppercase tracking-wider">
+                                                                -{selectedCombo.discount_percentage}%
+                                                            </span>
+                                                        )}
+                                                        <span className="text-2xl md:text-3xl font-black text-[#00285E]">{discounted.toLocaleString("vi-VN")}đ</span>
+                                                    </div>
+                                                </div>
+                                                {savings > 0 && (
+                                                    <div className="pt-3 border-t border-emerald-100 flex justify-between items-center relative z-10">
+                                                        <span className="text-[10px] text-emerald-600 font-black uppercase tracking-wider">Bạn tiết kiệm được:</span>
+                                                        <span className="text-base font-black text-emerald-600">{(savings).toLocaleString("vi-VN")}đ</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="w-full md:w-1/3">
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedCombo(null);
+                                                        handleBookCombo(selectedCombo.id);
+                                                    }}
+                                                    className="w-full py-4 bg-[#F9A11B] text-[#00285E] hover:bg-[#E08F12] font-black text-sm rounded-xl transition-all shadow-xl shadow-[#F9A11B]/20 tracking-widest uppercase flex items-center justify-center gap-2 group"
+                                                >
+                                                    <span>Đặt lịch ngay</span>
+                                                    <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </motion.div>
                     </div>
                 )}

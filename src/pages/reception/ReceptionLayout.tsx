@@ -9,7 +9,6 @@ import {
   History,
   HelpCircle,
   LogOut,
-  Search,
   Bell,
   Menu,
   X,
@@ -17,10 +16,12 @@ import {
   Info,
   AlertTriangle,
   Wrench,
-  Settings,
   Video,
   PhoneCall,
+  Users,
+  MessageCircle,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "../../store/store";
@@ -29,7 +30,9 @@ import { useFetchClient_v2 as useFetchClient } from "../../hook/useFetchClient";
 import { loginSuccess, logout } from "../../store/slices/userSlice";
 import { PROFILE_API_ENDPOINTS } from "../../constants/common/profileEndpoints";
 import { NOTIFICATION_API_ENDPOINTS } from "../../constants/reception/notificationEndpoints";
+import { CHAT_API_ENDPOINTS } from "../../constants/reception/chatEndpoints";
 import { useSocket } from "../../hook/useSocket";
+import ReceptionChatPanel from "./ReceptionChatPanel";
 
 export default function ReceptionLayout() {
   const navigate = useNavigate();
@@ -58,8 +61,12 @@ export default function ReceptionLayout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotificationDropdown, setShowNotificationDropdown] =
     useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const desktopNotifRef = useRef<HTMLDivElement>(null);
   const mobileNotifRef = useRef<HTMLDivElement>(null);
+  // Hẹn giờ tự đóng dropdown khi mở do có thông báo mới
+  const autoCloseNotifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -82,6 +89,8 @@ export default function ReceptionLayout() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showNotificationDropdown]);
+
+  const { i18n } = useTranslation();
 
   const showToast = (
     text: string,
@@ -122,6 +131,17 @@ export default function ReceptionLayout() {
 
   const socket = useSocket();
 
+  const loadChatUnreadCount = async () => {
+    try {
+      const response = await fetchPrivate(CHAT_API_ENDPOINTS.GET_UNREAD_COUNT);
+      if (response && typeof response.count === "number") {
+        setChatUnreadCount(response.count);
+      }
+    } catch (error) {
+      console.error("Lỗi khi tải số lượng tin nhắn chưa đọc", error);
+    }
+  };
+
   useEffect(() => {
     const loadNotifications = async () => {
       try {
@@ -152,13 +172,29 @@ export default function ReceptionLayout() {
     if (user) {
       loadNotifications();
       loadUnreadCount();
+      loadChatUnreadCount();
     }
 
     if (socket) {
-      const handleNewNotification = (data: any) => {
-        showToast(data.message || "Bạn có thông báo mới", "info");
-        loadNotifications(); // Tải lại danh sách thông báo để update đỏ
+      // Vào room theo role để nhận thông báo BE emit tới role-RECEPTIONIST.
+      // Join ngay và join lại mỗi khi socket reconnect.
+      const roleCode = user?.role;
+      const joinRole = () => {
+        if (roleCode) socket.emit("join-role", roleCode);
+      };
+      joinRole();
+      socket.on("connect", joinRole);
+
+      const handleNewNotification = () => {
+        // Tải lại danh sách + số chưa đọc, rồi bật dropdown chuông vài giây
+        loadNotifications();
         loadUnreadCount();
+        setShowNotificationDropdown(true);
+        if (autoCloseNotifTimer.current)
+          clearTimeout(autoCloseNotifTimer.current);
+        autoCloseNotifTimer.current = setTimeout(() => {
+          setShowNotificationDropdown(false);
+        }, 4000);
       };
 
       const handleIncomingCall = (data: any) => {
@@ -187,15 +223,24 @@ export default function ReceptionLayout() {
         });
       };
 
+      const handleNewChatMessage = (payload: { message?: { sender_role?: string } }) => {
+        if (payload?.message?.sender_role === "CUSTOMER") {
+          loadChatUnreadCount();
+        }
+      };
+
       socket.on("new_notification", handleNewNotification);
       socket.on("incoming-video-call", handleIncomingCall);
       socket.on("call-answered", handleCallAnswered);
       socket.on("end-video-call", handleCallEnded);
+      socket.on("new_chat_message", handleNewChatMessage);
 
       return () => {
+        socket.off("connect", joinRole);
         socket.off("new_notification", handleNewNotification);
         socket.off("incoming-video-call", handleIncomingCall);
         socket.off("call-answered", handleCallAnswered);
+        socket.off("new_chat_message", handleNewChatMessage);
         socket.off("end-video-call", handleCallEnded);
       };
     }
@@ -204,47 +249,48 @@ export default function ReceptionLayout() {
   const avatarUrl =
     user?.avatar?.trim() ||
     "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=256&auto=format&fit=crop";
-  const displayName = user?.fullName || "Lễ tân viên";
+  const displayName = user?.fullName || "Nhân viên tiếp nhận";
   const displayRole =
     user?.role?.toUpperCase() === "RECEPTIONIST"
-      ? "Lễ tân"
-      : user?.role || "Lễ tân";
+      ? "Nhân viên tiếp nhận"
+      : user?.role || "Nhân viên tiếp nhận";
 
-  // Menu items for the sidebar
-  const menuItems = [
-    { name: "Lịch hẹn", icon: CalendarCheck, path: "/reception/appointments" },
-    { name: "Báo cáo lỗi", icon: FileText, path: "/reception/issues" },
+  const menuGroups = [
     {
-      name: "Lịch sử dịch vụ",
-      icon: History,
-      path: "/reception/service-history",
-    },
-    { name: "Quản lý báo giá", icon: FileText, path: "/reception/quotes" },
-    {
-      name: "Thanh toán dịch vụ",
-      icon: CreditCard,
-      path: "/reception/payments",
+      label: 'Dịch vụ',
+      items: [
+        { name: "Lịch hẹn", icon: CalendarCheck, path: "/reception/appointments" },
+        { name: "Quản lý báo giá", icon: FileText, path: "/reception/quotes" },
+        { name: "Quản lý hóa đơn dịch vụ", icon: ClipboardPlus, path: "/reception/service-orders" },
+      ],
     },
     {
-      name: "Phản hồi khách hàng",
-      icon: MessageSquare,
-      path: "/reception/feedback",
+      label: 'Khách hàng',
+      items: [
+        { name: 'Khách hàng & Cứu hộ', icon: Users, path: '/reception/customers' },
+        { name: 'Kỹ thuật viên hôm nay', icon: Wrench, path: '/reception/technicians' },
+      ],
     },
     {
-      name: "Quản lý hóa đơn dịch vụ",
-      icon: ClipboardPlus,
-      path: "/reception/service-orders",
+      label: 'Hỗ trợ',
+      items: [
+        { name: "Báo cáo lỗi", icon: FileText, path: "/reception/issues" },
+        { name: "Phản hồi khách hàng", icon: MessageSquare, path: "/reception/feedback" },
+      ],
     },
   ];
+
+  const menuItems = menuGroups.flatMap((group) => group.items);
 
   // Dynamic active menu item based on current URL path
   const activeMenu = useMemo(() => {
     const path = location.pathname;
     if (path.includes("/appointments")) return "Lịch hẹn";
+    if (path.includes("/additional-issues")) return "Lỗi phát sinh";
     if (path.includes("/issues")) return "Báo cáo lỗi";
-    if (path.includes("/service-history")) return "Lịch sử dịch vụ";
     if (path.includes("/quotes")) return "Quản lý báo giá";
-    if (path.includes("/payments")) return "Thanh toán dịch vụ";
+    if (path.includes('/customers')) return 'Khách hàng & Cứu hộ';
+    if (path.includes('/technicians')) return 'Kỹ thuật viên hôm nay';
     if (path.includes("/feedback")) return "Phản hồi khách hàng";
     if (path.includes("/service-orders")) return "Quản lý hóa đơn dịch vụ";
 
@@ -254,7 +300,7 @@ export default function ReceptionLayout() {
   const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => (
     <>
       {/* Sidebar Header */}
-      <div className="p-6 border-b border-[#D2E2FF] flex items-center justify-between">
+      <div className="h-20 px-4 border-b border-[#D2E2FF] flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[#00285E] flex items-center justify-center shadow-md">
             <Wrench size={20} className="text-white" />
@@ -264,7 +310,7 @@ export default function ReceptionLayout() {
               AGM Intelligent
             </span>
             <span className="text-[10px] text-slate-500 font-semibold tracking-widest uppercase">
-              Lễ tân tiếp nhận
+              Nhân viên tiếp nhận
             </span>
           </div>
         </div>
@@ -277,41 +323,46 @@ export default function ReceptionLayout() {
       </div>
 
       {/* Navigation Section */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-7 scrollbar-none">
-        <div>
-          <span className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
-            Quản lý tiếp nhận
-          </span>
-          <nav className="space-y-1">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeMenu === item.name;
-              return (
-                <button
-                  key={item.name}
-                  onClick={() => {
-                    navigate(item.path);
-                    onNavigate?.();
-                  }}
-                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all group ${
-                    isActive
-                      ? "bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15"
-                      : "text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E]"
-                  }`}
-                >
-                  <Icon
-                    size={18}
-                    className={
-                      isActive
-                        ? "text-[#F9A11B]"
-                        : "text-slate-500 group-hover:text-[#00285E]"
-                    }
-                  />
-                  <span>{item.name}</span>
-                </button>
-              );
-            })}
-          </nav>
+      <div className="flex-1 overflow-y-auto px-2 py-5 space-y-5 scrollbar-none">
+        <div className="w-full max-w-[220px] mx-auto space-y-5">
+          {menuGroups.map((group, groupIndex) => (
+            <div key={group.label ?? `group-${groupIndex}`}>
+              {group.label && (
+                <span className="px-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+                  {group.label}
+                </span>
+              )}
+              <nav className="space-y-1">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeMenu === item.name;
+                  return (
+                    <button
+                      key={item.name}
+                      onClick={() => {
+                        navigate(item.path);
+                        onNavigate?.();
+                      }}
+                      className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all group ${isActive
+                        ? "bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15"
+                        : "text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E]"
+                        }`}
+                    >
+                      <Icon
+                        size={18}
+                        className={
+                          isActive
+                            ? "text-[#F9A11B]"
+                            : "text-slate-500 group-hover:text-[#00285E]"
+                        }
+                      />
+                      <span>{item.name}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -354,7 +405,7 @@ export default function ReceptionLayout() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 10 }}
-          className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50 origin-top-right"
+          className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-[60] origin-top-right"
         >
           <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             <h3 className="font-bold text-slate-800">Thông báo</h3>
@@ -416,13 +467,6 @@ export default function ReceptionLayout() {
               </div>
             )}
           </div>
-          {notifications.length > 0 && (
-            <div className="p-3 border-t border-slate-100 text-center bg-slate-50/50">
-              <button className="text-xs font-semibold text-[#00285E] hover:text-[#F9A11B] transition-colors">
-                Đánh dấu tất cả đã đọc
-              </button>
-            </div>
-          )}
         </motion.div>
       )}
     </AnimatePresence>
@@ -430,28 +474,60 @@ export default function ReceptionLayout() {
 
   return (
     <div className="min-h-screen bg-[#F4F7FC] font-sans antialiased text-slate-800 flex flex-col md:flex-row relative">
-      {/* Dynamic Toast Notifications */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -50, x: "-50%" }}
-            animate={{ opacity: 1, y: 16, x: "-50%" }}
-            exit={{ opacity: 0, y: -20, x: "-50%" }}
-            className="fixed top-0 left-1/2 z-[200] transform -translate-x-1/2 flex items-center gap-2.5 px-5 py-3.5 bg-slate-900 text-white rounded-2xl shadow-xl border border-slate-800 text-sm font-semibold"
-          >
-            {toastMessage.type === "success" && (
-              <CheckCircle size={18} className="text-emerald-400" />
-            )}
-            {toastMessage.type === "info" && (
-              <Info size={18} className="text-blue-400" />
-            )}
-            {toastMessage.type === "warning" && (
-              <AlertTriangle size={18} className="text-amber-400" />
-            )}
-            <span>{toastMessage.text}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Dynamic Toast Notifications - card góc phải màn hình */}
+      <div className="fixed top-5 right-5 z-[200] flex flex-col gap-3 w-[min(360px,calc(100vw-2.5rem))]">
+        <AnimatePresence>
+          {toastMessage && (
+            <motion.div
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ type: "spring", stiffness: 300, damping: 26 }}
+              className="relative flex items-start gap-3 bg-white rounded-2xl shadow-xl border border-slate-100 pl-5 pr-3 py-4 overflow-hidden"
+            >
+              {/* Thanh màu bên trái theo loại */}
+              <span
+                className={`absolute left-0 top-0 h-full w-1.5 rounded-r ${
+                  toastMessage.type === "success"
+                    ? "bg-emerald-500"
+                    : toastMessage.type === "warning"
+                      ? "bg-amber-500"
+                      : "bg-blue-500"
+                }`}
+              />
+              <span className="shrink-0 mt-0.5">
+                {toastMessage.type === "success" && (
+                  <CheckCircle size={18} className="text-emerald-500" />
+                )}
+                {toastMessage.type === "info" && (
+                  <Info size={18} className="text-blue-500" />
+                )}
+                {toastMessage.type === "warning" && (
+                  <AlertTriangle size={18} className="text-amber-500" />
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-slate-800 leading-tight">
+                  {toastMessage.type === "success"
+                    ? "Thành công"
+                    : toastMessage.type === "warning"
+                      ? "Cảnh báo"
+                      : "Thông báo"}
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                  {toastMessage.text}
+                </p>
+              </div>
+              <button
+                onClick={() => setToastMessage(null)}
+                className="shrink-0 p-1 rounded-lg text-slate-300 hover:text-slate-500 hover:bg-slate-50 transition-colors"
+              >
+                <X size={15} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* Màn hình hiển thị cuộc gọi đến (Video Call Ringing) */}
       <AnimatePresence>
@@ -479,11 +555,10 @@ export default function ReceptionLayout() {
 
               <div className="flex items-center gap-4 w-full">
                 <button
+                  type="button"
                   onClick={() => {
                     if (incomingCall?.roomId) {
-                      socket?.emit("end-video-call", {
-                        roomId: incomingCall.roomId,
-                      });
+                      socket?.emit('end-video-call', { roomId: incomingCall.roomId, reason: 'rejected' });
                     }
                     setIncomingCall(null);
                   }}
@@ -492,6 +567,7 @@ export default function ReceptionLayout() {
                   Từ chối
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     const roomId = incomingCall.roomId;
                     setIncomingCall(null);
@@ -542,6 +618,21 @@ export default function ReceptionLayout() {
             </button>
             <NotificationDropdown />
           </div>
+          <button
+            onClick={() => {
+              const next = !isChatOpen;
+              setIsChatOpen(next);
+              if (!next) loadChatUnreadCount();
+            }}
+            className="p-1.5 rounded-full hover:bg-slate-100 transition-colors text-slate-600 relative"
+          >
+            <MessageCircle size={20} />
+            {chatUnreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full ring-2 ring-white">
+                {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+              </span>
+            )}
+          </button>
           <img
             src={avatarUrl}
             alt="Reception Profile"
@@ -566,7 +657,7 @@ export default function ReceptionLayout() {
             onClick={() => setIsMobileSidebarOpen(false)}
           ></div>
           <aside className="relative flex flex-col w-72 bg-[#EDF3FF] border-r border-[#D2E2FF] h-full p-0">
-            <SidebarContent onNavigate={() => setIsMobileSidebarOpen(false)} />                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+            <SidebarContent onNavigate={() => setIsMobileSidebarOpen(false)} />
           </aside>
         </div>
       )}
@@ -574,36 +665,39 @@ export default function ReceptionLayout() {
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col min-w-0 pb-16">
         {/* DESKTOP HEADER BAR */}
-        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-between border-b border-slate-100 shadow-xs sticky top-0 z-25">
+        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-30">
           {/* Search bar */}
-          <div className="relative w-80">
-            <Search
-              size={16}
-              className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400"
-            />
-            <input
-              type="text"
-              placeholder="Tìm kiếm lịch hẹn, khách hàng..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200/80 rounded-full pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-            />
-          </div>
+
 
           {/* User profile & Actions */}
           <div className="flex items-center gap-6">
             {/* Quick action buttons */}
             <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 border border-slate-200 rounded-full p-0.5 bg-slate-50 select-none">
+                <button
+                  onClick={() => i18n.changeLanguage('vi')}
+                  className={`px-2.5 py-1 text-[10px] font-bold rounded-full transition-all ${i18n.language === 'vi' ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  VI
+                </button>
+                <button
+                  onClick={() => i18n.changeLanguage('en')}
+                  className={`px-2.5 py-1 text-[10px] font-bold rounded-full transition-all ${i18n.language.startsWith('en') ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  EN
+                </button>
+              </div>
               <div className="relative" ref={desktopNotifRef}>
                 <button
                   onClick={() =>
                     setShowNotificationDropdown(!showNotificationDropdown)
                   }
-                  className="p-2.5 rounded-full hover:bg-slate-50 border border-slate-100 transition-colors text-slate-600 relative group"
+                  title="Thông báo"
+                  className="w-10 h-10 rounded-xl flex items-center justify-center bg-white text-[#00285E] hover:bg-slate-50 transition-colors relative"
                 >
                   <Bell size={18} />
                   {unreadCount > 0 && (
-                    <span className="absolute top-0 right-0 flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full ring-2 ring-white">
+                    <span className="absolute top-1.5 right-1.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full ring-2 ring-white">
                       {unreadCount > 99 ? "99+" : unreadCount}
                     </span>
                   )}
@@ -611,14 +705,25 @@ export default function ReceptionLayout() {
                 <NotificationDropdown />
               </div>
               <button
-                onClick={() => showToast("Mở cài đặt nhanh...", "info")}
-                className="p-2.5 rounded-full hover:bg-slate-50 border border-slate-100 transition-colors text-slate-600"
+                onClick={() => {
+                  const next = !isChatOpen;
+                  setIsChatOpen(next);
+                  if (!next) loadChatUnreadCount();
+                }}
+                title="Tin nhắn khách hàng"
+                className="w-10 h-10 rounded-xl flex items-center justify-center bg-white text-[#00285E] hover:bg-slate-50 transition-colors relative"
               >
-                <Settings size={18} />
+                <MessageCircle size={18} />
+                {chatUnreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full ring-2 ring-white">
+                    {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+                  </span>
+                )}
               </button>
               <button
                 onClick={() => showToast("Mở trung tâm trợ giúp...", "info")}
-                className="p-2.5 rounded-full hover:bg-slate-50 border border-slate-100 transition-colors text-slate-600"
+                title="Trợ giúp"
+                className="w-10 h-10 rounded-xl flex items-center justify-center bg-white text-[#00285E] hover:bg-slate-50 transition-colors"
               >
                 <HelpCircle size={18} />
               </button>
@@ -672,6 +777,15 @@ export default function ReceptionLayout() {
           </div>
         </footer>
       </main>
+
+      <ReceptionChatPanel
+        isOpen={isChatOpen}
+        onClose={() => {
+          setIsChatOpen(false);
+          loadChatUnreadCount();
+        }}
+        currentUserId={user?.id}
+      />
     </div>
   );
 }

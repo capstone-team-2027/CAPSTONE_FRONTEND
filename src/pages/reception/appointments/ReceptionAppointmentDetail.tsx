@@ -21,12 +21,13 @@ import {
 import { useNavigate, useParams, useOutletContext } from 'react-router-dom';
 import type { AppointmentModel } from '../../../model/Appointment';
 import { useFetchClient } from '../../../hook/useFetchClient';
+import { useSocket } from '../../../hook/useSocket';
 import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
 
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   pending: { label: 'Chờ xác nhận', color: '#D97706', bg: '#FEF3C7', icon: Clock },
-  confirmed: { label: 'Đã xác nhận', color: '#2563EB', bg: '#DBEAFE', icon: CheckCircle2 },
+  confirmed: { label: 'Chờ tiếp nhận', color: '#2563EB', bg: '#DBEAFE', icon: Clock },
   in_progress: { label: 'Đã tiếp nhận (Đang sửa)', color: '#EA580C', bg: '#FED7AA', icon: Loader2 },
   completed: { label: 'Đã tiếp nhận (Hoàn thành)', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
   cancelled: { label: 'Đã hủy', color: '#DC2626', bg: '#FEE2E2', icon: XCircle },
@@ -50,6 +51,7 @@ export default function ReceptionAppointmentDetail() {
   }>();
 
   const { fetchPrivate } = useFetchClient();
+  const socket = useSocket();
   const [appointment, setAppointment] = useState<AppointmentModel | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -139,6 +141,18 @@ export default function ReceptionAppointmentDetail() {
     loadAppointmentDetail();
   }, [id]);
 
+  // Có cập nhật mới -> BE emit new_notification -> tự tải lại chi tiết
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotification = () => {
+      loadAppointmentDetail();
+    };
+    socket.on('new_notification', handleNewNotification);
+    return () => {
+      socket.off('new_notification', handleNewNotification);
+    };
+  }, [socket, id]);
+
   if (isLoading) {
     return (
       <div className="flex-1 p-8 flex flex-col items-center justify-center text-[#00285E]">
@@ -225,7 +239,7 @@ export default function ReceptionAppointmentDetail() {
     if (!appointment?.id) return;
     try {
       setIsSubmittingVin(true);
-      
+
       // Update VIN if entered
       if (vinNumber.trim()) {
         const vinResponse = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.UPDATE_VIN(appointment.id), 'POST', {
@@ -258,12 +272,13 @@ export default function ReceptionAppointmentDetail() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-5xl w-full mx-auto">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-start gap-3">
           <button
             onClick={() => navigate('/reception/appointments')}
-            className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors"
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={24} />
           </button>
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-1">
@@ -271,72 +286,8 @@ export default function ReceptionAppointmentDetail() {
             </h1>
             <div className="flex items-center gap-3">
               <span className="text-sm font-bold text-slate-500">APT-{appointment.id.padStart(3, '0')}</span>
-              <span
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold"
-                style={{ backgroundColor: statusCfg.bg, color: statusCfg.color }}
-              >
-                <StatusIcon size={12} />
-                {statusCfg.label}
-              </span>
             </div>
           </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {(appointment.status === 'confirmed' || appointment.status === 'pending' || appointment.status === 'in_progress') && !appointment.hasServiceOrder && (
-            <>
-              {appointment.vinNumber ? (
-                <button
-                  onClick={async () => {
-                    try {
-                      if (appointment.status !== 'in_progress') {
-                        const res = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.RECEIVE_APPOINTMENT(appointment.id), 'PUT');
-                        if (!res.success) throw new Error(res.message || 'Lỗi tiếp nhận');
-                      }
-                      navigate(`/reception/service-orders/create?appointmentId=${appointment.id}`);
-                    } catch (err: any) {
-                      showToast(err.message || 'Lỗi xử lý', 'warning');
-                    }
-                  }}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-colors shadow-sm"
-                >
-                  <Car size={16} />
-                  Tạo HĐ Dịch vụ
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    setVinNumber('');
-                    setIsVinModalOpen(true);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-[#00285E] hover:bg-[#001a3f] text-white rounded-xl text-sm font-bold transition-colors shadow-sm"
-                >
-                  <Car size={16} />
-                  Tiếp nhận xe
-                </button>
-              )}
-            </>
-          )}
-
-          {(appointment.status === 'pending' || appointment.status === 'confirmed') && (
-            <button
-              onClick={() => setShowRescheduleModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-[#F9A11B] hover:bg-[#E08F12] text-[#00285E] rounded-xl text-sm font-bold transition-colors shadow-sm"
-            >
-              <Edit size={16} />
-              Đổi lịch hẹn
-            </button>
-          )}
-
-          {appointment.status !== 'cancelled' && appointment.status !== 'completed' && appointment.status !== 'in_progress' && (
-            <button
-              onClick={() => setShowCancelModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-sm font-bold transition-colors border border-rose-100"
-            >
-              <XCircle size={16} />
-              Hủy lịch hẹn
-            </button>
-          )}
         </div>
       </div>
 
@@ -520,24 +471,22 @@ export default function ReceptionAppointmentDetail() {
                           if (info.available) setSelectedTimeSlot(slot);
                         }}
                         disabled={!info.available}
-                        className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                          !info.available
-                            ? 'bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed'
-                            : isSelected
+                        className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${!info.available
+                          ? 'bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed'
+                          : isSelected
                             ? 'bg-[#EDF3FF] border-[#00285E]/30 ring-1 ring-[#00285E]/20'
                             : 'bg-white border-slate-200/60 hover:bg-slate-50'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center justify-between w-full">
                           <span className={`text-sm font-bold ${isSelected ? 'text-[#00285E]' : 'text-slate-700'}`}>
                             {slot}
                           </span>
                           <span
-                            className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase ${
-                              !info.available
-                                ? 'bg-rose-50 text-rose-600 border border-rose-100'
-                                : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                            }`}
+                            className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase ${!info.available
+                              ? 'bg-rose-50 text-rose-600 border border-rose-100'
+                              : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                              }`}
                           >
                             {info.available ? 'Khả dụng' : info.reason}
                           </span>
@@ -581,7 +530,7 @@ export default function ReceptionAppointmentDetail() {
             <p className="text-slate-500 text-sm mb-4">
               Vui lòng nhập Số khung (VIN) của xe trước khi tiếp nhận. Bạn có thể bỏ trống nếu chưa có thông tin.
             </p>
-            
+
             <div className="mb-6">
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Số khung (VIN)</label>
               <input
@@ -593,7 +542,7 @@ export default function ReceptionAppointmentDetail() {
                 disabled={isSubmittingVin}
               />
             </div>
-            
+
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setIsVinModalOpen(false)}

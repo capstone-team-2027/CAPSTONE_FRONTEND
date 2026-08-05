@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  ArrowLeft,
   MessageSquare,
   Search,
   User,
@@ -14,6 +15,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 import type { FeedbackModel, FeedbackCategory } from '../../../model/Feedback';
 import { FEEDBACK_CATEGORY_LABELS } from '../../../model/Feedback';
 
@@ -69,6 +71,7 @@ const mockCustomers = [
 ];
 
 export default function ReceptionReceiveFeedback() {
+  const navigate = useNavigate();
   const [feedbacks, setFeedbacks] = useState<FeedbackModel[]>(mockFeedbacks);
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -186,11 +189,20 @@ export default function ReceptionReceiveFeedback() {
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       {/* Header section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-[#00285E] tracking-tight">Tiếp nhận Phản hồi</h1>
-          <p className="text-slate-500 text-sm font-medium mt-1">
-            Ghi nhận ý kiến đóng góp, khiếu nại của khách hàng để nâng cao chất lượng dịch vụ.
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl font-extrabold text-[#00285E] tracking-tight">Tiếp nhận Phản hồi</h1>
+            <p className="text-slate-500 text-sm font-medium mt-1">
+              Ghi nhận ý kiến đóng góp, khiếu nại của khách hàng để nâng cao chất lượng dịch vụ.
+            </p>
+          </div>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}

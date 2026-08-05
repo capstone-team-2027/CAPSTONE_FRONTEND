@@ -57,6 +57,7 @@ export function ComboFormModal({ initial, services, categories, existingCombos, 
   const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>(initial?.service_ids ?? []);
   const [desc, setDesc] = useState<string>(initial?.description ?? "");
   const [isActive, setIsActive] = useState<boolean>(initial?.is_active ?? true);
+  const [discount, setDiscount] = useState<number>(initial?.discount_percentage ?? 10);
 
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
@@ -67,6 +68,7 @@ export function ComboFormModal({ initial, services, categories, existingCombos, 
   const totalOriginal = selectedServiceIds.reduce((sum, id) => {
     return sum + (servicePrices[id] ?? 300000);
   }, 0);
+  const totalDiscounted = Math.round(totalOriginal * (1 - discount / 100));
 
   const { fetchPrivate } = useFetchClient();
   const [isSaving, setIsSaving] = useState(false);
@@ -103,6 +105,7 @@ export function ComboFormModal({ initial, services, categories, existingCombos, 
         combo_name: name.trim(),
         description: desc.trim(),
         serviceCatalogIds: selectedServiceIds,
+        discount_percentage: Number(discount),
         is_active: isActive
       };
 
@@ -129,7 +132,7 @@ export function ComboFormModal({ initial, services, categories, existingCombos, 
           combo_name: name.trim(),
           category_id: computedCatId,
           service_ids: selectedServiceIds,
-          discount_percentage: 0,
+          discount_percentage: Number(discount),
           description: desc.trim(),
           is_active: isActive,
           createdAt: res.data?.createdAt || initial?.createdAt || new Date().toISOString()
@@ -182,8 +185,12 @@ export function ComboFormModal({ initial, services, categories, existingCombos, 
               <span className="font-bold text-slate-700 uppercase block tracking-wider">Thông tin biểu phí</span>
               <div className="space-y-2 font-semibold">
                 <div className="flex justify-between text-sm">
-                  <span className="text-[#00285E]">Tổng giá trị:</span>
-                  <span className="text-[#00285E] font-black">{totalOriginal.toLocaleString("vi-VN")} đ</span>
+                  <span className="text-[#00285E]">Tổng giá gốc:</span>
+                  <span className="text-slate-400 font-bold line-through">{totalOriginal.toLocaleString("vi-VN")} đ</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#00285E]">Giá sau giảm ({discount}%):</span>
+                  <span className="text-[#00285E] font-black">{totalDiscounted.toLocaleString("vi-VN")} đ</span>
                 </div>
               </div>
             </div>
@@ -213,6 +220,20 @@ export function ComboFormModal({ initial, services, categories, existingCombos, 
                 onChange={(e) => setDesc(e.target.value)}
                 placeholder="Vd: Gói combo bảo dưỡng định kỳ tiết kiệm chi phí cho khách hàng..."
                 className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all min-h-[80px]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                Phần trăm giảm giá (%) *
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={discount}
+                onChange={(e) => setDiscount(Number(e.target.value))}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
               />
             </div>
 

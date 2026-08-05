@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Menu, X, Home, Wrench, Cpu, Phone, User, Check, Trash2, Info, AlertTriangle } from 'lucide-react';
+import { Bell, Menu, X, Home, Wrench, Newspaper, Phone, User, Check, Trash2, Info, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import Logo from '../../components/share/Logo';
@@ -13,8 +13,14 @@ import type { RootState } from '../../store/store';
 import type { UserModel } from '../../model/User';
 
 import { useFetchClient } from '../../hook/useFetchClient';
+import { useSocket } from '../../hook/useSocket';
 import { loginSuccess } from '../../store/slices/userSlice';
 import { PROFILE_API_ENDPOINTS } from '../../constants/customer/profileApiEndpoint';
+import { NOTIFICATION_API_ENDPOINTS } from '../../constants/customer/notificationEndpoints';
+
+import ChatbotWidget from '../../components/chatbot/ChatbotWidget';
+import CustomerChatWidget from '../../components/chat/CustomerChatWidget';
+import VideoCallSOSWidget from '../../components/chat/VideoCallSOSWidget';
 
 type NavItem = { name: string; path: string };
 type NavLinkProps = {
@@ -106,62 +112,112 @@ export default function Navbar() {
 
     const user = useSelector((state: RootState) => state.user.user as UserModel | null);
     const isAuthenticated = !!localStorage.getItem('token');
+    const isAuthPage = ['/login', '/oauth-success', '/signup', '/forgot-password', '/otp-verification', '/verify-phone'].includes(location.pathname);
+    const socket = useSocket();
 
     // =====================================================
     // NOTIFICATION DROPDOWN STATE & LOGIC
     // =====================================================
     interface NotificationItem {
-        id: string;
-        titleKey: string;
-        descKey: string;
-        timeKey: string;
-        read: boolean;
-        type: 'info' | 'success' | 'warning';
+        id: number;
+        title: string;
+        content: string;
+        createdAt: string;
+        isRead: boolean;
+        notificationType: string;
     }
 
-    const [notifications, setNotifications] = useState<NotificationItem[]>([
-        {
-            id: '1',
-            titleKey: 'notification.item1.title',
-            descKey: 'notification.item1.desc',
-            timeKey: 'notification.item1.time',
-            read: false,
-            type: 'success'
-        },
-        {
-            id: '2',
-            titleKey: 'notification.item2.title',
-            descKey: 'notification.item2.desc',
-            timeKey: 'notification.item2.time',
-            read: false,
-            type: 'info'
-        },
-        {
-            id: '3',
-            titleKey: 'notification.item3.title',
-            descKey: 'notification.item3.desc',
-            timeKey: 'notification.item3.time',
-            read: true,
-            type: 'warning'
-        }
-    ]);
+    const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+    const [unreadCount, setUnreadCount] = useState(0);
     const [showDropdown, setShowDropdown] = useState(false);
 
-    const unreadCount = notifications.filter(n => !n.read).length;
-
-    const toggleRead = (id: string) => {
-        setNotifications(prev =>
-            prev.map(n => (n.id === id ? { ...n, read: true } : n))
-        );
+    const getNotificationIcon = (notif: NotificationItem) => {
+        if (notif.notificationType === 'SYSTEM') return AlertTriangle;
+        if (notif.notificationType === 'SERVICE_ORDER') return Check;
+        if (notif.notificationType === 'MAINTENANCE_REMINDER') return Wrench;
+        return Info;
     };
 
-    const markAllAsRead = () => {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    const fetchNotifications = async () => {
+        try {
+            const response = await fetchPrivate(NOTIFICATION_API_ENDPOINTS.GET_NOTIFICATIONS);
+            if (Array.isArray(response)) {
+                setNotifications(response);
+            }
+        } catch (error) {
+            console.error('Không lấy được danh sách thông báo:', error);
+        }
+    };
+
+    const fetchUnreadCount = async () => {
+        try {
+            const response = await fetchPrivate(NOTIFICATION_API_ENDPOINTS.GET_UNREAD_COUNT);
+            if (response?.count !== undefined) {
+                setUnreadCount(response.count);
+            }
+        } catch (error) {
+            console.error('Không lấy được số lượng thông báo:', error);
+        }
+    };
+
+    const toggleRead = async (id: number) => {
+        const notif = notifications.find((n) => n.id === id);
+        if (!notif || notif.isRead) return;
+        try {
+            await fetchPrivate(NOTIFICATION_API_ENDPOINTS.MARK_AS_READ(id), 'PUT');
+            setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+            setUnreadCount((prev) => Math.max(0, prev - 1));
+        } catch (error) {
+            console.error('Lỗi khi cập nhật thông báo:', error);
+        }
+    };
+
+    const markAllAsRead = async () => {
+        try {
+            await fetchPrivate(NOTIFICATION_API_ENDPOINTS.MARK_ALL_AS_READ, 'PUT');
+            setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+            setUnreadCount(0);
+        } catch (error) {
+            console.error('Lỗi khi đánh dấu đọc tất cả:', error);
+        }
     };
 
     const clearAll = () => {
         setNotifications([]);
     };
+
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        fetchUnreadCount();
+        const intervalId = setInterval(fetchUnreadCount, 60000);
+        return () => clearInterval(intervalId);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated]);
+
+    // Realtime: vào room riêng theo user để nhận notifyUser (báo giá mới, xe sẵn sàng giao...)
+    useEffect(() => {
+        if (!socket || !user?.id) return;
+
+        const joinUserRoom = () => socket.emit('join-user', user.id);
+        joinUserRoom();
+        socket.on('connect', joinUserRoom);
+
+        const handleNewNotification = () => {
+            fetchUnreadCount();
+            if (showDropdown) fetchNotifications();
+        };
+        socket.on('new_notification', handleNewNotification);
+
+        return () => {
+            socket.off('connect', joinUserRoom);
+            socket.off('new_notification', handleNewNotification);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [socket, user?.id, showDropdown]);
+
+    useEffect(() => {
+        if (showDropdown) fetchNotifications();
+    }, [showDropdown]);
 
     useEffect(() => {
         setShowDropdown(false);
@@ -216,12 +272,7 @@ export default function Navbar() {
                         <div className="max-h-[280px] overflow-y-auto divide-y divide-white/5">
                             {notifications.length > 0 ? (
                                 notifications.map((item) => {
-                                    const IconComponent =
-                                        item.type === 'success'
-                                            ? Check
-                                            : item.type === 'warning'
-                                                ? AlertTriangle
-                                                : Info;
+                                    const IconComponent = getNotificationIcon(item);
 
                                     return (
                                         <div
@@ -231,34 +282,28 @@ export default function Navbar() {
                                                 toggleRead(item.id);
                                             }}
                                             className={`p-3.5 hover:bg-white/5 cursor-pointer transition-colors flex gap-3 items-start relative ${
-                                                !item.read ? 'bg-white/[0.02]' : ''
+                                                !item.isRead ? 'bg-white/[0.02]' : ''
                                             }`}
                                         >
                                             {/* Unread Indicator Bar */}
-                                            {!item.read && (
+                                            {!item.isRead && (
                                                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#F9A11B]" />
                                             )}
 
                                             {/* Icon indicator */}
-                                            <div className={`p-1.5 rounded-lg shrink-0 ${
-                                                item.type === 'success'
-                                                    ? 'bg-emerald-500/10 text-emerald-400'
-                                                    : item.type === 'warning'
-                                                        ? 'bg-amber-500/10 text-amber-400'
-                                                        : 'bg-blue-500/10 text-blue-400'
-                                            }`}>
+                                            <div className="p-1.5 rounded-lg shrink-0 bg-blue-500/10 text-blue-400">
                                                 <IconComponent className="w-3.5 h-3.5" />
                                             </div>
 
                                             <div className="space-y-0.5 flex-1 min-w-0">
-                                                <h4 className={`text-xs font-bold text-white truncate ${!item.read ? 'font-extrabold text-[#F9A11B]' : ''}`}>
-                                                    {t(item.titleKey)}
+                                                <h4 className={`text-xs font-bold text-white truncate ${!item.isRead ? 'font-extrabold text-[#F9A11B]' : ''}`}>
+                                                    {item.title}
                                                 </h4>
                                                 <p className="text-[10px] text-white/60 leading-normal break-words">
-                                                    {t(item.descKey)}
+                                                    {item.content}
                                                 </p>
                                                 <span className="text-[9px] text-white/40 block pt-1">
-                                                    {t(item.timeKey)}
+                                                    {new Date(item.createdAt).toLocaleString('vi-VN')}
                                                 </span>
                                             </div>
                                         </div>
@@ -299,7 +344,7 @@ export default function Navbar() {
     const currentNavItems: NavItem[] = [
         { name: t('nav.home', 'Trang chủ'), path: '/' },
         { name: t('nav.services', 'Dịch vụ'), path: '/services' },
-        { name: t('nav.parts', 'Linh kiện'), path: '/parts' },
+        { name: t('nav.news', 'Tin tức'), path: '/news' },
         { name: t('nav.team', 'Đội ngũ'), path: '/team' },
         { name: t('nav.booking', 'Đặt lịch ngay'), path: '/phone-service' },
     ];
@@ -307,7 +352,7 @@ export default function Navbar() {
     const currentMobileTabItems = [
         { name: t('nav.home', 'Trang chủ'), path: '/', icon: Home },
         { name: t('nav.services', 'Dịch vụ'), path: '/services', icon: Wrench },
-        { name: t('nav.parts', 'Linh kiện'), path: '/parts', icon: Cpu },
+        { name: t('nav.news', 'Tin tức'), path: '/news', icon: Newspaper },
         { name: t('nav.booking', 'Đặt lịch ngay'), path: '/phone-service', icon: Phone },
         { name: t('nav.profile', 'Cá nhân'), path: '/user-profile', icon: User },
     ];
@@ -325,6 +370,10 @@ export default function Navbar() {
                         phoneNumber: userData.phoneNumber,
                         avatar: userData.avatar,
                         role: userData.role,
+                        status: userData.status,
+                        membershipTier: userData.customerProfile?.membership_tier,
+                        loyaltyPoints: userData.customerProfile?.loyalty_points,
+                        createdAt: userData.createdAt,
                     })
                 );
             } catch (error) {
@@ -564,6 +613,11 @@ export default function Navbar() {
                     })}
                 </div>
             </div>
+
+            {/* AI Chatbot Widget — chỉ hiện khi đã đăng nhập và không phải trang xác thực */}
+            {isAuthenticated && !isAuthPage && <ChatbotWidget />}
+            {isAuthenticated && !isAuthPage && <CustomerChatWidget currentUserId={user?.id} />}
+            {isAuthenticated && !isAuthPage && <VideoCallSOSWidget />}
         </>
     );
 }

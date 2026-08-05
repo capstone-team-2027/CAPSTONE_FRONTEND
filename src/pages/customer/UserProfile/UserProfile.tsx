@@ -3,27 +3,25 @@ import type { ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     LayoutDashboard,
-    Car,
     Calendar,
-    Settings,
     HelpCircle,
     LogOut,
     CheckCircle2,
     History,
-    ShieldCheck,
     Clock,
+    MapPin,
+    ReceiptText,
 } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { logout, loginSuccess } from '../../../store/slices/userSlice';
 
 import DashboardTab from './DashboardTab';
-import VehiclesTab from './VehiclesTab';
+import QuoteTrackingTab from './QuoteTrackingTab';
 import AppointmentsTab from './AppointmentsTab';
-import SettingsTab from './SettingsTab';
 import HistoryTab from './HistoryTab';
-import WarrantyTab from './WarrantyTab';
 import TrackingTab from './TrackingTab';
+import MapTab from './MapTab';
 import type { RootState } from '../../../store/store';
 import type { UserModel } from '../../../model/User';
 import { useFetchClient } from '../../../hook/useFetchClient';
@@ -31,12 +29,11 @@ import { PROFILE_API_ENDPOINTS } from '../../../constants/customer/profileApiEnd
 
 const MENU_ITEMS = [
     { id: 'dashboard', label: 'Hồ sơ người dùng', icon: LayoutDashboard },
-    { id: 'vehicles', label: 'Xe sở hữu', icon: Car },
+    { id: 'quoteTracking', label: 'Theo dõi báo giá', icon: ReceiptText },
     { id: 'appointments', label: 'Lịch hẹn', icon: Calendar },
-    { id: 'history', label: 'Lịch sử sửa chữa', icon: History },
-    { id: 'warranty', label: 'Bảo hành', icon: ShieldCheck },
+    { id: 'history', label: 'Lịch sử dịch vụ', icon: History },
     { id: 'tracking', label: 'Theo dõi', icon: Clock },
-    { id: 'settings', label: 'Cài đặt', icon: Settings },
+    { id: 'map', label: 'Bản đồ', icon: MapPin },
 ] as const;
 
 type TabId = typeof MENU_ITEMS[number]['id'];
@@ -49,7 +46,7 @@ export default function UserProfile() {
     }, [t]);
 
     const dispatch = useDispatch();
-    const { fetchPrivate, fetchPrivateForm } = useFetchClient();
+    const { fetchPrivateForm } = useFetchClient();
 
     const user = useSelector(
         (state: RootState) => state.user.user as UserModel | null
@@ -83,40 +80,6 @@ export default function UserProfile() {
         email: editOverrides.email ?? '',
         phone: editOverrides.phone ?? user?.phoneNumber ?? '',
         address: editOverrides.address ?? '',
-    };
-
-    // =====================================================
-    // SETTINGS DATA — derived từ Redux + settingsOverrides
-    // =====================================================
-
-    const [settingsOverrides, setSettingsOverrides] = useState<Partial<{
-        fullName: string;
-        email: string;
-        phone: string;
-        newPassword: string;
-        confirmPassword: string;
-        enable2FA: boolean;
-        notifyEmail: boolean;
-        notifySMS: boolean;
-        notifyPush: boolean;
-        language: string;
-        darkMode: boolean;
-    }>>({});
-
-    const [pendingSettingsAvatarFile, setPendingSettingsAvatarFile] = useState<File | null>(null);
-
-    const settingsData = {
-        fullName: settingsOverrides.fullName ?? user?.fullName ?? '',
-        email: settingsOverrides.email ?? '',
-        phone: settingsOverrides.phone ?? user?.phoneNumber ?? '',
-        newPassword: settingsOverrides.newPassword ?? '',
-        confirmPassword: settingsOverrides.confirmPassword ?? '',
-        enable2FA: settingsOverrides.enable2FA ?? false,
-        notifyEmail: settingsOverrides.notifyEmail ?? true,
-        notifySMS: settingsOverrides.notifySMS ?? false,
-        notifyPush: settingsOverrides.notifyPush ?? true,
-        language: settingsOverrides.language ?? 'Tiếng Việt',
-        darkMode: settingsOverrides.darkMode ?? false,
     };
 
     // =====================================================
@@ -155,7 +118,7 @@ export default function UserProfile() {
     // HANDLE AVATAR
     // =====================================================
 
-    const handleAvatarUpdate = (forSettings = false) => {
+    const handleAvatarUpdate = () => {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = 'image/*';
@@ -166,12 +129,7 @@ export default function UserProfile() {
             if (file) {
                 const previewUrl = URL.createObjectURL(file);
                 setAvatarPreview(previewUrl);
-
-                if (forSettings) {
-                    setPendingSettingsAvatarFile(file);
-                } else {
-                    setPendingAvatarFile(file);
-                }
+                setPendingAvatarFile(file);
             }
         };
 
@@ -272,77 +230,6 @@ export default function UserProfile() {
     };
 
     // =====================================================
-    // HANDLE SAVE SETTINGS
-    // =====================================================
-
-    const handleSettingsSave = async () => {
-        if (
-            settingsOverrides.newPassword &&
-            settingsOverrides.newPassword !== settingsOverrides.confirmPassword
-        ) {
-            alert(t('settings.passwordMismatch', 'Mật khẩu mới và xác nhận mật khẩu không khớp!'));
-            return;
-        }
-
-        setIsSubmitting(true);
-        try {
-            const form = new FormData();
-
-            const newFullName = settingsOverrides.fullName?.trim() ?? '';
-            if (newFullName) {
-                form.append('fullName', newFullName);
-            }
-
-            if (pendingSettingsAvatarFile) {
-                form.append('avatar', pendingSettingsAvatarFile);
-            }
-
-            if (!newFullName && !pendingSettingsAvatarFile) {
-                showSuccessToast(t('settings.updateSuccess', 'Đã lưu cài đặt thành công!'));
-                return;
-            }
-
-            const response = await fetchPrivateForm(
-                PROFILE_API_ENDPOINTS.UPDATE_PROFILE,
-                'PUT',
-                form,
-            );
-
-            syncUserToRedux(response.data);
-
-            setSettingsOverrides((prev) => ({
-                ...prev,
-                fullName: undefined,
-            }));
-            setPendingSettingsAvatarFile(null);
-            setAvatarPreview('');
-
-            showSuccessToast(t('settings.updateSuccess', 'Đã lưu cài đặt thành công!'));
-        } catch (error: any) {
-            alert(error.message || t('profile.updateFail', 'Cập nhật thất bại, vui lòng thử lại.'));
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    // =====================================================
-    // HANDLE CHANGE PASSWORD
-    // =====================================================
-    const handleChangePassword = async (data: any) => {
-        await fetchPrivate(
-            PROFILE_API_ENDPOINTS.CHANGE_PASSWORD,
-            'PUT',
-            data
-        );
-        showSuccessToast(t('settings.changePasswordSuccess', 'Đổi mật khẩu thành công!'));
-    };
-
-    const handleSettingChange = (field: string, value: string | boolean) => {
-        setSettingsOverrides((prev) => ({ ...prev, [field]: value }));
-    };
-
-
-    // =====================================================
     // RENDER TAB
     // =====================================================
 
@@ -353,9 +240,13 @@ export default function UserProfile() {
                     <DashboardTab
                         avatarUrl={avatarUrl}
                         formData={formData}
+                        accountStatus={user?.status}
+                        membershipTier={user?.membershipTier}
+                        loyaltyPoints={user?.loyaltyPoints}
+                        joinedAt={user?.createdAt}
                         isEditing={isEditing}
                         isSubmitting={isSubmitting}
-                        onAvatarUpdate={() => handleAvatarUpdate(false)}
+                        onAvatarUpdate={handleAvatarUpdate}
                         onInputChange={handleInputChange}
                         onSave={handleSave}
                         onEditToggle={setIsEditing}
@@ -366,8 +257,8 @@ export default function UserProfile() {
                     />
                 );
 
-            case 'vehicles':
-                return <VehiclesTab />;
+            case 'quoteTracking':
+                return <QuoteTrackingTab />;
 
             case 'appointments':
                 return <AppointmentsTab />;
@@ -375,24 +266,11 @@ export default function UserProfile() {
             case 'history':
                 return <HistoryTab />;
 
-            case 'warranty':
-                return <WarrantyTab />;
-
             case 'tracking':
                 return <TrackingTab />;
 
-            case 'settings':
-                return (
-                    <SettingsTab
-                        settingsData={settingsData}
-                        avatarUrl={avatarUrl}
-                        isSubmitting={isSubmitting}
-                        onAvatarUpdate={() => handleAvatarUpdate(true)}
-                        onSettingChange={handleSettingChange}
-                        onSave={handleSettingsSave}
-                        onChangePassword={handleChangePassword}
-                    />
-                );
+            case 'map':
+                return <MapTab />;
 
             default:
                 return null;
@@ -400,7 +278,7 @@ export default function UserProfile() {
     };
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto font-sans">
+        <div className="min-h-screen bg-[#F8FAFC] py-8 px-4 sm:px-6 lg:px-8 max-w-[1600px] mx-auto font-sans">
             {/* TOAST */}
             <AnimatePresence>
                 {showToast && (

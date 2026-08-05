@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { 
+  ArrowLeft,
   CalendarDays, 
   ChevronLeft, 
   ChevronRight, 
@@ -8,6 +9,7 @@ import {
   Clock
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import type { RootState } from '../../../store/store';
 import type { UserModel } from '../../../model/User';
 import { useFetchClient } from '../../../hook/useFetchClient';
@@ -47,6 +49,7 @@ interface ShiftData {
 }
 
 export default function TechnicianMyShifts() {
+  const navigate = useNavigate();
   const { fetchPrivate } = useFetchClient();
   const user = useSelector((state: RootState) => state.user.user as UserModel | null);
   
@@ -113,40 +116,49 @@ export default function TechnicianMyShifts() {
   const displayName = user?.fullName || 'Kỹ thuật viên';
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-            <CalendarDays className="text-[#00285E]" size={28} />
-            Lịch làm việc của tôi
-          </h1>
-          <p className="text-slate-500 mt-1 text-sm font-medium">
-            Xem lịch trực và khung giờ làm việc đã được phân công theo tuần.
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-3">
+              <CalendarDays className="text-[#00285E] shrink-0" size={28} />
+              <span className="truncate">Lịch làm việc của tôi</span>
+            </h1>
+            <p className="text-slate-500 mt-1 text-sm font-medium">
+              Xem lịch trực và khung giờ làm việc đã được phân công theo tuần.
+            </p>
+          </div>
         </div>
       </div>
 
       {/* Calendar Controls */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-xs flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-xs flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           <button onClick={handlePrevWeek} disabled={isLoading} className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors disabled:opacity-50">
             <ChevronLeft size={20} />
           </button>
-          <div className="font-bold text-slate-800 text-sm md:text-base flex items-center gap-2">
-            <CalendarClock size={18} className="text-[#00285E]" />
-            Tuần: {weekDays[0].formatted} - {weekDays[6].formatted}
+          <div className="font-bold text-slate-800 text-xs sm:text-sm md:text-base flex items-center gap-2 min-w-0">
+            <CalendarClock size={18} className="text-[#00285E] shrink-0" />
+            <span className="truncate">Tuần: {weekDays[0].formatted} - {weekDays[6].formatted}</span>
           </div>
           <button onClick={handleNextWeek} disabled={isLoading} className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors disabled:opacity-50">
             <ChevronRight size={20} />
           </button>
         </div>
 
-        <div className="flex gap-2">
-          <button 
-            onClick={setThisWeek} 
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button
+            onClick={setThisWeek}
             disabled={isLoading}
-            className="px-4 py-2 text-sm font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] rounded-xl transition-colors disabled:opacity-50"
+            className="w-full sm:w-auto px-4 py-2 text-sm font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#DCE8FF] rounded-xl transition-colors disabled:opacity-50"
           >
             Tuần hiện tại
           </button>
