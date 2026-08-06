@@ -134,7 +134,7 @@ export default function ReceptionCustomerList() {
             <ArrowLeft size={24} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Khách hàng & Cứu hộ</h1>
+            <h1 className="text-2xl font-bold text-slate-800">Cứu hộ</h1>
             <p className="text-slate-500 text-sm mt-1">Quản lý khách hàng và theo dõi yêu cầu cứu hộ khẩn cấp.</p>
           </div>
         </div>
@@ -215,8 +215,8 @@ export default function ReceptionCustomerList() {
                               <button
                                 onClick={() => handleRescueClick(customer)}
                                 className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-xs font-bold ${activeRescue?.status === 'PENDING'
-                                    ? 'bg-rose-600 text-white border border-rose-600 hover:bg-rose-700 animate-pulse shadow-md shadow-rose-200'
-                                    : 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'
+                                  ? 'bg-rose-600 text-white border border-rose-600 hover:bg-rose-700 animate-pulse shadow-md shadow-rose-200'
+                                  : 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'
                                   }`}
                               >
                                 <MapPin size={14} />
