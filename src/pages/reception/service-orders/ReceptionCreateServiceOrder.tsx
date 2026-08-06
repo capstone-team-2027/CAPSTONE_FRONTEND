@@ -553,7 +553,6 @@ export default function ReceptionCreateServiceOrder() {
               plate: apt.vehicle?.license_plate || 'Chưa cập nhật',
               vin: apt.vehicle?.vin_number || '',
               model: apt.vehicle ? `${apt.vehicle.brand} ${apt.vehicle.model}`.trim() : 'Chưa cập nhật',
-              year: apt.vehicle?.year || '',
               appointmentDate: apt.appointmentDate,
               appointmentTime: apt.appointmentTime,
               vehicleId: apt.vehicle?.id
@@ -1539,28 +1538,6 @@ export default function ReceptionCreateServiceOrder() {
           </div>
         )}
       </div>
-
-      {/* PAYMENT QR CODE (For SPECIFIC services) */}
-      {receptionServiceMode === 'SERVICE' && selectedTotal > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="space-y-2">
-            <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
-              QR Chuyển khoản (Dịch vụ lẻ/Combo)
-            </h2>
-            <p className="text-xs text-slate-500">Khách hàng có thể quét mã QR để chuyển khoản tạm ứng/thanh toán ngay.</p>
-            <div className="text-xl font-black text-[#00285E] mt-2">
-              {formatPrice(selectedTotal)}
-            </div>
-          </div>
-          <div className="shrink-0 p-2 border border-slate-200 rounded-2xl bg-white shadow-sm">
-            <img 
-              src={`https://vietqr.app/img?acc=${import.meta.env.VITE_SEPAY_ACC || '0348714088'}&bank=${import.meta.env.VITE_SEPAY_BANK || 'MB'}&amount=${selectedTotal}&template=compact&showinfo=true`}
-              alt="Mã QR thanh toán"
-              className="w-32 h-32 object-contain rounded-xl"
-            />
-          </div>
-        </div>
-      )}
 
       {/* INITIAL VEHICLE CONDITION */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">

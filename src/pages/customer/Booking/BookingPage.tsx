@@ -99,6 +99,17 @@ export default function BookingPage() {
         recommendation: string;
     } | null>(null);
 
+    // --- LOYALTY POINTS STATE ---
+    const [customerPoints, setCustomerPoints] = useState(0);
+    const [maxDiscountPercent, setMaxDiscountPercent] = useState(30);
+    const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
+    const [appliedPoints, setAppliedPoints] = useState<number>(0);
+    const [showOtpModal, setShowOtpModal] = useState(false);
+    const [otpInput, setOtpInput] = useState('');
+    const [isSendingOtp, setIsSendingOtp] = useState(false);
+    const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+    const [otpVerificationId, setOtpVerificationId] = useState<string | null>(null);
+
     // State cho kết quả AI YOLO phân tích ảnh
     const [aiImageDamageResult, setAiImageDamageResult] = useState<{
         tong_so_loi: number;
@@ -212,7 +223,7 @@ export default function BookingPage() {
                 if (svcRes && svcRes.data) {
                     const newItems = svcRes.data.items || [];
                     setCurrentPageServices(newItems);
-                    
+
                     setDbServices(prev => {
                         const map = new Map(prev.map((item: any) => [item.id, item]));
                         newItems.forEach((item: any) => map.set(item.id, item));
@@ -350,12 +361,15 @@ export default function BookingPage() {
         const loadProfileAndVehicles = async () => {
             try {
                 const res = await fetchPrivate(PROFILE_API_ENDPOINTS.GET_PROFILE);
-                if (res && res.success && res.data) {
-                    setProfileName(res.data.name || res.data.email || 'Khách hàng');
+                if (res && res.data) {
+                    setProfileName(res.data.name || res.data.fullName || res.data.email || 'Khách hàng');
                     if (res.data.phone) {
                         setCallbackPhone(res.data.phone);
-                    } else if (res.data.phone_number) {
-                        setCallbackPhone(res.data.phone_number);
+                    } else if (res.data.phoneNumber) {
+                        setCallbackPhone(res.data.phoneNumber);
+                    }
+                    if (res.data.customerProfile?.loyalty_points !== undefined) {
+                        setCustomerPoints(res.data.customerProfile.loyalty_points);
                     }
                 }
                 const vehicleRes = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.GET_APPOINTMENT_VEHICLE);
@@ -363,6 +377,15 @@ export default function BookingPage() {
                     setCustomerVehicles(vehicleRes.data);
                     if (vehicleRes.data.length > 0) {
                         setVehicleInputMode('EXISTING');
+                    }
+                }
+
+                // Fetch max discount percent config
+                const configRes = await fetchPublic((GARAGE_CONFIG_API_ENDPOINTS as any).GET_CONFIGS || `${API_BASE_URL}/api/config`);
+                if (configRes && configRes.success && configRes.data) {
+                    const maxPctConfig = configRes.data.find((c: any) => c.config_key === 'MAX_LOYALTY_DISCOUNT_PERCENT');
+                    if (maxPctConfig) {
+                        setMaxDiscountPercent(parseInt(maxPctConfig.config_value) || 30);
                     }
                 }
             } catch (error) {
@@ -698,16 +721,19 @@ export default function BookingPage() {
             if (!c) return null;
             const serviceIds = c.service_ids || [];
             const original = (c as any).originalPrice || 0;
+            const discount = c.discount_percentage || 0;
+            const discountedPrice = original * (1 - discount / 100);
+
             const subNames = serviceIds.map(id => {
                 const s = mappedServices.find(x => x.id === id);
                 return s ? s.title : "Dịch vụ của gara";
             });
             return {
                 title: c.combo_name,
-                price: original > 0 ? `Từ ${original.toLocaleString("vi-VN")}đ` : `Miễn phí`,
-                numericPrice: original,
-                originalPrice: undefined,
-                discountPercentage: undefined,
+                price: discountedPrice > 0 ? `Từ ${discountedPrice.toLocaleString("vi-VN")}đ` : `Miễn phí`,
+                numericPrice: discountedPrice,
+                originalPrice: original > 0 ? `${original.toLocaleString("vi-VN")}đ` : undefined,
+                discountPercentage: discount > 0 ? discount : undefined,
                 promoText: undefined,
                 subItems: subNames,
             };
@@ -732,6 +758,15 @@ export default function BookingPage() {
             }
         }
     }, [bookingFlow, serviceCategoryMode, serviceSubtype, selectedServiceIds, mappedServices, selectedSubItems]);
+
+    const getRemainingAmount = () => {
+        return activeSelection?.numericPrice || 0;
+    };
+
+    const maxRedeemablePoints = Math.min(
+        customerPoints,
+        Math.floor((getRemainingAmount() * (maxDiscountPercent / 100)) / 1000)
+    );
 
     const timeSlots = useMemo(() => {
         // Tính tổng thời gian dự kiến
@@ -936,8 +971,18 @@ export default function BookingPage() {
             const response = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.CREATE_APPOINTMENT, 'POST', payload);
             if (response && response.success) {
                 const amount = activeSelection?.numericPrice || 0;
-                if (amount > 0 && response.data?.serviceOrder?.id) {
-                    setBookingCode(response.data.serviceOrder.id.toString());
+                const finalAmount = Math.max(0, amount - (appliedPoints * 1000));
+
+                if (finalAmount > 0 && response.data?.serviceOrder?.id) {
+                    const orderId = response.data.serviceOrder.id;
+
+                    // Call initPayment so fallback can find it if Bank drops transfer content
+                    await fetchPrivate(`${API_BASE_URL}/api/payment/init-payment`, 'POST', {
+                        orderId: orderId,
+                        amount: finalAmount
+                    });
+
+                    setBookingCode(orderId.toString());
                     setIsPendingPayment(true);
                 } else {
                     setIsPendingPayment(false);
@@ -984,10 +1029,31 @@ export default function BookingPage() {
     const inputClass = 'w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl md:rounded-2xl p-2.5 md:p-4 text-xs md:text-sm outline-none transition-all focus:border-amber-400 focus:bg-white text-brand-blue';
 
     if (isPendingPayment) {
-        const amount = activeSelection?.numericPrice || 0;
-        const qrUrl = amount > 0
-            ? `https://vietqr.app/img?acc=${import.meta.env.VITE_SEPAY_ACC}&bank=${import.meta.env.VITE_SEPAY_BANK}&amount=${amount}&template=compact&showinfo=true&addInfo=AGM-${bookingCode}`
+        const originalAmount = activeSelection?.numericPrice || 0;
+        const amount = Math.max(0, originalAmount - (appliedPoints * 1000));
+
+        console.log("DEBUG PAY AMOUNT:", { originalAmount, appliedPoints, amount, activeSelection });
+
+        let addInfo = `AGM-${bookingCode}`;
+        if (appliedPoints > 0) {
+            addInfo += `-PT-${appliedPoints}`;
+        }
+
+        const rawBank = import.meta.env.VITE_SEPAY_BANK || 'TPB';
+        const bankCode = rawBank.toLowerCase() === 'tpbank' ? 'TPB' : rawBank;
+        const sepayAcc = import.meta.env.VITE_SEPAY_ACC;
+
+        // Amount phải là số nguyên VNĐ, không có phần thập phân => QR VietQR mới nhúng đúng số tiền
+        const roundedAmount = Math.round(amount);
+
+        // Use SePay's official QR generator (qr.sepay.vn) which is highly compatible with bank apps
+        const qrUrl = roundedAmount > 0 && sepayAcc
+            ? `https://qr.sepay.vn/img?acc=${encodeURIComponent(sepayAcc)}&bank=${encodeURIComponent(bankCode)}&amount=${roundedAmount}&des=${encodeURIComponent(addInfo)}&addInfo=${encodeURIComponent(addInfo)}&template=print`
             : null;
+
+        if (roundedAmount > 0 && !sepayAcc) {
+            console.error('Thiếu biến môi trường VITE_SEPAY_ACC — không thể tạo QR thanh toán.');
+        }
 
         return (
             <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 text-left relative overflow-hidden">
@@ -996,7 +1062,7 @@ export default function BookingPage() {
                     <img src="/images/Service-Image.png" className="w-full h-full object-cover" alt="Garage Background" />
                     <div className="absolute inset-0 bg-[#001C43]/70 backdrop-blur-md" />
                 </div>
-                
+
                 <motion.div
                     initial={{ opacity: 0, y: 30, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1055,12 +1121,86 @@ export default function BookingPage() {
 
                         <div className="mt-8 pt-6 border-t border-dashed border-gray-300/50">
                             <div className="flex items-center justify-between p-6 bg-blue-50/30 rounded-2xl border border-blue-50">
-                                <span className="font-bold text-brand-blue text-base">Tổng thanh toán</span>
+                                <div>
+                                    <span className="font-bold text-brand-blue text-base block">Tổng thanh toán</span>
+                                    {appliedPoints > 0 && (
+                                        <span className="text-sm text-green-600 block mt-1">Đã giảm {appliedPoints * 1000} VNĐ (từ {appliedPoints} điểm)</span>
+                                    )}
+                                </div>
                                 <span className="text-2xl font-extrabold font-display" style={{ color: COLORS.orange }}>
-                                    {activeSelection?.price}
+                                    {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format((activeSelection?.numericPrice || 0) - (appliedPoints * 1000))}
                                 </span>
                             </div>
                         </div>
+
+                        {/* --- LOYALTY POINTS SECTION --- */}
+                        <div className="mt-6 p-6 rounded-2xl border border-blue-100 bg-white shadow-sm relative overflow-hidden">
+                            <div className="absolute -right-6 -top-6 w-24 h-24 bg-gradient-to-br from-brand-orange/20 to-transparent rounded-full blur-2xl pointer-events-none"></div>
+
+                            <div className="flex items-start justify-between mb-4 relative z-10">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-orange to-orange-400 flex items-center justify-center text-white shadow-md shadow-brand-orange/20">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 text-sm">Điểm thành viên của bạn</h3>
+                                        <p className="text-xs text-slate-500 font-medium mt-0.5">1 điểm = 1.000 VNĐ</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <span className="block text-2xl font-extrabold text-brand-orange leading-none">{customerPoints}</span>
+                                    <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Điểm hiện có</span>
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 relative z-10 mb-4">
+                                <div className="flex justify-between items-center text-sm mb-2">
+                                    <span className="text-slate-600 font-medium">Có thể dùng tối đa (30%):</span>
+                                    <span className="font-bold text-slate-800">{maxRedeemablePoints} điểm</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max={maxRedeemablePoints}
+                                        value={pointsToRedeem}
+                                        onChange={(e) => {
+                                            const val = parseInt(e.target.value) || 0;
+                                            setPointsToRedeem(Math.min(val, maxRedeemablePoints));
+                                        }}
+                                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm font-semibold text-slate-700 outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 transition-all disabled:bg-slate-100 disabled:text-slate-400"
+                                        placeholder="Nhập số điểm..."
+                                        disabled={appliedPoints > 0 || customerPoints < 10}
+                                    />
+                                    {appliedPoints === 0 ? (
+                                        <button
+                                            onClick={() => setAppliedPoints(pointsToRedeem)}
+                                            disabled={pointsToRedeem <= 0 || pointsToRedeem > maxRedeemablePoints || customerPoints < 10}
+                                            className="px-4 py-2.5 bg-brand-orange hover:bg-orange-500 disabled:bg-slate-300 disabled:text-slate-500 text-white text-sm font-bold rounded-lg transition-colors whitespace-nowrap shadow-md shadow-brand-orange/20 disabled:shadow-none"
+                                        >
+                                            Áp dụng
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => {
+                                                setAppliedPoints(0);
+                                                setPointsToRedeem(0);
+                                            }}
+                                            className="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-bold rounded-lg transition-colors whitespace-nowrap"
+                                        >
+                                            Hủy
+                                        </button>
+                                    )}
+                                </div>
+                                {customerPoints < 10 && (
+                                    <p className="text-xs text-red-500 mt-2 font-medium italic">
+                                        * Cần tích lũy tối thiểu 10 điểm để bắt đầu sử dụng.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                        {/* --- END LOYALTY POINTS --- */}
+
                     </div>
 
                     {/* RIGHT SIDE: Payment details - Glassmorphism Dark */}
@@ -1068,7 +1208,7 @@ export default function BookingPage() {
                         {/* Lighting Effects */}
                         <div className="absolute top-0 right-0 w-64 h-64 bg-brand-orange/20 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl z-0" />
                         <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/20 rounded-full translate-y-1/3 -translate-x-1/3 blur-3xl z-0" />
-                        
+
                         <div className="relative z-10 text-center space-y-8 flex flex-col items-center">
                             <div>
                                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/10 backdrop-blur-md border border-white/20 mb-6 shadow-xl">
@@ -1083,9 +1223,10 @@ export default function BookingPage() {
                             {qrUrl ? (
                                 <div className="p-1 rounded-3xl bg-gradient-to-br from-white/40 to-white/10 shadow-2xl relative group">
                                     <div className="bg-white p-5 rounded-[1.3rem] relative z-10">
-                                        <img src={qrUrl} alt="VietQR Payment" className="w-56 h-56 rounded-xl object-contain" />
-                                        <div className="mt-4 pt-4 border-t border-slate-100 text-xs text-slate-500 font-medium">
-                                            Nội dung CK: <span className="font-bold text-brand-blue uppercase">AGM-{bookingCode}</span>
+                                        <img src={qrUrl} alt="VietQR Payment" className="w-56 h-56 rounded-xl object-contain mx-auto" />
+                                        <div className="mt-4 pt-4 border-t border-slate-100 text-sm text-slate-600 flex flex-col gap-1 text-center">
+                                            <div>Số tiền: <span className="font-bold text-brand-orange text-lg">{new Intl.NumberFormat('vi-VN').format(amount)} đ</span></div>
+                                            <div>Nội dung CK: <span className="font-bold text-brand-blue uppercase tracking-wide">{addInfo}</span></div>
                                         </div>
                                     </div>
                                 </div>
@@ -1121,14 +1262,14 @@ export default function BookingPage() {
                 >
                     {/* Horizontal Ticket */}
                     <div className="bg-white rounded-[2rem] shadow-2xl flex flex-col md:flex-row relative overflow-hidden w-full">
-                        
+
                         {/* Left Stub */}
                         <div className="bg-emerald-500 md:w-1/3 p-8 flex flex-col items-center justify-center relative overflow-hidden text-center min-h-[300px]">
                             {/* Decorative Background */}
                             <div className="absolute top-0 right-0 w-full h-full opacity-10" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, #000 10px, #000 20px)' }}></div>
                             <div className="absolute top-0 left-0 w-32 h-32 bg-white/20 rounded-br-full blur-xl"></div>
-                            
-                            <motion.div 
+
+                            <motion.div
                                 initial={{ scale: 0 }}
                                 animate={{ scale: 1 }}
                                 transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
@@ -1136,7 +1277,7 @@ export default function BookingPage() {
                             >
                                 <Check className="w-10 h-10 text-emerald-500" strokeWidth={3.5} />
                             </motion.div>
-                            
+
                             <h2 className="text-3xl font-black text-white font-display tracking-tight mb-2 relative z-10">
                                 Thành Công!
                             </h2>
@@ -1151,7 +1292,7 @@ export default function BookingPage() {
                             <div className="absolute bottom-[-16px] w-8 h-8 bg-[#001C43]/90 rounded-full shadow-inner z-20"></div>
                             <div className="h-full border-l-[2.5px] border-dashed border-gray-200 my-6 relative z-10"></div>
                         </div>
-                        
+
                         {/* Mobile Tear Line (Horizontal) - Mobile Only */}
                         <div className="md:hidden relative flex items-center justify-center bg-white h-8">
                             <div className="absolute left-[-16px] w-8 h-8 bg-[#001C43]/90 rounded-full shadow-inner z-20"></div>
@@ -1197,7 +1338,7 @@ export default function BookingPage() {
                                             {bookingDate.split('-').reverse().join('/')}
                                         </span>
                                     </div>
-                                    
+
                                     {/* Phương tiện */}
                                     {bookingFlow !== 'CONSULTATION' && (
                                         <div className="flex flex-col gap-1.5">
@@ -1216,8 +1357,8 @@ export default function BookingPage() {
                                 <div className="mt-6 bg-amber-50/60 p-4 rounded-xl border border-amber-100/50 flex items-start gap-3">
                                     <AlertTriangle className="text-amber-500 shrink-0 mt-0.5" size={18} />
                                     <p className="text-xs text-amber-800 leading-relaxed m-0 font-medium">
-                                        {serviceCategoryMode === 'REPAIR' 
-                                            ? 'Xin vui lòng mang xe đến gara đúng giờ để kỹ thuật viên kiểm tra trực tiếp và báo giá vật tư chính xác nhất trước khi tiến hành sửa chữa.' 
+                                        {serviceCategoryMode === 'REPAIR'
+                                            ? 'Xin vui lòng mang xe đến gara đúng giờ để kỹ thuật viên kiểm tra trực tiếp và báo giá vật tư chính xác nhất trước khi tiến hành sửa chữa.'
                                             : 'Bộ phận CSKH sẽ sớm liên hệ xác nhận. Vui lòng để ý điện thoại của bạn.'}
                                     </p>
                                 </div>
@@ -2045,7 +2186,7 @@ export default function BookingPage() {
                                                 {t('booking.step2.dateLabel', 'Chọn ngày hẹn')}
                                             </label>
                                             <div className="relative w-full">
-                                                <InlineCalendar 
+                                                <InlineCalendar
                                                     selectedDate={bookingDate}
                                                     onChange={setBookingDate}
                                                     minDate={minDateStr}
@@ -2269,7 +2410,7 @@ export default function BookingPage() {
                                         <span className="font-mono text-white">{t('booking.sidebar.free', 'Miễn phí')}</span>
                                     </div>
                                 )}
-                                
+
                                 {activeSelection && activeSelection.promoText && (
                                     <div className="p-2.5 bg-white/5 rounded-xl border border-white/5 text-[10px] text-[#F9A11B] font-semibold leading-relaxed flex items-start gap-1.5">
                                         <span className="shrink-0 mt-0.5">🎁</span>
