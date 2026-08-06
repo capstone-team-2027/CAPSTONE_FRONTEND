@@ -506,7 +506,7 @@ export default function ReceptionCreateServiceOrder() {
             setSelectedRecord({
               type: 'appointment',
               id: String(data.id),
-              name: data.customer?.user?.fullName || 'Khách vãng lai',
+              name: data.customer?.name || data.customer?.user?.fullName || 'Khách vãng lai',
               phone: data.customer?.user?.phoneNumber || data.customer?.phone || '',
               plate: data.vehicle?.license_plate || 'Chưa cập nhật',
               model: data.vehicle?.model ? `${data.vehicle.model.make?.make_name || ''} ${data.vehicle.model.model_name || ''}`.trim() : 'Chưa cập nhật',

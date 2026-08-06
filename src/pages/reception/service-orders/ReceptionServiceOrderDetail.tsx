@@ -446,7 +446,7 @@ export default function ReceptionServiceOrderDetail() {
   };
 
   // Helper cho data mapping
-  const customerName = order.vehicle?.customer?.user?.fullName || 'Khách vãng lai';
+  const customerName = order.vehicle?.customer?.name || order.vehicle?.customer?.user?.fullName || 'Khách vãng lai';
   const customerPhone = order.vehicle?.customer?.phone || '—';
   const customerEmail = order.vehicle?.customer?.user?.email || '—';
 

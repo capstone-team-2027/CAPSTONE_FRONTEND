@@ -435,7 +435,7 @@ export default function ReceptionRescueCreateServiceOrder() {
         const customerRecord = {
           type: 'customer',
           id: customer.id,
-          name: customer.customer_name || customer.user?.fullName || 'Khách vãng lai',
+          name: customer.name || customer.customer_name || customer.user?.fullName || 'Khách vãng lai',
           phone: '',
           vehicles: customer.vehicles || []
         };
@@ -451,7 +451,7 @@ export default function ReceptionRescueCreateServiceOrder() {
           const customerRecord = {
             type: 'customer',
             id: fullCustomer.id,
-            name: fullCustomer.customer_name,
+            name: fullCustomer.name || fullCustomer.customer_name || 'Khách vãng lai',
             phone: fullCustomer.phone,
             vehicles: fullCustomer.vehicles || []
           };
@@ -461,7 +461,7 @@ export default function ReceptionRescueCreateServiceOrder() {
           const customerRecord = {
             type: 'customer',
             id: customer.id,
-            name: customer.customer_name || customer.user?.fullName || 'Khách vãng lai',
+            name: customer.name || customer.customer_name || customer.user?.fullName || 'Khách vãng lai',
             phone,
             vehicles: customer.vehicles || []
           };
@@ -473,7 +473,7 @@ export default function ReceptionRescueCreateServiceOrder() {
         const customerRecord = {
           type: 'customer',
           id: customer.id,
-          name: customer.customer_name || customer.user?.fullName || 'Khách vãng lai',
+          name: customer.name || customer.customer_name || customer.user?.fullName || 'Khách vãng lai',
           phone,
           vehicles: customer.vehicles || []
         };

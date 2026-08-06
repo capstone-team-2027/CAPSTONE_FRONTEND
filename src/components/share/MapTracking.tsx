@@ -182,10 +182,21 @@ export const MapTracking: React.FC = () => {
       }
     };
 
+    const handleRescueLocationUpdated = (data: { latitude: number, longitude: number }) => {
+      if (animationRef.current) {
+        clearInterval(animationRef.current);
+        animationRef.current = null;
+      }
+      setCarLocation([data.latitude, data.longitude]);
+      setSimulationStatus('running');
+    };
+
     socket.on('rescue-vehicle-dispatched', handleRescueDispatched);
+    socket.on('rescue-location-updated', handleRescueLocationUpdated);
 
     return () => {
       socket.off('rescue-vehicle-dispatched', handleRescueDispatched);
+      socket.off('rescue-location-updated', handleRescueLocationUpdated);
       if (animationRef.current) clearInterval(animationRef.current);
     };
   }, [socket, user, rescueRequestData]);

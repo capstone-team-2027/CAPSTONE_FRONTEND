@@ -104,7 +104,7 @@ export default function ReceptionAppointmentDetail() {
         const mapped: AppointmentModel = {
           id: String(appt.id),
           customerId: appt.customer?.id ? String(appt.customer.id) : '',
-          customerName: appt.customer?.user?.fullName || 'Khách vãng lai',
+          customerName: appt.customer?.name || appt.customer?.user?.fullName || 'Khách vãng lai',
           customerPhone: appt.customer?.user?.phoneNumber || appt.customer?.phone || '',
           customerEmail: appt.customer?.user?.email || undefined,
           vehicleId: appt.vehicle?.id ? String(appt.vehicle.id) : '',

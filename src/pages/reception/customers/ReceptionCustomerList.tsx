@@ -3,6 +3,7 @@ import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { RECEPTION_API } from '../../../constants/reception/receptionApiEndpoint';
 import { useSocket } from '../../../hook/useSocket';
 import { AssignTechnicianModal } from './AssignTechnicianModal';
+import { CreateRescueModal } from './CreateRescueModal';
 import { ArrowLeft, MapPin, ClipboardPlus } from 'lucide-react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 
@@ -32,6 +33,7 @@ export default function ReceptionCustomerList() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [assignModalData, setAssignModalData] = useState<{ customer: Customer } | null>(null);
+  const [isCreateRescueModalOpen, setIsCreateRescueModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
@@ -72,7 +74,7 @@ export default function ReceptionCustomerList() {
   const handleAssignTechnician = async (technicianId: number) => {
     if (!assignModalData) return;
     const { customer } = assignModalData;
-    const customerId = customer.user?.id || customer.id;
+    const customerId = customer.id;
 
     const activeRescue = customer.rescueRequests?.find((r: any) => ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(r.status));
     const customerLat = customer.user?.latitude || activeRescue?.customer_lat;
@@ -95,9 +97,9 @@ export default function ReceptionCustomerList() {
       }
 
       showToast(`Đã giao nhiệm vụ cứu hộ cho Kỹ thuật viên!`, "success");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Lỗi khi phân công cứu hộ:", error);
-      showToast("Lỗi khi phân công cứu hộ. Vui lòng thử lại.", "error");
+      showToast(error.message || "Lỗi khi phân công cứu hộ. Vui lòng thử lại.", "error");
     } finally {
       setAssignModalData(null);
     }
@@ -138,9 +140,17 @@ export default function ReceptionCustomerList() {
             <p className="text-slate-500 text-sm mt-1">Quản lý khách hàng và theo dõi yêu cầu cứu hộ khẩn cấp.</p>
           </div>
         </div>
-        <button onClick={loadCustomers} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg transition-colors">
-          Làm mới
-        </button>
+        <div className="flex gap-2">
+          <button onClick={loadCustomers} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg transition-colors">
+            Làm mới
+          </button>
+          <button 
+            onClick={() => setIsCreateRescueModalOpen(true)} 
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-lg shadow-md shadow-rose-200 transition-colors"
+          >
+            Tạo dịch vụ cứu hộ
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -201,15 +211,23 @@ export default function ReceptionCustomerList() {
                             activeRescue && activeRescue.status !== 'PENDING' ? (
                               <div className="flex flex-col items-end gap-2">
                                 <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-md border border-orange-200">
-                                  ĐÃ GÁN: {activeRescue.technician?.fullName?.toUpperCase() || 'KTV'}
+                                  ĐÃ GÁN: {activeRescue.technician?.fullName?.toUpperCase() || 'KTV'} (
+                                  {activeRescue.status === 'ASSIGNED' ? 'Đã gán' :
+                                   activeRescue.status === 'ACCEPTED' ? 'KTV Đã nhận' :
+                                   activeRescue.status === 'EN_ROUTE' ? 'Đang di chuyển' :
+                                   activeRescue.status === 'ARRIVED' ? 'Đã đến nơi' :
+                                   activeRescue.status === 'IN_PROGRESS' ? 'Đang sửa chữa' : activeRescue.status}
+                                  )
                                 </span>
-                                <button
-                                  onClick={() => handleRescueClick(customer)}
-                                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors text-xs font-bold"
-                                >
-                                  <MapPin size={14} />
-                                  GÁN LẠI
-                                </button>
+                                {activeRescue.status === 'ASSIGNED' && (
+                                  <button
+                                    onClick={() => handleRescueClick(customer)}
+                                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors text-xs font-bold"
+                                  >
+                                    <MapPin size={14} />
+                                    GÁN LẠI
+                                  </button>
+                                )}
                               </div>
                             ) : (
                               <button
@@ -293,6 +311,13 @@ export default function ReceptionCustomerList() {
         customerName={assignModalData ? (assignModalData.customer.name || assignModalData.customer.user?.fullName || 'Khách hàng') : ''}
         customerLat={assignModalData ? (assignModalData.customer.user?.latitude || assignModalData.customer.rescueRequests?.find((r: any) => ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(r.status))?.customer_lat || undefined) : undefined}
         customerLng={assignModalData ? (assignModalData.customer.user?.longitude || assignModalData.customer.rescueRequests?.find((r: any) => ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(r.status))?.customer_lng || undefined) : undefined}
+      />
+
+      <CreateRescueModal
+        isOpen={isCreateRescueModalOpen}
+        onClose={() => setIsCreateRescueModalOpen(false)}
+        onSuccess={loadCustomers}
+        showToast={showToast}
       />
     </div>
   );
