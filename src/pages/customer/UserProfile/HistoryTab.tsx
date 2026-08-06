@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { Download, CheckCircle2, Eye, X, Calendar, User, Loader2, AlertCircle, Search, ReceiptText, Package, MessageSquare, Star } from 'lucide-react';
+import { Download, CheckCircle2, Eye, X, Calendar, User, Loader2, AlertCircle, Search, ReceiptText, Package, Wrench, MessageSquare, Star } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ProfileSectionHeader from './ProfileSectionHeader';
+import Pagination from '../../../components/share/Pagination';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { SERVICE_HISTORY_API_ENDPOINTS } from '../../../constants/customer/serviceHistoryApiEndpoint';
 
@@ -173,6 +174,8 @@ export default function HistoryTab() {
     const [feedbackText, setFeedbackText] = useState('');
     const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
 
     const loadServiceHistory = async () => {
         setIsLoading(true);
@@ -249,6 +252,16 @@ export default function HistoryTab() {
             );
         });
     }, [rows, searchTerm]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredRows.length / ITEMS_PER_PAGE));
+    const paginatedRows = useMemo(
+        () => filteredRows.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE),
+        [filteredRows, currentPage],
+    );
 
     const handleDownloadPdf = async (row: (typeof rows)[number]) => {
         try {
@@ -391,7 +404,7 @@ export default function HistoryTab() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 text-slate-600 font-medium">
-                                {filteredRows.map((row) => (
+                                {paginatedRows.map((row) => (
                                     <tr key={row.order.id} className="hover:bg-slate-50/50 transition-colors">
                                         <td className="p-4 font-mono font-bold text-brand-blue">{row.code}</td>
                                         <td className="p-4">{formatDate(row.order.actual_finish_time)}</td>
@@ -464,12 +477,17 @@ export default function HistoryTab() {
                                 ))}
                             </tbody>
                         </table>
+                        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
                     </div>
                 )}
             </div>
 
             <AnimatePresence>
-                {selectedRow && (
+                {selectedRow && (() => {
+                    const partItems = selectedRow.items.filter((item) => !item.service_catalog);
+                    const serviceItems = selectedRow.items.filter((item) => item.service_catalog);
+
+                    return (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-[2px]">
                         <div
                             className="bg-white shadow-2xl overflow-hidden flex flex-col border border-slate-200"
@@ -606,46 +624,85 @@ export default function HistoryTab() {
                                     </span>
                                 </div>
 
-                                <div>
-                                    <div className="flex items-center gap-2 mb-2 text-slate-600">
-                                        <Package className="w-4 h-4" />
-                                        <span className="text-xs font-extrabold uppercase tracking-widest">
-                                            {t('history.item', 'Hạng mục')}
-                                        </span>
-                                    </div>
+                                {selectedRow.items.length === 0 ? (
                                     <div className="rounded-xl border border-slate-200/80 overflow-hidden">
-                                        <table className="w-full min-w-[480px] text-left text-xs">
-                                            <thead>
-                                                <tr className="bg-slate-50 text-[11px] uppercase tracking-widest text-slate-400">
-                                                    <th className="px-3 py-3">{t('history.item', 'Hạng mục')}</th>
-                                                    <th className="px-3 py-3 text-center">{t('history.qty', 'SL')}</th>
-                                                    <th className="px-3 py-3 text-right">{t('history.price', 'Thành tiền')}</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {selectedRow.items.length === 0 ? (
-                                                    <tr>
-                                                        <td colSpan={3} className="px-3 py-6 text-center text-slate-400">
-                                                            {t('history.noItems', 'Không có hạng mục nào.')}
-                                                        </td>
-                                                    </tr>
-                                                ) : (
-                                                    selectedRow.items.map((item) => (
-                                                        <tr key={item.id} className="bg-white">
-                                                            <td className="px-3 py-3.5">
-                                                                <p className="text-xs font-semibold text-slate-700">{getItemName(item)}</p>
-                                                            </td>
-                                                            <td className="px-3 py-3.5 text-center text-slate-600">{item.quantity}</td>
-                                                            <td className="px-3 py-3.5 text-right font-extrabold text-[#00285E]">
-                                                                {formatCurrency(item.amount)}
-                                                            </td>
-                                                        </tr>
-                                                    ))
-                                                )}
-                                            </tbody>
-                                        </table>
+                                        <p className="px-3 py-6 text-center text-xs text-slate-400">
+                                            {t('history.noItems', 'Không có hạng mục nào.')}
+                                        </p>
                                     </div>
-                                </div>
+                                ) : (
+                                    <>
+                                        {partItems.length > 0 && (
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-2 text-slate-600">
+                                                    <Package className="w-4 h-4" />
+                                                    <span className="text-xs font-extrabold uppercase tracking-widest">
+                                                        {t('history.partsSection', 'Phụ tùng ({{count}})', { count: partItems.length })}
+                                                    </span>
+                                                </div>
+                                                <div className="rounded-xl border border-slate-200/80 overflow-hidden">
+                                                    <table className="w-full min-w-[480px] text-left text-xs">
+                                                        <thead>
+                                                            <tr className="bg-slate-50 text-[11px] uppercase tracking-widest text-slate-400">
+                                                                <th className="px-3 py-3">{t('history.partCol', 'Phụ tùng')}</th>
+                                                                <th className="px-3 py-3 text-center">{t('history.qty', 'SL')}</th>
+                                                                <th className="px-3 py-3 text-right">{t('history.unitPriceCol', 'Đơn giá')}</th>
+                                                                <th className="px-3 py-3 text-right">{t('history.price', 'Thành tiền')}</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100">
+                                                            {partItems.map((item) => (
+                                                                <tr key={item.id} className="bg-white">
+                                                                    <td className="px-3 py-3.5">
+                                                                        <p className="text-xs font-semibold text-slate-700">{getItemName(item)}</p>
+                                                                    </td>
+                                                                    <td className="px-3 py-3.5 text-center text-slate-600">{item.quantity}</td>
+                                                                    <td className="px-3 py-3.5 text-right text-slate-700">{formatCurrency(item.unit_price)}</td>
+                                                                    <td className="px-3 py-3.5 text-right font-extrabold text-[#00285E]">
+                                                                        {formatCurrency(item.amount)}
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {serviceItems.length > 0 && (
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-2 text-slate-600">
+                                                    <Wrench className="w-4 h-4" />
+                                                    <span className="text-xs font-extrabold uppercase tracking-widest">
+                                                        {t('history.servicesSection', 'Dịch vụ ({{count}})', { count: serviceItems.length })}
+                                                    </span>
+                                                </div>
+                                                <div className="rounded-xl border border-slate-200/80 overflow-hidden">
+                                                    <table className="w-full min-w-[480px] text-left text-xs">
+                                                        <thead>
+                                                            <tr className="bg-slate-50 text-[11px] uppercase tracking-widest text-slate-400">
+                                                                <th className="px-3 py-3">{t('history.serviceCol', 'Dịch vụ')}</th>
+                                                                <th className="px-3 py-3 text-right">{t('history.repairPriceCol', 'Giá sửa chữa')}</th>
+                                                                <th className="px-3 py-3 text-right">{t('history.price', 'Thành tiền')}</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100">
+                                                            {serviceItems.map((item) => (
+                                                                <tr key={item.id} className="bg-white">
+                                                                    <td className="px-3 py-3.5 text-slate-700 font-semibold">{getItemName(item)}</td>
+                                                                    <td className="px-3 py-3.5 text-right text-slate-700">{formatCurrency(item.repair_price)}</td>
+                                                                    <td className="px-3 py-3.5 text-right font-extrabold text-[#00285E]">
+                                                                        {formatCurrency(item.amount)}
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </div>
 
                             <div className="shrink-0 px-7 py-4 border-t border-slate-200 bg-white flex items-center justify-between gap-4">
@@ -665,7 +722,8 @@ export default function HistoryTab() {
                             </div>
                         </div>
                     </div>
-                )}
+                    );
+                })()}
             </AnimatePresence>
 
             {/* Modal đánh giá phản hồi */}

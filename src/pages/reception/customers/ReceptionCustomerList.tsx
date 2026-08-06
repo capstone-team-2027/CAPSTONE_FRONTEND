@@ -74,8 +74,9 @@ export default function ReceptionCustomerList() {
     const { customer } = assignModalData;
     const customerId = customer.user?.id || customer.id;
 
-    const customerLat = customer.user?.latitude;
-    const customerLng = customer.user?.longitude;
+    const activeRescue = customer.rescueRequests?.find((r: any) => ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(r.status));
+    const customerLat = customer.user?.latitude || activeRescue?.customer_lat;
+    const customerLng = customer.user?.longitude || activeRescue?.customer_lng;
 
     try {
       // Lưu phân công vào DB thông qua API mới
@@ -164,12 +165,12 @@ export default function ReceptionCustomerList() {
                 </tr>
               ) : (
                 paginatedCustomers.map((customer) => {
-                  const hasLocation = customer.user?.latitude != null && customer.user?.longitude != null;
                   const latestRescue = customer.rescueRequests && customer.rescueRequests.length > 0
                     ? [...customer.rescueRequests].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
                     : null;
 
                   const activeRescue = latestRescue && ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(latestRescue.status) ? latestRescue : null;
+                  const hasLocation = (customer.user?.latitude != null && customer.user?.longitude != null) || (activeRescue?.customer_lat != null && activeRescue?.customer_lng != null);
                   const completedRescue = latestRescue && latestRescue.status === 'COMPLETED' ? latestRescue : null;
                   const displayName = customer.name || customer.user?.fullName || "Khách hàng ẩn danh";
 
@@ -290,8 +291,8 @@ export default function ReceptionCustomerList() {
         onClose={() => setAssignModalData(null)}
         onAssign={handleAssignTechnician}
         customerName={assignModalData ? (assignModalData.customer.name || assignModalData.customer.user?.fullName || 'Khách hàng') : ''}
-        customerLat={assignModalData?.customer.user?.latitude ?? undefined}
-        customerLng={assignModalData?.customer.user?.longitude ?? undefined}
+        customerLat={assignModalData ? (assignModalData.customer.user?.latitude || assignModalData.customer.rescueRequests?.find((r: any) => ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(r.status))?.customer_lat || undefined) : undefined}
+        customerLng={assignModalData ? (assignModalData.customer.user?.longitude || assignModalData.customer.rescueRequests?.find((r: any) => ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(r.status))?.customer_lng || undefined) : undefined}
       />
     </div>
   );

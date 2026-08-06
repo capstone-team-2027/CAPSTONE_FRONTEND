@@ -394,7 +394,7 @@ export default function ReceptionRescueCreateServiceOrder() {
       const priceValue = s.price || s.base_price || 0;
       const discountPercent = s.discount_percentage || 0;
       const originalPriceValue = discountPercent > 0 && priceValue > 0 ? Math.round(priceValue / (1 - discountPercent / 100)) : 0;
-      const originalPriceStr = originalPriceValue > 0 ? `Từ ${originalPriceValue.toLocaleString("vi-VN")}đ` : "";
+      const originalPriceStr = originalPriceValue > 0 ? `Từ ${originalPriceValue.toLocaleString("vi-VN")} VND` : "";
 
       const ratingVal = s.rating || 5.0;
       const reviewVal = s.review_count || 0;
@@ -411,7 +411,7 @@ export default function ReceptionRescueCreateServiceOrder() {
         id: s.id,
         title: s.service_name,
         desc: s.description || "",
-        price: priceValue > 0 ? `Từ ${priceValue.toLocaleString("vi-VN")}đ` : "Liên hệ",
+        price: priceValue > 0 ? `Từ ${priceValue.toLocaleString("vi-VN")} VND` : "Liên hệ",
         numericPrice: priceValue,
         originalPrice: originalPriceStr || undefined,
         discountPercentage: discountPercent > 0 ? discountPercent : undefined,
@@ -509,7 +509,7 @@ export default function ReceptionRescueCreateServiceOrder() {
   const selectedTotal = useMemo(() => {
     const servicesPrice = mappedServices
       .filter((s) => selectedServiceIds.includes(s.id as number))
-      .reduce((sum, s) => sum + s.numericPrice, 0);
+      .reduce((sum, s) => sum + (s.numericPrice ?? 0), 0);
 
     let combosPrice = 0;
     if (selectedComboId) {
@@ -630,7 +630,7 @@ export default function ReceptionRescueCreateServiceOrder() {
     }
   };
 
-  const formatPrice = (price: number) => price.toLocaleString('vi-VN') + ' đ';
+  const formatPrice = (price: number) => price.toLocaleString('vi-VN') + ' VND';
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-5xl w-full mx-auto">

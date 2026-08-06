@@ -23,6 +23,7 @@ import {
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/customer/appointmentsEndpoints';
 import ProfileSectionHeader from './ProfileSectionHeader';
+import Pagination from '../../../components/share/Pagination';
 
 export interface AppointmentItem {
   id: string;
@@ -56,6 +57,8 @@ export default function AppointmentsTab() {
   const [bookingTypeFilter, setBookingTypeFilter] = useState<'SERVICE' | 'CONSULTATION'>('SERVICE');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [selectedAppt, setSelectedAppt] = useState<AppointmentItem | null>(null);
 
   const loadAppointments = async () => {
@@ -320,6 +323,16 @@ export default function AppointmentsTab() {
     });
   }, [currentAppointments, selectedStatus, searchQuery]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedStatus, searchQuery, bookingTypeFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredAppointments.length / ITEMS_PER_PAGE));
+  const paginatedAppointments = useMemo(
+    () => filteredAppointments.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE),
+    [filteredAppointments, currentPage],
+  );
+
   const counts = useMemo(() => {
     return {
       ALL: currentAppointments.length,
@@ -506,7 +519,7 @@ export default function AppointmentsTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-slate-600 font-medium">
-                {filteredAppointments.map((appt) => {
+                {paginatedAppointments.map((appt) => {
                   const conf = getStatusConfig(appt.status);
                   return (
                     <tr key={appt.id} className="hover:bg-slate-50/50 transition-colors">
@@ -557,6 +570,9 @@ export default function AppointmentsTab() {
                 })}
               </tbody>
             </table>
+          </div>
+          <div className="px-4 pb-2">
+            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
           </div>
         </div>
       )}

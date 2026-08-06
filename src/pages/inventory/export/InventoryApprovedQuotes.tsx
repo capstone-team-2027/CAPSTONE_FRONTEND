@@ -17,14 +17,17 @@ import {
   AlertCircle,
   Loader2,
   User,
+  Camera,
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useOutletContext, useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import type { RootState } from "../../../store/store";
+import type { UserModel } from "../../../model/User";
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { useSocket } from "../../../hook/useSocket";
 import { EXPORT_REQUEST_API_ENDPOINTS } from "../../../constants/inventory/approvedQuoteApiEndPoint";
-import SignaturePad, { type SignaturePadHandle } from "../../../components/share/SignaturePad";
 
 const PAGE_SIZE = 6;
 
@@ -32,14 +35,6 @@ const formatPrice = (v: number | string) =>
   Number(v).toLocaleString("vi-VN") + " VND";
 
 const formatDate = (d: string) => new Date(d).toLocaleDateString("vi-VN");
-const formatDateTime = (d: string) =>
-  new Date(d).toLocaleString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 
 interface SparePartInfo {
   id: number;
@@ -148,15 +143,72 @@ const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
   return btoa(binary);
 };
 
+const DIGIT_WORDS = ["không", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín"];
+
+const threeDigitToWords = (n: number, isFirstGroup: boolean): string => {
+  const hundred = Math.floor(n / 100);
+  const remainder = n % 100;
+  const ten = Math.floor(remainder / 10);
+  const unit = remainder % 10;
+  const parts: string[] = [];
+
+  if (hundred > 0 || !isFirstGroup) {
+    parts.push(DIGIT_WORDS[hundred], "trăm");
+  }
+  if (ten === 0) {
+    if (unit > 0 && (hundred > 0 || !isFirstGroup)) parts.push("lẻ");
+    if (unit > 0) parts.push(DIGIT_WORDS[unit]);
+  } else if (ten === 1) {
+    parts.push("mười");
+    if (unit === 1) parts.push("một");
+    else if (unit === 5) parts.push("lăm");
+    else if (unit > 0) parts.push(DIGIT_WORDS[unit]);
+  } else {
+    parts.push(DIGIT_WORDS[ten], "mươi");
+    if (unit === 1) parts.push("mốt");
+    else if (unit === 5) parts.push("lăm");
+    else if (unit > 0) parts.push(DIGIT_WORDS[unit]);
+  }
+  return parts.join(" ");
+};
+
+const numberToVietnameseWords = (value: number): string => {
+  const n = Math.round(Math.abs(value));
+  if (n === 0) return "Không đồng";
+
+  const groups: number[] = [];
+  let remaining = n;
+  while (remaining > 0) {
+    groups.unshift(remaining % 1000);
+    remaining = Math.floor(remaining / 1000);
+  }
+
+  const groupNames = ["", "nghìn", "triệu", "tỷ"];
+  const words: string[] = [];
+  const groupCount = groups.length;
+
+  groups.forEach((group, index) => {
+    if (group === 0) return;
+    const isFirstGroup = index === 0;
+    const groupText = threeDigitToWords(group, isFirstGroup);
+    const suffix = groupNames[groupCount - 1 - index];
+    words.push(suffix ? `${groupText} ${suffix}` : groupText);
+  });
+
+  const sentence = words.join(" ").replace(/\s+/g, " ").trim();
+  return sentence.charAt(0).toUpperCase() + sentence.slice(1) + " đồng";
+};
+
 export default function InventoryApprovedQuotes() {
   const { searchQuery, showToast } = useOutletContext<{
     searchQuery: string;
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
 
-  const { fetchPrivate } = useFetchClient();
+  const { fetchPrivate, fetchPrivateForm } = useFetchClient();
   const socket = useSocket();
   const navigate = useNavigate();
+  const user = useSelector((state: RootState) => state.user.user as UserModel | null);
   const [localSearch, setLocalSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<GroupedRequest | null>(null);
@@ -167,12 +219,15 @@ export default function InventoryApprovedQuotes() {
   const [isRejectOpen, setIsRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
-  // Modal ký tên: hiện ngay sau khi thủ kho duyệt xong, KTV ký ngay tại quầy để hoàn tất
+  // Modal xác nhận nhận hàng: hiện ngay sau khi thủ kho duyệt xong. KTV ký tay lên
+  // phiếu giấy in ra, thủ kho chụp ảnh tờ phiếu đã ký để lưu làm bằng chứng.
   const [signingReceipt, setSigningReceipt] = useState<
     (GroupedRequest & { receiptCode: string }) | null
   >(null);
   const [isSubmittingSignature, setIsSubmittingSignature] = useState(false);
-  const signaturePadRef = useRef<SignaturePadHandle>(null);
+  const [proofPhotoFile, setProofPhotoFile] = useState<File | null>(null);
+  const [proofPhotoPreview, setProofPhotoPreview] = useState<string | null>(null);
+  const proofPhotoInputRef = useRef<HTMLInputElement>(null);
 
   const loadExportRequests = async () => {
     try {
@@ -216,6 +271,7 @@ export default function InventoryApprovedQuotes() {
       const receiptCode = response?.data?.receipt_code;
       if (receiptCode) {
         setSigningReceipt({ ...group, receiptCode });
+        void handleDownloadReceipt(group, receiptCode);
       }
       void loadExportRequests();
     } catch (error: unknown) {
@@ -227,26 +283,36 @@ export default function InventoryApprovedQuotes() {
 
   const closeSignModal = () => {
     setSigningReceipt(null);
-    signaturePadRef.current?.clear();
+    setProofPhotoFile(null);
+    if (proofPhotoPreview) URL.revokeObjectURL(proofPhotoPreview);
+    setProofPhotoPreview(null);
+    if (proofPhotoInputRef.current) proofPhotoInputRef.current.value = "";
+  };
+
+  const handleProofPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (proofPhotoPreview) URL.revokeObjectURL(proofPhotoPreview);
+    setProofPhotoFile(file);
+    setProofPhotoPreview(URL.createObjectURL(file));
   };
 
   const handleSubmitSignature = async () => {
     if (!signingReceipt) return;
-    if (signaturePadRef.current?.isEmpty()) {
-      showToast("Vui lòng ký tên trước khi xác nhận", "warning");
+    if (!proofPhotoFile) {
+      showToast("Vui lòng chụp ảnh phiếu đã ký trước khi xác nhận", "warning");
       return;
     }
     setIsSubmittingSignature(true);
     try {
-      const signatureImage = signaturePadRef.current?.toDataURL();
-      await fetchPrivate(EXPORT_REQUEST_API_ENDPOINTS.SIGN(signingReceipt.receiptCode), "POST", {
-        signatureImage,
-      });
-      showToast("Đã ký nhận phụ tùng thành công!", "success");
+      const formData = new FormData();
+      formData.append("proofPhoto", proofPhotoFile);
+      await fetchPrivateForm(EXPORT_REQUEST_API_ENDPOINTS.SIGN(signingReceipt.receiptCode), "POST", formData);
+      showToast("Đã xác nhận nhận phụ tùng thành công!", "success");
       closeSignModal();
       void loadExportRequests();
     } catch (error: unknown) {
-      showToast(error instanceof Error ? error.message : "Ký nhận thất bại", "warning");
+      showToast(error instanceof Error ? error.message : "Xác nhận thất bại", "warning");
     } finally {
       setIsSubmittingSignature(false);
     }
@@ -272,8 +338,9 @@ export default function InventoryApprovedQuotes() {
     }
   };
 
-  // Sau khi duyệt, dựng PDF phiếu xuất kho ngay từ dữ liệu đã có ở FE để in ra ký giấy
-  const handlePrintReceipt = async (group: GroupedRequest) => {
+  // Sau khi duyệt, tự động tải PDF phiếu xuất kho ngay — cùng định dạng mẫu 04-VT
+  // với phiếu trong lịch sử xuất kho (InventoryExport.tsx).
+  const handleDownloadReceipt = async (group: GroupedRequest, receiptCode: string) => {
     try {
       const [fontResponse, boldFontResponse] = await Promise.all([
         fetch("/fonts/NotoSans.ttf"),
@@ -292,64 +359,119 @@ export default function InventoryApprovedQuotes() {
       doc.setFont("NotoSans", "normal");
 
       const navy: [number, number, number] = [0, 40, 94];
-      const slate: [number, number, number] = [51, 65, 85];
+      const navyDark: [number, number, number] = [0, 26, 61];
+      const amber: [number, number, number] = [249, 161, 27];
+      const black: [number, number, number] = [15, 23, 42];
       const pageWidth = doc.internal.pageSize.getWidth();
       const margin = 14;
+      const contentWidth = pageWidth - margin * 2;
+
+      const managerName = user?.fullName || "—";
+      const receiverName = group.technicianName || "...................";
+      const now = new Date();
+      const day = now.getDate();
+      const month = now.getMonth() + 1;
+      const year = now.getFullYear();
+
+      // ===== HEADER: dải màu thương hiệu =====
+      const headerHeight = 34;
+      doc.setFillColor(...navy);
+      doc.rect(0, 0, pageWidth, headerHeight, "F");
+      doc.setFillColor(...navyDark);
+      doc.circle(pageWidth - 14, -6, 26, "F");
+      doc.setFillColor(...amber);
+      doc.rect(0, headerHeight, pageWidth, 1.4, "F");
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("NotoSans", "bold");
+      doc.setFontSize(14);
+      doc.text("AGM INTELLIGENT GARAGE", margin, 14);
+      doc.setFont("NotoSans", "normal");
+      doc.setFontSize(8);
+      doc.text("Trung tâm chăm sóc & sửa chữa ô tô chính hãng", margin, 20);
+      doc.text("Hotline: 1900 0000 · agmgarage.vn", margin, 25.5);
+
+      doc.setFont("NotoSans", "normal");
+      doc.setFontSize(9);
+      doc.text(`Số: ${receiptCode}`, pageWidth - margin, 16, { align: "right" });
+      doc.setFontSize(8);
+      doc.text(`Ngày ${day} tháng ${month} năm ${year}`, pageWidth - margin, 22, { align: "right" });
 
       doc.setTextColor(...navy);
       doc.setFont("NotoSans", "bold");
-      doc.setFontSize(9);
-      doc.text("AGM INTELLIGENT GARAGE", pageWidth / 2, 14, { align: "center" });
-      doc.setFontSize(18);
-      doc.text("PHIẾU XUẤT KHO", pageWidth / 2, 24, { align: "center" });
-      doc.setFont("NotoSans", "normal");
-      doc.setDrawColor(...navy);
-      doc.setLineWidth(0.5);
-      doc.line(margin, 30, pageWidth - margin, 30);
+      doc.setFontSize(16);
+      doc.text("PHIẾU XUẤT KHO", pageWidth / 2, headerHeight + 12, { align: "center" });
 
-      doc.setFontSize(8.5);
-      doc.setTextColor(...slate);
-      doc.text(`Mã yêu cầu: ${group.code}`, margin, 39);
-      doc.text(`Kỹ thuật viên nhận: ${group.technicianName}`, margin, 44.5);
-      doc.text(
-        `Phương tiện: ${group.vehicle?.license_plate || "—"} ${[group.vehicle?.model?.model_name, group.vehicle?.color].filter(Boolean).join(" · ")}`,
-        margin,
-        50,
-      );
-      doc.text(`Ngày xuất: ${formatDateTime(new Date().toISOString())}`, 116, 39);
+      doc.setTextColor(...black);
+      const infoY = headerHeight + 22;
+      const infoCol2X = margin + contentWidth / 2;
+      doc.setFont("NotoSans", "normal");
+      doc.setFontSize(9.5);
+      doc.text(`Họ và tên người nhận hàng: ${receiverName}`, margin, infoY);
+      doc.text(`Lý do xuất kho: Xuất phụ tùng phục vụ sửa chữa, bảo dưỡng xe`, infoCol2X, infoY);
+      doc.text(`Bộ phận: Kỹ thuật viên`, margin, infoY + 5.5);
+      doc.text(`Xuất tại kho: Kho vật tư - AGM Intelligent Garage`, infoCol2X, infoY + 5.5);
+      doc.text(`Người lập phiếu: ${managerName}`, margin, infoY + 11);
 
       autoTable(doc, {
-        startY: 58,
-        head: [["STT", "Phụ tùng", "SKU", "SL", "Đơn giá", "Thành tiền"]],
+        startY: infoY + 18,
+        head: [["STT", "Tên, nhãn hiệu phụ tùng", "Mã số", "ĐVT", "SL", "Đơn giá", "Thành tiền"]],
         body: group.items.map((item, index) => [
           index + 1,
           item.sparePart.name,
           item.sparePart.sku,
+          "Cái",
           item.quantity,
           formatPrice(item.unit_price),
           formatPrice(item.amount),
         ]),
-        styles: { font: "NotoSans", fontSize: 8.5, cellPadding: 2.5, textColor: slate },
-        headStyles: { fillColor: navy, textColor: [255, 255, 255], font: "NotoSans", fontStyle: "bold" },
+        foot: [[
+          "", "Cộng", "", "", "", "",
+          formatPrice(group.total_amount),
+        ]],
+        styles: { font: "NotoSans", fontSize: 8.5, cellPadding: 2.5, textColor: black, lineColor: black, lineWidth: 0.2 },
+        headStyles: { fillColor: [230, 230, 230], textColor: black, font: "NotoSans", fontStyle: "bold", halign: "center" },
+        footStyles: { fillColor: [255, 255, 255], textColor: black, font: "NotoSans", fontStyle: "bold" },
+        theme: "grid",
         margin: { left: margin, right: margin },
       });
 
       const finalY = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
+      const footerY = finalY + 8;
+      doc.setFont("NotoSans", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(...black);
+      doc.text(
+        `Tổng số tiền (bằng chữ): ${numberToVietnameseWords(Number(group.total_amount))}`,
+        margin,
+        footerY,
+        { maxWidth: contentWidth },
+      );
+      const signBlockY = footerY + 8;
+      const col1 = margin + contentWidth * (1 / 4);
+      const col2 = margin + contentWidth * (3 / 4);
+
+      doc.setFont("NotoSans", "normal");
+      doc.setFontSize(8.5);
+      doc.text(`Ngày ${day} tháng ${month} năm ${year}`, col2, signBlockY, { align: "center" });
+
+      const titleY = signBlockY + 6;
       doc.setFont("NotoSans", "bold");
       doc.setFontSize(9);
-      doc.setTextColor(...navy);
-      doc.text("TỔNG CỘNG", pageWidth - margin - 5, finalY + 12, { align: "right" });
-      doc.setFontSize(14);
-      doc.text(formatPrice(group.total_amount), pageWidth - margin - 5, finalY + 20, { align: "right" });
+      doc.text("Người lập phiếu", col1, titleY, { align: "center" });
+      doc.text("Người nhận hàng", col2, titleY, { align: "center" });
 
-      const signY = finalY + 40;
       doc.setFont("NotoSans", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(...slate);
-      doc.text("Thủ kho ký tên", margin + 20, signY, { align: "center" });
-      doc.text("Kỹ thuật viên ký tên", pageWidth - margin - 20, signY, { align: "center" });
+      doc.setFontSize(7.5);
+      doc.text("(Ký, họ tên)", col1, titleY + 4, { align: "center" });
+      doc.text("(Ký, họ tên)", col2, titleY + 4, { align: "center" });
 
-      doc.save(`${group.code}.pdf`);
+      const nameY = titleY + 24;
+      doc.setFontSize(8.5);
+      doc.text(managerName, col1, nameY, { align: "center" });
+      doc.text(receiverName, col2, nameY, { align: "center" });
+
+      doc.save(`${receiptCode}.pdf`);
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Không thể tạo phiếu xuất kho.", "warning");
     }
@@ -808,47 +930,74 @@ export default function InventoryApprovedQuotes() {
                   <p className="text-[10px] font-bold uppercase tracking-widest text-white/65">
                     Phiếu {signingReceipt.receiptCode}
                   </p>
-                  <h4 className="text-base font-bold text-white">Ký nhận phụ tùng</h4>
+                  <h4 className="text-base font-bold text-white">Xác nhận nhận phụ tùng</h4>
                 </div>
               </div>
               <div className="px-6 py-5">
                 <p className="text-sm text-slate-600 mb-1">
-                  Kỹ thuật viên <span className="font-bold text-[#00285E]">{signingReceipt.technicianName}</span> vui
-                  lòng ký tên bên dưới để xác nhận đã nhận đủ phụ tùng.
+                  Kỹ thuật viên <span className="font-bold text-[#00285E]">{signingReceipt.technicianName}</span> ký
+                  tên trực tiếp lên phiếu giấy. Sau đó chụp ảnh tờ phiếu đã ký để lưu làm bằng chứng nhận hàng.
                 </p>
-                <p className="text-xs text-slate-400 mb-3">Dùng ngón tay hoặc chuột để ký trực tiếp lên khung.</p>
-                <SignaturePad ref={signaturePadRef} height={180} />
+                <p className="text-xs text-slate-400 mb-3">Có thể dùng camera thiết bị hoặc chọn ảnh có sẵn.</p>
+
+                <input
+                  ref={proofPhotoInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleProofPhotoChange}
+                />
+
+                {proofPhotoPreview ? (
+                  <div className="relative">
+                    <img
+                      src={proofPhotoPreview}
+                      alt="Ảnh phiếu đã ký"
+                      className="w-full max-h-72 object-contain rounded-xl border border-slate-200 bg-slate-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => proofPhotoInputRef.current?.click()}
+                      className="mt-2 text-xs font-bold text-[#00285E] hover:text-[#001E46]"
+                    >
+                      Chụp/chọn ảnh khác
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => proofPhotoInputRef.current?.click()}
+                    className="w-full flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 py-10 text-slate-500 hover:border-[#00285E]/40 hover:text-[#00285E] transition-colors"
+                  >
+                    <Camera size={28} />
+                    <span className="text-sm font-bold">Chụp ảnh phiếu đã ký</span>
+                  </button>
+                )}
               </div>
               <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4">
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => signaturePadRef.current?.clear()}
-                    className="text-xs font-bold text-slate-500 hover:text-slate-700"
-                  >
-                    Ký lại
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handlePrintReceipt(signingReceipt)}
-                    className="flex items-center gap-1.5 text-xs font-bold text-[#00285E] hover:text-[#001E46]"
-                  >
-                    <FileText size={13} />
-                    In phiếu
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleDownloadReceipt(signingReceipt, signingReceipt.receiptCode)
+                  }
+                  className="flex items-center gap-1.5 text-xs font-bold text-[#00285E] hover:text-[#001E46]"
+                >
+                  <FileText size={13} />
+                  Tải phiếu PDF
+                </button>
                 <div className="flex items-center gap-2.5">
                   <button
                     type="button"
                     onClick={closeSignModal}
                     className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100"
                   >
-                    Đóng (ký sau)
+                    Đóng (xác nhận sau)
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleSubmitSignature()}
-                    disabled={isSubmittingSignature}
+                    disabled={isSubmittingSignature || !proofPhotoFile}
                     className="flex items-center gap-2 rounded-xl bg-[#00285E] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#001E46] disabled:opacity-60"
                   >
                     {isSubmittingSignature ? (
@@ -857,7 +1006,7 @@ export default function InventoryApprovedQuotes() {
                         Đang lưu...
                       </>
                     ) : (
-                      "Xác nhận ký"
+                      "Xác nhận đã nhận hàng"
                     )}
                   </button>
                 </div>

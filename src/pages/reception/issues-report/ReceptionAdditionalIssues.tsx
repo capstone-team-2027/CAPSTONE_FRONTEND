@@ -104,8 +104,11 @@ export default function ReceptionAdditionalIssues() {
     setIsLoading(true);
     setErrorMessage("");
     try {
+      // BE đã gộp danh sách lỗi INSPECTION + REPAIR chung vào 1 endpoint (ISSUES_REPORT).
+      // Endpoint /issues/additional riêng đã bị xóa — trang này giữ lại làm UI phụ (lỡ cần
+      // dùng sau), nhưng phải trỏ về endpoint chung để không bị lỗi 404.
       const response = await fetchPrivate<GetIssuesReportItemResponse[]>(
-        ISSUE_REPORTS_ENDPOINTS.ADDITIONAL_ISSUES_REPORT,
+        ISSUE_REPORTS_ENDPOINTS.ISSUES_REPORT,
       );
       const data = Array.isArray(response) ? response : response?.data ?? [];
       setIssues(data);

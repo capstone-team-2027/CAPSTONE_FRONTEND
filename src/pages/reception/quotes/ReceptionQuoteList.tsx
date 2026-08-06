@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+﻿import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import type {
   GetQuotationResponse,
@@ -36,104 +36,6 @@ import { useFetchClient } from "../../../hook/useFetchClient";
 import { useSocket } from "../../../hook/useSocket";
 import { QUOTE_MANAGEMENT_ENDPOINTS } from "../../../constants/reception/quoteManagementEndpoints";
 import { buildQuotationPdfDocument } from "../../../services/quotationPdf.service";
-import "react-phone-input-2/lib/style.css";
-import * as PhoneInputLib from "react-phone-input-2";
-import type { ConfirmationResult } from "firebase/auth";
-import {
-  clearRecaptcha,
-  sendOtp as sendFirebaseOtp,
-  verifyOtp,
-} from "../../../services/firebaseOtp";
-
-type PhoneInputModule = { default?: unknown };
-
-const resolvePhoneInput = <T,>(phoneInputModule: unknown): T => {
-  const module = phoneInputModule as PhoneInputModule;
-  if (module && typeof module === "object" && "default" in module) {
-    const defaultExport = module.default as unknown;
-    if (
-      defaultExport &&
-      typeof defaultExport === "object" &&
-      "default" in (defaultExport as PhoneInputModule)
-    ) {
-      return (defaultExport as PhoneInputModule).default as T;
-    }
-    return defaultExport as T;
-  }
-  return phoneInputModule as T;
-};
-
-type PhoneInputProps = {
-  country?: string;
-  value?: string;
-  onChange?: (value: string) => void;
-  enableSearch?: boolean;
-  searchPlaceholder?: string;
-  inputProps?: { name?: string; autoFocus?: boolean; readOnly?: boolean };
-  countryCodeEditable?: boolean;
-  disableDropdown?: boolean;
-};
-
-const PhoneInput =
-  resolvePhoneInput<React.ComponentType<PhoneInputProps>>(PhoneInputLib);
-
-const quotationPhoneStyles = `
-  .quotation-otp-phone .react-tel-input .form-control {
-    width: 100% !important;
-    height: 48px !important;
-    border: 1px solid #e2e8f0 !important;
-    border-radius: 0.75rem !important;
-    padding-left: 58px !important;
-    font-size: 14px !important;
-    font-weight: 600 !important;
-    color: #1e293b !important;
-    outline: none !important;
-    transition: all 0.2s !important;
-  }
-  .quotation-otp-phone .react-tel-input .form-control:focus {
-    border-color: #00285e !important;
-    box-shadow: 0 0 0 4px rgba(0, 40, 94, 0.1) !important;
-  }
-  .quotation-otp-phone .react-tel-input .form-control[readonly] {
-    background: #f8fafc !important;
-    color: #475569 !important;
-    cursor: not-allowed !important;
-  }
-  .quotation-otp-phone .react-tel-input .form-control[readonly]:focus {
-    border-color: #e2e8f0 !important;
-    box-shadow: none !important;
-  }
-  .quotation-otp-phone .react-tel-input .flag-dropdown {
-    background: #f8fafc !important;
-    border: 1px solid #e2e8f0 !important;
-    border-right: 0 !important;
-    border-radius: 0.75rem 0 0 0.75rem !important;
-  }
-  .quotation-otp-phone .react-tel-input .selected-flag {
-    padding-left: 14px !important;
-    border-radius: 0.75rem 0 0 0.75rem !important;
-  }
-  .quotation-otp-phone .react-tel-input .country-list {
-    width: 340px !important;
-    max-height: 220px !important;
-    margin-top: 4px !important;
-    border: 1px solid #e2e8f0 !important;
-    border-radius: 0.75rem !important;
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16) !important;
-  }
-  .quotation-otp-phone .react-tel-input .country-list .search {
-    background: #f8fafc !important;
-    padding: 8px !important;
-  }
-  .quotation-otp-phone .react-tel-input .search-box {
-    width: calc(100% - 8px) !important;
-    margin-left: 4px !important;
-    border: 1px solid #e2e8f0 !important;
-    border-radius: 0.5rem !important;
-    padding: 7px 10px !important;
-    outline: none !important;
-  }
-`;
 
 interface QuotationRow extends GetQuotationResponse {
   code: string;
@@ -383,19 +285,7 @@ export default function ReceptionQuoteList() {
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [showDepositPayment, isDepositPaid, selectedQuotation?.id]);
-  // Modal nhập OTP trước khi duyệt báo giá
-  const [confirmApprove, setConfirmApprove] = useState(false);
-  const [otpPhone, setOtpPhone] = useState("");
-  const [isOtpSent, setIsOtpSent] = useState(false);
-  const [otpValue, setOtpValue] = useState("");
-  const [resendCountdown, setResendCountdown] = useState(60);
-  const [otpConfirmation, setOtpConfirmation] =
-    useState<ConfirmationResult | null>(null);
-  const [otpError, setOtpError] = useState("");
-  const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
-  const isSendingOtpRef = useRef(false);
-  const otpInputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   useEffect(() => {
     handleGetQuotationHistory();
@@ -412,14 +302,6 @@ export default function ReceptionQuoteList() {
       socket.off("new_notification", handleNewNotification);
     };
   }, [socket]);
-
-  useEffect(() => {
-    if (!confirmApprove || !isOtpSent || resendCountdown <= 0) return;
-    const countdownTimer = window.setInterval(() => {
-      setResendCountdown((current) => Math.max(0, current - 1));
-    }, 1000);
-    return () => window.clearInterval(countdownTimer);
-  }, [confirmApprove, isOtpSent, resendCountdown]);
 
   const handleGetQuotationHistory = async () => {
     try {
@@ -584,144 +466,22 @@ export default function ReceptionQuoteList() {
     setServicePicker("");
     setPickedIssueIds([]);
     setShowDepositPayment(false);
-    setConfirmApprove(false);
-    setOtpPhone("");
-    setIsOtpSent(false);
-    setOtpValue("");
-    setResendCountdown(60);
-    setOtpConfirmation(null);
-    setOtpError("");
-    clearRecaptcha();
   };
 
-  const closeOtpModal = () => {
-    if (isSendingOtp || isApproving) return;
-    setConfirmApprove(false);
-    setOtpPhone("");
-    setIsOtpSent(false);
-    setOtpValue("");
-    setResendCountdown(60);
-    setOtpConfirmation(null);
-    setOtpError("");
-    clearRecaptcha();
-  };
-
-  const sendOtp = async () => {
-    if (isSendingOtpRef.current) return;
-    const normalizedPhone = otpPhone.replace(/\D/g, "");
-    if (!/^\d{7,15}$/.test(normalizedPhone)) {
-      showToast("Vui lòng nhập số điện thoại hợp lệ.", "warning");
-      return;
-    }
-    isSendingOtpRef.current = true;
-    setIsSendingOtp(true);
-    setOtpError("");
-    try {
-      clearRecaptcha();
-      const confirmation = await sendFirebaseOtp(
-        `+${normalizedPhone}`,
-        QUOTE_RECAPTCHA_CONTAINER_ID,
-      );
-      setOtpPhone(normalizedPhone);
-      setOtpConfirmation(confirmation);
-      setOtpValue("");
-      setIsOtpSent(true);
-      setResendCountdown(60);
-    } catch (error: any) {
-      console.error(error);
-      setOtpError(error?.message || "Không thể gửi mã OTP. Vui lòng thử lại.");
-      clearRecaptcha();
-    } finally {
-      isSendingOtpRef.current = false;
-      setIsSendingOtp(false);
-    }
-  };
-
-  const resendOtp = async () => {
-    if (
-      resendCountdown > 0 ||
-      isSendingOtp ||
-      isSendingOtpRef.current
-    ) {
-      return;
-    }
-    isSendingOtpRef.current = true;
-    setIsSendingOtp(true);
-    setOtpError("");
-    try {
-      clearRecaptcha();
-      const confirmation = await sendFirebaseOtp(
-        `+${otpPhone}`,
-        QUOTE_RECAPTCHA_CONTAINER_ID,
-      );
-      setOtpConfirmation(confirmation);
-      setOtpValue("");
-      setResendCountdown(60);
-      otpInputRefs.current[0]?.focus();
-    } catch (error: any) {
-      console.error(error);
-      setOtpError(
-        error?.message || "Không thể gửi lại mã OTP. Vui lòng thử lại.",
-      );
-      clearRecaptcha();
-    } finally {
-      isSendingOtpRef.current = false;
-      setIsSendingOtp(false);
-    }
-  };
-
-  const updateOtpDigit = (index: number, value: string) => {
-    const digit = value.replace(/\D/g, "").slice(-1);
-    const digits = otpValue.padEnd(6, " ").split("");
-    digits[index] = digit || " ";
-    setOtpValue(digits.join("").trimEnd());
-    if (digit && index < 5) {
-      otpInputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleOtpPaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
-    const pastedOtp = event.clipboardData
-      .getData("text")
-      .replace(/\D/g, "")
-      .slice(0, 6);
-    if (!pastedOtp) return;
-    event.preventDefault();
-    setOtpValue(pastedOtp);
-    otpInputRefs.current[Math.min(pastedOtp.length, 6) - 1]?.focus();
-  };
-
-  const handleOtpConfirmation = async () => {
-    if (!/^\d{6}$/.test(otpValue)) return;
-    if (!selectedQuotation || !otpConfirmation) {
-      setOtpError("Phiên xác thực đã hết hạn. Vui lòng gửi lại mã OTP.");
-      return;
-    }
+  const handleApproveQuotation = async () => {
+    if (!selectedQuotation) return;
     setIsApproving(true);
-    setOtpError("");
     try {
-      const idToken = await verifyOtp(otpConfirmation, otpValue);
       await fetchPrivate(
-        QUOTE_MANAGEMENT_ENDPOINTS.APPROVE_QUOTE_OTP(
-          selectedQuotation.id,
-        ),
+        QUOTE_MANAGEMENT_ENDPOINTS.APPROVE_QUOTE(selectedQuotation.id),
         "PATCH",
-        { idToken },
       );
-      showToast("Xác thực OTP thành công!", "success");
-      setOtpConfirmation(null);
-      clearRecaptcha();
+      showToast("Đã duyệt báo giá!", "success");
       closeQuotationDetail();
       await handleGetQuotationHistory();
     } catch (error: any) {
       console.error(error);
-      const message =
-        error?.code === "auth/invalid-verification-code"
-          ? "Mã OTP không đúng. Vui lòng kiểm tra và thử lại."
-          : error?.code === "auth/code-expired"
-            ? "Mã OTP đã hết hạn. Vui lòng gửi lại mã mới."
-            : error?.message || "Không thể xác thực và duyệt báo giá.";
-      setOtpError(message);
+      showToast(error?.message || "Không thể duyệt báo giá.", "warning");
     } finally {
       setIsApproving(false);
     }
@@ -2494,22 +2254,15 @@ export default function ReceptionQuoteList() {
                     {/* Gọi điện xác nhận với khách xong -> duyệt để chuyển kho xuất hàng */}
                     {selectedQuotation.status === "PENDING" && (
                       <button
-                        onClick={() => {
-                          setOtpPhone(
-                            normalizePhoneForCountryInput(
-                              selectedQuotation.customerPhone || "",
-                            ),
-                          );
-                          setIsOtpSent(false);
-                          setOtpValue("");
-                          setResendCountdown(60);
-                          setOtpConfirmation(null);
-                          setOtpError("");
-                          setConfirmApprove(true);
-                        }}
-                        className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-600/25 hover:shadow-emerald-600/40 hover:brightness-105 active:scale-[0.98] transition-all"
+                        onClick={() => void handleApproveQuotation()}
+                        disabled={isApproving}
+                        className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-600/25 hover:shadow-emerald-600/40 hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        <CheckCircle2 size={16} />
+                        {isApproving ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <CheckCircle2 size={16} />
+                        )}
                         Hỗ trợ duyệt báo giá
                       </button>
                     )}
@@ -2532,204 +2285,6 @@ export default function ReceptionQuoteList() {
                   </>
                 )}
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* XÁC THỰC OTP TRƯỚC KHI DUYỆT BÁO GIÁ */}
-      {confirmApprove && selectedQuotation && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <style>{quotationPhoneStyles}</style>
-          <div
-            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
-            onClick={closeOtpModal}
-          />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden ring-1 ring-slate-900/5">
-            <div className="px-7 pt-7 pb-6">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2.5 rounded-xl bg-[#EDF3FF] shrink-0">
-                    <CheckCircle2 size={20} className="text-[#00285E]" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-800">
-                      {isOtpSent ? "Xác thực mã OTP" : "Gửi mã xác thực"}
-                    </h3>
-                    <p className="text-sm text-slate-500 leading-relaxed mt-1">
-                      Xác thực sự đồng ý của khách hàng trước khi duyệt báo giá.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={closeOtpModal}
-                  className="p-2 -mt-1 -mr-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-                  aria-label="Đóng"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Khách hàng
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-slate-800">
-                    {selectedQuotation.customerName}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {selectedQuotation.customerPhone || "—"}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Thông tin xe
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-slate-800">
-                    {selectedQuotation.vehiclePlate || "—"}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {[selectedQuotation.vehicleName, selectedQuotation.vehicleColor]
-                      .filter(Boolean)
-                      .join(" · ") || "—"}
-                  </p>
-                </div>
-              </div>
-
-              {!isOtpSent ? (
-                <div className="mt-6">
-                  <label
-                    htmlFor="quotation-otp-phone"
-                    className="block text-sm font-semibold text-slate-700 mb-2"
-                  >
-                    Số điện thoại nhận OTP
-                  </label>
-                  <div className="quotation-otp-phone">
-                    <PhoneInput
-                      country="vn"
-                      value={otpPhone}
-                      enableSearch
-                      searchPlaceholder="Tìm quốc gia..."
-                      inputProps={{
-                        name: "quotation-otp-phone",
-                        readOnly: true,
-                      }}
-                      disableDropdown
-                      countryCodeEditable={false}
-                    />
-                  </div>
-                  <p className="mt-2 text-xs text-slate-400">
-                    Mã OTP được gửi tới số điện thoại của khách hàng trên phiếu
-                    dịch vụ.
-                  </p>
-                </div>
-              ) : (
-                <div className="mt-6">
-                  <div className="mb-4 rounded-xl border border-[#00285E]/10 bg-[#EDF3FF] px-4 py-3">
-                    <p className="text-xs text-slate-500">
-                      Mã đã được gửi đến
-                    </p>
-                    <p className="mt-0.5 text-sm font-bold text-[#00285E]">
-                      {formatPhoneForDisplay(otpPhone)}
-                    </p>
-                  </div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-3">
-                    Mã OTP gồm 6 chữ số
-                  </label>
-                  <div className="flex items-center justify-between gap-2">
-                    {Array.from({ length: 6 }, (_, index) => (
-                      <input
-                        key={index}
-                        ref={(element) => {
-                          otpInputRefs.current[index] = element;
-                        }}
-                        type="text"
-                        inputMode="numeric"
-                        autoComplete={index === 0 ? "one-time-code" : "off"}
-                        maxLength={1}
-                        autoFocus={index === 0}
-                        value={otpValue[index]?.trim() || ""}
-                        onChange={(event) =>
-                          updateOtpDigit(index, event.target.value)
-                        }
-                        onPaste={handleOtpPaste}
-                        onKeyDown={(event) => {
-                          if (
-                            event.key === "Backspace" &&
-                            !otpValue[index] &&
-                            index > 0
-                          ) {
-                            otpInputRefs.current[index - 1]?.focus();
-                          }
-                        }}
-                        aria-label={`Chữ số OTP ${index + 1}`}
-                        className="h-12 min-w-0 w-full rounded-xl border border-slate-200 bg-white text-center text-lg font-bold text-[#00285E] outline-none transition-all focus:border-[#00285E] focus:ring-4 focus:ring-[#00285E]/10"
-                      />
-                    ))}
-                  </div>
-                  <div className="mt-4 flex justify-center">
-                    <button
-                      type="button"
-                      onClick={() => void resendOtp()}
-                      disabled={resendCountdown > 0 || isSendingOtp}
-                      className="text-sm font-semibold text-[#00285E] transition-colors hover:underline disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline"
-                    >
-                      {isSendingOtp
-                        ? "Đang gửi lại mã..."
-                        : resendCountdown > 0
-                          ? `Gửi lại mã sau ${resendCountdown}s`
-                          : "Gửi lại mã OTP"}
-                    </button>
-                  </div>
-                  <p className="mt-3 text-center text-xs text-slate-400">
-                    Chỉ tiếp tục duyệt báo giá khi mã OTP được xác thực chính xác.
-                  </p>
-                </div>
-              )}
-              {otpError && (
-                <div className="mt-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-sm text-rose-600">
-                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                  <span>{otpError}</span>
-                </div>
-              )}
-              <div id={QUOTE_RECAPTCHA_CONTAINER_ID} />
-            </div>
-            <div className="flex items-center justify-end gap-2.5 px-6 py-4 bg-slate-50 border-t border-slate-100">
-              <button
-                onClick={closeOtpModal}
-                disabled={isSendingOtp || isApproving}
-                className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={() =>
-                  void (isOtpSent ? handleOtpConfirmation() : sendOtp())
-                }
-                disabled={
-                  isSendingOtp ||
-                  isApproving ||
-                  (isOtpSent
-                    ? !/^\d{6}$/.test(otpValue)
-                    : !otpPhone.trim())
-                }
-                className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-600/25 hover:shadow-emerald-600/40 hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
-              >
-                {isSendingOtp || isApproving ? (
-                  <Loader2 size={15} className="animate-spin" />
-                ) : (
-                  <CheckCircle2 size={15} />
-                )}
-                {isApproving
-                  ? "Đang xác thực..."
-                  : isSendingOtp
-                    ? "Đang gửi..."
-                    : isOtpSent
-                      ? "Xác nhận"
-                      : "Gửi mã OTP"}
-              </button>
             </div>
           </div>
         </div>

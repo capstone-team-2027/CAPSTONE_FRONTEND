@@ -58,7 +58,7 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
   const [estimatedPrice, setEstimatedPrice] = useState<number>(0);
   const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
 
-  const garageLocation: [number, number] = [15.9675, 108.2605]; // FPT University Da Nang
+  const garageLocation: [number, number] = [15.9675, 108.2605]; // 480 Trần Quốc Hoàn, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng
 
   // Fetch Technicians
   useEffect(() => {
@@ -193,7 +193,7 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
                     <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
                       <p className="text-xs text-blue-600 font-medium">Phí cứu hộ gợi ý</p>
                       <p className="font-black text-blue-700 text-lg">
-                        {estimatedPrice.toLocaleString('vi-VN')} đ
+                        {estimatedPrice.toLocaleString('vi-VN')} VND
                       </p>
                     </div>
                   </div>

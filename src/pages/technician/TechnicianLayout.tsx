@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Calendar,
   Siren,
+  LayoutDashboard,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
@@ -26,6 +27,8 @@ import { useSocket } from '../../hook/useSocket';
 import { loginSuccess, logout } from "../../store/slices/userSlice";
 import { PROFILE_API_ENDPOINTS } from "../../constants/common/profileEndpoints";
 import { NOTIFICATION_API_ENDPOINTS } from "../../constants/technician/notificationEndpoints";
+import { AUTH_API_ENDPOINTS } from "../../constants/customer/authApiEndpoints";
+import LogoutConfirmModal from "../../components/share/LogoutConfirmModal";
 
 export default function TechnicianLayout() {
   const navigate = useNavigate();
@@ -40,6 +43,7 @@ export default function TechnicianLayout() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [toastMessage, setToastMessage] = useState<{
     type: "success" | "info" | "warning";
     text: string;
@@ -114,6 +118,22 @@ export default function TechnicianLayout() {
     }, 5000);
   };
 
+  const handleLogoutConfirm = async () => {
+    setShowLogoutConfirm(false);
+    showToast("Đang đăng xuất tài khoản...", "warning");
+    try {
+      await fetchPrivate(AUTH_API_ENDPOINTS.LOGOUT, "POST");
+    } catch (err) {
+      console.error("Lỗi khi đăng xuất trên server:", err);
+    }
+    localStorage.removeItem("token");
+    localStorage.removeItem("userAvatar");
+    dispatch(logout());
+    setTimeout(() => {
+      window.location.href = "/login";
+    }, 1000);
+  };
+
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
@@ -172,6 +192,12 @@ export default function TechnicianLayout() {
 
   const menuGroups = [
     {
+      label: null,
+      items: [
+        { name: "Tổng quan", icon: LayoutDashboard, path: "/technician/overview" },
+      ],
+    },
+    {
       label: 'Công việc',
       items: [
         { name: 'Cứu hộ khẩn cấp', icon: Siren, path: '/technician/rescue' },
@@ -192,13 +218,14 @@ export default function TechnicianLayout() {
 
   const activeMenu = useMemo(() => {
     const path = location.pathname;
+    if (path.includes('/overview')) return 'Tổng quan';
     if (path.includes('/rescue')) return 'Cứu hộ khẩn cấp';
     if (path.includes("/assignments")) return "Phân công";
     if (path.includes("/my-shifts")) return "Lịch làm việc";
     if (path.includes("/issues-reports")) return "Lịch sử báo cáo";
     if (path.includes("/work-history")) return "Lịch sử công việc";
     if (path.includes("/progress")) return "Cập nhật tiến độ";
-    return "Phân công";
+    return "Tổng quan";
   }, [location.pathname]);
 
   const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => (
@@ -278,17 +305,7 @@ export default function TechnicianLayout() {
           <span>Hỗ trợ</span>
         </button>
         <button
-          onClick={() => {
-            if (confirm("Bạn có chắc chắn muốn đăng xuất?")) {
-              showToast("Đang đăng xuất tài khoản...", "warning");
-              localStorage.removeItem("token");
-              localStorage.removeItem("userAvatar");
-              dispatch(logout());
-              setTimeout(() => {
-                window.location.href = "/login";
-              }, 1000);
-            }
-          }}
+          onClick={() => setShowLogoutConfirm(true)}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
         >
           <LogOut size={18} />
@@ -615,6 +632,12 @@ export default function TechnicianLayout() {
           </div>
         </footer>
       </main>
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={handleLogoutConfirm}
+      />
     </div>
   );
 }

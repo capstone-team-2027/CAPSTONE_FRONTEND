@@ -32,7 +32,6 @@ interface ServiceItem {
     category: string;
     image: string;
     duration?: string;
-    details?: string[];
     originalPrice?: string;
     discountPercentage?: number;
     promoText?: string;
@@ -56,7 +55,7 @@ export default function Services() {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const { fetchPublic } = useFetchClient();
-    const [activeTab, setActiveTab] = useState('services');
+    const [activeTab, setActiveTab] = useState('all');
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedService, setSelectedService] = useState<ServiceItem | null>(null);
     const [selectedCombo, setSelectedCombo] = useState<any>(null);
@@ -88,7 +87,7 @@ export default function Services() {
                     setDbCategories(catRes.data);
                 }
                 const comboRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_COMBOS);
-                const comboItems = comboRes?.data?.items || [];
+                const comboItems = comboRes?.data || [];
                 if (comboItems.length > 0) {
                     const mappedCombos = comboItems.map((c: any) => ({
                         id: c.id,
@@ -117,7 +116,7 @@ export default function Services() {
                 const categoryId = activeTab !== 'all' ? activeTab : '';
                 const query = `page=${currentPage}&limit=${itemsPerPage}&search=${search}&category_id=${categoryId}`;
                 
-                const svcRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.GET_SERVICES}?${query}`);
+                const svcRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.SEARCH_SERVICES}?${query}`);
                 if (svcRes?.data) {
                     setDbServices(svcRes.data.items || []);
                     setTotalPages(svcRes.data.totalPages || 1);
@@ -197,72 +196,6 @@ export default function Services() {
         return "";
     };
 
-    const getServiceDetails = (serviceName: string): string[] => {
-        const lowerS = serviceName.toLowerCase();
-        if (lowerS.includes("cấp 1")) return [
-            "Thay nhớt động cơ chính hãng phù hợp thông số xe.",
-            "Kiểm tra và làm sạch lọc gió động cơ, lọc gió cabin.",
-            "Kiểm tra hệ thống phanh, má phanh, đĩa phanh.",
-            "Kiểm tra bình ắc quy và hệ thống chiếu sáng.",
-            "Đọc lỗi lỗi hộp đen (OBD) bằng thiết bị chuyên dụng."
-        ];
-        if (lowerS.includes("cấp 2")) return [
-            "Thay nhớt & lọc nhớt động cơ chính hãng.",
-            "Kiểm tra, làm sạch lọc gió động cơ & lọc gió điều hòa.",
-            "Tháo bánh xe, vệ sinh và dưỡng hệ thống phanh 4 bánh.",
-            "Đảo lốp và kiểm tra độ mòn của gai lốp.",
-            "Kiểm tra tổng quát gầm xe, các khớp nối, rotuyn."
-        ];
-        if (lowerS.includes("cấp 3")) return [
-            "Thay nhớt, lọc nhớt, thay lọc gió động cơ & điều hòa.",
-            "Thay bugi đánh lửa (nếu cần), vệ sinh bướm ga.",
-            "Vệ sinh phanh 4 bánh chuyên sâu, tra mỡ ắc phanh.",
-            "Kiểm tra cân bằng động lốp xe và cân chỉnh góc đặt bánh xe.",
-            "Kiểm tra toàn bộ hệ thống làm mát, dầu phanh, dầu trợ lực lái."
-        ];
-        if (lowerS.includes("kim phun")) return [
-            "Đo áp suất buồng đốt, kiểm tra tỉ số nén động cơ.",
-            "Xử lý hiện tượng rò rỉ dầu máy, hao nước làm mát.",
-            "Cân chỉnh cam, khắc phục tiếng gõ động cơ lạ.",
-            "Đại tu động cơ chuyên nghiệp theo tiêu chuẩn hãng.",
-            "Vệ sinh kim phun, họng hút và buồng đốt bằng máy chuyên dụng."
-        ];
-        if (lowerS.includes("lốp") || lowerS.includes("bánh xe") || lowerS.includes("phanh")) return [
-            "Cân chỉnh thước lái 3D tiên tiến nhất hiện nay.",
-            "Cân bằng động lốp xe triệt tiêu hiện tượng rung vô lăng.",
-            "Láng đĩa phanh trực tiếp không cần tháo rời.",
-            "Thay mới má phanh chính hãng nhập khẩu.",
-            "Kiểm tra toàn bộ đường ống dẫn dầu và cụm heo phanh."
-        ];
-        if (lowerS.includes("nội thất")) return [
-            "Dọn nội thất toàn diện, hút bụi và giặt thảm sàn.",
-            "Vệ sinh bề mặt da ghế bằng dung dịch chuyên sâu bảo vệ da.",
-            "Khử trùng hệ thống điều hòa và khử mùi ozon cabin.",
-            "Dưỡng bóng táp-lô, táp-pi cửa chống lão hóa tia UV.",
-            "Làm sạch trần nỉ và cốp sau tỉ mỉ."
-        ];
-        if (lowerS.includes("obd") || lowerS.includes("lỗi")) return [
-            "Quét toàn bộ lỗi hệ thống điện thân xe, hộp điều khiển.",
-            "Chẩn đoán lỗi cảm biến ABS, ESP, túi khí SRS.",
-            "Kiểm tra tình trạng máy phát điện, máy khởi động.",
-            "Cập nhật phần mềm hệ thống (ECU flashing) nếu có.",
-            "Xóa các mã lỗi ảo phát sinh do sụt điện."
-        ];
-        if (lowerS.includes("cứu hộ") || lowerS.includes("kích bình")) return [
-            "Hỗ trợ kích nổ ắc quy tại chỗ nhanh chóng.",
-            "Hỗ trợ thay lốp dự phòng khẩn cấp.",
-            "Cung cấp nhiên liệu khẩn cấp trên đường.",
-            "Xe cẩu kéo chuyên dụng đưa về trung tâm dịch vụ.",
-            "Đội ngũ cứu hộ túc trực sẵn sàng 24 giờ mỗi ngày."
-        ];
-        return [
-            "Kiểm tra tổng quát tình trạng hoạt động thực tế.",
-            "Sử dụng phụ tùng và linh kiện chính hãng 100%.",
-            "Bảo hành kỹ thuật dài hạn và tư vấn miễn phí.",
-            "Thực hiện nhanh chóng bởi kỹ thuật viên lành nghề."
-        ];
-    };
-
     const categories = dbCategories.length > 0
         ? [
             { id: 'all', label: t('common.all', 'Tất cả') },
@@ -286,14 +219,13 @@ export default function Services() {
             title: s.service_name,
             desc: s.description || "",
             icon: getServiceIcon(s.service_name, categoryName),
-            price: priceValue > 0 ? `Từ ${priceValue.toLocaleString("vi-VN")}đ` : "Liên hệ",
+            price: priceValue > 0 ? `${priceValue.toLocaleString("vi-VN")} VNĐ` : "Liên hệ",
             originalPrice: "",
             discountPercentage: undefined,
             promoText: "",
             category: String(s.category_id),
             image: getServiceImage(s.service_name, categoryName),
             duration: s.estimated_duration ? `${s.estimated_duration} phút` : undefined,
-            details: getServiceDetails(s.service_name),
         };
     });
 
@@ -379,7 +311,7 @@ export default function Services() {
                                     window.open('tel:19001234');
                                 }}
                             >
-                                {t('services.emergencyConsult', 'Tư vấn nhanh')}
+                                {t('services.emergencyConsult', 'Gọi Hotline')}
                             </Button>
                         </div>
                     </motion.div>
@@ -497,10 +429,6 @@ export default function Services() {
                                                     {t('services.discountLabel', 'Giảm {{percent}}%', { percent: service.discountPercentage })}
                                                 </div>
                                             )}
-                                            <div className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-md text-white text-[11px] font-bold shadow-md"
-                                                style={{ backgroundColor: `${COLORS.navy}F0` }}>
-                                                {service.price}
-                                            </div>
                                         </div>
 
                                         <div className="p-4 md:p-5 flex-grow flex flex-col justify-between">
@@ -514,18 +442,18 @@ export default function Services() {
                                                 </p>
 
                                                 {/* Price & Promo Info */}
-                                                <div className="mb-4 py-2 px-3 bg-slate-50 rounded-xl border border-gray-100 flex flex-col gap-1 text-left">
+                                                <div className="mb-4 py-2 px-3 rounded-xl flex flex-col gap-1 text-left" style={{ backgroundColor: COLORS.navy }}>
                                                     <div className="flex items-baseline justify-between">
-                                                        <span className="text-[10px] text-gray-400 font-medium">
-                                                            {service.originalPrice ? t('services.originalPriceLabel', 'Giá gốc:') : ''}
+                                                        <span className="text-[10px] text-white/70 font-medium">
+                                                            {service.originalPrice ? t('services.originalPriceLabel', 'Giá gốc:') : t('services.priceLabel', 'Giá:')}
                                                         </span>
                                                         <div className="flex items-baseline gap-1.5">
                                                             {service.originalPrice && (
-                                                                <span className="text-[10px] text-gray-400 line-through font-medium">
+                                                                <span className="text-[10px] text-white/50 line-through font-medium">
                                                                     {service.originalPrice}
                                                                 </span>
                                                             )}
-                                                            <span className="text-xs font-black text-brand-blue">
+                                                            <span className="text-xs font-black text-white">
                                                                 {service.price}
                                                             </span>
                                                         </div>
@@ -866,20 +794,6 @@ export default function Services() {
                                         {selectedService.desc}
                                     </p>
                                 </div>
-
-                                {selectedService.details && selectedService.details.length > 0 && (
-                                    <div className="space-y-3">
-                                        <h4 className="text-sm font-bold text-brand-blue uppercase tracking-wider">{t('services.modal.itemsLabel', 'Các hạng mục công việc')}</h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-500">
-                                            {selectedService.details.map((detail, index) => (
-                                                <div key={index} className="flex items-start gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                                                    <span className="w-1.5 h-1.5 bg-brand-orange rounded-full shrink-0 mt-1.5" />
-                                                    <span>{detail}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
 
                                 <div className="flex items-center gap-3 bg-blue-50/50 p-4 rounded-2xl border border-blue-50 text-[11px] text-gray-500 leading-relaxed">
                                     <ShieldCheck className="w-5 h-5 text-brand-blue shrink-0" />

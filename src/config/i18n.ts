@@ -613,15 +613,15 @@ const resources = {
             desc: "Chăm chút từng milimét hệ thống phanh và treo, mang lại sự êm ái và an toàn trên mọi địa hình."
           }
         },
-        ctaTitle: "Gia nhập đội ngũ của chúng tôi",
-        ctaDesc: "Bạn có đam mê với ô tô và mong muốn làm việc trong môi trường chuyên nghiệp, hiện đại? Chúng tôi luôn chào đón những tài năng mới.",
-        viewJobs: "Xem vị trí tuyển dụng",
-        sendResume: "Gửi hồ sơ"
+        ctaTitle: "Tin tưởng sử dụng dịch vụ của chúng tôi",
+        ctaDesc: "Đội ngũ kỹ thuật viên chuyên nghiệp, giàu kinh nghiệm luôn sẵn sàng chăm sóc chiếc xe của bạn với chất lượng tốt nhất.",
+        bookNow: "Đặt lịch ngay",
+        viewOverview: "Tổng quan hệ thống"
       },
       services: {
         heroTitle: "Dịch vụ chuyên nghiệp",
         heroDesc: "Nâng tầm trải nghiệm bảo dưỡng xe với đội ngũ kỹ thuật viên tay nghề cao và công nghệ chẩn đoán tiên tiến nhất. Chúng tôi cam kết mang lại sự an toàn tuyệt đối cho mọi hành trình của bạn.",
-        emergencyConsult: "Tư vấn nhanh",
+        emergencyConsult: "Gọi Hotline",
         forYourCar: "DÀNH CHO XE CỦA BẠN",
         catalogTitle: "Danh mục dịch vụ",
         searchPlaceholder: "Tìm kiếm dịch vụ bảo dưỡng...",
@@ -1028,7 +1028,7 @@ const resources = {
         },
         hotline: {
           title: "Cần tư vấn trực tiếp?",
-          value: "Hotline: 1900 1234"
+          value: "Hotline: (+84) 965147731"
         }
       },
       home: {
@@ -1070,10 +1070,10 @@ const resources = {
           label: "ĐƠN GIẢN & NHANH CHÓNG",
           title: "Quy trình 4 bước",
           desc: "Đặt lịch bảo dưỡng cho chiếc xe của bạn chỉ trong vòng chưa đầy hai phút. Hệ thống thông minh của chúng tôi sẽ xử lý phần còn lại.",
-          step1: { title: "Chọn dịch vụ", desc: "Lựa chọn các gói bảo dưỡng và sửa chữa toàn diện từ danh mục dịch vụ được thiết kế riêng cho dòng xe của bạn." },
-          step2: { title: "Chọn thời gian", desc: "Chủ động chọn ngày giờ phù hợp trực tiếp trên hệ thống cập nhật lịch trống theo thời gian thực." },
-          step3: { title: "Chọn kỹ thuật viên", desc: "Hệ thống sẽ tự động chỉ định hoặc cho phép bạn chọn chuyên gia kỹ thuật phù hợp nhất với yêu cầu." },
-          step4: { title: "Xác nhận đặt lịch", desc: "Nhận ngay thông báo xác nhận lịch hẹn kèm thông tin chi tiết về gói dịch vụ, kỹ thuật viên phụ trách và chỉ dẫn đường đi." }
+          step1: { title: "Thông tin xe", desc: "Chọn hình thức đặt lịch và cung cấp thông tin chiếc xe cần bảo dưỡng hoặc sửa chữa." },
+          step2: { title: "Chọn dịch vụ", desc: "Lựa chọn dịch vụ, gói bảo dưỡng hoặc mô tả vấn đề bạn đang cần tư vấn." },
+          step3: { title: "Chọn thời gian", desc: "Chọn ngày giờ phù hợp trong các khung thời gian còn trống trên hệ thống." },
+          step4: { title: "Xác nhận đặt lịch", desc: "Kiểm tra lại thông tin, xác nhận yêu cầu và nhận mã đặt lịch của bạn." }
         },
         team: {
           label: "ĐỘI NGŨ CỦA CHÚNG TÔI",
@@ -1113,6 +1113,15 @@ const resources = {
           article1: { title: "Tìm hiểu về công nghệ phủ ceramic: Bảo vệ tối ưu cho tài sản của bạn", desc: "Lớp phủ ceramic hiện đại liên kết ở cấp độ phân tử, tạo ra lớp màng bảo vệ kị nước có độ bền vượt trội so với các loại sáp phủ thông thường..." },
           article2: { title: "Tìm hiểu về tinh chỉnh ECU: Tăng hiệu năng nhưng vẫn đảm bảo độ bền", desc: "Làm thế nào để cân bằng giữa hiệu suất và tuổi thọ động cơ? Các chuyên gia Tuning của chúng tôi sẽ làm rõ các giới hạn an toàn..." },
           article3: { title: "Hướng dẫn chăm sóc xe cổ: Bảo vệ toàn diện trong điều kiện khí hậu ẩm", desc: "Kiểm soát nhiệt ẩm, bảo dưỡng ắc quy, bảo vệ lốp xe và kiểm tra các loại dung dịch — trọn bộ cẩm nang chăm sóc..." }
+        },
+        contact: {
+          label: "LIÊN HỆ",
+          title: "Kết nối với chúng tôi",
+          desc: "Liên hệ với AGM Intelligent để được tư vấn dịch vụ, hỗ trợ đặt lịch hoặc tìm đường đến trung tâm chăm sóc xe của chúng tôi.",
+          addressLabel: "Địa chỉ",
+          address: "480 Trần Quốc Hoàn, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng",
+          phoneLabel: "Điện thoại",
+          mapTitle: "Bản đồ vị trí AGM Intelligent"
         },
         cta: {
           title: "Sẵn sàng trải nghiệm?",
@@ -1733,15 +1742,15 @@ const resources = {
             desc: "Caring for every millimeter of the brake and suspension systems, offering smooth and safe rides on all terrains."
           }
         },
-        ctaTitle: "Join Our Team",
-        ctaDesc: "Are you passionate about cars and want to work in a professional, modern environment? We always welcome new talent.",
-        viewJobs: "View Open Positions",
-        sendResume: "Submit Resume"
+        ctaTitle: "Trust Our Service",
+        ctaDesc: "Our team of experienced, professional technicians is always ready to take care of your vehicle with the best quality.",
+        bookNow: "Book Now",
+        viewOverview: "System Overview"
       },
       services: {
         heroTitle: "Professional Services",
         heroDesc: "Elevate your maintenance experience with our highly skilled technicians and advanced diagnostics. We commit to bringing absolute safety to your journey.",
-        emergencyConsult: "Quick Consultation",
+        emergencyConsult: "Call Hotline",
         forYourCar: "FOR YOUR VEHICLE",
         catalogTitle: "Service Catalog",
         searchPlaceholder: "Search maintenance services...",
@@ -2148,7 +2157,7 @@ const resources = {
         },
         hotline: {
           title: "Need direct consultation?",
-          value: "Hotline: 1900 1234"
+          value: "Hotline: (+84) 965147731"
         }
       },
       home: {
@@ -2190,10 +2199,10 @@ const resources = {
           label: "SIMPLE & FAST",
           title: "4-Step Process",
           desc: "Book maintenance for your car in under two minutes. Our intelligent system will handle the rest.",
-          step1: { title: "Select Service", desc: "Choose from comprehensive maintenance and repair packages designed specifically for your vehicle type." },
-          step2: { title: "Choose Time", desc: "Flexibly select a date and time directly on our real-time availability system." },
-          step3: { title: "Pick Technician", desc: "The system will auto-assign or let you select the most suitable technical expert for your needs." },
-          step4: { title: "Confirm Booking", desc: "Receive an instant confirmation with full details about your service package, assigned technician, and directions." }
+          step1: { title: "Vehicle Information", desc: "Choose a booking method and provide details about the vehicle that needs maintenance or repair." },
+          step2: { title: "Select Service", desc: "Choose a service or maintenance package, or describe the issue for which you need advice." },
+          step3: { title: "Choose Time", desc: "Select a suitable date and time from the available appointment slots." },
+          step4: { title: "Confirm Booking", desc: "Review your information, confirm the request, and receive your booking code." }
         },
         team: {
           label: "OUR TEAM",
@@ -2233,6 +2242,15 @@ const resources = {
           article1: { title: "The science behind ceramic coatings: Optimal protection for your investment", desc: "Modern ceramic coatings bond at a molecular level, creating a hydrophobic protective film far more durable than conventional wax products..." },
           article2: { title: "Understanding ECU tuning: Power gains without compromising reliability", desc: "How do you balance performance and engine longevity? Our Tuning experts will clarify the safe limits..." },
           article3: { title: "Classic car care guide: Full protection in humid climate conditions", desc: "Humidity control, battery maintenance, tire protection and fluid checks \u2014 the complete care handbook..." }
+        },
+        contact: {
+          label: "CONTACT",
+          title: "Connect with us",
+          desc: "Contact AGM Intelligent for service advice, booking assistance, or directions to our automotive care center.",
+          addressLabel: "Address",
+          address: "480 Tran Quoc Hoan, Hoa Hai, Ngu Hanh Son, Da Nang",
+          phoneLabel: "Phone",
+          mapTitle: "AGM Intelligent location map"
         },
         cta: {
           title: "Ready to experience?",

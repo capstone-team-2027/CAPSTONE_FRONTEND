@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Menu, X, Home, Wrench, Newspaper, Phone, User, Check, Trash2, Info, AlertTriangle } from 'lucide-react';
+import { Bell, Menu, X, Home, Wrench, Newspaper, Phone, User, Check, Trash2, Info, AlertTriangle, LifeBuoy } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import Logo from '../../components/share/Logo';
@@ -112,6 +112,7 @@ export default function Navbar() {
 
     const user = useSelector((state: RootState) => state.user.user as UserModel | null);
     const isAuthenticated = !!localStorage.getItem('token');
+    const isAuthPage = ['/login', '/oauth-success', '/signup', '/forgot-password', '/otp-verification', '/verify-phone'].includes(location.pathname);
     const socket = useSocket();
 
     // =====================================================
@@ -133,6 +134,7 @@ export default function Navbar() {
     const getNotificationIcon = (notif: NotificationItem) => {
         if (notif.notificationType === 'SYSTEM') return AlertTriangle;
         if (notif.notificationType === 'SERVICE_ORDER') return Check;
+        if (notif.notificationType === 'MAINTENANCE_REMINDER') return Wrench;
         return Info;
     };
 
@@ -368,6 +370,10 @@ export default function Navbar() {
                         phoneNumber: userData.phoneNumber,
                         avatar: userData.avatar,
                         role: userData.role,
+                        status: userData.status,
+                        membershipTier: userData.customerProfile?.membership_tier,
+                        loyaltyPoints: userData.customerProfile?.loyalty_points,
+                        createdAt: userData.createdAt,
                     })
                 );
             } catch (error) {
@@ -423,6 +429,12 @@ export default function Navbar() {
                                     EN
                                 </button>
                             </div>
+
+                            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+                                <Link to="/rescue" title="Cứu hộ khẩn cấp" className="flex items-center justify-center w-9 h-9 rounded-full bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)]">
+                                    <LifeBuoy className="w-5 h-5" />
+                                </Link>
+                            </motion.div>
 
                             {isAuthenticated ? (
                                 <>
@@ -491,6 +503,12 @@ export default function Navbar() {
                                     EN
                                 </button>
                             </div>
+
+                            <motion.div whileTap={{ scale: 0.9 }}>
+                                <Link to="/rescue" title="Cứu hộ khẩn cấp" className="flex items-center justify-center w-8 h-8 rounded-full bg-red-500/20 text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]">
+                                    <LifeBuoy className="w-4 h-4" />
+                                </Link>
+                            </motion.div>
 
                             {isAuthenticated && (
                                 <div className="relative notification-bell-container">
@@ -608,10 +626,10 @@ export default function Navbar() {
                 </div>
             </div>
 
-            {/* AI Chatbot Widget */}
-            <ChatbotWidget />
-            {isAuthenticated && <CustomerChatWidget currentUserId={user?.id} />}
-            {isAuthenticated && <VideoCallSOSWidget />}
+            {/* AI Chatbot Widget — chỉ hiện khi đã đăng nhập và không phải trang xác thực */}
+            {isAuthenticated && !isAuthPage && <ChatbotWidget />}
+            {isAuthenticated && !isAuthPage && <CustomerChatWidget currentUserId={user?.id} />}
+            {isAuthenticated && !isAuthPage && <VideoCallSOSWidget />}
         </>
     );
 }

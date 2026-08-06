@@ -6,4 +6,6 @@ export const AUTH_API_ENDPOINTS = {
     REGISTER: `${API_BASE_URL}/api/auth/register`,
     CHECK_PHONE: `${API_BASE_URL}/api/auth/phone`,
     FORGOT_PASSWORD: `${API_BASE_URL}/api/auth/forgot-password`,
+    LOGOUT: `${API_BASE_URL}/api/auth/logout`,
+    PROFILE: `${API_BASE_URL}/api/auth/profile`,
 };

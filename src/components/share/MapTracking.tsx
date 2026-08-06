@@ -7,6 +7,78 @@ import { LOCATION_ENDPOINTS } from '../../constants/customer/locationEndpoints';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store/store';
 import { useSocket } from '../../hook/useSocket';
+import 'react-phone-input-2/lib/style.css';
+import * as PhoneInputLib from 'react-phone-input-2';
+
+// ── resolve PhoneInput default export ─────────────────────────
+type Mod = { default?: unknown };
+function resolveDefault<T>(mod: unknown): T {
+    const m = mod as Mod;
+    if (m && typeof m === 'object' && 'default' in m) {
+        const d = m.default as unknown;
+        if (d && typeof d === 'object' && 'default' in (d as Mod)) return (d as Mod).default as T;
+        return d as T;
+    }
+    return mod as T;
+}
+type PhoneInputProps = {
+    country?: string;
+    value?: string;
+    onChange?: (value: string) => void;
+    onBlur?: () => void;
+    enableSearch?: boolean;
+    searchPlaceholder?: string;
+    inputProps?: { name?: string };
+    countryCodeEditable?: boolean;
+    disabled?: boolean;
+};
+const PhoneInput = resolveDefault<React.ComponentType<PhoneInputProps>>(PhoneInputLib);
+
+const phoneStyles = `
+    .login-phone .react-tel-input .form-control {
+        width: 100% !important;
+        height: 38px !important;
+        background: white !important;
+        border: 1px solid #E2E8F0 !important;
+        border-radius: 0.5rem !important;
+        padding: 0 20px 0 48px !important;
+        font-size: 14px !important;
+        color: #0F172A !important;
+        letter-spacing: 0.3px !important;
+        outline: none !important;
+        transition: all 0.2s !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+    }
+    .login-phone .react-tel-input .form-control:focus {
+        border-color: #3B82F6 !important;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+    }
+    .login-phone .react-tel-input .flag-dropdown {
+        background: white !important;
+        border: 1px solid #E2E8F0 !important;
+        border-right: none !important;
+        border-radius: 0.5rem 0 0 0.5rem !important;
+    }
+    .login-phone .react-tel-input .flag-dropdown:hover,
+    .login-phone .react-tel-input .flag-dropdown.open {
+        background: #F8FAFC !important;
+        border-color: #CBD5E1 !important;
+    }
+    .login-phone .react-tel-input .selected-flag {
+        background: transparent !important;
+        padding: 0 8px 0 12px !important;
+        border-radius: 0.5rem 0 0 0.5rem !important;
+    }
+    .login-phone .react-tel-input .country-list {
+        background: white !important;
+        border: 1px solid #E2E8F0 !important;
+        border-radius: 0.5rem !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important;
+        max-height: 220px !important;
+        margin-top: 4px !important;
+        z-index: 1000 !important;
+    }
+`;
 
 // Fix lỗi icon mặc định của leaflet khi dùng chung với React
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
@@ -59,15 +131,20 @@ const LocationUpdater = ({ userLocation }: { userLocation: [number, number] | nu
 };
 
 export const MapTracking: React.FC = () => {
-  // Dữ liệu Gara cố định (FPT University Da Nang)
+  // Dữ liệu gara cố định tại 480 Trần Quốc Hoàn, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng
   const garageLocation: [number, number] = [15.9675, 108.2605]; 
   
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
-  const { fetchPrivate } = useFetchClient_v2();
+  const { fetchPrivate, fetchPublic } = useFetchClient_v2();
+  
+  const [phoneNumber, setPhoneNumber] = useState<string>('');
+  const [issueDescription, setIssueDescription] = useState<string>('');
+  const [rescueRequestData, setRescueRequestData] = useState<any | null>(null);
 
   const user = useSelector((state: RootState) => state.user.user as any);
+  const isReadOnlyPhone = Boolean(user && user.phoneNumber);
   const socket = useSocket();
 
   const [rescueRoute, setRescueRoute] = useState<[number, number][]>([]);
@@ -82,14 +159,21 @@ export const MapTracking: React.FC = () => {
   const [estimatedPrice, setEstimatedPrice] = useState<number>(0);
 
   useEffect(() => {
-    if (!socket || !user?.id) return;
+    if (user?.phoneNumber) {
+      setPhoneNumber(user.phoneNumber);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const customerId = user?.id || rescueRequestData?.customer_id;
+    if (!socket || !customerId) return;
 
     // Tham gia vào Room bảo mật riêng của khách hàng này
-    socket.emit('join-room', `customer_${user.id}`);
+    socket.emit('join-room', `customer_${customerId}`);
 
     const handleRescueDispatched = (data: { customerId: number | string, routeCoords?: [number, number][] }) => {
       // Dù Server chỉ gửi cho room này, nhưng check lại id cho chắc chắn
-      if (String(data.customerId) === String(user.id)) {
+      if (String(data.customerId) === String(customerId)) {
         if (data.routeCoords && data.routeCoords.length > 0) {
            setRescueRoute(data.routeCoords);
            setCarLocation(data.routeCoords[0]);
@@ -104,7 +188,7 @@ export const MapTracking: React.FC = () => {
       socket.off('rescue-vehicle-dispatched', handleRescueDispatched);
       if (animationRef.current) clearInterval(animationRef.current);
     };
-  }, [socket, user]);
+  }, [socket, user, rescueRequestData]);
 
   const startSimulation = (routeCoords: [number, number][]) => {
     setSimulationStatus('running');
@@ -162,14 +246,34 @@ export const MapTracking: React.FC = () => {
 
   const handleConfirmRescue = () => {
     if (tempLocation) {
+      if (!phoneNumber.trim()) {
+        alert("Vui lòng cung cấp số điện thoại liên hệ.");
+        return;
+      }
       setUserLocation(tempLocation);
       setShowConfirmModal(false);
-      // Gửi lên server để Lễ tân thấy
-      fetchPrivate(LOCATION_ENDPOINTS.UPDATE_LOCATION, "PATCH", {
+      setIsLoading(true);
+      // Gửi lên server để Lễ tân thấy (endpoint công khai cho cả khách vãng lai và thành viên)
+      fetchPublic(LOCATION_ENDPOINTS.GUEST_RESCUE, "POST", {
+        phone_number: phoneNumber,
         latitude: tempLocation[0],
-        longitude: tempLocation[1]
-      }).then(() => console.log("Lưu vị trí thành công!"))
-        .catch(err => console.error("Lỗi khi lưu vị trí lên DB", err));
+        longitude: tempLocation[1],
+        distance_km: distanceInfo?.distKm || 0,
+        rescue_price: estimatedPrice || 0,
+        issue_description: issueDescription || "Yêu cầu cứu hộ khẩn cấp"
+      }).then((res: any) => {
+        setIsLoading(false);
+        if (res && res.success) {
+          setRescueRequestData(res.data);
+          console.log("Lưu vị trí và tạo cuốc cứu hộ thành công!", res.data);
+        } else {
+          setErrorMsg(res.message || "Gửi yêu cầu cứu hộ thất bại.");
+        }
+      }).catch(err => {
+        setIsLoading(false);
+        console.error("Lỗi khi gửi yêu cầu cứu hộ", err);
+        setErrorMsg("Không thể gửi yêu cầu cứu hộ đến hệ thống.");
+      });
     }
   };
 
@@ -214,6 +318,43 @@ export const MapTracking: React.FC = () => {
 
   return (
     <div className="w-full flex flex-col gap-3">
+      <style>{phoneStyles}</style>
+      {/* Form Nhập Thông Tin Liên Hệ */}
+      <div className="p-4 bg-white border rounded-lg shadow-sm flex flex-col gap-3">
+        <h3 className="font-semibold text-gray-800">Thông tin liên hệ cứu hộ khẩn cấp</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-gray-500 uppercase">Số điện thoại liên hệ *</label>
+            <div className="login-phone">
+              <PhoneInput
+                country="vn"
+                value={phoneNumber}
+                onChange={(val) => {
+                  if (!isReadOnlyPhone) {
+                    setPhoneNumber(val);
+                  }
+                }}
+                disabled={isReadOnlyPhone}
+                enableSearch={!isReadOnlyPhone}
+                searchPlaceholder="Tìm quốc gia..."
+                inputProps={{ name: 'phone' }}
+                countryCodeEditable={false}
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-gray-500 uppercase">Mô tả sự cố xe (Không bắt buộc)</label>
+            <input
+              type="text"
+              value={issueDescription}
+              onChange={(e) => setIssueDescription(e.target.value)}
+              placeholder="VD: Không nổ được máy, xẹp lốp, ngập nước..."
+              className="w-full border border-gray-200 rounded-lg p-2 text-sm outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Khu vực Nút bấm / Cài đặt */}
       <div className="flex items-center justify-between p-4 bg-white border rounded-lg shadow-sm">
         <div>
@@ -241,8 +382,9 @@ export const MapTracking: React.FC = () => {
           )}
           <button 
             onClick={handleGetLocation}
-            disabled={isLoading}
+            disabled={isLoading || !phoneNumber.trim()}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-300"
+            title={!phoneNumber.trim() ? "Vui lòng nhập số điện thoại trước" : ""}
           >
             <MapPin size={18} />
             {isLoading ? 'Đang tìm...' : (userLocation ? 'Cập nhật lại vị trí' : 'Bật Vị Trí Của Tôi')}

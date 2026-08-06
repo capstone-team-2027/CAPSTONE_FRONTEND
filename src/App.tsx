@@ -20,6 +20,8 @@ const VerifyPhone = lazy(() => import("./pages/customer/home/verify-phone"));
 const MapTrackingTest = lazy(() => import("./components/share/MapTracking").then(m => ({ default: m.MapTracking })));
 
 const VideoCallRoom = lazy(() => import("./pages/common/VideoCallRoom"));
+const Unauthorized = lazy(() => import("./pages/common/Unauthorized"));
+const ProtectedRoute = lazy(() => import("./components/share/ProtectedRoute"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminSettings = lazy(() => import("./pages/admin/settings/AdminSettings"));
 const AdminServicesCategories = lazy(() => import("./pages/admin/services/AdminServicesCategories"));
@@ -62,6 +64,7 @@ const ReceptionTechnicianList = lazy(() => import("./pages/reception/technicians
 
 // Technician Page Imports
 const TechnicianLayout = lazy(() => import("./pages/technician/TechnicianLayout"));
+const TechnicianOverview = lazy(() => import("./pages/technician/overview/TechnicianOverview"));
 const TechnicianAssignments = lazy(() => import("./pages/technician/assignments/TechnicianAssignments"));
 const TechnicianAssignmentsDetail = lazy(() => import("./pages/technician/assignments/TechnicianAssignmentsDetail"));
 const TechnicianWorkHistory = lazy(() => import("./pages/technician/work-history/TechnicianWorkHistory"));
@@ -109,7 +112,9 @@ function App() {
           <Route path="login" element={<Login />} />
           <Route path="oauth-success" element={<Login />} />
           <Route path="signup" element={<Signup />} />
-          <Route path="user-profile" element={<UserProfile />} />
+          <Route element={<ProtectedRoute requiredRoles={["CUSTOMER"]} />}>
+            <Route path="user-profile" element={<UserProfile />} />
+          </Route>
           <Route path="forgot-password" element={<ForgotPassword />} />
           <Route path="team" element={<Team />} />
           <Route path="otp-verification" element={<OtpVerification />} />
@@ -117,72 +122,85 @@ function App() {
 
           {/* Route test bản đồ */}
           <Route path="test-map" element={<div className="container mx-auto p-4 md:p-10"><MapTrackingTest /></div>} />
+          <Route path="rescue" element={<div className="container mx-auto p-4 md:p-10"><MapTrackingTest /></div>} />
         </Route>
 
         <Route path="/video-call/:roomId" element={<VideoCallRoom />} />
+        <Route path="/unauthorized" element={<Unauthorized />} />
 
         {/* Admin Dashboard */}
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route path="" element={<AdminStatistics />} />
-          <Route path="services-category" element={<AdminServicesCategories />} />
-          <Route path="resources" element={<AdminResources />} />
-          <Route path="settings" element={<AdminSettings />} />
-          <Route path="services" element={<AdminServiceCatalog />} />
-          <Route path="staff" element={<AdminStaffManagement />} />
-          <Route path="shifts" element={<AdminShiftManagement />} />
-          <Route path="warranty" element={<AdminWarrantyPolicies />} />
-          <Route path="statistics" element={<AdminStatistics />} />
-          <Route path="customers" element={<AdminCustomerManagement />} />
-          <Route path="customers/:id" element={<AdminCustomerDetailPage />} />
+        <Route element={<ProtectedRoute requiredRoles={["ADMIN"]} />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route path="" element={<AdminStatistics />} />
+            <Route path="services-category" element={<AdminServicesCategories />} />
+            <Route path="resources" element={<AdminResources />} />
+            <Route path="settings" element={<AdminSettings />} />
+            <Route path="services" element={<AdminServiceCatalog />} />
+            <Route path="staff" element={<AdminStaffManagement />} />
+            <Route path="shifts" element={<AdminShiftManagement />} />
+            <Route path="warranty" element={<AdminWarrantyPolicies />} />
+            <Route path="statistics" element={<AdminStatistics />} />
+            <Route path="customers" element={<AdminCustomerManagement />} />
+            <Route path="customers/:id" element={<AdminCustomerDetailPage />} />
+          </Route>
         </Route>
-        <Route path="/inventory" element={<InventoryLayout />}>
-          <Route path="" element={<InventoryDashboard />} />
-          <Route path="parts" element={<InventoryParts />} />
-          <Route path="categories" element={<PartCategories />} />
-          <Route path="import" element={<ImportHistory />} />
-          <Route path="waiting-stock" element={<InventoryWaitingStock />} />
-          <Route path="suppliers" element={<InventorySuppliers />} />
-          <Route path="approved-quotes" element={<InventoryApprovedQuotes />} />
-          <Route path="export" element={<InventoryExport />} />
+        <Route element={<ProtectedRoute requiredRoles={["INVENTORY_MANAGER"]} />}>
+          <Route path="/inventory" element={<InventoryLayout />}>
+            <Route path="" element={<InventoryDashboard />} />
+            <Route path="parts" element={<InventoryParts />} />
+            <Route path="categories" element={<PartCategories />} />
+            <Route path="import" element={<ImportHistory />} />
+            <Route path="waiting-stock" element={<InventoryWaitingStock />} />
+            <Route path="suppliers" element={<InventorySuppliers />} />
+            <Route path="approved-quotes" element={<InventoryApprovedQuotes />} />
+            <Route path="export" element={<InventoryExport />} />
+          </Route>
         </Route>
 
-        <Route path="/technician" element={<TechnicianLayout />}>
-          <Route path="" element={<Navigate to="assignments" replace />} />
-          <Route path="assignments" element={<TechnicianAssignments />} />
-          <Route path="assignments/:id" element={<TechnicianAssignmentsDetail />} />
-          <Route path="work-history" element={<TechnicianWorkHistory />} />
-          <Route path="parts-request" element={<Navigate to="/technician/work-history" replace />} />
-          <Route path="parts-request/:id" element={<Navigate to="/technician/work-history" replace />} />
-          <Route path="progress" element={<TechnicianUpdateProgress />} />
-          <Route path="progress/:id" element={<TechnicianUpdateProgress />} />
-          <Route path="my-shifts" element={<TechnicianMyShifts />} />
-          <Route path="issues-reports" element={<TechnicianIssuesReportHistory />} />
-          <Route path="rescue" element={<TechnicianRescuePage />} />
+        <Route element={<ProtectedRoute requiredRoles={["TECHNICIAN"]} />}>
+          <Route path="/technician" element={<TechnicianLayout />}>
+            <Route path="" element={<Navigate to="overview" replace />} />
+            <Route path="overview" element={<TechnicianOverview />} />
+            <Route path="assignments" element={<TechnicianAssignments />} />
+            <Route path="assignments/:id" element={<TechnicianAssignmentsDetail />} />
+            <Route path="work-history" element={<TechnicianWorkHistory />} />
+            <Route path="parts-request" element={<Navigate to="/technician/work-history" replace />} />
+            <Route path="parts-request/:id" element={<Navigate to="/technician/work-history" replace />} />
+            <Route path="progress" element={<TechnicianUpdateProgress />} />
+            <Route path="progress/:id" element={<TechnicianUpdateProgress />} />
+            <Route path="my-shifts" element={<TechnicianMyShifts />} />
+            <Route path="issues-reports" element={<TechnicianIssuesReportHistory />} />
+            <Route path="rescue" element={<TechnicianRescuePage />} />
+          </Route>
         </Route>
 
         {/* Reception Dashboard */}
-        <Route path="/reception" element={<ReceptionLayout />}>
-          <Route path="" element={<Navigate to="appointments" replace />} />
-          <Route path="appointments" element={<ReceptionAppointmentList />} />
-          <Route path="appointments/:id" element={<ReceptionAppointmentDetail />} />
-          <Route path="service-orders" element={<ReceptionServiceOrderList />} />
-          <Route path="service-orders/:id" element={<ReceptionServiceOrderDetail />} />
-          <Route path="service-orders/create" element={<ReceptionCreateServiceOrder />} />
-          <Route path="customers" element={<ReceptionCustomerList />} />
-          <Route path="customers/rescue-service-order/:rescueId" element={<ReceptionRescueCreateServiceOrder />} />
-          <Route path="feedback" element={<ReceptionReceiveFeedback />} />
-          <Route path="service-history" element={<ReceptionServiceHistory />} />
-          <Route path="payments" element={<ReceptionProcessPayment />} />
-          <Route path="quotes" element={<ReceptionQuoteList />} />
-          <Route path="quotes/:id" element={<ReceptionQuoteDetail />} />
-          <Route path="issues" element={<ReceptionIssueReports />} />
-          <Route path="additional-issues" element={<ReceptionAdditionalIssues />} />
-          <Route path="technicians" element={<ReceptionTechnicianList />} />
+        <Route element={<ProtectedRoute requiredRoles={["RECEPTIONIST"]} />}>
+          <Route path="/reception" element={<ReceptionLayout />}>
+            <Route path="" element={<Navigate to="appointments" replace />} />
+            <Route path="appointments" element={<ReceptionAppointmentList />} />
+            <Route path="appointments/:id" element={<ReceptionAppointmentDetail />} />
+            <Route path="service-orders" element={<ReceptionServiceOrderList />} />
+            <Route path="service-orders/:id" element={<ReceptionServiceOrderDetail />} />
+            <Route path="service-orders/create" element={<ReceptionCreateServiceOrder />} />
+            <Route path="customers" element={<ReceptionCustomerList />} />
+            <Route path="customers/rescue-service-order/:rescueId" element={<ReceptionRescueCreateServiceOrder />} />
+            <Route path="feedback" element={<ReceptionReceiveFeedback />} />
+            <Route path="service-history" element={<ReceptionServiceHistory />} />
+            <Route path="payments" element={<ReceptionProcessPayment />} />
+            <Route path="quotes" element={<ReceptionQuoteList />} />
+            <Route path="quotes/:id" element={<ReceptionQuoteDetail />} />
+            <Route path="issues" element={<ReceptionIssueReports />} />
+            <Route path="additional-issues" element={<ReceptionAdditionalIssues />} />
+            <Route path="technicians" element={<ReceptionTechnicianList />} />
+          </Route>
         </Route>
-        <Route path="/leader" element={<LeaderLayout />}>
-          <Route path="" element={<LeaderDashboard />} />
-          <Route path="assignments" element={<LeaderAssignments />} />
-          <Route path="final-qc" element={<LeaderFinalQc />} />
+        <Route element={<ProtectedRoute requiredRoles={["TECHNICIAN_LEADER"]} />}>
+          <Route path="/leader" element={<LeaderLayout />}>
+            <Route path="" element={<LeaderDashboard />} />
+            <Route path="assignments" element={<LeaderAssignments />} />
+            <Route path="final-qc" element={<LeaderFinalQc />} />
+          </Route>
         </Route>
       </Routes>
       {!isAdminPath && (

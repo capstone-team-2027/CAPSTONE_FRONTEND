@@ -219,7 +219,7 @@ export default function BookingPage() {
             const currentLang = i18n.language || 'vi';
             try {
                 const query = `lang=${currentLang}&page=${servicePage}&limit=16&search=${encodeURIComponent(serviceSearch)}&category_id=${selectedCategoryId || ''}`;
-                const svcRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.GET_SERVICES}?${query}`);
+                const svcRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.SEARCH_SERVICES}?${query}`);
                 if (svcRes && svcRes.data) {
                     const newItems = svcRes.data.items || [];
                     setCurrentPageServices(newItems);
@@ -703,7 +703,7 @@ export default function BookingPage() {
         if (serviceSubtype === 'service') {
             if (selectedServiceIds.length === 0) return null;
             const selected = mappedServices.filter(x => selectedServiceIds.includes(x.id));
-            const totalPrice = selected.reduce((sum, s) => sum + s.numericPrice, 0);
+            const totalPrice = selected.reduce((sum, s) => sum + (s.numericPrice ?? 0), 0);
             const title = selected.length === 1
                 ? selected[0].title
                 : `${selected.length} dịch vụ đã chọn`;
@@ -723,7 +723,6 @@ export default function BookingPage() {
             const original = (c as any).originalPrice || 0;
             const discount = c.discount_percentage || 0;
             const discountedPrice = original * (1 - discount / 100);
-
             const subNames = serviceIds.map(id => {
                 const s = mappedServices.find(x => x.id === id);
                 return s ? s.title : "Dịch vụ của gara";
@@ -1253,7 +1252,15 @@ export default function BookingPage() {
 
     if (isSuccess) {
         return (
-            <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 text-left relative overflow-hidden bg-[#F8FAFC]">
+            <div
+                className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 text-left relative overflow-hidden"
+                style={{ background: 'radial-gradient(circle at 20% 20%, #001C43 0%, #00193A 45%, #001024 100%)' }}
+            >
+                {/* Decorative blurred blobs */}
+                <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-white/5 blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-32 -right-16 w-[28rem] h-[28rem] rounded-full bg-emerald-400/20 blur-3xl pointer-events-none" />
+                <div className="absolute top-1/3 right-10 w-52 h-52 rounded-full bg-[#F9A11B]/20 blur-3xl pointer-events-none hidden md:block" />
+
                 <motion.div
                     initial={{ opacity: 0, y: 50, scale: 0.9 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -2437,7 +2444,7 @@ export default function BookingPage() {
                             </div>
                             <div>
                                 <div className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">{t('booking.hotline.title', 'Cần tư vấn trực tiếp?')}</div>
-                                <div className="font-bold tracking-tight text-brand-blue hover:text-brand-orange transition-colors">{t('booking.hotline.value', 'Hotline: 1900 1234')}</div>
+                                <div className="font-bold tracking-tight text-brand-blue hover:text-brand-orange transition-colors">{t('booking.hotline.value', 'Hotline: (+84) 965147731')}</div>
                             </div>
                         </div>
                     </aside>

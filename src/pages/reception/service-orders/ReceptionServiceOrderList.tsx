@@ -22,7 +22,7 @@ import { useSocket } from '../../../hook/useSocket';
 import { SERVICE_ORDER_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
 
 export const SO_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
-  INSPECTING: { label: 'Tiếp nhận xe', color: '#6B7280', bg: '#F3F4F6', icon: Clock },
+  INSPECTING: { label: 'Đã tiếp nhận', color: '#6B7280', bg: '#F3F4F6', icon: Clock },
   ASSIGNED: { label: 'Đã phân công', color: '#6366F1', bg: '#EEF2FF', icon: Users },
   IN_PROGRESS: { label: 'Đang sửa chữa', color: '#3B82F6', bg: '#EFF6FF', icon: Loader2 },
   WAITING_FOR_PARTS: { label: 'Chờ phụ tùng', color: '#D97706', bg: '#FEF3C7', icon: AlertCircle },
@@ -118,7 +118,7 @@ export default function ReceptionServiceOrderList() {
   };
 
   const formatPrice = (price: number) => {
-    return (price || 0).toLocaleString('vi-VN') + ' đ';
+    return (price || 0).toLocaleString('vi-VN') + ' VND';
   };
 
   return (
@@ -304,13 +304,24 @@ export default function ReceptionServiceOrderList() {
                         )}
                       </td>
                       <td className="py-4 px-4">
-                        <span
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap"
-                          style={{ backgroundColor: statusCfg.bg, color: statusCfg.color }}
-                        >
-                          <StatusIcon size={12} className={so.status === 'IN_PROGRESS' ? 'animate-spin' : ''} />
-                          {statusCfg.label}
-                        </span>
+                        <div className="flex flex-col items-stretch gap-1.5 max-w-max">
+                          <span
+                            className="flex h-6 min-w-[104px] items-center justify-center gap-1.5 px-2.5 rounded-lg text-xs font-bold leading-none whitespace-nowrap"
+                            style={{ backgroundColor: statusCfg.bg, color: statusCfg.color }}
+                          >
+                            <StatusIcon size={12} className={so.status === 'IN_PROGRESS' ? 'animate-spin' : ''} />
+                            {statusCfg.label}
+                          </span>
+                          {so.early_closure_reason && (
+                            <span
+                              title={so.early_closure_reason}
+                              className="flex h-6 min-w-[104px] items-center justify-center gap-1.5 px-2.5 rounded-lg text-xs font-bold leading-none whitespace-nowrap bg-amber-50 text-amber-600"
+                            >
+                              <AlertCircle size={12} />
+                              Đóng sớm
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex items-center justify-center gap-2">
