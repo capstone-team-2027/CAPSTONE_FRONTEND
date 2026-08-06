@@ -18,12 +18,12 @@ export default function News() {
     const { t } = useTranslation();
 
     const CATEGORIES = [
-        t('news.categories.all', 'Tất cả'),
-        t('news.categories.maintenance', 'Bảo dưỡng'),
-        t('news.categories.technology', 'Công nghệ'),
-        t('news.categories.tips', 'Mẹo hay'),
+        { key: 'all', label: t('news.categories.all', 'Tất cả') },
+        { key: 'maintenance', label: t('news.categories.maintenance', 'Bảo dưỡng') },
+        { key: 'technology', label: t('news.categories.technology', 'Công nghệ') },
+        { key: 'tips', label: t('news.categories.tips', 'Mẹo hay') },
     ];
-    const [activeCategory, setActiveCategory] = useState(CATEGORIES[0]);
+    const [activeCategoryKey, setActiveCategoryKey] = useState('all');
 
     const ARTICLES: (NewsArticle & { categoryKey: string })[] = [
         {
@@ -116,9 +116,9 @@ export default function News() {
     ];
 
     const filteredArticles =
-        activeCategory === CATEGORIES[0]
+        activeCategoryKey === 'all'
             ? ARTICLES
-            : ARTICLES.filter((article) => article.category === activeCategory);
+            : ARTICLES.filter((article) => article.categoryKey === activeCategoryKey);
 
     const [featured, ...rest] = filteredArticles;
 
@@ -158,12 +158,12 @@ export default function News() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex flex-wrap gap-3">
                         {CATEGORIES.map((category) => {
-                            const isActive = category === activeCategory;
+                            const isActive = category.key === activeCategoryKey;
                             return (
                                 <button
-                                    key={category}
+                                    key={category.key}
                                     type="button"
-                                    onClick={() => setActiveCategory(category)}
+                                    onClick={() => setActiveCategoryKey(category.key)}
                                     className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
                                     style={
                                         isActive
@@ -171,7 +171,7 @@ export default function News() {
                                             : { backgroundColor: COLORS.blueLight, color: COLORS.navy }
                                     }
                                 >
-                                    {category}
+                                    {category.label}
                                 </button>
                             );
                         })}

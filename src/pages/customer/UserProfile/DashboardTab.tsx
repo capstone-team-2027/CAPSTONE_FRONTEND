@@ -26,6 +26,8 @@ import {
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { SERVICE_HISTORY_API_ENDPOINTS } from '../../../constants/customer/serviceHistoryApiEndpoint';
 import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/customer/appointmentsEndpoints';
+import { PROFILE_API_ENDPOINTS } from '../../../constants/customer/profileApiEndpoint';
+import { validateChangePasswordForm } from '../../../validate/ChangePasswordSchema';
 
 interface RecentActivityOrder {
   id: number;
@@ -67,6 +69,7 @@ interface DashboardTabProps {
   onAvatarSave?: () => void;
   onAvatarCancel?: () => void;
   onViewAllHistory?: () => void;
+  onShowToast?: (message: string) => void;
 }
 
 function CountUpNumber({ value, suffix = '', formatter }: { value: number; suffix?: string; formatter?: (n: number) => string }) {
@@ -104,14 +107,50 @@ export default function DashboardTab({
   onAvatarSave,
   onAvatarCancel,
   onViewAllHistory,
+  onShowToast,
 }: DashboardTabProps) {
   const { t } = useTranslation();
   const { fetchPrivate } = useFetchClient();
   const [allOrders, setAllOrders] = useState<RecentActivityOrder[]>([]);
   const [upcomingAppointmentCount, setUpcomingAppointmentCount] = useState<number | null>(null);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [passwordFields, setPasswordFields] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmNewPassword: '',
+  });
+  const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
+  const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const recentOrders = allOrders.slice(0, 3);
+
+  const closeChangePasswordModal = () => {
+    setIsChangePasswordOpen(false);
+    setPasswordFields({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
+    setPasswordErrors({});
+  };
+
+  const handlePasswordChangeSubmit = async () => {
+    setPasswordErrors({});
+    const validationErrors = validateChangePasswordForm(passwordFields);
+    if (Object.keys(validationErrors).length > 0) {
+      setPasswordErrors(validationErrors);
+      return;
+    }
+
+    setIsPasswordSubmitting(true);
+    try {
+      await fetchPrivate(PROFILE_API_ENDPOINTS.CHANGE_PASSWORD, 'PUT', passwordFields);
+      onShowToast?.(t('settings.changePasswordSuccess', 'Đổi mật khẩu thành công!'));
+      closeChangePasswordModal();
+    } catch (err: any) {
+      setPasswordErrors({
+        currentPassword: err.message || t('settings.changePasswordFail', 'Thay đổi mật khẩu thất bại. Vui lòng kiểm tra lại.'),
+      });
+    } finally {
+      setIsPasswordSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     const loadRecentActivity = async () => {
@@ -598,7 +637,7 @@ export default function DashboardTab({
               </h3>
               <button
                 type="button"
-                onClick={() => setIsChangePasswordOpen(false)}
+                onClick={closeChangePasswordModal}
                 className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 flex items-center justify-center transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -609,33 +648,61 @@ export default function DashboardTab({
                 <label className="text-xs font-medium text-gray-500 block">
                   {t('profile.currentPassword', 'Mật khẩu hiện tại')}
                 </label>
-                <input type="password" className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-200 focus:outline-none focus:border-brand-blue" />
+                <input
+                  type="password"
+                  value={passwordFields.currentPassword}
+                  onChange={(e) => setPasswordFields((prev) => ({ ...prev, currentPassword: e.target.value }))}
+                  className={`w-full px-3 py-2.5 text-sm rounded-lg border focus:outline-none focus:border-brand-blue ${passwordErrors.currentPassword ? 'border-red-400' : 'border-gray-200'}`}
+                />
+                {passwordErrors.currentPassword && (
+                  <p className="text-[11px] text-red-500 font-medium">{passwordErrors.currentPassword}</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-gray-500 block">
                   {t('profile.newPassword', 'Mật khẩu mới')}
                 </label>
-                <input type="password" className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-200 focus:outline-none focus:border-brand-blue" />
+                <input
+                  type="password"
+                  value={passwordFields.newPassword}
+                  onChange={(e) => setPasswordFields((prev) => ({ ...prev, newPassword: e.target.value }))}
+                  className={`w-full px-3 py-2.5 text-sm rounded-lg border focus:outline-none focus:border-brand-blue ${passwordErrors.newPassword ? 'border-red-400' : 'border-gray-200'}`}
+                />
+                {passwordErrors.newPassword && (
+                  <p className="text-[11px] text-red-500 font-medium">{passwordErrors.newPassword}</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-gray-500 block">
                   {t('profile.confirmNewPassword', 'Xác nhận mật khẩu mới')}
                 </label>
-                <input type="password" className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-200 focus:outline-none focus:border-brand-blue" />
+                <input
+                  type="password"
+                  value={passwordFields.confirmNewPassword}
+                  onChange={(e) => setPasswordFields((prev) => ({ ...prev, confirmNewPassword: e.target.value }))}
+                  className={`w-full px-3 py-2.5 text-sm rounded-lg border focus:outline-none focus:border-brand-blue ${passwordErrors.confirmNewPassword ? 'border-red-400' : 'border-gray-200'}`}
+                />
+                {passwordErrors.confirmNewPassword && (
+                  <p className="text-[11px] text-red-500 font-medium">{passwordErrors.confirmNewPassword}</p>
+                )}
               </div>
             </div>
             <div className="flex gap-2 mt-6">
               <button
                 type="button"
-                onClick={() => setIsChangePasswordOpen(false)}
-                className="flex-1 py-2.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 text-xs font-bold transition-all"
+                onClick={closeChangePasswordModal}
+                disabled={isPasswordSubmitting}
+                className="flex-1 py-2.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 text-xs font-bold transition-all disabled:opacity-50"
               >
                 {t('common.cancel', 'Hủy')}
               </button>
               <button
                 type="button"
-                className="flex-1 py-2.5 rounded-lg bg-brand-blue text-white hover:bg-brand-blue/90 text-xs font-bold transition-all"
+                onClick={() => void handlePasswordChangeSubmit()}
+                disabled={isPasswordSubmitting}
+                className="flex-1 py-2.5 rounded-lg bg-brand-blue text-white hover:bg-brand-blue/90 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
+                {isPasswordSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 {t('common.save', 'Lưu')}
               </button>
             </div>

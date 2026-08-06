@@ -127,9 +127,10 @@ export default function Login() {
     const dispatch = useDispatch()
     const { i18n } = useTranslation();
     const isVi = i18n.language === 'vi';
-    const [phone, setPhone] = useState('');
+    const rememberedPhone = typeof window !== 'undefined' ? localStorage.getItem('rememberedPhone') : null;
+    const [phone, setPhone] = useState(rememberedPhone ?? '');
     const [password, setPassword] = useState('');
-    const [rememberMe, setRememberMe] = useState(false);
+    const [rememberMe, setRememberMe] = useState(!!rememberedPhone);
     const [showPassword, setShowPassword] = useState(false);
     const [errors, setErrors] = useState<Partial<Record<keyof LoginFormData, string>>>({});
     const [apiError, setApiError] = useState<string | null>(null);
@@ -247,6 +248,13 @@ export default function Login() {
 
             // --- 4. Lưu Token & Thông tin User vào Storage ---
             const storage = rememberMe ? localStorage : sessionStorage;
+
+            // Ghi nhớ số điện thoại (không lưu mật khẩu) để tự điền ở lần đăng nhập sau
+            if (rememberMe) {
+                localStorage.setItem('rememberedPhone', formData.phone);
+            } else {
+                localStorage.removeItem('rememberedPhone');
+            }
 
             // Luôn khuyến khích đồng bộ accessToken vào localStorage nếu useFetchClient chỉ đọc từ đó
             localStorage.setItem('token', accessToken);

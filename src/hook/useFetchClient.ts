@@ -22,7 +22,9 @@ export const useFetchClient = () => {
       const text = await response.text();
       const data = text ? JSON.parse(text) : {};
       if (!response.ok) {
-        throw new Error(data.message || "Có lỗi xảy ra từ máy chủ");
+        const err = new Error(data.message || "Có lỗi xảy ra từ máy chủ") as Error & { code?: string };
+        err.code = data.code;
+        throw err;
       }
       return data;
     } catch (error) {

@@ -424,7 +424,7 @@ export default function BookingPage() {
             }
         } catch (error: any) {
             console.error("Lỗi phân tích ảnh xe:", error);
-            alert("Tính năng nhận diện xe bằng AI hiện đang có lỗi xử lý. Vui lòng thử lại hoặc nhập trực tiếp.");
+            alert(t('booking.alerts.aiColorAnalysisError', 'Tính năng nhận diện xe bằng AI hiện đang có lỗi xử lý. Vui lòng thử lại hoặc nhập trực tiếp.'));
             setColorImagePreviews([]);
             setAiDetectionResult(null);
         } finally {
@@ -647,34 +647,34 @@ export default function BookingPage() {
         if (bookingFlow === 'CONSULTATION') {
             const subItems = [];
             if (consultationType === 'AI_DIAGNOSIS') {
-                subItems.push(`Hình thức: Phân tích lỗi bằng AI`);
-                if (issueDescription) subItems.push(`Mô tả: ${issueDescription}`);
+                subItems.push(t('booking.selection.aiDiagnosisMode', 'Hình thức: Phân tích lỗi bằng AI'));
+                if (issueDescription) subItems.push(t('booking.selection.descriptionPrefix', 'Mô tả: {{desc}}', { desc: issueDescription }));
                 if (aiIssueResult) {
-                    subItems.push(`Mức độ: ${aiIssueResult.severity}`);
+                    subItems.push(t('booking.selection.severityPrefix', 'Mức độ: {{severity}}', { severity: aiIssueResult.severity }));
                 }
             } else {
-                subItems.push(`Hình thức: Gọi Video trực tiếp (SOS)`);
+                subItems.push(t('booking.selection.callVideoMode', 'Hình thức: Gọi Video trực tiếp (SOS)'));
             }
 
             return {
-                title: consultationType === 'AI_DIAGNOSIS' ? 'AI chẩn đoán lỗi xe' : 'Gọi điện tư vấn trực tiếp',
-                price: 'Miễn phí',
+                title: consultationType === 'AI_DIAGNOSIS' ? t('booking.selection.aiDiagnosisTitle', 'AI chẩn đoán lỗi xe') : t('booking.selection.callConsultTitle', 'Gọi điện tư vấn trực tiếp'),
+                price: t('booking.sidebar.free', 'Miễn phí'),
                 numericPrice: 0,
                 originalPrice: undefined,
                 discountPercentage: undefined,
-                promoText: consultationType === 'AI_DIAGNOSIS' ? 'Nhận kết quả chẩn đoán tức thì từ trợ lý AI' : 'CSKH liên hệ tư vấn trong 15 phút',
-                subItems: subItems.length > 0 ? subItems : ['Chưa nhập thông tin yêu cầu'],
+                promoText: consultationType === 'AI_DIAGNOSIS' ? t('booking.selection.aiPromoText', 'Nhận kết quả chẩn đoán tức thì từ trợ lý AI') : t('booking.selection.callPromoText', 'CSKH liên hệ tư vấn trong 15 phút'),
+                subItems: subItems.length > 0 ? subItems : [t('booking.selection.noRequestInfo', 'Chưa nhập thông tin yêu cầu')],
             };
         }
         if (serviceCategoryMode === 'REPAIR') {
             return {
-                title: 'Sửa chữa lỗi xe',
-                price: 'Liên hệ',
+                title: t('booking.selection.repairTitle', 'Sửa chữa lỗi xe'),
+                price: t('booking.selection.contactPrice', 'Liên hệ'),
                 numericPrice: 0,
                 originalPrice: undefined,
                 discountPercentage: undefined,
-                promoText: 'Kỹ thuật viên sẽ kiểm tra trực tiếp',
-                subItems: issueDescription ? [`Mô tả: ${issueDescription}`] : ['Chưa có mô tả'],
+                promoText: t('booking.selection.repairPromoText', 'Kỹ thuật viên sẽ kiểm tra trực tiếp'),
+                subItems: issueDescription ? [t('booking.selection.descriptionPrefix', 'Mô tả: {{desc}}', { desc: issueDescription })] : [t('booking.selection.noDescription', 'Chưa có mô tả')],
             };
         }
         if (serviceSubtype === 'service') {
@@ -683,14 +683,14 @@ export default function BookingPage() {
             const totalPrice = selected.reduce((sum, s) => sum + (s.numericPrice ?? 0), 0);
             const title = selected.length === 1
                 ? selected[0].title
-                : `${selected.length} dịch vụ đã chọn`;
+                : t('booking.selection.multipleServicesTitle', '{{count}} dịch vụ đã chọn', { count: selected.length });
             return {
                 title,
-                price: totalPrice > 0 ? `Từ ${totalPrice.toLocaleString('vi-VN')}đ` : 'Liên hệ',
+                price: totalPrice > 0 ? t('booking.fromPrice', 'Từ {{price}}đ', { price: totalPrice.toLocaleString('vi-VN') }) : t('booking.selection.contactPrice', 'Liên hệ'),
                 numericPrice: totalPrice,
                 originalPrice: undefined,
                 discountPercentage: undefined,
-                promoText: selected.length > 1 ? `Bao gồm: ${selected.map(s => s.title).join(', ')}` : selected[0]?.promoText,
+                promoText: selected.length > 1 ? t('booking.selection.includesPrefix', 'Bao gồm: ') + selected.map(s => s.title).join(', ') : selected[0]?.promoText,
                 subItems: selectedSubItems,
             };
         } else if (serviceSubtype === 'combo') {
@@ -701,11 +701,11 @@ export default function BookingPage() {
             const discounted = original * (1 - (c.discount_percentage || 0) / 100);
             const subNames = serviceIds.map(id => {
                 const s = mappedServices.find(x => x.id === id);
-                return s ? s.title : "Dịch vụ của gara";
+                return s ? s.title : t('booking.selection.garageServiceFallback', 'Dịch vụ của gara');
             });
             return {
                 title: c.combo_name,
-                price: discounted > 0 ? `Từ ${discounted.toLocaleString("vi-VN")}đ` : `Miễn phí`,
+                price: discounted > 0 ? t('booking.fromPrice', 'Từ {{price}}đ', { price: discounted.toLocaleString('vi-VN') }) : t('booking.sidebar.free', 'Miễn phí'),
                 numericPrice: discounted,
                 originalPrice: undefined,
                 discountPercentage: undefined,
@@ -714,7 +714,7 @@ export default function BookingPage() {
             };
         }
         return null;
-    }, [bookingFlow, serviceCategoryMode, serviceSubtype, selectedServiceIds, selectedComboId, mappedServices, dbCombos, selectedSubItems, issueDescription, consultationType, aiIssueResult]);
+    }, [bookingFlow, serviceCategoryMode, serviceSubtype, selectedServiceIds, selectedComboId, mappedServices, dbCombos, selectedSubItems, issueDescription, consultationType, aiIssueResult, t]);
 
     // Handle subitems customize default fill — merge details of all selected services
     useEffect(() => {
@@ -945,11 +945,11 @@ export default function BookingPage() {
                     setIsSuccess(true);
                 }
             } else {
-                alert(response.message || "Đặt lịch thất bại. Vui lòng thử lại.");
+                alert(response.message || t('booking.alerts.submitFailed', 'Đặt lịch thất bại. Vui lòng thử lại.'));
             }
         } catch (error: any) {
             console.error("Lỗi đặt lịch:", error);
-            alert(error.message || "Đã xảy ra lỗi trong quá trình đặt lịch. Vui lòng thử lại.");
+            alert(error.message || t('booking.alerts.submitError', 'Đã xảy ra lỗi trong quá trình đặt lịch. Vui lòng thử lại.'));
         } finally {
             setIsSubmitting(false);
         }
@@ -1011,15 +1011,15 @@ export default function BookingPage() {
                                 <Check size={24} strokeWidth={2.5} />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-extrabold text-brand-blue font-display">Chi tiết đặt lịch</h2>
-                                <p className="text-sm text-gray-500">Mã đơn: <span className="font-bold text-brand-blue">AGM-{bookingCode}</span></p>
+                                <h2 className="text-2xl font-extrabold text-brand-blue font-display">{t('booking.payment.detailTitle', 'Chi tiết đặt lịch')}</h2>
+                                <p className="text-sm text-gray-500">{t('booking.payment.orderCode', 'Mã đơn: ')}<span className="font-bold text-brand-blue">AGM-{bookingCode}</span></p>
                             </div>
                         </div>
 
                         <div className="space-y-6 flex-grow">
                             <div className="bg-[#F8FAFC] p-6 rounded-2xl border border-slate-100 text-sm space-y-5 shadow-xs">
                                 <div className="flex justify-between items-center pb-4 border-b border-slate-200/60">
-                                    <span className="text-gray-500">Hình thức</span>
+                                    <span className="text-gray-500">{t('booking.payment.modeLabel', 'Hình thức')}</span>
                                     <span className="font-bold text-brand-blue">
                                         {bookingFlow === 'CONSULTATION' ? t('booking.directConsultation', 'Tư vấn trực tiếp') : t('booking.serviceBooking', 'Đặt lịch dịch vụ')}
                                     </span>
@@ -1048,15 +1048,15 @@ export default function BookingPage() {
                                     </div>
                                 )}
                                 <div className="flex justify-between items-center">
-                                    <span className="text-gray-500">Khách hàng</span>
-                                    <span className="font-bold text-brand-blue">{profileName || 'Khách hàng'}</span>
+                                    <span className="text-gray-500">{t('booking.payment.customerLabel', 'Khách hàng')}</span>
+                                    <span className="font-bold text-brand-blue">{profileName || t('booking.payment.customerFallback', 'Khách hàng')}</span>
                                 </div>
                             </div>
                         </div>
 
                         <div className="mt-8 pt-6 border-t border-dashed border-gray-300/50">
                             <div className="flex items-center justify-between p-6 bg-blue-50/30 rounded-2xl border border-blue-50">
-                                <span className="font-bold text-brand-blue text-base">Tổng thanh toán</span>
+                                <span className="font-bold text-brand-blue text-base">{t('booking.payment.totalLabel', 'Tổng thanh toán')}</span>
                                 <span className="text-2xl font-extrabold font-display" style={{ color: COLORS.orange }}>
                                     {activeSelection?.price}
                                 </span>
@@ -1075,9 +1075,9 @@ export default function BookingPage() {
                                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/10 backdrop-blur-md border border-white/20 mb-6 shadow-xl">
                                     <Banknote size={32} className="text-[#F9A11B]" />
                                 </div>
-                                <h2 className="text-3xl font-extrabold text-white font-display mb-3">Thanh toán đơn hàng</h2>
+                                <h2 className="text-3xl font-extrabold text-white font-display mb-3">{t('booking.payment.title', 'Thanh toán đơn hàng')}</h2>
                                 <p className="text-blue-100/80 text-sm leading-relaxed max-w-sm mx-auto font-light">
-                                    Quét mã QR bằng ứng dụng ngân hàng hoặc ví điện tử để hoàn tất đặt lịch.
+                                    {t('booking.payment.desc', 'Quét mã QR bằng ứng dụng ngân hàng hoặc ví điện tử để hoàn tất đặt lịch.')}
                                 </p>
                             </div>
 
@@ -1086,13 +1086,13 @@ export default function BookingPage() {
                                     <div className="bg-white p-5 rounded-[1.3rem] relative z-10">
                                         <img src={qrUrl} alt="VietQR Payment" className="w-56 h-56 rounded-xl object-contain" />
                                         <div className="mt-4 pt-4 border-t border-slate-100 text-xs text-slate-500 font-medium">
-                                            Nội dung CK: <span className="font-bold text-brand-blue uppercase">AGM-{bookingCode}</span>
+                                            {t('booking.payment.transferContentLabel', 'Nội dung CK: ')}<span className="font-bold text-brand-blue uppercase">AGM-{bookingCode}</span>
                                         </div>
                                     </div>
                                 </div>
                             ) : (
                                 <div className="bg-white/10 backdrop-blur-md p-8 rounded-3xl border border-white/20 text-white w-full max-w-xs">
-                                    <p className="text-sm">Không tìm thấy thông tin thanh toán.</p>
+                                    <p className="text-sm">{t('booking.payment.noPaymentInfo', 'Không tìm thấy thông tin thanh toán.')}</p>
                                 </div>
                             )}
 
@@ -1100,7 +1100,7 @@ export default function BookingPage() {
                                 <div className="flex flex-col items-center justify-center gap-3">
                                     <div className="w-5 h-5 border-2 border-[#F9A11B] border-t-transparent rounded-full animate-spin"></div>
                                     <p className="text-[12px] text-blue-100/70 leading-relaxed max-w-[250px] mx-auto">
-                                        Hệ thống đang tự động chờ xác nhận thanh toán...
+                                        {t('booking.payment.waitingConfirm', 'Hệ thống đang tự động chờ xác nhận thanh toán...')}
                                     </p>
                                 </div>
                             </div>
@@ -1147,10 +1147,10 @@ export default function BookingPage() {
                             </motion.div>
 
                             <h2 className="text-3xl font-black text-white font-display tracking-tight mb-2 relative z-10">
-                                Thành Công!
+                                {t('booking.success.stubTitle', 'Thành Công!')}
                             </h2>
                             <p className="text-emerald-50 text-sm leading-relaxed relative z-10">
-                                Đã xác nhận lịch hẹn
+                                {t('booking.success.stubDesc', 'Đã xác nhận lịch hẹn')}
                             </p>
                         </div>
 
@@ -1172,9 +1172,9 @@ export default function BookingPage() {
                         <div className="p-8 md:w-2/3 bg-white flex flex-col justify-between relative z-10">
                             <div>
                                 <div className="flex justify-between items-start mb-6">
-                                    <h3 className="text-xl font-bold text-brand-blue font-display">Chi tiết Đặt Lịch</h3>
+                                    <h3 className="text-xl font-bold text-brand-blue font-display">{t('booking.success.detailTitle', 'Chi tiết Đặt Lịch')}</h3>
                                     <span className="px-3 py-1 bg-blue-50 text-brand-blue text-[11px] uppercase tracking-wider font-bold rounded-lg border border-blue-100">
-                                        {bookingFlow === 'CONSULTATION' ? 'Tư vấn trực tiếp' : (serviceCategoryMode === 'REPAIR' ? 'Sửa chữa' : 'Bảo dưỡng')}
+                                        {bookingFlow === 'CONSULTATION' ? t('booking.success.typeBadgeConsultation', 'Tư vấn trực tiếp') : (serviceCategoryMode === 'REPAIR' ? t('booking.success.typeBadgeRepair', 'Sửa chữa') : t('booking.success.typeBadgeService', 'Bảo dưỡng'))}
                                     </span>
                                 </div>
 
@@ -1182,7 +1182,7 @@ export default function BookingPage() {
                                     {/* Dịch vụ / Vấn đề */}
                                     <div className="flex flex-col gap-1.5 md:col-span-2">
                                         <span className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">
-                                            {serviceCategoryMode === 'REPAIR' ? 'Nội dung kiểm tra / sửa chữa' : 'Dịch vụ yêu cầu'}
+                                            {serviceCategoryMode === 'REPAIR' ? t('booking.success.contentLabelRepair', 'Nội dung kiểm tra / sửa chữa') : t('booking.success.contentLabelService', 'Dịch vụ yêu cầu')}
                                         </span>
                                         <span className="font-bold text-brand-blue text-base leading-snug">
                                             {activeSelection?.title}
@@ -1200,7 +1200,7 @@ export default function BookingPage() {
 
                                     {/* Thời gian */}
                                     <div className="flex flex-col gap-1.5">
-                                        <span className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">Thời gian hẹn</span>
+                                        <span className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">{t('booking.success.timeLabel', 'Thời gian hẹn')}</span>
                                         <span className="font-bold text-brand-blue">
                                             <span className="text-xl text-amber-500 mr-2">{bookingTime}</span>
                                             {bookingDate.split('-').reverse().join('/')}
@@ -1210,7 +1210,7 @@ export default function BookingPage() {
                                     {/* Phương tiện */}
                                     {bookingFlow !== 'CONSULTATION' && (
                                         <div className="flex flex-col gap-1.5">
-                                            <span className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">Phương tiện</span>
+                                            <span className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">{t('booking.success.vehicleLabel', 'Phương tiện')}</span>
                                             <span className="font-bold text-brand-blue flex items-baseline gap-2">
                                                 <span className="text-base">{vehicleBrand} {vehicleModel}</span>
                                                 <span className="text-xs text-slate-500 uppercase">
@@ -1225,9 +1225,9 @@ export default function BookingPage() {
                                 <div className="mt-6 bg-amber-50/60 p-4 rounded-xl border border-amber-100/50 flex items-start gap-3">
                                     <AlertTriangle className="text-amber-500 shrink-0 mt-0.5" size={18} />
                                     <p className="text-xs text-amber-800 leading-relaxed m-0 font-medium">
-                                        {serviceCategoryMode === 'REPAIR' 
-                                            ? 'Xin vui lòng mang xe đến gara đúng giờ để kỹ thuật viên kiểm tra trực tiếp và báo giá vật tư chính xác nhất trước khi tiến hành sửa chữa.' 
-                                            : 'Bộ phận CSKH sẽ sớm liên hệ xác nhận. Vui lòng để ý điện thoại của bạn.'}
+                                        {serviceCategoryMode === 'REPAIR'
+                                            ? t('booking.success.noteRepair', 'Xin vui lòng mang xe đến gara đúng giờ để kỹ thuật viên kiểm tra trực tiếp và báo giá vật tư chính xác nhất trước khi tiến hành sửa chữa.')
+                                            : t('booking.success.noteDefault', 'Bộ phận CSKH sẽ sớm liên hệ xác nhận. Vui lòng để ý điện thoại của bạn.')}
                                     </p>
                                 </div>
                             </div>
@@ -1238,7 +1238,7 @@ export default function BookingPage() {
                                     onClick={() => navigate('/')}
                                     className="flex-1 py-3.5 bg-brand-blue text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-900/20 hover:-translate-y-0.5 hover:shadow-xl transition-all cursor-pointer"
                                 >
-                                    Trở về Trang chủ
+                                    {t('booking.success.goHome', 'Trở về Trang chủ')}
                                 </button>
                                 <button
                                     onClick={() => {
@@ -1260,7 +1260,7 @@ export default function BookingPage() {
                                     }}
                                     className="flex-1 py-3.5 bg-white text-slate-600 rounded-xl text-sm font-bold border-2 border-slate-100 hover:bg-slate-50 hover:border-slate-200 transition-all cursor-pointer"
                                 >
-                                    Tạo lịch hẹn mới
+                                    {t('booking.success.bookAnother', 'Tạo lịch hẹn mới')}
                                 </button>
                             </div>
                         </div>
@@ -1350,12 +1350,12 @@ export default function BookingPage() {
                                                 <div className="space-y-4">
                                                     <div>
                                                         <label className="block text-xs font-bold text-slate-700 mb-2">
-                                                            Mô tả tình trạng lỗi/hỏng hóc của xe <span className="text-red-500">*</span>
+                                                            {t('booking.step1.aiDescLabel', 'Mô tả tình trạng lỗi/hỏng hóc của xe')} <span className="text-red-500">*</span>
                                                         </label>
                                                         <textarea
                                                             value={issueDescription}
                                                             onChange={(e) => setIssueDescription(e.target.value)}
-                                                            placeholder="Ví dụ: Khi tôi đi vào đường gồ ghề, phía gầm trước có tiếng kêu lục cục rất rõ..."
+                                                            placeholder={t('booking.step1.aiDescPlaceholder', 'Ví dụ: Khi tôi đi vào đường gồ ghề, phía gầm trước có tiếng kêu lục cục rất rõ...')}
                                                             className="w-full h-32 bg-[#F8FAFC] border border-blue-50/50 rounded-2xl p-4 text-xs md:text-sm outline-none transition-all focus:border-amber-400 focus:bg-white text-brand-blue"
                                                         />
                                                     </div>
@@ -1363,13 +1363,13 @@ export default function BookingPage() {
                                                     {/* Issue image upload */}
                                                     <div>
                                                         <label className="block text-xs font-bold text-slate-700 mb-2">
-                                                            Ảnh chụp khu vực gặp lỗi (Tùy chọn)
+                                                            {t('booking.step1.issueImageLabel', 'Ảnh chụp khu vực gặp lỗi (Tùy chọn)')}
                                                         </label>
 
                                                         {isAnalyzingImage && (
                                                             <div className="flex flex-col items-center justify-center p-8 bg-amber-50 rounded-2xl border border-amber-100 mb-4 animate-pulse">
                                                                 <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-500 rounded-full animate-spin mb-3"></div>
-                                                                <span className="text-amber-800 font-bold text-sm">AI đang siêu soi ảnh của bạn...</span>
+                                                                <span className="text-amber-800 font-bold text-sm">{t('booking.step1.aiAnalyzingImage', 'AI đang siêu soi ảnh của bạn...')}</span>
                                                             </div>
                                                         )}
 
@@ -1390,10 +1390,10 @@ export default function BookingPage() {
                                                                         <Upload size={18} />
                                                                     </div>
                                                                     <span className="text-xs font-bold text-slate-700 group-hover:text-slate-900 transition-colors">
-                                                                        Tải ảnh lỗi xe lên (Nếu có)
+                                                                        {t('booking.step1.uploadIssueImage', 'Tải ảnh lỗi xe lên (Nếu có)')}
                                                                     </span>
                                                                     <span className="text-[10px] text-gray-400 mt-1">
-                                                                        Ảnh rò dầu, xước sơn, nứt kính, đèn check engine...
+                                                                        {t('booking.step1.uploadIssueImageHint', 'Ảnh rò dầu, xước sơn, nứt kính, đèn check engine...')}
                                                                     </span>
                                                                 </label>
                                                             </div>
@@ -1402,7 +1402,7 @@ export default function BookingPage() {
                                                                 <div className={`relative ${aiImageDamageResult ? 'w-full' : 'w-40'} h-auto rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-slate-50 group`}>
                                                                     <img
                                                                         src={issueImagePreview}
-                                                                        alt="Lỗi xe"
+                                                                        alt={t('booking.step1.issueImageAlt', 'Lỗi xe')}
                                                                         className="w-full h-auto object-contain cursor-zoom-in hover:scale-105 transition-transform duration-300"
                                                                         onClick={() => setIsImageFullScreen(true)}
                                                                     />
@@ -1423,7 +1423,7 @@ export default function BookingPage() {
                                                                             <div className="p-2 bg-amber-500/20 rounded-lg">
                                                                                 <AlertTriangle className="text-amber-400" size={20} />
                                                                             </div>
-                                                                            <h4 className="text-white font-bold text-base">Báo cáo </h4>
+                                                                            <h4 className="text-white font-bold text-base">{t('booking.step1.aiReportTitle', 'Báo cáo')}</h4>
                                                                         </div>
 
                                                                         <div className="space-y-4">
@@ -1438,17 +1438,17 @@ export default function BookingPage() {
 
                                                                                     <div className="grid grid-cols-2 gap-3 mb-3">
                                                                                         <div className="bg-black/20 rounded-lg p-2">
-                                                                                            <span className="block text-slate-400 text-[10px] uppercase tracking-wider mb-1">Chi phí dự kiến</span>
+                                                                                            <span className="block text-slate-400 text-[10px] uppercase tracking-wider mb-1">{t('booking.step1.estimatedCost', 'Chi phí dự kiến')}</span>
                                                                                             <span className="text-white font-bold text-xs">{loi.chi_phi_uoc_tinh}</span>
                                                                                         </div>
                                                                                         <div className="bg-black/20 rounded-lg p-2">
-                                                                                            <span className="block text-slate-400 text-[10px] uppercase tracking-wider mb-1">Thời gian sửa</span>
+                                                                                            <span className="block text-slate-400 text-[10px] uppercase tracking-wider mb-1">{t('booking.step1.repairTime', 'Thời gian sửa')}</span>
                                                                                             <span className="text-white font-bold text-xs">{loi.thoi_gian_du_kien}</span>
                                                                                         </div>
                                                                                     </div>
 
                                                                                     <div className="space-y-1">
-                                                                                        <span className="text-slate-400 text-[10px] uppercase tracking-wider">Khuyến nghị xử lý:</span>
+                                                                                        <span className="text-slate-400 text-[10px] uppercase tracking-wider">{t('booking.step1.recommendation', 'Khuyến nghị xử lý:')}</span>
                                                                                         <ul className="list-disc list-inside text-slate-300 text-xs space-y-1">
                                                                                             {loi.quy_trinh_xu_ly.map((qt, i) => (
                                                                                                 <li key={i}>{qt}</li>
@@ -1478,12 +1478,12 @@ export default function BookingPage() {
                                                             {isAnalyzingIssue ? (
                                                                 <>
                                                                     <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin shrink-0" />
-                                                                    AI đang phân tích tình trạng xe...
+                                                                    {t('booking.step1.aiAnalyzing', 'AI đang phân tích tình trạng xe...')}
                                                                 </>
                                                             ) : (
                                                                 <>
                                                                     <Sparkles size={14} />
-                                                                    Phân tích và chẩn đoán lỗi bằng AI
+                                                                    {t('booking.step1.analyzeButton', 'Phân tích và chẩn đoán lỗi bằng AI')}
                                                                 </>
                                                             )}
                                                         </button>
@@ -1495,10 +1495,10 @@ export default function BookingPage() {
                                                             <div className="flex justify-between items-center border-b border-amber-100/40 pb-3">
                                                                 <span className="text-sm font-bold text-brand-blue flex items-center gap-1.5 font-display">
                                                                     <Sparkles size={16} className="text-amber-500" />
-                                                                    Kết quả chẩn đoán sơ bộ của AI
+                                                                    {t('booking.step1.aiResultTitle', 'Kết quả chẩn đoán sơ bộ của AI')}
                                                                 </span>
                                                                 <div className="flex items-center gap-1">
-                                                                    <span className="text-[10px] text-slate-400 font-medium">Mức độ:</span>
+                                                                    <span className="text-[10px] text-slate-400 font-medium">{t('booking.step1.severityLabel', 'Mức độ:')}</span>
                                                                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${aiIssueResult.severity === 'Cao'
                                                                         ? 'bg-rose-50 border border-rose-100 text-rose-600'
                                                                         : aiIssueResult.severity === 'Trung bình'
@@ -1511,7 +1511,7 @@ export default function BookingPage() {
                                                             </div>
 
                                                             <div className="space-y-2">
-                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Các nguyên nhân có thể xảy ra:</span>
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">{t('booking.step1.possibleCauses', 'Các nguyên nhân có thể xảy ra:')}</span>
                                                                 <ul className="space-y-1.5 pl-0 m-0">
                                                                     {aiIssueResult.possible_causes.map((cause, idx) => (
                                                                         <li key={idx} className="text-xs text-slate-700 flex items-start gap-1.5 leading-relaxed text-left">
@@ -1523,7 +1523,7 @@ export default function BookingPage() {
                                                             </div>
 
                                                             <div className="space-y-1 bg-white p-3 rounded-xl border border-amber-50">
-                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Lời khuyên và khuyến nghị từ AI:</span>
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">{t('booking.step1.aiAdvice', 'Lời khuyên và khuyến nghị từ AI:')}</span>
                                                                 <p className="text-xs text-slate-600 leading-relaxed m-0 text-left">{aiIssueResult.recommendation}</p>
                                                             </div>
                                                         </div>
@@ -1601,8 +1601,8 @@ export default function BookingPage() {
                                                                 )}
                                                             </div>
                                                             <div className="text-xs text-slate-500 space-y-1">
-                                                                <p className="m-0">Biển số: <span className="font-semibold text-slate-700">{v.license_plate}</span></p>
-                                                                <p className="m-0">Năm SX: {v.year} {v.color && `• Màu: ${v.color}`}</p>
+                                                                <p className="m-0">{t('booking.step1.plateLabel', 'Biển số: ')}<span className="font-semibold text-slate-700">{v.license_plate}</span></p>
+                                                                <p className="m-0">{t('booking.step1.yearLabel', 'Năm SX: ')}{v.year} {v.color && `${t('booking.step1.colorLabel', ' • Màu: ')}${v.color}`}</p>
                                                                 {v.isDisabled && (
                                                                     <p className="m-0 mt-2 text-rose-500 font-bold bg-rose-50 border border-rose-100 inline-block px-2 py-0.5 rounded text-[10px]">
                                                                         {v.disableReason}
@@ -1624,7 +1624,7 @@ export default function BookingPage() {
                                                                 : 'text-slate-500 hover:text-slate-800 bg-transparent'
                                                                 }`}
                                                         >
-                                                            Nhập trực tiếp
+                                                            {t('booking.step1.manualInputTab', 'Nhập trực tiếp')}
                                                         </button>
                                                         <button
                                                             type="button"
@@ -1635,7 +1635,7 @@ export default function BookingPage() {
                                                                 }`}
                                                         >
                                                             <Sparkles size={10} className="text-amber-500" />
-                                                            Tải ảnh xe (AI)
+                                                            {t('booking.step1.aiUploadTab', 'Tải ảnh xe (AI)')}
                                                         </button>
                                                     </div>
 
@@ -1660,11 +1660,11 @@ export default function BookingPage() {
                                                                             <Upload size={18} />
                                                                         </div>
                                                                         <span className="text-xs font-bold text-slate-700 group-hover:text-slate-900 transition-colors">
-                                                                            Chọn nhiều ảnh xe (tối đa 3 ảnh)
+                                                                            {t('booking.step1.uploadCarImages', 'Chọn nhiều ảnh xe (tối đa 3 ảnh)')}
                                                                         </span>
                                                                         <span className="text-[10px] text-gray-400 mt-1 text-center">
-                                                                            Bạn có thể tải ảnh mặt trước, mặt ngang và mặt sau.<br />
-                                                                            AI sẽ tổng hợp các góc ảnh để phân tích chính xác nhất!
+                                                                            {t('booking.step1.uploadCarImagesHint1', 'Bạn có thể tải ảnh mặt trước, mặt ngang và mặt sau.')}<br />
+                                                                            {t('booking.step1.uploadCarImagesHint2', 'AI sẽ tổng hợp các góc ảnh để phân tích chính xác nhất!')}
                                                                         </span>
                                                                     </label>
                                                                 </div>
@@ -1674,7 +1674,7 @@ export default function BookingPage() {
                                                                         <div className="flex gap-2 shrink-0">
                                                                             {colorImagePreviews.map((url, idx) => (
                                                                                 <div key={idx} className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border border-slate-200 cursor-zoom-in hover:opacity-80 transition-opacity" onClick={() => setFullScreenImageUrl(url)}>
-                                                                                    <img src={url} alt={`Xem trước ${idx}`} className="w-full h-full object-cover pointer-events-none" />
+                                                                                    <img src={url} alt={t('booking.step1.previewAlt', 'Xem trước {{index}}', { index: idx })} className="w-full h-full object-cover pointer-events-none" />
                                                                                 </div>
                                                                             ))}
                                                                             <button
@@ -1686,15 +1686,15 @@ export default function BookingPage() {
                                                                             </button>
                                                                         </div>
                                                                         <div className="flex-grow space-y-2 w-full text-xs">
-                                                                            <div className="font-bold text-slate-700">Ảnh đã tải lên</div>
-                                                                            <div className="text-gray-500">Các thông tin xe đã được AI phân tích và tự động điền vào các ô bên dưới.</div>
+                                                                            <div className="font-bold text-slate-700">{t('booking.step1.imagesUploaded', 'Ảnh đã tải lên')}</div>
+                                                                            <div className="text-gray-500">{t('booking.step1.aiAutoFilledHint', 'Các thông tin xe đã được AI phân tích và tự động điền vào các ô bên dưới.')}</div>
                                                                             <div className="mt-2">
                                                                                 <button
                                                                                     type="button"
                                                                                     onClick={handleRemoveColorImage}
                                                                                     className="text-amber-500 hover:text-amber-600 font-bold underline bg-transparent border-none cursor-pointer text-[10px]"
                                                                                 >
-                                                                                    Tải ảnh khác
+                                                                                    {t('booking.step1.uploadOtherImages', 'Tải ảnh khác')}
                                                                                 </button>
                                                                             </div>
                                                                         </div>
@@ -1703,7 +1703,7 @@ export default function BookingPage() {
                                                                         <div className="pt-3 border-t border-slate-200/60 text-xs space-y-2 text-left">
                                                                             <div className="font-bold text-slate-700 flex items-center gap-1.5">
                                                                                 <Sparkles size={12} className="text-amber-500" />
-                                                                                Chi tiết xe do AI nhận diện:
+                                                                                {t('booking.step1.aiDetectedDetails', 'Chi tiết xe do AI nhận diện:')}
                                                                             </div>
                                                                             <div className="bg-white p-3.5 rounded-xl border border-slate-100/80 text-slate-600 leading-relaxed whitespace-pre-line text-left">
                                                                                 {aiDetectionResult.rawText}
@@ -1717,7 +1717,7 @@ export default function BookingPage() {
                                                             {isAnalyzingColor && (
                                                                 <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50/50 px-3 py-2.5 rounded-xl border border-amber-100/50 animate-pulse mt-2">
                                                                     <div className="w-3.5 h-3.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin shrink-0" />
-                                                                    <span>AI đang phân tích hình ảnh để nhận diện thông số xe...</span>
+                                                                    <span>{t('booking.step1.aiAnalyzingCarImage', 'AI đang phân tích hình ảnh để nhận diện thông số xe...')}</span>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -1810,16 +1810,16 @@ export default function BookingPage() {
                                                                 onChange={(e) => setVehiclePlate(e.target.value)}
                                                                 className={inputClass + (plateError ? ' !border-red-500 focus:!border-red-500' : '')}
                                                             />
-                                                            {isCheckingPlate && <p className="text-[10px] text-gray-500 mt-1 italic">Đang kiểm tra biển số...</p>}
+                                                            {isCheckingPlate && <p className="text-[10px] text-gray-500 mt-1 italic">{t('booking.step1.checkingPlate', 'Đang kiểm tra biển số...')}</p>}
                                                             {plateError && <p className="text-[10px] text-red-500 mt-1 font-semibold">{plateError}</p>}
                                                         </div>
                                                         <div>
                                                             <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1 text-left">
-                                                                Năm sản xuất
+                                                                {t('booking.step1.yearProductionLabel', 'Năm sản xuất')}
                                                             </label>
                                                             <input
                                                                 type="number"
-                                                                placeholder="Ví dụ: 2020, 2022..."
+                                                                placeholder={t('booking.step1.yearPlaceholder', 'Ví dụ: 2020, 2022...')}
                                                                 value={vehicleYear}
                                                                 onChange={(e) => setVehicleYear(e.target.value)}
                                                                 className={inputClass}
@@ -1829,12 +1829,12 @@ export default function BookingPage() {
                                                         </div>
                                                         <div className="md:col-span-2">
                                                             <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1 text-left">
-                                                                Màu sắc (Tùy chọn)
+                                                                {t('booking.step1.colorOptionalLabel', 'Màu sắc (Tùy chọn)')}
                                                             </label>
                                                             <div className="relative">
                                                                 <input
                                                                     type="text"
-                                                                    placeholder="Ví dụ: Đỏ, Đen, Trắng..."
+                                                                    placeholder={t('booking.step1.colorPlaceholder', 'Ví dụ: Đỏ, Đen, Trắng...')}
                                                                     value={vehicleColor}
                                                                     onChange={(e) => setVehicleColor(e.target.value)}
                                                                     className={inputClass}
@@ -1964,7 +1964,7 @@ export default function BookingPage() {
                                                             {t('booking.step1.customizeTasks', 'Tùy chỉnh hạng mục công việc')}
                                                         </h4>
                                                         <span className="text-[9px] bg-amber-50 border border-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-lg">
-                                                            {selectedSubItems.length} hạng mục
+                                                            {t('booking.step1.itemCount', '{{count}} hạng mục', { count: selectedSubItems.length })}
                                                         </span>
                                                     </div>
                                                     <p className="text-[11px] text-gray-400 mb-4">
@@ -2018,12 +2018,12 @@ export default function BookingPage() {
                                         <div className="space-y-4">
                                             <div>
                                                 <label className="block text-sm font-bold text-slate-700 mb-2">
-                                                    Mô tả tình trạng lỗi/hỏng hóc của xe để đặt lịch sửa chữa <span className="text-red-500">*</span>
+                                                    {t('booking.step2repair.descLabel', 'Mô tả tình trạng lỗi/hỏng hóc của xe để đặt lịch sửa chữa')} <span className="text-red-500">*</span>
                                                 </label>
                                                 <textarea
                                                     value={issueDescription}
                                                     onChange={(e) => setIssueDescription(e.target.value)}
-                                                    placeholder="Ví dụ: Xe bị xước móp ở cửa trước bên phải, cần phục hồi và sơn lại..."
+                                                    placeholder={t('booking.step2repair.descPlaceholder', 'Ví dụ: Xe bị xước móp ở cửa trước bên phải, cần phục hồi và sơn lại...')}
                                                     className="w-full h-40 bg-[#F8FAFC] border border-blue-50/50 rounded-2xl p-4 text-sm outline-none transition-all focus:border-amber-400 focus:bg-white text-brand-blue shadow-inner"
                                                 />
                                             </div>
@@ -2088,7 +2088,7 @@ export default function BookingPage() {
                                                         >
                                                             <div className={`text-sm font-mono ${slot.isFull ? 'line-through decoration-gray-400' : ''}`}>{slot.time}</div>
                                                             <div className="text-[9px] uppercase tracking-wider opacity-60 mt-0.5">
-                                                                {slot.isFull ? 'Kín lịch' : slot.label}
+                                                                {slot.isFull ? t('booking.step2.slotFull', 'Kín lịch') : slot.label}
                                                             </div>
                                                         </div>
                                                     );
@@ -2123,7 +2123,7 @@ export default function BookingPage() {
                                 {isAnalyzingColor || isAnalyzingIssue ? (
                                     <>
                                         <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin mr-1 shrink-0" />
-                                        Đang nhận diện...
+                                        {t('booking.buttons.recognizing', 'Đang nhận diện...')}
                                     </>
                                 ) : isSubmitting ? (
                                     t('booking.buttons.processing', 'Đang xử lý...')
@@ -2186,10 +2186,10 @@ export default function BookingPage() {
                                             <div className="mt-2.5 pl-2 border-l border-[#F9A11B]/40 space-y-1">
                                                 <div className="text-[8px] text-white/30 font-bold uppercase tracking-wider mb-0.5">
                                                     {bookingFlow === 'CONSULTATION'
-                                                        ? 'Yêu cầu tư vấn'
+                                                        ? t('booking.sidebar.consultationRequestLabel', 'Yêu cầu tư vấn')
                                                         : serviceSubtype === 'service'
-                                                            ? 'Hạng mục đã chọn'
-                                                            : 'Dịch vụ đi kèm'}
+                                                            ? t('booking.sidebar.selectedItemsLabel', 'Hạng mục đã chọn')
+                                                            : t('booking.sidebar.includedServicesLabel', 'Dịch vụ đi kèm')}
                                                 </div>
                                                 {activeSelection.subItems.map((item, idx) => (
                                                     <div key={idx} className="text-[10px] text-slate-300 leading-snug flex items-start gap-1">
@@ -2236,9 +2236,9 @@ export default function BookingPage() {
                                                         <>
                                                             {vehicleBrand} {vehicleModel}
                                                             <div className="text-[10px] text-white/60 font-normal mt-0.5">
-                                                                Biển số: {vehiclePlate || 'N/A'}
-                                                                {vehicleYear ? ` • Đời: ${vehicleYear}` : ''}
-                                                                {vehicleColor ? ` • Màu: ${vehicleColor}` : ''}
+                                                                {t('booking.sidebar.plateInline', 'Biển số: ')}{vehiclePlate || 'N/A'}
+                                                                {vehicleYear ? `${t('booking.sidebar.yearInline', ' • Đời: ')}${vehicleYear}` : ''}
+                                                                {vehicleColor ? `${t('booking.sidebar.colorInline', ' • Màu: ')}${vehicleColor}` : ''}
                                                             </div>
                                                         </>
                                                     ) : t('booking.sidebar.notEntered', 'Chưa nhập')}
@@ -2258,7 +2258,7 @@ export default function BookingPage() {
                             <div className="mt-8 pt-6 border-t border-white/10 space-y-4 relative z-10">
                                 {activeSelection && activeSelection.originalPrice && (
                                     <div className="flex justify-between text-xs text-white/60">
-                                        <span>Giá gốc:</span>
+                                        <span>{t('booking.sidebar.originalPriceLabel', 'Giá gốc:')}</span>
                                         <span className="font-mono text-white/50 line-through">{activeSelection.originalPrice}</span>
                                     </div>
                                 )}
@@ -2339,7 +2339,7 @@ export default function BookingPage() {
                             animate={{ scale: 1 }}
                             exit={{ scale: 0.9 }}
                             src={issueImagePreview}
-                            alt="Phóng to lỗi xe"
+                            alt={t('booking.lightbox.zoomIssueAlt', 'Phóng to lỗi xe')}
                             className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
                             onClick={(e) => e.stopPropagation()}
                         />
@@ -2372,7 +2372,7 @@ export default function BookingPage() {
                             animate={{ scale: 1 }}
                             exit={{ scale: 0.9 }}
                             src={fullScreenImageUrl}
-                            alt="Phóng to ảnh"
+                            alt={t('booking.lightbox.zoomImageAlt', 'Phóng to ảnh')}
                             className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
                             onClick={(e) => e.stopPropagation()}
                         />

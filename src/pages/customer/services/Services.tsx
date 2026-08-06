@@ -52,7 +52,8 @@ const getCategoryIcon = (categoryName: string) => {
 };
 
 export default function Services() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const currentLang = i18n.language?.startsWith('en') ? 'en' : 'vi';
     const navigate = useNavigate();
     const { fetchPublic } = useFetchClient();
     const [activeTab, setActiveTab] = useState('all');
@@ -82,11 +83,11 @@ export default function Services() {
     useEffect(() => {
         const loadCategoriesAndCombos = async () => {
             try {
-                const catRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_CATEGORIES);
+                const catRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.GET_CATEGORIES}?lang=${currentLang}`);
                 if (catRes?.data) {
                     setDbCategories(catRes.data);
                 }
-                const comboRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_COMBOS);
+                const comboRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.GET_COMBOS}?lang=${currentLang}`);
                 const comboItems = comboRes?.data || [];
                 if (comboItems.length > 0) {
                     const mappedCombos = comboItems.map((c: any) => ({
@@ -106,7 +107,7 @@ export default function Services() {
             }
         };
         loadCategoriesAndCombos();
-    }, []);
+    }, [currentLang]);
 
     useEffect(() => {
         const fetchServices = async () => {
@@ -114,8 +115,8 @@ export default function Services() {
             try {
                 const search = encodeURIComponent(searchQuery);
                 const categoryId = activeTab !== 'all' ? activeTab : '';
-                const query = `page=${currentPage}&limit=${itemsPerPage}&search=${search}&category_id=${categoryId}`;
-                
+                const query = `page=${currentPage}&limit=${itemsPerPage}&search=${search}&category_id=${categoryId}&lang=${currentLang}`;
+
                 const svcRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.SEARCH_SERVICES}?${query}`);
                 if (svcRes?.data) {
                     setDbServices(svcRes.data.items || []);
@@ -134,7 +135,7 @@ export default function Services() {
             fetchServices();
         }, 300);
         return () => clearTimeout(timer);
-    }, [currentPage, searchQuery, activeTab]);
+    }, [currentPage, searchQuery, activeTab, currentLang]);
 
     const getServicePriceValue = (id: number): number => {
         try {
@@ -546,7 +547,7 @@ export default function Services() {
                             {t('services.comboTitle', 'Gói Combo Dịch vụ')}
                         </h2>
                         <p className="text-slate-500 text-sm mt-3 max-w-xl font-medium">
-                            Tích hợp các gói chăm sóc, bảo dưỡng định kỳ xe ô tô chuyên nghiệp với chi phí ưu đãi tốt nhất.
+                            {t('services.comboDesc', 'Tích hợp các gói chăm sóc, bảo dưỡng định kỳ xe ô tô chuyên nghiệp với chi phí ưu đãi tốt nhất.')}
                         </p>
                     </div>
                     {/* Slider Navigation Buttons */}
@@ -587,23 +588,23 @@ export default function Services() {
                             >
                                 {/* Discount badge */}
                                 <div className="absolute top-4 right-4 bg-red-500 text-white text-[10px] font-black uppercase px-2.5 py-1 rounded-md tracking-wider shadow-md">
-                                    Giảm {combo.discount_percentage}%
+                                    {t('services.comboDiscountBadge', 'Giảm {{percent}}%', { percent: combo.discount_percentage })}
                                 </div>
 
                                 <div className="space-y-6">
                                     <div className="space-y-2">
                                         <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#F9A11B] bg-amber-50 border border-amber-100/50 px-2.5 py-1 rounded-md inline-block">
-                                            Gói Đặc Biệt
+                                            {t('services.comboSpecialBadge', 'Gói Đặc Biệt')}
                                         </span>
                                         <h3 className="text-lg md:text-xl font-bold text-[#00285E] line-clamp-1">{combo.combo_name}</h3>
                                     </div>
 
                                     {/* Included services list */}
                                     <div className="space-y-3 pt-2">
-                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block text-left">Dịch vụ đi kèm:</span>
+                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block text-left">{t('services.comboIncludedServices', 'Dịch vụ đi kèm:')}</span>
                                         <div className="space-y-2">
                                             {combo.catalogs?.map((cat: any) => {
-                                                const sName = cat.translations?.[0]?.name || cat.service_name || "Dịch vụ bảo dưỡng";
+                                                const sName = cat.translations?.[0]?.name || cat.service_name || t('services.comboFallbackServiceName', 'Dịch vụ bảo dưỡng');
                                                 return (
                                                     <div key={cat.id} className="flex items-start gap-2.5 text-xs text-slate-600 font-semibold text-left">
                                                         <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
@@ -619,16 +620,16 @@ export default function Services() {
                                 <div className="pt-6 mt-4 border-t border-slate-100 space-y-4">
                                     <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100 flex flex-col gap-2.5">
                                         <div className="flex justify-between items-center">
-                                            <span className="text-xs text-slate-500 font-semibold">Mua lẻ từng dịch vụ:</span>
+                                            <span className="text-xs text-slate-500 font-semibold">{t('services.comboRetailPrice', 'Mua lẻ từng dịch vụ:')}</span>
                                             <span className="text-sm text-slate-400 line-through font-bold">{totalOriginal.toLocaleString("vi-VN")}đ</span>
                                         </div>
                                         <div className="flex justify-between items-center">
-                                            <span className="text-xs text-[#00285E] font-extrabold uppercase tracking-widest">Giá Combo:</span>
+                                            <span className="text-xs text-[#00285E] font-extrabold uppercase tracking-widest">{t('services.comboPrice', 'Giá Combo:')}</span>
                                             <span className="text-2xl font-black text-[#00285E]">{discounted.toLocaleString("vi-VN")}đ</span>
                                         </div>
                                         {(totalOriginal - discounted) > 0 && (
                                             <div className="mt-1 pt-2.5 border-t border-emerald-100 flex justify-between items-center bg-emerald-50/50 -mx-4 -mb-4 px-4 pb-3 rounded-b-2xl">
-                                                <span className="text-[10px] text-emerald-600 font-black uppercase tracking-wider mt-1">Tiết kiệm ngay:</span>
+                                                <span className="text-[10px] text-emerald-600 font-black uppercase tracking-wider mt-1">{t('services.comboSavings', 'Tiết kiệm ngay:')}</span>
                                                 <span className="text-base font-black text-emerald-600 mt-1">{(totalOriginal - discounted).toLocaleString("vi-VN")}đ</span>
                                             </div>
                                         )}
@@ -638,7 +639,7 @@ export default function Services() {
                                         onClick={() => setSelectedCombo(combo)}
                                         className="w-full py-3.5 bg-[#00285E] text-white hover:bg-[#00285E]/95 font-bold text-xs rounded-xl transition-all shadow-lg shadow-[#00285E]/20 tracking-widest uppercase text-center block relative overflow-hidden group"
                                     >
-                                        <span className="relative z-10">Hiện chi tiết</span>
+                                        <span className="relative z-10">{t('services.comboViewDetails', 'Hiện chi tiết')}</span>
                                         <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out" />
                                     </button>
                                 </div>

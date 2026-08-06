@@ -406,7 +406,7 @@ export default function ReceptionServiceOrderDetail() {
                 </span>
               ) : order?.payment?.payment_status === 'DEPOSITED' ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap bg-amber-100 text-amber-700">
-                  <Clock size={12} /> Đã cọc (30%)
+                  <Clock size={12} /> Đã cọc
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap bg-slate-100 text-slate-600">
@@ -715,6 +715,11 @@ export default function ReceptionServiceOrderDetail() {
                                     Cần cọc linh kiện mới (30%)
                                   </span>
                                 )}
+                                {item.custom_item_name && item.status !== 'WAITING_DEPOSIT' && (
+                                  <span className="text-[9px] font-bold text-emerald-600 uppercase mt-0.5">
+                                    Đã cọc linh kiện
+                                  </span>
+                                )}
                               </div>
                             </td>
                             <td className="py-3.5 px-4 text-center text-slate-500">
@@ -859,7 +864,7 @@ export default function ReceptionServiceOrderDetail() {
                   </span>
                 ) : order.payment?.payment_status === 'DEPOSITED' ? (
                   <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-700 whitespace-nowrap">
-                    Đã cọc (30%)
+                    Đã cọc
                   </span>
                 ) : (
                   <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 whitespace-nowrap">
@@ -908,6 +913,27 @@ export default function ReceptionServiceOrderDetail() {
         const allItems: any[] = order.quotation?.items || [];
         const tasks: any[] = order.tasks || [];
 
+        // Trạng thái cọc của phụ tùng đặt riêng lấy trực tiếp từ status của chính dòng đó
+        // (WAITING_DEPOSIT = chưa cọc), đúng cách hệ thống đã dùng ở bảng chi tiết báo giá —
+        // KHÔNG dùng Quotation.deposit_amount vì đó là số tổng gộp cả báo giá, không tách được
+        // theo từng dòng khi có nhiều phụ tùng đặt riêng trong cùng 1 báo giá.
+        const depositBadge = (item: any) => {
+          if (!item.custom_item_name) return null;
+          if (item.status === 'WAITING_DEPOSIT') {
+            return { label: 'Chưa cọc', className: 'text-amber-600 bg-amber-50' };
+          }
+          return { label: 'Đã cọc', className: 'text-emerald-600 bg-emerald-50' };
+        };
+
+        // Phụ tùng đặt riêng đã cọc (30%) thì chỉ còn phải thu 70% còn lại — chỉ áp dụng trong
+        // modal đóng sớm này, không đụng tới getRemainingAmount()/footer trang chính vì đó dùng
+        // order.payment.amount (tiền thật đã ghi nhận), khác cơ chế tính theo dòng ở đây.
+        const payableAmount = (item: any) => {
+          const amount = parseFloat(item.amount) || 0;
+          const badge = depositBadge(item);
+          return badge?.label === 'Đã cọc' ? amount * 0.7 : amount;
+        };
+
         // Mỗi Task ứng với đúng 1 dòng dịch vụ (quotationItem.service_id). Phụ tùng đi kèm cùng
         // hạng mục sửa chữa được nhận diện qua cùng issue_id — đây là góc nhìn giống kỹ thuật viên:
         // "Task này cần làm gì, và cần dùng phụ tùng gì".
@@ -916,15 +942,18 @@ export default function ReceptionServiceOrderDetail() {
           .filter((t: any) => t.quotationItem)
           .map((task: any) => {
             const serviceItem = task.quotationItem;
+            // Phụ tùng đi kèm: không phải chính dòng dịch vụ, không có service_id (phân biệt với
+            // dòng dịch vụ), và cùng issue_id — bao gồm cả phụ tùng có sẵn (spare_part_id) lẫn
+            // phụ tùng đặt riêng chưa có trong hệ thống (chỉ có custom_item_name, chờ nhập về).
             const relatedParts = allItems.filter(
-              (i: any) => i.id !== serviceItem.id && i.spare_part_id && i.issue_id && i.issue_id === serviceItem.issue_id,
+              (i: any) => i.id !== serviceItem.id && !i.service_id && i.issue_id && i.issue_id === serviceItem.issue_id,
             );
             return { task, serviceItem, relatedParts };
           });
 
         // Phụ tùng không đi kèm task nào (không có issue_id khớp) — hiển thị riêng lẻ
         const looseParts = allItems.filter(
-          (i: any) => i.spare_part_id && !groups.some((g) => g.relatedParts.some((p: any) => p.id === i.id)),
+          (i: any) => !i.service_id && !groups.some((g) => g.relatedParts.some((p: any) => p.id === i.id)),
         );
 
         const isGroupFinished = (g: any) =>
@@ -937,11 +966,11 @@ export default function ReceptionServiceOrderDetail() {
         const pendingLooseParts = looseParts.filter((p: any) => !isPartFinished(p));
 
         const groupAmount = (g: any) =>
-          (parseFloat(g.serviceItem.amount) || 0) + g.relatedParts.reduce((s: number, p: any) => s + (parseFloat(p.amount) || 0), 0);
+          (parseFloat(g.serviceItem.amount) || 0) + g.relatedParts.reduce((s: number, p: any) => s + payableAmount(p), 0);
 
         const finishedTotal =
           finishedGroups.reduce((sum, g) => sum + groupAmount(g), 0) +
-          finishedLooseParts.reduce((sum, p: any) => sum + (parseFloat(p.amount) || 0), 0);
+          finishedLooseParts.reduce((sum, p: any) => sum + payableAmount(p), 0);
 
         const confirmedPendingTotal =
           pendingGroups
@@ -949,7 +978,7 @@ export default function ReceptionServiceOrderDetail() {
             .reduce((sum, g) => sum + groupAmount(g), 0) +
           pendingLooseParts
             .filter((p: any) => completedItemIds.has(p.id))
-            .reduce((sum, p: any) => sum + (parseFloat(p.amount) || 0), 0);
+            .reduce((sum, p: any) => sum + payableAmount(p), 0);
 
         const previewTotal = finishedTotal + confirmedPendingTotal;
 
@@ -994,7 +1023,8 @@ export default function ReceptionServiceOrderDetail() {
                   <p className="text-xs text-amber-800 leading-relaxed">
                     Hạng mục <strong>đã hoàn thành</strong> luôn được tính đủ, không thể bỏ.
                     Với hạng mục <strong>đang dở dang</strong>, hãy xác nhận trực tiếp với kỹ thuật viên phụ trách
-                    hạng mục nào thực sự đã xong trước khi tick.
+                    hạng mục nào <strong>không thể hủy</strong> (đã lắp vào xe, đã sử dụng...) trước khi tick.
+                    Việc tick <strong>không</strong> làm hạng mục đó tự động hoàn thành — kỹ thuật viên vẫn phải tự cập nhật khi thực sự làm xong.
                   </p>
                 </div>
 
@@ -1005,7 +1035,7 @@ export default function ReceptionServiceOrderDetail() {
                     Các hạng mục đang thực hiện — xác nhận với kỹ thuật viên
                   </h4>
                   <p className="text-[11px] text-slate-400 leading-relaxed px-1">
-                    Tick vào hạng mục nào <strong className="text-slate-500">kỹ thuật viên xác nhận đã thực sự làm xong</strong> — hạng mục đó sẽ được tính đủ tiền vào hóa đơn.
+                    Tick vào hạng mục nào <strong className="text-slate-500">không thể hủy</strong> (đã lắp vào xe, đã sử dụng, kỹ thuật viên xác nhận không trả lại được...) — hạng mục đó sẽ được <strong className="text-slate-500">giữ nguyên</strong>, tính đủ tiền vào hóa đơn và chờ kỹ thuật viên tự cập nhật khi hoàn tất.
                     Hạng mục <strong className="text-slate-500">không tick</strong> coi như chưa thực hiện, sẽ <strong className="text-slate-500">không tính tiền</strong> và bị hủy khỏi báo giá.
                   </p>
                   {(pendingGroups.length > 0 || pendingLooseParts.length > 0) ? (
@@ -1036,15 +1066,23 @@ export default function ReceptionServiceOrderDetail() {
                             </label>
                             {g.relatedParts.length > 0 && (
                               <div className="mt-2 ml-7 space-y-1.5 border-l-2 border-slate-200 pl-3">
-                                {g.relatedParts.map((p: any) => (
-                                  <div key={p.id} className="flex items-center gap-2 text-xs text-slate-500">
-                                    <Package size={12} className="text-slate-400 shrink-0" />
-                                    <span className="flex-1 min-w-0 truncate">{p.custom_item_name || p.sparePart?.name || 'Phụ tùng'} (x{p.quantity}) — cần cho hạng mục này</span>
-                                    <span className={`font-semibold shrink-0 ${isChecked ? 'text-slate-700' : 'text-slate-300 line-through'}`}>
-                                      {formatPrice(parseFloat(p.amount) || 0)}
-                                    </span>
-                                  </div>
-                                ))}
+                                {g.relatedParts.map((p: any) => {
+                                  const badge = depositBadge(p);
+                                  return (
+                                    <div key={p.id} className="flex items-center gap-2 text-xs text-slate-500">
+                                      <Package size={12} className="text-slate-400 shrink-0" />
+                                      <span className="flex-1 min-w-0 truncate">{p.custom_item_name || p.sparePart?.name || 'Phụ tùng'} (x{p.quantity}) — cần cho hạng mục này</span>
+                                      {badge && (
+                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${badge.className}`}>
+                                          {badge.label}
+                                        </span>
+                                      )}
+                                      <span className={`font-semibold shrink-0 ${isChecked ? 'text-slate-700' : 'text-slate-300 line-through'}`}>
+                                        {formatPrice(payableAmount(p))}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
@@ -1052,6 +1090,7 @@ export default function ReceptionServiceOrderDetail() {
                       })}
                       {pendingLooseParts.map((p: any) => {
                         const isChecked = completedItemIds.has(p.id);
+                        const badge = depositBadge(p);
                         return (
                           <label
                             key={p.id}
@@ -1065,12 +1104,12 @@ export default function ReceptionServiceOrderDetail() {
                             />
                             <div className="flex-1 min-w-0">
                               <span className="font-semibold text-slate-800">{p.custom_item_name || p.sparePart?.name || 'Phụ tùng'}</span>
-                              <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-500 bg-slate-100 uppercase align-middle">
-                                Chưa xuất kho
+                              <span className={`ml-2 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase align-middle ${badge ? badge.className : 'text-slate-500 bg-slate-100'}`}>
+                                {badge ? badge.label : 'Chưa xuất kho'}
                               </span>
                             </div>
                             <span className={`font-bold shrink-0 ${isChecked ? 'text-[#00285E]' : 'text-slate-300 line-through'}`}>
-                              {formatPrice(parseFloat(p.amount) || 0)}
+                              {formatPrice(payableAmount(p))}
                             </span>
                           </label>
                         );
@@ -1078,62 +1117,6 @@ export default function ReceptionServiceOrderDetail() {
                     </div>
                   ) : (
                     <p className="text-xs text-slate-400 italic px-1">Không còn hạng mục nào đang dở dang — mọi thứ đã hoàn thành hoặc đã sử dụng.</p>
-                  )}
-                </div>
-
-                {/* Nhóm đã hoàn thành — read-only, hiển thị kèm phụ tùng đi kèm từng task.
-                    Luôn hiển thị khối này (kể cả rỗng) để lễ tân thấy rõ cấu trúc 2 nhóm.
-                    Dùng chung tông màu slate với nhóm "đang thực hiện", chỉ khác icon check để phân biệt. */}
-                <div className="space-y-2">
-                  <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                    <CheckCircle2 size={13} />
-                    Đã hoàn thành / đã sử dụng — tự động tính
-                  </h4>
-                  {(finishedGroups.length > 0 || finishedLooseParts.length > 0) ? (
-                    <div className="border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-100">
-                      {finishedGroups.map((g) => {
-                        const serviceLabel = g.serviceItem.custom_item_name || g.serviceItem.service_catalog?.service_name || 'Hạng mục dịch vụ';
-                        return (
-                          <div key={g.serviceItem.id} className="px-4 py-3">
-                            <div className="flex items-center gap-3 text-sm">
-                              <CheckCircle2 size={16} className="text-slate-400 shrink-0" />
-                              <div className="flex-1 min-w-0">
-                                <span className="font-semibold text-slate-800">{serviceLabel}</span>
-                                <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-500 bg-slate-100 uppercase align-middle">
-                                  {taskStatusLabel(g.task.status)}
-                                </span>
-                              </div>
-                              <span className="font-bold text-slate-800 shrink-0">{formatPrice(parseFloat(g.serviceItem.amount) || 0)}</span>
-                            </div>
-                            {g.relatedParts.length > 0 && (
-                              <div className="mt-2 ml-7 space-y-1.5 border-l-2 border-slate-200 pl-3">
-                                {g.relatedParts.map((p: any) => (
-                                  <div key={p.id} className="flex items-center gap-2 text-xs text-slate-500">
-                                    <Package size={12} className="text-slate-400 shrink-0" />
-                                    <span className="flex-1 min-w-0 truncate">{p.custom_item_name || p.sparePart?.name || 'Phụ tùng'} (x{p.quantity})</span>
-                                    <span className="font-semibold text-slate-700 shrink-0">{formatPrice(parseFloat(p.amount) || 0)}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                      {finishedLooseParts.map((p: any) => (
-                        <div key={p.id} className="flex items-center gap-3 px-4 py-3 text-sm">
-                          <CheckCircle2 size={16} className="text-slate-400 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <span className="font-semibold text-slate-800">{p.custom_item_name || p.sparePart?.name || 'Phụ tùng'}</span>
-                            <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-500 bg-slate-100 uppercase align-middle">
-                              Phụ tùng đã xuất kho
-                            </span>
-                          </div>
-                          <span className="font-bold text-slate-800 shrink-0">{formatPrice(parseFloat(p.amount) || 0)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic px-1">Chưa có hạng mục nào được hoàn thành hoặc sử dụng.</p>
                   )}
                 </div>
 

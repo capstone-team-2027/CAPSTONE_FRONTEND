@@ -218,8 +218,7 @@ export default function QuoteTrackingTab() {
         'PATCH',
       );
       setSelectedQuote(null);
-      await loadPendingQuotations();
-      setHistoryQuotes([]);
+      await Promise.all([loadPendingQuotations(), loadHistoryQuotations()]);
     } catch (err: any) {
       setActionError(err?.message || t('quoteTracking.errors.approveFailed', 'Không thể duyệt báo giá.'));
     } finally {
@@ -248,8 +247,7 @@ export default function QuoteTrackingTab() {
       setIsRejectModalOpen(false);
       setRejectReason('');
       setSelectedQuote(null);
-      await loadPendingQuotations();
-      setHistoryQuotes([]);
+      await Promise.all([loadPendingQuotations(), loadHistoryQuotations()]);
     } catch (err: any) {
       setActionError(err?.message || t('quoteTracking.errors.rejectFailed', 'Không thể từ chối báo giá.'));
     } finally {

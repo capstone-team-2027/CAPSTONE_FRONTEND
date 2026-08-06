@@ -932,6 +932,13 @@ export default function InventoryApprovedQuotes() {
                   </p>
                   <h4 className="text-base font-bold text-white">Xác nhận nhận phụ tùng</h4>
                 </div>
+                <button
+                  type="button"
+                  onClick={closeSignModal}
+                  className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+                >
+                  <X size={18} />
+                </button>
               </div>
               <div className="px-6 py-5">
                 <p className="text-sm text-slate-600 mb-1">
@@ -975,41 +982,32 @@ export default function InventoryApprovedQuotes() {
                   </button>
                 )}
               </div>
-              <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4">
+              <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4">
                 <button
                   type="button"
                   onClick={() =>
                     void handleDownloadReceipt(signingReceipt, signingReceipt.receiptCode)
                   }
-                  className="flex items-center gap-1.5 text-xs font-bold text-[#00285E] hover:text-[#001E46]"
+                  className="flex items-center gap-1.5 rounded-xl border border-[#00285E]/20 bg-[#EDF3FF] px-5 py-2.5 text-sm font-bold text-[#00285E] hover:bg-[#DCE8FF] transition-colors"
                 >
-                  <FileText size={13} />
+                  <FileText size={15} />
                   Tải phiếu PDF
                 </button>
-                <div className="flex items-center gap-2.5">
-                  <button
-                    type="button"
-                    onClick={closeSignModal}
-                    className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100"
-                  >
-                    Đóng (xác nhận sau)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleSubmitSignature()}
-                    disabled={isSubmittingSignature || !proofPhotoFile}
-                    className="flex items-center gap-2 rounded-xl bg-[#00285E] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#001E46] disabled:opacity-60"
-                  >
-                    {isSubmittingSignature ? (
-                      <>
-                        <Loader2 size={14} className="animate-spin" />
-                        Đang lưu...
-                      </>
-                    ) : (
-                      "Xác nhận đã nhận hàng"
-                    )}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleSubmitSignature()}
+                  disabled={isSubmittingSignature || !proofPhotoFile}
+                  className="flex items-center gap-2 rounded-xl bg-[#00285E] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#001E46] disabled:opacity-60"
+                >
+                  {isSubmittingSignature ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Đang lưu...
+                    </>
+                  ) : (
+                    "Xác nhận đã nhận hàng"
+                  )}
+                </button>
               </div>
             </motion.div>
           </div>

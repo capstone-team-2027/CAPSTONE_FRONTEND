@@ -39,7 +39,8 @@ const resources = {
         contact: "Liên hệ",
         booking: "Đặt lịch ngay",
         logout: "Đăng xuất",
-        login: "Đăng nhập"
+        login: "Đăng nhập",
+        news: "Tin tức"
       },
       footer: {
         tagline: "Dịch vụ ô tô chính xác dành cho những chiếc xe đòi hỏi sự hoàn hảo.",
@@ -87,13 +88,23 @@ const resources = {
         goldMember: "Thành viên Vàng",
         joined: "Tham gia từ:",
         tierProgress: "Tiến trình hạng: Bạch Kim",
+        tierProgressLabel: "Tiến trình hạng: {{tier}}",
         pointsRemaining: "Còn 150 điểm để đạt hạng Bạch Kim",
+        tier_BRONZE: "Thành viên Đồng",
+        tier_SILVER: "Thành viên Bạc",
+        tier_GOLD: "Thành viên Vàng",
+        tier_PLATINUM: "Thành viên Bạch Kim",
+        stat_totalSpent: "Tổng chi tiêu",
+        stat_serviceCount: "Số lần dịch vụ",
+        stat_loyaltyPoints: "Điểm thưởng",
+        stat_upcomingAppointments: "Lịch hẹn sắp tới",
         updateSuccess: "Cập nhật thông tin thành công!",
         updateFail: "Cập nhật thất bại, vui lòng thử lại.",
         avatarUpdateSuccess: "Cập nhật ảnh đại diện thành công!",
         avatarUpdateFail: "Cập nhật ảnh đại diện thất bại, vui lòng thử lại.",
         support: "Trợ giúp & Hỗ trợ",
         supportMessage: "Hệ thống hỗ trợ trực tuyến đang kết nối...",
+        logoutConfirmTitle: "Đăng xuất tài khoản",
         logoutConfirm: "Bạn có chắc chắn muốn đăng xuất?",
         logout: "Đăng xuất",
         userProfile: "Hồ sơ người dùng",
@@ -637,6 +648,17 @@ const resources = {
         resetFilters: "Thiết lập lại bộ lọc",
         callRescue: "Gọi cứu hộ",
         bookService: "Đặt dịch vụ",
+        comboSubtitle: "TIẾT KIỆM HƠN CHO BẠN",
+        comboTitle: "Gói Combo Dịch vụ",
+        comboDesc: "Tích hợp các gói chăm sóc, bảo dưỡng định kỳ xe ô tô chuyên nghiệp với chi phí ưu đãi tốt nhất.",
+        comboDiscountBadge: "Giảm {{percent}}%",
+        comboSpecialBadge: "Gói Đặc Biệt",
+        comboIncludedServices: "Dịch vụ đi kèm:",
+        comboFallbackServiceName: "Dịch vụ bảo dưỡng",
+        comboRetailPrice: "Mua lẻ từng dịch vụ:",
+        comboPrice: "Giá Combo:",
+        comboSavings: "Tiết kiệm ngay:",
+        comboViewDetails: "Hiện chi tiết",
         whyChooseUsTitle: "Tại sao chọn AGM Intelligent?",
         whyChooseUs: {
           techs: {
@@ -962,13 +984,59 @@ const resources = {
         },
         alerts: {
           validationError: "Vui lòng điền đầy đủ và đúng thông tin yêu cầu của bước hiện tại.",
-          minOneTask: "Bạn phải chọn ít nhất một hạng mục công việc."
+          minOneTask: "Bạn phải chọn ít nhất một hạng mục công việc.",
+          submitFailed: "Đặt lịch thất bại. Vui lòng thử lại.",
+          submitError: "Đã xảy ra lỗi trong quá trình đặt lịch. Vui lòng thử lại.",
+          aiColorAnalysisError: "Tính năng nhận diện xe bằng AI hiện đang có lỗi xử lý. Vui lòng thử lại hoặc nhập trực tiếp."
+        },
+        selection: {
+          aiDiagnosisTitle: "AI chẩn đoán lỗi xe",
+          callConsultTitle: "Gọi điện tư vấn trực tiếp",
+          aiPromoText: "Nhận kết quả chẩn đoán tức thì từ trợ lý AI",
+          callPromoText: "CSKH liên hệ tư vấn trong 15 phút",
+          noRequestInfo: "Chưa nhập thông tin yêu cầu",
+          repairTitle: "Sửa chữa lỗi xe",
+          contactPrice: "Liên hệ",
+          repairPromoText: "Kỹ thuật viên sẽ kiểm tra trực tiếp",
+          noDescription: "Chưa có mô tả",
+          multipleServicesTitle: "{{count}} dịch vụ đã chọn",
+          includesPrefix: "Bao gồm: ",
+          garageServiceFallback: "Dịch vụ của gara",
+          aiDiagnosisMode: "Hình thức: Phân tích lỗi bằng AI",
+          descriptionPrefix: "Mô tả: {{desc}}",
+          severityPrefix: "Mức độ: {{severity}}",
+          callVideoMode: "Hình thức: Gọi Video trực tiếp (SOS)"
+        },
+        payment: {
+          detailTitle: "Chi tiết đặt lịch",
+          orderCode: "Mã đơn: ",
+          modeLabel: "Hình thức",
+          customerLabel: "Khách hàng",
+          customerFallback: "Khách hàng",
+          totalLabel: "Tổng thanh toán",
+          title: "Thanh toán đơn hàng",
+          desc: "Quét mã QR bằng ứng dụng ngân hàng hoặc ví điện tử để hoàn tất đặt lịch.",
+          transferContentLabel: "Nội dung CK: ",
+          noPaymentInfo: "Không tìm thấy thông tin thanh toán.",
+          waitingConfirm: "Hệ thống đang tự động chờ xác nhận thanh toán..."
         },
         success: {
           title: "Đặt lịch thành công!",
           desc: "Mã đặt lịch của bạn là {{code}}. Chúng tôi đã gửi email xác nhận chi tiết lịch hẹn của bạn. Bộ phận chăm sóc khách hàng sẽ liên hệ với bạn trong vòng 15 phút.",
-          goHome: "Về trang chủ",
-          bookAnother: "Đặt dịch vụ khác"
+          goHome: "Trở về Trang chủ",
+          bookAnother: "Tạo lịch hẹn mới",
+          stubTitle: "Thành Công!",
+          stubDesc: "Đã xác nhận lịch hẹn",
+          detailTitle: "Chi tiết Đặt Lịch",
+          typeBadgeConsultation: "Tư vấn trực tiếp",
+          typeBadgeRepair: "Sửa chữa",
+          typeBadgeService: "Bảo dưỡng",
+          contentLabelRepair: "Nội dung kiểm tra / sửa chữa",
+          contentLabelService: "Dịch vụ yêu cầu",
+          timeLabel: "Thời gian hẹn",
+          vehicleLabel: "Phương tiện",
+          noteRepair: "Xin vui lòng mang xe đến gara đúng giờ để kỹ thuật viên kiểm tra trực tiếp và báo giá vật tư chính xác nhất trước khi tiến hành sửa chữa.",
+          noteDefault: "Bộ phận CSKH sẽ sớm liên hệ xác nhận. Vui lòng để ý điện thoại của bạn."
         },
         summary: {
           serviceLabel: "Dịch vụ:",
@@ -981,12 +1049,55 @@ const resources = {
           title: "Chọn dịch vụ bảo dưỡng",
           estimatedPrice: "Giá dự kiến",
           customizeTasks: "Tùy chỉnh hạng mục công việc",
-          customizeTasksDesc: "Chọn hoặc bỏ chọn các hạng mục cụ thể bạn mong muốn thực hiện trong gói dịch vụ."
+          customizeTasksDesc: "Chọn hoặc bỏ chọn các hạng mục cụ thể bạn mong muốn thực hiện trong gói dịch vụ.",
+          itemCount: "{{count}} hạng mục",
+          aiDescLabel: "Mô tả tình trạng lỗi/hỏng hóc của xe",
+          aiDescPlaceholder: "Ví dụ: Khi tôi đi vào đường gồ ghề, phía gầm trước có tiếng kêu lục cục rất rõ...",
+          issueImageLabel: "Ảnh chụp khu vực gặp lỗi (Tùy chọn)",
+          aiAnalyzingImage: "AI đang siêu soi ảnh của bạn...",
+          uploadIssueImage: "Tải ảnh lỗi xe lên (Nếu có)",
+          uploadIssueImageHint: "Ảnh rò dầu, xước sơn, nứt kính, đèn check engine...",
+          issueImageAlt: "Lỗi xe",
+          aiReportTitle: "Báo cáo",
+          estimatedCost: "Chi phí dự kiến",
+          repairTime: "Thời gian sửa",
+          recommendation: "Khuyến nghị xử lý:",
+          aiAnalyzing: "AI đang phân tích tình trạng xe...",
+          analyzeButton: "Phân tích và chẩn đoán lỗi bằng AI",
+          aiResultTitle: "Kết quả chẩn đoán sơ bộ của AI",
+          severityLabel: "Mức độ:",
+          possibleCauses: "Các nguyên nhân có thể xảy ra:",
+          aiAdvice: "Lời khuyên và khuyến nghị từ AI:",
+          plateLabel: "Biển số: ",
+          yearLabel: "Năm SX: ",
+          colorLabel: " • Màu: ",
+          manualInputTab: "Nhập trực tiếp",
+          aiUploadTab: "Tải ảnh xe (AI)",
+          uploadCarImages: "Chọn nhiều ảnh xe (tối đa 3 ảnh)",
+          uploadCarImagesHint1: "Bạn có thể tải ảnh mặt trước, mặt ngang và mặt sau.",
+          uploadCarImagesHint2: "AI sẽ tổng hợp các góc ảnh để phân tích chính xác nhất!",
+          previewAlt: "Xem trước {{index}}",
+          imagesUploaded: "Ảnh đã tải lên",
+          aiAutoFilledHint: "Các thông tin xe đã được AI phân tích và tự động điền vào các ô bên dưới.",
+          uploadOtherImages: "Tải ảnh khác",
+          aiDetectedDetails: "Chi tiết xe do AI nhận diện:",
+          aiAnalyzingCarImage: "AI đang phân tích hình ảnh để nhận diện thông số xe...",
+          checkingPlate: "Đang kiểm tra biển số...",
+          yearProductionLabel: "Năm sản xuất",
+          yearPlaceholder: "Ví dụ: 2020, 2022...",
+          colorOptionalLabel: "Màu sắc (Tùy chọn)",
+          colorPlaceholder: "Ví dụ: Đỏ, Đen, Trắng..."
         },
         step2: {
           title: "Chọn thời gian hẹn",
           dateLabel: "Chọn ngày hẹn",
-          timeLabel: "Chọn khung giờ"
+          timeLabel: "Chọn khung giờ",
+          noTimeSlots: "Chưa có khung giờ khả dụng cho ngày này.",
+          slotFull: "Kín lịch"
+        },
+        step2repair: {
+          descLabel: "Mô tả tình trạng lỗi/hỏng hóc của xe để đặt lịch sửa chữa",
+          descPlaceholder: "Ví dụ: Xe bị xước móp ở cửa trước bên phải, cần phục hồi và sơn lại..."
         },
         step3: {
           title: "Thông tin phương tiện",
@@ -1010,7 +1121,12 @@ const resources = {
           back: "Quay lại",
           processing: "Đang xử lý...",
           confirm: "Xác nhận đặt lịch",
-          next: "Tiếp theo"
+          next: "Tiếp theo",
+          recognizing: "Đang nhận diện..."
+        },
+        lightbox: {
+          zoomIssueAlt: "Phóng to lỗi xe",
+          zoomImageAlt: "Phóng to ảnh"
         },
         sidebar: {
           title: "Tóm tắt đặt lịch",
@@ -1024,7 +1140,14 @@ const resources = {
           free: "Miễn phí",
           total: "Tổng cộng",
           estimatedNote: "* Giá tạm tính",
-          itemsLabel: "Hạng mục đã chọn"
+          itemsLabel: "Hạng mục đã chọn",
+          consultationRequestLabel: "Yêu cầu tư vấn",
+          selectedItemsLabel: "Hạng mục đã chọn",
+          includedServicesLabel: "Dịch vụ đi kèm",
+          plateInline: "Biển số: ",
+          yearInline: " • Đời: ",
+          colorInline: " • Màu: ",
+          originalPriceLabel: "Giá gốc:"
         },
         hotline: {
           title: "Cần tư vấn trực tiếp?",
@@ -1129,6 +1252,45 @@ const resources = {
           consultBtn: "Đặt lịch ngay",
           schedule: "THỨ 2 - THỨ 7: 7:00 - 19:00"
         }
+      },
+      news: {
+        heroTitle: "Tin tức & Kiến thức",
+        heroDesc: "Cập nhật kiến thức chăm sóc xe, công nghệ mới và mẹo bảo dưỡng từ đội ngũ chuyên gia AGM Intelligent.",
+        readMore: "Đọc tiếp",
+        empty: "Chưa có bài viết nào trong danh mục này.",
+        readTime: "{{count}} phút đọc",
+        categories: {
+          all: "Tất cả",
+          maintenance: "Bảo dưỡng",
+          technology: "Công nghệ",
+          tips: "Mẹo hay"
+        },
+        articles: {
+          ceramic: {
+            title: "The Science Behind Ceramic Coatings: Why Your Investment Deserves Protection",
+            excerpt: "Tìm hiểu cơ chế bảo vệ sơn xe bằng lớp phủ ceramic và lý do đây là khoản đầu tư xứng đáng cho chiếc xe của bạn."
+          },
+          ecu: {
+            title: "Understanding ECU Tuning: Power Gains Without Compromising Reliability",
+            excerpt: "Giải mã công nghệ tinh chỉnh ECU giúp tăng công suất động cơ mà vẫn đảm bảo độ bền và an toàn vận hành."
+          },
+          winter: {
+            title: "Winter Storage Guide: Protecting Your Collector Vehicle Through the Cold Months",
+            excerpt: "Hướng dẫn bảo quản xe đúng cách trong mùa lạnh để giữ động cơ và nội thất luôn trong tình trạng tốt nhất."
+          },
+          turbo: {
+            title: "Turbocharger Assembly: Bảo trì đúng cách để tối ưu tuổi thọ",
+            excerpt: "Những dấu hiệu cảnh báo turbo gặp vấn đề và lịch bảo trì khuyến nghị từ đội ngũ kỹ thuật AGM."
+          },
+          diagnostics: {
+            title: "Digital Diagnostics: Chẩn đoán lỗi xe bằng công nghệ số",
+            excerpt: "AGM Intelligent ứng dụng công nghệ chẩn đoán số hóa giúp phát hiện lỗi nhanh và chính xác hơn."
+          },
+          performance: {
+            title: "Performance Tuning: Nâng cấp hiệu suất an toàn cho xe của bạn",
+            excerpt: "Các gói nâng cấp hiệu suất phổ biến và những lưu ý quan trọng trước khi quyết định độ xe."
+          }
+        }
       }
     }
   },
@@ -1168,7 +1330,8 @@ const resources = {
         contact: "Contact",
         booking: "Book Now",
         logout: "Logout",
-        login: "Login"
+        login: "Login",
+        news: "News"
       },
       footer: {
         tagline: "Precision automotive service for cars that demand perfection.",
@@ -1216,13 +1379,23 @@ const resources = {
         goldMember: "Gold Member",
         joined: "Joined:",
         tierProgress: "Tier Progress: Platinum",
+        tierProgressLabel: "Tier Progress: {{tier}}",
         pointsRemaining: "150 points remaining to reach Platinum",
+        tier_BRONZE: "Bronze Member",
+        tier_SILVER: "Silver Member",
+        tier_GOLD: "Gold Member",
+        tier_PLATINUM: "Platinum Member",
+        stat_totalSpent: "Total Spent",
+        stat_serviceCount: "Service Count",
+        stat_loyaltyPoints: "Loyalty Points",
+        stat_upcomingAppointments: "Upcoming Appointments",
         updateSuccess: "Profile updated successfully!",
         updateFail: "Update failed, please try again.",
         avatarUpdateSuccess: "Avatar updated successfully!",
         avatarUpdateFail: "Avatar update failed, please try again.",
         support: "Help & Support",
         supportMessage: "Online support system is connecting...",
+        logoutConfirmTitle: "Log Out Account",
         logoutConfirm: "Are you sure you want to log out?",
         logout: "Log Out",
         userProfile: "User Profile",
@@ -1766,6 +1939,17 @@ const resources = {
         resetFilters: "Reset filters",
         callRescue: "CALL EMERGENCY",
         bookService: "BOOK SERVICE",
+        comboSubtitle: "SAVE MORE FOR YOU",
+        comboTitle: "Service Combo Packages",
+        comboDesc: "Bundled professional car care and periodic maintenance packages at the best discounted price.",
+        comboDiscountBadge: "{{percent}}% Off",
+        comboSpecialBadge: "Special Package",
+        comboIncludedServices: "Included Services:",
+        comboFallbackServiceName: "Maintenance Service",
+        comboRetailPrice: "Individual price:",
+        comboPrice: "Combo Price:",
+        comboSavings: "You save:",
+        comboViewDetails: "View Details",
         whyChooseUsTitle: "Why Choose AGM Intelligent?",
         whyChooseUs: {
           techs: {
@@ -2091,13 +2275,59 @@ const resources = {
         },
         alerts: {
           validationError: "Please fill in all required information for the current step.",
-          minOneTask: "You must select at least one task."
+          minOneTask: "You must select at least one task.",
+          submitFailed: "Booking failed. Please try again.",
+          submitError: "An error occurred while booking. Please try again.",
+          aiColorAnalysisError: "AI vehicle recognition is currently experiencing an issue. Please try again or enter manually."
+        },
+        selection: {
+          aiDiagnosisTitle: "AI Fault Diagnosis",
+          callConsultTitle: "Direct Video Consultation",
+          aiPromoText: "Get instant diagnostic results from our AI assistant",
+          callPromoText: "Customer service will contact you within 15 minutes",
+          noRequestInfo: "No request information entered",
+          repairTitle: "Vehicle Repair",
+          contactPrice: "Contact us",
+          repairPromoText: "A technician will inspect your vehicle directly",
+          noDescription: "No description provided",
+          multipleServicesTitle: "{{count}} services selected",
+          includesPrefix: "Includes: ",
+          garageServiceFallback: "Garage Service",
+          aiDiagnosisMode: "Mode: AI Fault Analysis",
+          descriptionPrefix: "Description: {{desc}}",
+          severityPrefix: "Severity: {{severity}}",
+          callVideoMode: "Mode: Direct Video Call (SOS)"
+        },
+        payment: {
+          detailTitle: "Booking Details",
+          orderCode: "Order code: ",
+          modeLabel: "Mode",
+          customerLabel: "Customer",
+          customerFallback: "Customer",
+          totalLabel: "Total Payment",
+          title: "Payment",
+          desc: "Scan the QR code with your banking app or e-wallet to complete the booking.",
+          transferContentLabel: "Transfer content: ",
+          noPaymentInfo: "Payment information not found.",
+          waitingConfirm: "The system is automatically waiting for payment confirmation..."
         },
         success: {
           title: "Booking Successful!",
           desc: "Your booking code is {{code}}. We have sent a confirmation email with details of your appointment. Customer service will contact you within 15 minutes.",
           goHome: "Back to Home",
-          bookAnother: "Book Another Service"
+          bookAnother: "Book Another Service",
+          stubTitle: "Success!",
+          stubDesc: "Appointment confirmed",
+          detailTitle: "Booking Details",
+          typeBadgeConsultation: "Direct Consultation",
+          typeBadgeRepair: "Repair",
+          typeBadgeService: "Maintenance",
+          contentLabelRepair: "Inspection / Repair Content",
+          contentLabelService: "Requested Service",
+          timeLabel: "Appointment Time",
+          vehicleLabel: "Vehicle",
+          noteRepair: "Please bring your vehicle to the garage on time so our technician can inspect it directly and provide the most accurate parts quote before starting the repair.",
+          noteDefault: "Our customer service team will contact you shortly for confirmation. Please keep an eye on your phone."
         },
         summary: {
           serviceLabel: "Service:",
@@ -2110,12 +2340,55 @@ const resources = {
           title: "Select Maintenance Service",
           estimatedPrice: "Estimated Price",
           customizeTasks: "Customize service tasks",
-          customizeTasksDesc: "Select or deselect specific tasks you want performed in the service package."
+          customizeTasksDesc: "Select or deselect specific tasks you want performed in the service package.",
+          itemCount: "{{count}} items",
+          aiDescLabel: "Describe the fault/damage of your vehicle",
+          aiDescPlaceholder: "E.g., When driving on a bumpy road, I hear a clear knocking noise from the front underside...",
+          issueImageLabel: "Photo of the affected area (Optional)",
+          aiAnalyzingImage: "AI is closely examining your photo...",
+          uploadIssueImage: "Upload vehicle fault photo (if any)",
+          uploadIssueImageHint: "Photos of oil leaks, paint scratches, cracked glass, check engine light...",
+          issueImageAlt: "Vehicle fault",
+          aiReportTitle: "Report",
+          estimatedCost: "Estimated cost",
+          repairTime: "Repair time",
+          recommendation: "Recommended action:",
+          aiAnalyzing: "AI is analyzing your vehicle's condition...",
+          analyzeButton: "Analyze and diagnose fault with AI",
+          aiResultTitle: "AI Preliminary Diagnosis Result",
+          severityLabel: "Severity:",
+          possibleCauses: "Possible causes:",
+          aiAdvice: "AI advice and recommendations:",
+          plateLabel: "Plate: ",
+          yearLabel: "Year: ",
+          colorLabel: " • Color: ",
+          manualInputTab: "Manual Entry",
+          aiUploadTab: "Upload Vehicle Photo (AI)",
+          uploadCarImages: "Select multiple vehicle photos (up to 3)",
+          uploadCarImagesHint1: "You can upload front, side, and rear photos.",
+          uploadCarImagesHint2: "AI will combine all angles for the most accurate analysis!",
+          previewAlt: "Preview {{index}}",
+          imagesUploaded: "Photos uploaded",
+          aiAutoFilledHint: "Vehicle information has been analyzed by AI and auto-filled below.",
+          uploadOtherImages: "Upload other photos",
+          aiDetectedDetails: "Vehicle details detected by AI:",
+          aiAnalyzingCarImage: "AI is analyzing the image to detect vehicle specifications...",
+          checkingPlate: "Checking license plate...",
+          yearProductionLabel: "Year of manufacture",
+          yearPlaceholder: "E.g., 2020, 2022...",
+          colorOptionalLabel: "Color (Optional)",
+          colorPlaceholder: "E.g., Red, Black, White..."
         },
         step2: {
           title: "Select Appointment Time",
           dateLabel: "Select Appointment Date",
-          timeLabel: "Select Time Slot"
+          timeLabel: "Select Time Slot",
+          noTimeSlots: "No available time slots for this date.",
+          slotFull: "Fully booked"
+        },
+        step2repair: {
+          descLabel: "Describe the fault/damage of your vehicle to book a repair",
+          descPlaceholder: "E.g., The vehicle has a scratch/dent on the front right door, needs restoration and repainting..."
         },
         step3: {
           title: "Vehicle Information",
@@ -2139,7 +2412,12 @@ const resources = {
           back: "Back",
           processing: "Processing...",
           confirm: "Confirm Booking",
-          next: "Next"
+          next: "Next",
+          recognizing: "Recognizing..."
+        },
+        lightbox: {
+          zoomIssueAlt: "Zoom vehicle fault",
+          zoomImageAlt: "Zoom image"
         },
         sidebar: {
           title: "Booking Summary",
@@ -2153,7 +2431,14 @@ const resources = {
           free: "Free",
           total: "Total",
           estimatedNote: "* Estimated Price",
-          itemsLabel: "Selected Tasks"
+          itemsLabel: "Selected Tasks",
+          consultationRequestLabel: "Consultation Request",
+          selectedItemsLabel: "Selected Tasks",
+          includedServicesLabel: "Included Services",
+          plateInline: "Plate: ",
+          yearInline: " • Year: ",
+          colorInline: " • Color: ",
+          originalPriceLabel: "Original price:"
         },
         hotline: {
           title: "Need direct consultation?",
@@ -2257,6 +2542,45 @@ const resources = {
           desc: "Your car deserves the best experts. Book an appointment today to experience the AGM Intelligent standard.",
           consultBtn: "Consult Now",
           schedule: "MON - SAT: 7:00 - 19:00"
+        }
+      },
+      news: {
+        heroTitle: "News & Insights",
+        heroDesc: "Stay up to date with car care knowledge, new technology, and maintenance tips from the AGM Intelligent expert team.",
+        readMore: "Read More",
+        empty: "No articles in this category yet.",
+        readTime: "{{count}} min read",
+        categories: {
+          all: "All",
+          maintenance: "Maintenance",
+          technology: "Technology",
+          tips: "Tips"
+        },
+        articles: {
+          ceramic: {
+            title: "The Science Behind Ceramic Coatings: Why Your Investment Deserves Protection",
+            excerpt: "Understand how ceramic coatings protect your car's paint and why it's a worthwhile investment for your vehicle."
+          },
+          ecu: {
+            title: "Understanding ECU Tuning: Power Gains Without Compromising Reliability",
+            excerpt: "Decode ECU tuning technology that boosts engine power while maintaining durability and safe operation."
+          },
+          winter: {
+            title: "Winter Storage Guide: Protecting Your Collector Vehicle Through the Cold Months",
+            excerpt: "A guide to properly storing your vehicle during cold months to keep the engine and interior in top condition."
+          },
+          turbo: {
+            title: "Turbocharger Assembly: Proper Maintenance for Optimal Lifespan",
+            excerpt: "Warning signs of turbo issues and the recommended maintenance schedule from the AGM technical team."
+          },
+          diagnostics: {
+            title: "Digital Diagnostics: Diagnosing Vehicle Faults with Digital Technology",
+            excerpt: "AGM Intelligent applies digital diagnostic technology to detect faults faster and more accurately."
+          },
+          performance: {
+            title: "Performance Tuning: Safely Upgrading Your Vehicle's Performance",
+            excerpt: "Popular performance upgrade packages and important considerations before modifying your vehicle."
+          }
         }
       }
     }
