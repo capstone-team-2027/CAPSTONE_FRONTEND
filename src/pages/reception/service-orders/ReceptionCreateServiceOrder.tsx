@@ -32,13 +32,14 @@ import { SERVICE_ORDER_API_ENDPOINTS } from '../../../constants/reception/appoin
 import { useFetchClient, useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
 import { SEARCH_API_ENDPOINTS } from '../../../constants/reception/searchEndpoints';
-import SingleServicesSelector from '../../customer/booking/SingleServicesSelector';
-import ComboServicesSelector from '../../customer/booking/ComboServicesSelector';
 import { SERVICE_API_ENDPOINTS } from '../../../constants/customer/serviceApiEndpoints';
 import type { ServiceCombo, ServiceItem as CustomerServiceItem } from '../../../model/Service';
 import { useTranslation } from 'react-i18next';
 import { VEHICLE_MAKE_MODEL_API_ENDPOINTS } from '../../../constants/customer/vehicelMakeModelEndpoint';
 import { GARAGE_CONFIG_API_ENDPOINTS } from '../../../constants/customer/garage_configurationsEndpoints';
+import SingleServicesSelector from '../../customer/booking/SingleServicesSelector';
+import ComboServicesSelector from '../../customer/booking/ComboServicesSelector';
+
 
 
 

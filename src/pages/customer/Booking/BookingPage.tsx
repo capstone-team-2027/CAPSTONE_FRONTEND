@@ -14,10 +14,11 @@ import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/customer/appointme
 import { GARAGE_CONFIG_API_ENDPOINTS } from '../../../constants/customer/garage_configurationsEndpoints';
 import { PROFILE_API_ENDPOINTS } from '../../../constants/customer/profileApiEndpoint';
 import { VEHICLE_MAKE_MODEL_API_ENDPOINTS } from '../../../constants/customer/vehicelMakeModelEndpoint';
+
+import type { ServiceCombo, ServiceItem } from '../../../model/Service';
 import SingleServicesSelector from './SingleServicesSelector';
 import ComboServicesSelector from './ComboServicesSelector';
 import InlineCalendar from './InlineCalendar';
-import type { ServiceCombo, ServiceItem } from '../../../model/Service';
 
 const DEFAULT_SHIFTS = [
     { start_time: '08:00', end_time: '12:00' },
