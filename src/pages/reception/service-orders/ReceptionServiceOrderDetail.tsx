@@ -61,12 +61,19 @@ export default function ReceptionServiceOrderDetail() {
   const [isPaymentSuccess, setIsPaymentSuccess] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'NONE' | 'CASH' | 'ONLINE'>('NONE');
 
+  // Loyalty points
+  const [maxDiscountPercent, setMaxDiscountPercent] = useState<number>(30);
+  const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
+  const [inputPoints, setInputPoints] = useState<number>(0);
+
   const isPaid = order?.payment?.payment_status === 'PAID' || order?.payment?.payment_status === 'COMPLETED';
 
   const handleOpenPaymentModal = () => {
     setPaymentMethod('NONE');
     setShowPaymentModal(true);
     setIsPaymentSuccess(false);
+    setPointsToRedeem(0);
+    setInputPoints(0);
   };
 
   const handleSelectPaymentMethod = async (method: 'CASH' | 'ONLINE') => {
@@ -84,6 +91,8 @@ export default function ReceptionServiceOrderDetail() {
       }
     }
   };
+
+
 
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -141,8 +150,9 @@ export default function ReceptionServiceOrderDetail() {
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
       await fetchPrivate(`${apiBaseUrl}/api/payment/confirm-payment`, 'POST', {
         orderId: order.id,
-        amount: getOrderTotal(),
+        amount: Math.max(0, getOrderTotal() - (pointsToRedeem * 1000)),
         method: 'CASH',
+        pointsRedeemed: pointsToRedeem,
       });
     } catch (err) {
       console.warn("Cập nhật DB confirm-payment (CASH):", err);
@@ -166,8 +176,9 @@ export default function ReceptionServiceOrderDetail() {
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
       await fetchPrivate(`${apiBaseUrl}/api/payment/confirm-payment`, 'POST', {
         orderId: order.id,
-        amount: getOrderTotal(),
+        amount: Math.max(0, getOrderTotal() - (pointsToRedeem * 1000)),
         method: 'ONLINE',
+        pointsRedeemed: pointsToRedeem,
       });
     } catch (err) {
       console.warn("Cập nhật DB confirm-payment:", err);
@@ -192,6 +203,21 @@ export default function ReceptionServiceOrderDetail() {
       socket.off('new_notification', handleNewNotification);
     };
   }, [socket, id]);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+        const res = await fetchPublic(`${apiBaseUrl}/api/guest/garage-configurations/MAX_LOYALTY_DISCOUNT_PERCENT`);
+        if (res && res.success && res.data) {
+          setMaxDiscountPercent(parseInt(res.data.config_value) || 30);
+        }
+      } catch (err) {
+        console.warn("Lỗi tải cấu hình max discount:", err);
+      }
+    };
+    fetchConfig();
+  }, []);
 
   const loadOrderDetail = async (orderId: string) => {
     try {
@@ -243,30 +269,100 @@ export default function ReceptionServiceOrderDetail() {
     return (price || 0).toLocaleString('vi-VN') + ' VND';
   };
 
+  const getRescuePrice = () => {
+    return parseFloat(order?.appointment?.rescueRequest?.rescue_price) || 0;
+  };
+
   const getOrderTotal = () => {
+    let baseTotal = 0;
     if (order.quotation && Array.isArray(order.quotation.items)) {
-      return order.quotation.items
-        .filter((item: any) => item.status !== 'CANCELLED')
-        .reduce((sum: number, item: any) => sum + (parseFloat(item.amount) || 0), 0);
+      baseTotal = order.quotation.items.reduce((sum: number, item: any) => {
+        const itemTotal = (parseFloat(item.unit_price) || 0) * (item.quantity || 1) + (parseFloat(item.repair_price) || 0);
+        return sum + itemTotal;
+      }, 0);
+    } else {
+      baseTotal = order.tasks?.reduce((sum: number, task: any) => sum + (parseFloat(task.catalog?.total_price || task.catalog?.labor_price) || 0), 0) || 0;
     }
-    if (!order.tasks || !Array.isArray(order.tasks)) return 0;
-    return order.tasks.reduce((sum: number, task: any) => {
-      const price = parseFloat(task.catalog?.total_price) || 0;
-      return sum + price;
-    }, 0);
+    return baseTotal + getRescuePrice();
   };
 
   const getRemainingAmount = () => {
-    if (order.payment?.payment_status === 'PAID' || order.payment?.payment_status === 'COMPLETED') {
-      return 0;
-    }
     const total = getOrderTotal();
     if (order.payment?.payment_status === 'DEPOSITED') {
-      const deposit = parseFloat(order.payment.amount) || 0;
-      return Math.max(0, total - deposit);
+      return Math.max(0, total - (parseFloat(order.payment.amount) || 0));
     }
     return total;
   };
+
+  const renderLoyaltyPointsSection = () => {
+    const availablePoints = order?.vehicle?.customer?.loyalty_points || 0;
+    const remainingToPay = getRemainingAmount();
+    const maxDiscountAmount = remainingToPay * (maxDiscountPercent / 100);
+    const maxPointsUsable = Math.floor(maxDiscountAmount / 1000);
+
+    if (availablePoints <= 0) return null;
+
+    return (
+      <div className="bg-[#EDF3FF] border border-blue-200 rounded-xl p-4 mt-4 text-left">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-blue-800 font-semibold text-sm">Điểm tích lũy:</span>
+          <span className="font-bold text-blue-900 bg-blue-100 px-2 py-0.5 rounded">{availablePoints.toLocaleString()} điểm</span>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-xs text-blue-600">Bạn có thể dùng điểm để giảm tối đa {maxDiscountPercent}% hóa đơn ({formatPrice(maxDiscountAmount)}).</p>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min="0"
+              max={Math.min(availablePoints, maxPointsUsable)}
+              value={inputPoints || ''}
+              onChange={(e) => {
+                const val = parseInt(e.target.value) || 0;
+                setInputPoints(Math.min(val, availablePoints, maxPointsUsable));
+              }}
+              placeholder="Nhập số điểm muốn đổi"
+              className="flex-1 border border-blue-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+            />
+            <button
+              onClick={async () => {
+                setPointsToRedeem(inputPoints);
+                if (paymentMethod === 'ONLINE') {
+                  try {
+                    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+                    const discountedAmount = Math.max(0, getRemainingAmount() - (inputPoints * 1000));
+                    await fetchPublic(`${apiBaseUrl}/api/payment/init-payment`, 'POST', {
+                      orderId: order.id,
+                      amount: discountedAmount,
+                    });
+                    showToast(`Đã áp dụng ${inputPoints} điểm!`, 'success');
+                  } catch (err) {
+                    console.warn(err);
+                  }
+                } else {
+                  showToast(`Đã áp dụng ${inputPoints} điểm!`, 'success');
+                }
+              }}
+              disabled={!inputPoints || inputPoints <= 0}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50 hover:bg-blue-700 transition"
+            >
+              Áp dụng
+            </button>
+          </div>
+          {pointsToRedeem > 0 && (
+            <div className="flex justify-between items-center bg-green-50 border border-green-200 rounded-lg p-2 px-3 mt-2">
+              <span className="text-green-700 text-sm font-semibold flex items-center gap-1">
+                ✓ Đang áp dụng {pointsToRedeem.toLocaleString()} điểm
+              </span>
+              <span className="text-green-700 font-bold">-{formatPrice(pointsToRedeem * 1000)}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const finalAmountToPay = Math.max(0, getRemainingAmount() - (pointsToRedeem * 1000));
 
   const getLaborTotal = () => {
     if (order.quotation && Array.isArray(order.quotation.items)) {
@@ -643,14 +739,22 @@ export default function ReceptionServiceOrderDetail() {
                           name: 'Kiểm tra tổng quát tình trạng xe',
                           cost: 0,
                         }));
-                      const serviceRows = order.quotation.items
+                      const serviceRows = (order.quotation?.items || [])
                         .filter((item: any) => parseFloat(item.repair_price) > 0 && item.status !== 'CANCELLED')
                         .map((item: any, idx: number) => ({
                           key: `service-${idx}`,
                           name: item.custom_item_name || item.service_catalog?.service_name || 'Dịch vụ sửa chữa',
                           cost: parseFloat(item.repair_price) || 0,
                         }));
-                      const rows = [...inspectionRows, ...serviceRows];
+                      
+                      const rescuePrice = getRescuePrice();
+                      const rescueRows = rescuePrice > 0 ? [{
+                        key: 'rescue-fee-row',
+                        name: `Dịch vụ cứu hộ khẩn cấp (${order.appointment?.rescueRequest?.distance_km || 0} km)`,
+                        cost: rescuePrice,
+                      }] : [];
+
+                      const rows = [...inspectionRows, ...serviceRows, ...rescueRows];
 
                       return rows.map((row, idx) => (
                         <tr key={row.key} className="hover:bg-slate-50/50 transition-colors">
@@ -660,7 +764,7 @@ export default function ReceptionServiceOrderDetail() {
                           </td>
                           <td className="py-3.5 px-4 text-right">
                             {row.cost > 0 ? (
-                              <span className="font-bold text-[#00285E]">{formatPrice(row.cost)}</span>
+                                <span className="font-bold text-[#00285E]">{formatPrice(row.cost)}</span>
                             ) : (
                               <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold text-white bg-[#00285E]">
                                 Miễn phí
@@ -832,7 +936,7 @@ export default function ReceptionServiceOrderDetail() {
         {/* Totals Section */}
         <div className="-mx-6 md:-mx-8 -mb-6 md:-mb-8 mt-8 bg-slate-50 border-t border-slate-200/80 p-6 md:p-8 rounded-b-3xl">
           <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-            
+
             {/* Col 1: Tiền công */}
             <div className="flex-1 min-w-0 space-y-1 text-sm font-semibold text-left">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block whitespace-nowrap">Tiền công sửa chữa</span>
@@ -846,6 +950,15 @@ export default function ReceptionServiceOrderDetail() {
               <span className="text-base font-black text-slate-800">{formatPrice(getPartsTotal())}</span>
               <span className="text-[9.5px] text-slate-450 block font-normal whitespace-nowrap">Chi phí linh kiện thay thế</span>
             </div>
+
+            {/* Col: Phí cứu hộ (nếu có) */}
+            {getRescuePrice() > 0 && (
+              <div className="flex-1 min-w-0 space-y-1 text-sm font-semibold border-t md:border-t-0 md:border-l border-slate-200 md:pl-4 pt-4 md:pt-0 text-left">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block whitespace-nowrap">Phí cứu hộ khẩn cấp</span>
+                <span className="text-base font-black text-rose-600">{formatPrice(getRescuePrice())}</span>
+                <span className="text-[9.5px] text-slate-450 block font-normal whitespace-nowrap">Khoảng cách: {order.appointment?.rescueRequest?.distance_km} km</span>
+              </div>
+            )}
 
             {/* Col 3: Tổng chi phí dịch vụ */}
             <div className="flex-1 min-w-0 space-y-1 text-sm font-semibold border-t md:border-t-0 md:border-l border-slate-200 md:pl-4 pt-4 md:pt-0 text-left">
@@ -890,8 +1003,8 @@ export default function ReceptionServiceOrderDetail() {
                 {order.payment?.payment_status === 'PAID' || order.payment?.payment_status === 'COMPLETED'
                   ? 'Còn lại:'
                   : order.payment?.payment_status === 'DEPOSITED'
-                  ? 'Còn lại cần thu:'
-                  : 'Tổng chi phí:'}
+                    ? 'Còn lại cần thu:'
+                    : 'Tổng chi phí:'}
               </span>
               <span className="text-lg font-black text-rose-600 block whitespace-nowrap">
                 {formatPrice(
@@ -1252,9 +1365,10 @@ export default function ReceptionServiceOrderDetail() {
                         </div>
                       </>
                     )}
-                    <div className="flex justify-between items-center text-lg">
+                    {renderLoyaltyPointsSection()}
+                    <div className="flex justify-between items-center text-lg mt-4 pt-4 border-t border-slate-200">
                       <span className="text-slate-600 font-bold">Số tiền thực thu:</span>
-                      <span className="text-2xl font-black text-rose-600">{formatPrice(getRemainingAmount())}</span>
+                      <span className="text-2xl font-black text-rose-600">{formatPrice(finalAmountToPay)}</span>
                     </div>
                   </div>
 
@@ -1349,6 +1463,8 @@ export default function ReceptionServiceOrderDetail() {
                       </div>
                     </div>
 
+                    {renderLoyaltyPointsSection()}
+
                     <div className="mt-6 pt-4 border-t border-dashed border-slate-300 space-y-3">
                       {order.payment?.payment_status === 'DEPOSITED' && (
                         <div className="flex justify-between items-center text-xs font-semibold text-slate-600 px-1">
@@ -1361,7 +1477,7 @@ export default function ReceptionServiceOrderDetail() {
                           {order.payment?.payment_status === 'DEPOSITED' ? 'Còn lại cần thanh toán' : 'Tổng thanh toán'}
                         </span>
                         <span className="text-2xl font-black text-rose-600">
-                          {formatPrice(getRemainingAmount())}
+                          {formatPrice(finalAmountToPay)}
                         </span>
                       </div>
                     </div>
@@ -1388,17 +1504,17 @@ export default function ReceptionServiceOrderDetail() {
                       <div className="p-1 rounded-3xl bg-gradient-to-br from-white/40 to-white/10 shadow-2xl relative group">
                         <div className="bg-white p-4 rounded-[1.3rem] relative z-10">
                           <img
-                            src={`https://vietqr.app/img?acc=${import.meta.env.VITE_SEPAY_ACC || '0348714088'}&bank=${import.meta.env.VITE_SEPAY_BANK || 'MB'}&amount=${getRemainingAmount()}&template=compact&showinfo=true&addInfo=SO-${order.id}`}
+                            src={`https://vietqr.app/img?acc=${import.meta.env.VITE_SEPAY_ACC || '0348714088'}&bank=${import.meta.env.VITE_SEPAY_BANK || 'MB'}&amount=${finalAmountToPay}&template=compact&showinfo=true&addInfo=SO-${order.id}${pointsToRedeem > 0 ? `-PT-${pointsToRedeem}` : ''}`}
                             alt="VietQR Payment Code"
                             className="w-52 h-52 rounded-xl object-contain mx-auto"
                           />
                           <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-600 font-medium flex items-center justify-center gap-1.5">
                             <span>Nội dung CK:</span>
-                            <span className="font-mono font-bold text-[#00285E] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                              SO-{order.id}
+                            <span className="font-mono font-bold text-[#00285E] bg-amber-50 px-2 py-0.5 rounded border border-amber-200 uppercase">
+                              SO-{order.id}{pointsToRedeem > 0 ? `-PT-${pointsToRedeem}` : ''}
                             </span>
                             <button
-                              onClick={() => handleCopy(`SO-${order.id}`, 'Nội dung chuyển khoản')}
+                              onClick={() => handleCopy(`SO-${order.id}${pointsToRedeem > 0 ? `-PT-${pointsToRedeem}` : ''}`, 'Nội dung chuyển khoản')}
                               className="p-1 text-slate-400 hover:text-[#00285E] rounded transition-colors"
                             >
                               <Copy size={13} />
@@ -1490,6 +1606,7 @@ export default function ReceptionServiceOrderDetail() {
           )}
         </div>
       )}
+
     </div>
   );
 }

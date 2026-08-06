@@ -56,14 +56,25 @@ export default function ReceptionCustomerList() {
 
   useEffect(() => {
     loadCustomers();
-    // Refresh lại liên tục mỗi 10 giây để xem khách nào bật/tắt vị trí
+    // Fallback định kỳ phòng khi socket rớt kết nối tạm thời — realtime chính là qua socket bên dưới
     const interval = setInterval(loadCustomers, 10000);
     return () => clearInterval(interval);
   }, [fetchPrivate]);
 
+  // Realtime: BE emit 'new_notification' tới room role-RECEPTIONIST mỗi khi khách hàng bật chia sẻ
+  // vị trí / tạo yêu cầu cứu hộ mới (xem profile.service.js updateLocation) — tự tải lại danh sách
+  // ngay, không cần đợi tới lượt polling hay F5 thủ công.
   useEffect(() => {
-    // No longer listening to 'rescue-vehicle-moving' here
-  }, []);
+    if (!socket) return;
+    const handleNewNotification = () => {
+      loadCustomers();
+    };
+    socket.on('new_notification', handleNewNotification);
+    return () => {
+      socket.off('new_notification', handleNewNotification);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket]);
 
   const handleRescueClick = (customer: Customer) => {
     setAssignModalData({ customer });
@@ -74,24 +85,19 @@ export default function ReceptionCustomerList() {
     const { customer } = assignModalData;
     const customerId = customer.user?.id || customer.id;
 
-    const customerLat = customer.user?.latitude;
-    const customerLng = customer.user?.longitude;
+    const activeRescue = customer.rescueRequests?.find((r: any) => ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(r.status));
+    const customerLat = customer.user?.latitude || activeRescue?.customer_lat;
+    const customerLng = customer.user?.longitude || activeRescue?.customer_lng;
 
     try {
-      // Lưu phân công vào DB thông qua API mới
+      // Lưu phân công vào DB — BE tự notifyUser cho cả KTV và khách hàng (room 'user-{id}'),
+      // không cần FE tự emit socket thêm nữa.
       await fetchPrivate(RECEPTION_API.ASSIGN_RESCUE, "POST", {
         customerId,
         technicianId,
         customerLat,
         customerLng
       });
-
-      if (socket) {
-        socket.emit('dispatch-rescue-vehicle', {
-          customerId,
-          technicianId
-        });
-      }
 
       showToast(`Đã giao nhiệm vụ cứu hộ cho Kỹ thuật viên!`, "success");
     } catch (error) {
@@ -164,12 +170,12 @@ export default function ReceptionCustomerList() {
                 </tr>
               ) : (
                 paginatedCustomers.map((customer) => {
-                  const hasLocation = customer.user?.latitude != null && customer.user?.longitude != null;
                   const latestRescue = customer.rescueRequests && customer.rescueRequests.length > 0
                     ? [...customer.rescueRequests].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
                     : null;
 
                   const activeRescue = latestRescue && ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(latestRescue.status) ? latestRescue : null;
+                  const hasLocation = (customer.user?.latitude != null && customer.user?.longitude != null) || (activeRescue?.customer_lat != null && activeRescue?.customer_lng != null);
                   const completedRescue = latestRescue && latestRescue.status === 'COMPLETED' ? latestRescue : null;
                   const displayName = customer.name || customer.user?.fullName || "Khách hàng ẩn danh";
 
@@ -198,13 +204,13 @@ export default function ReceptionCustomerList() {
                           {/* Khối 1: Hiển thị trạng thái định vị / Nút gọi cứu hộ */}
                           {hasLocation ? (
                             activeRescue && activeRescue.status !== 'PENDING' ? (
-                              <div className="flex flex-col items-end gap-2">
-                                <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-md border border-orange-200">
+                              <div className="flex flex-col items-stretch gap-2 w-40">
+                                <span className="flex items-center justify-center text-center text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1.5 rounded-lg border border-orange-200 truncate">
                                   ĐÃ GÁN: {activeRescue.technician?.fullName?.toUpperCase() || 'KTV'}
                                 </span>
                                 <button
                                   onClick={() => handleRescueClick(customer)}
-                                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors text-xs font-bold"
+                                  className="inline-flex items-center justify-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors text-xs font-bold"
                                 >
                                   <MapPin size={14} />
                                   GÁN LẠI
@@ -290,8 +296,8 @@ export default function ReceptionCustomerList() {
         onClose={() => setAssignModalData(null)}
         onAssign={handleAssignTechnician}
         customerName={assignModalData ? (assignModalData.customer.name || assignModalData.customer.user?.fullName || 'Khách hàng') : ''}
-        customerLat={assignModalData?.customer.user?.latitude ?? undefined}
-        customerLng={assignModalData?.customer.user?.longitude ?? undefined}
+        customerLat={assignModalData ? (assignModalData.customer.user?.latitude || assignModalData.customer.rescueRequests?.find((r: any) => ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(r.status))?.customer_lat || undefined) : undefined}
+        customerLng={assignModalData ? (assignModalData.customer.user?.longitude || assignModalData.customer.rescueRequests?.find((r: any) => ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(r.status))?.customer_lng || undefined) : undefined}
       />
     </div>
   );

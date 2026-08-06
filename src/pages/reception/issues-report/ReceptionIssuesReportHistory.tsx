@@ -20,8 +20,8 @@ import {
   FileText,
   Trash2,
 } from "lucide-react";
-import {ISSUE_REPORTS_ENDPOINTS} from "../../../constants/reception/issueReportsApiEndPoints";
-import {useFetchClient} from "../../../hook/useFetchClient";
+import { ISSUE_REPORTS_ENDPOINTS } from "../../../constants/reception/issueReportsApiEndPoints";
+import { useFetchClient } from "../../../hook/useFetchClient";
 import { useSocket } from "../../../hook/useSocket";
 import type { CreateQuotationRequest, GetServicesResponse, GetAllSparePartsResponse } from "../../../model/dto/quoteManagement.dto";
 import { QUOTE_MANAGEMENT_ENDPOINTS } from "../../../constants/reception/quoteManagementEndpoints";
@@ -134,7 +134,7 @@ function PriceInput({
 export default function ReceptionIssuesReportHistory() {
   const navigate = useNavigate();
   // TODO: tự viết hàm fetch API rồi setIssues(data) + setIsLoading
-  const {fetchPrivate} = useFetchClient();
+  const { fetchPrivate } = useFetchClient();
   const socket = useSocket();
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
@@ -472,13 +472,13 @@ export default function ReceptionIssuesReportHistory() {
         return prev.map((item) =>
           item.uid === uid
             ? {
-                ...item,
-                partId: null,
-                isCustom: false,
-                customItemName: "",
-                quantity: 1,
-                unitPrice: 0,
-              }
+              ...item,
+              partId: null,
+              isCustom: false,
+              customItemName: "",
+              quantity: 1,
+              unitPrice: 0,
+            }
             : item,
         );
       }
@@ -522,10 +522,10 @@ export default function ReceptionIssuesReportHistory() {
       ),
   );
 
-  useEffect(()=>{
+  useEffect(() => {
     handleGetSpareParts();
-  },[]);
-  
+  }, []);
+
   const handleGetSpareParts = async () => {
     try {
       const result = await fetchPrivate(QUOTE_MANAGEMENT_ENDPOINTS.GET_SPARE_PARTS, "GET");
@@ -537,7 +537,7 @@ export default function ReceptionIssuesReportHistory() {
 
   useEffect(() => {
     handleGetServices();
-  },[])
+  }, [])
 
   const handleGetServices = async () => {
     try {
@@ -560,16 +560,16 @@ export default function ReceptionIssuesReportHistory() {
             .map((i) =>
               i.isCustom
                 ? {
-                    issue_id: Number(i.issueId),
-                    custom_item_name: i.customItemName.trim(),
-                    unit_price: Number(i.unitPrice),
-                    quantity: Number(i.quantity),
-                  }
+                  issue_id: Number(i.issueId),
+                  custom_item_name: i.customItemName.trim(),
+                  unit_price: Number(i.unitPrice),
+                  quantity: Number(i.quantity),
+                }
                 : {
-                    issue_id: Number(i.issueId),
-                    spare_part_id: Number(i.partId!),
-                    quantity: Number(i.quantity),
-                  },
+                  issue_id: Number(i.issueId),
+                  spare_part_id: Number(i.partId!),
+                  quantity: Number(i.quantity),
+                },
             ),
           ...quotationServices.map((s) => ({
             issue_id: s.issueId != null ? Number(s.issueId) : undefined,
@@ -582,7 +582,7 @@ export default function ReceptionIssuesReportHistory() {
         note: quotationNote,
       };
       console.log("payload:", payload);
-      await fetchPrivate(QUOTE_MANAGEMENT_ENDPOINTS.QUOTE_MANAGEMENT,"POST",payload);
+      await fetchPrivate(QUOTE_MANAGEMENT_ENDPOINTS.QUOTE_MANAGEMENT, "POST", payload);
       setQuotationReport(null);
       showToast("Tạo báo giá thành công!", "success");
       await getIssueReports();
@@ -597,7 +597,7 @@ export default function ReceptionIssuesReportHistory() {
 
   useEffect(() => {
     getIssueReports();
-  },[]);
+  }, []);
 
   // Có báo cáo lỗi mới -> BE emit new_notification -> tự tải lại danh sách
   useEffect(() => {
@@ -615,7 +615,7 @@ export default function ReceptionIssuesReportHistory() {
   const getIssueReports = async () => {
     try {
       const result = await fetchPrivate(ISSUE_REPORTS_ENDPOINTS.ISSUES_REPORT, "GET");
-      console.log("issue đầu tiên:", result.data?.[0]);   
+      console.log("issue đầu tiên:", result.data?.[0]);
 
       setIssues(result.data);
     } catch (error) {
@@ -967,11 +967,10 @@ export default function ReceptionIssuesReportHistory() {
                   <button
                     key={page}
                     onClick={() => setCurrentPage(page)}
-                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
-                      page === currentPage
+                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${page === currentPage
                         ? "bg-[#00285E] text-white shadow-md"
                         : "text-slate-500 hover:bg-slate-100"
-                    }`}
+                      }`}
                   >
                     {page}
                   </button>
@@ -1462,11 +1461,10 @@ export default function ReceptionIssuesReportHistory() {
                                             : null,
                                         )
                                       }
-                                      className={`w-full min-w-[220px] rounded-lg border bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] ${
-                                        item.partId
+                                      className={`w-full min-w-[220px] rounded-lg border bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] ${item.partId
                                           ? "border-slate-200 text-slate-800"
                                           : "border-amber-300 text-slate-400"
-                                      }`}
+                                        }`}
                                     >
                                       <option value="">
                                         -- Chọn phụ tùng tiếp theo --
@@ -1532,8 +1530,8 @@ export default function ReceptionIssuesReportHistory() {
                                             {formatVND(
                                               Math.round(
                                                 item.quantity *
-                                                  item.unitPrice *
-                                                  0.3,
+                                                item.unitPrice *
+                                                0.3,
                                               ),
                                             )}
                                           </strong>
@@ -1573,9 +1571,9 @@ export default function ReceptionIssuesReportHistory() {
                                     <span className="text-xs font-bold text-[#00285E]">
                                       {formatVND(
                                         item.quantity *
-                                          (Number(
-                                            selectedPart?.retail_price,
-                                          ) || item.unitPrice),
+                                        (Number(
+                                          selectedPart?.retail_price,
+                                        ) || item.unitPrice),
                                       )}
                                     </span>
                                   ) : (
@@ -1607,137 +1605,137 @@ export default function ReceptionIssuesReportHistory() {
                   </div>
                 )}
                 <div className="mt-2">
-                <div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowCustomPartForm((current) => !current);
-                    setCustomPartIssueId(
-                      quotationIssueItems[0]?.issueId ?? "",
-                    );
-                  }}
-                  className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[#00285E]/25 bg-white px-3 text-xs font-semibold text-[#00285E] transition-colors hover:border-[#00285E]/40 hover:bg-slate-50"
-                >
-                  <span className="text-base font-normal leading-none">+</span>
-                  Đặt phụ tùng riêng
-                </button>
-                </div>
-                {showCustomPartForm && (
-                  <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="mb-4 flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">
-                          Thêm phụ tùng đặt riêng
-                        </p>
-                        <p className="mt-0.5 text-xs text-slate-400">
-                          Nhập thông tin phụ tùng cần đặt cho hạng mục lỗi.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowCustomPartForm(false)}
-                        className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <div>
-                        <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                          Hạng mục lỗi
-                        </label>
-                        <select
-                          value={customPartIssueId}
-                          onChange={(event) =>
-                            setCustomPartIssueId(Number(event.target.value))
-                          }
-                          className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCustomPartForm((current) => !current);
+                        setCustomPartIssueId(
+                          quotationIssueItems[0]?.issueId ?? "",
+                        );
+                      }}
+                      className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[#00285E]/25 bg-white px-3 text-xs font-semibold text-[#00285E] transition-colors hover:border-[#00285E]/40 hover:bg-slate-50"
+                    >
+                      <span className="text-base font-normal leading-none">+</span>
+                      Đặt phụ tùng riêng
+                    </button>
+                  </div>
+                  {showCustomPartForm && (
+                    <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="mb-4 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">
+                            Thêm phụ tùng đặt riêng
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-400">
+                            Nhập thông tin phụ tùng cần đặt cho hạng mục lỗi.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowCustomPartForm(false)}
+                          className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                         >
-                          {quotationIssueItems.map((item) => (
-                            <option key={item.issueId} value={item.issueId}>
-                              {item.componentName}
-                            </option>
-                          ))}
-                        </select>
+                          <X size={16} />
+                        </button>
                       </div>
-                      <div>
-                        <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                          Tên phụ tùng
-                        </label>
-                        <input
-                          type="text"
-                          value={customPartName}
-                          onChange={(event) =>
-                            setCustomPartName(event.target.value)
-                          }
-                          placeholder="Nhập tên phụ tùng"
-                          className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                        />
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div>
+                          <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                            Hạng mục lỗi
+                          </label>
+                          <select
+                            value={customPartIssueId}
+                            onChange={(event) =>
+                              setCustomPartIssueId(Number(event.target.value))
+                            }
+                            className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                          >
+                            {quotationIssueItems.map((item) => (
+                              <option key={item.issueId} value={item.issueId}>
+                                {item.componentName}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                            Tên phụ tùng
+                          </label>
+                          <input
+                            type="text"
+                            value={customPartName}
+                            onChange={(event) =>
+                              setCustomPartName(event.target.value)
+                            }
+                            placeholder="Nhập tên phụ tùng"
+                            className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                            Số lượng
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={customPartQuantity}
+                            onChange={(event) =>
+                              setCustomPartQuantity(
+                                Math.max(1, Number(event.target.value)),
+                              )
+                            }
+                            className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                            Đơn giá
+                          </label>
+                          <PriceInput
+                            value={customPartPrice}
+                            placeholder="Nhập đơn giá"
+                            commitOnChange
+                            formatWhileTyping
+                            onCommit={setCustomPartPrice}
+                            className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-right text-xs font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                          Số lượng
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          value={customPartQuantity}
-                          onChange={(event) =>
-                            setCustomPartQuantity(
-                              Math.max(1, Number(event.target.value)),
-                            )
-                          }
-                          className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                          Đơn giá
-                        </label>
-                        <PriceInput
-                          value={customPartPrice}
-                          placeholder="Nhập đơn giá"
-                          commitOnChange
-                          formatWhileTyping
-                          onCommit={setCustomPartPrice}
-                          className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-right text-xs font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                        />
-                      </div>
-                    </div>
-                    <div className="mt-4 flex items-center justify-between gap-3">
-                      <div className="text-xs text-slate-500">
-                        Cọc áp dụng:{" "}
-                        <span className="font-bold text-amber-600">30%</span>
-                        {customPartPrice > 0 && (
-                          <span className="ml-2 font-semibold text-slate-700">
-                            (
-                            {formatVND(
-                              Math.round(
-                                customPartQuantity *
+                      <div className="mt-4 flex items-center justify-between gap-3">
+                        <div className="text-xs text-slate-500">
+                          Cọc áp dụng:{" "}
+                          <span className="font-bold text-amber-600">30%</span>
+                          {customPartPrice > 0 && (
+                            <span className="ml-2 font-semibold text-slate-700">
+                              (
+                              {formatVND(
+                                Math.round(
+                                  customPartQuantity *
                                   customPartPrice *
                                   0.3,
-                              ),
-                            )}
-                            )
-                          </span>
-                        )}
+                                ),
+                              )}
+                              )
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={submitCustomQuotationItem}
+                          disabled={
+                            customPartIssueId === "" ||
+                            !customPartName.trim() ||
+                            customPartQuantity <= 0 ||
+                            customPartPrice <= 0
+                          }
+                          className="h-9 rounded-lg bg-[#00285E] px-4 text-xs font-semibold text-white hover:bg-[#003C7D] disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Thêm vào báo giá
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={submitCustomQuotationItem}
-                        disabled={
-                          customPartIssueId === "" ||
-                          !customPartName.trim() ||
-                          customPartQuantity <= 0 ||
-                          customPartPrice <= 0
-                        }
-                        className="h-9 rounded-lg bg-[#00285E] px-4 text-xs font-semibold text-white hover:bg-[#003C7D] disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        Thêm vào báo giá
-                      </button>
                     </div>
-                  </div>
-                )}
+                  )}
                 </div>
                 {hasIncompleteQuotationIssue &&
                   quotationItems.length > 0 && (
@@ -1827,14 +1825,14 @@ export default function ReceptionIssuesReportHistory() {
                                         availableIssues.length
                                         ? []
                                         : availableIssues.map(
-                                            (i) => i.issueId,
-                                          ),
+                                          (i) => i.issueId,
+                                        ),
                                     )
                                   }
                                   className="text-[11px] font-semibold text-[#00285E] hover:underline"
                                 >
                                   {pickedIssueIds.length ===
-                                  availableIssues.length
+                                    availableIssues.length
                                     ? "Bỏ chọn tất cả"
                                     : "Chọn tất cả"}
                                 </button>
@@ -1847,11 +1845,10 @@ export default function ReceptionIssuesReportHistory() {
                                   return (
                                     <label
                                       key={item.issueId}
-                                      className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-semibold cursor-pointer transition-colors ${
-                                        checked
+                                      className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-semibold cursor-pointer transition-colors ${checked
                                           ? "border-[#00285E] bg-white text-slate-800"
                                           : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
-                                      }`}
+                                        }`}
                                     >
                                       <input
                                         type="checkbox"
@@ -1860,8 +1857,8 @@ export default function ReceptionIssuesReportHistory() {
                                           setPickedIssueIds((prev) =>
                                             prev.includes(item.issueId)
                                               ? prev.filter(
-                                                  (id) => id !== item.issueId,
-                                                )
+                                                (id) => id !== item.issueId,
+                                              )
                                               : [...prev, item.issueId],
                                           )
                                         }
@@ -1969,11 +1966,10 @@ export default function ReceptionIssuesReportHistory() {
                           onCommit={(v) =>
                             updateQuotationServiceFee(service.uid, v)
                           }
-                          className={`w-32 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-right transition-colors focus:outline-none ${
-                            service.hasDbPrice
+                          className={`w-32 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-right transition-colors focus:outline-none ${service.hasDbPrice
                               ? "bg-slate-100 text-slate-500 cursor-not-allowed"
                               : "bg-white text-slate-800 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                          }`}
+                            }`}
                         />
                         <span className="w-28 text-right text-xs font-bold text-[#00285E] whitespace-nowrap">
                           {formatVND(service.fee)}
@@ -2015,23 +2011,23 @@ export default function ReceptionIssuesReportHistory() {
             <div className="flex items-center justify-between gap-3 px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
               <div>
                 <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
-                  Tổng cộng
-                </span>
-                <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                  <span className="text-lg font-bold text-[#00285E]">
-                    {formatVND(quotationTotal)}
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                    Tổng cộng
                   </span>
-                  {hasCustomQuotationItem && customQuotationItemNames && (
-                    <span className="inline-flex items-center whitespace-nowrap rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-700">
-                      (Tiền cọc cho {customQuotationItemNames}:&nbsp;
-                      <strong className="font-bold text-amber-600">
-                        {formatVND(quotationDeposit)}
-                      </strong>
-                      )
+                  <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                    <span className="text-lg font-bold text-[#00285E]">
+                      {formatVND(quotationTotal)}
                     </span>
-                  )}
-                </div>
+                    {hasCustomQuotationItem && customQuotationItemNames && (
+                      <span className="inline-flex items-center whitespace-nowrap rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-700">
+                        (Tiền cọc cho {customQuotationItemNames}:&nbsp;
+                        <strong className="font-bold text-amber-600">
+                          {formatVND(quotationDeposit)}
+                        </strong>
+                        )
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2.5">

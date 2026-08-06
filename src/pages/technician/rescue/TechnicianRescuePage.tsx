@@ -117,17 +117,19 @@ export default function TechnicianRescuePage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchActiveRescue();
     
-    // Listen for incoming new rescue tasks while on this page
+    // Nhận nhiệm vụ cứu hộ mới realtime — BE emit 'new_notification' qua room 'user-{id}' (đã
+    // được TechnicianLayout tự join sẵn) khi lễ tân gán KTV cho 1 cuốc cứu hộ.
     if (socket) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
-      const handleNewTask = (_data: any) => {
-        showToast('Bạn vừa nhận được một cuốc cứu hộ mới!', 'info');
-        fetchActiveRescue();
+      const handleNewNotification = (data: any) => {
+        if (data?.type === 'RESCUE_ASSIGNED') {
+          showToast('Bạn vừa nhận được một cuốc cứu hộ mới!', 'info');
+          fetchActiveRescue();
+        }
       };
-      
-      socket.on('incoming-rescue-task', handleNewTask);
+
+      socket.on('new_notification', handleNewNotification);
       return () => {
-        socket.off('incoming-rescue-task', handleNewTask);
+        socket.off('new_notification', handleNewNotification);
       };
     }
   }, [socket]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -173,7 +175,10 @@ export default function TechnicianRescuePage() {
       setActionLoading(true);
       await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.START_RESCUE, 'PATCH', {
         rescueId: rescueTask.id,
-        status: newStatus
+        status: newStatus,
+        // Gửi kèm GPS hiện tại của KTV khi bắt đầu di chuyển — BE lưu vào User.latitude/longitude
+        // và gửi lại cho khách hàng để cả 2 phía tính CÙNG 1 route xuất phát từ vị trí thật.
+        ...(newStatus === 'EN_ROUTE' ? { technicianLat: technicianLocation[0], technicianLng: technicianLocation[1] } : {}),
       });
       setRescueTask({ ...rescueTask, status: newStatus });
       

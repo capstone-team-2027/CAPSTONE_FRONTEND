@@ -22,7 +22,7 @@ export const initRecaptcha = async (containerId = "recaptcha-container") => {
 
   recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
     size: "invisible",
-    callback: () => {},
+    callback: () => { },
     "expired-callback": () => {
       recaptchaVerifier?.clear();
       recaptchaVerifier = null;

@@ -2,22 +2,19 @@ import { lazy, Suspense } from "react";
 import { Route, Routes, useLocation, Navigate } from "react-router-dom";
 
 const Header = lazy(() => import("./pages/customer/Header"));
-const Home = lazy(() => import("./pages/customer/Home/Home"));
+const Home = lazy(() => import("./pages/customer/home/Home"));
 const Services = lazy(() => import("./pages/customer/services/Services"));
-const Parts = lazy(() => import("./pages/customer/Parts/Parts"));
+const Parts = lazy(() => import("./pages/customer/parts/Parts"));
 const News = lazy(() => import("./pages/customer/News/News"));
-const BookingPage = lazy(() => import("./pages/customer/Booking/BookingPage"));
-const Signup = lazy(() => import("./pages/customer/Home/SingUp"));
+const BookingPage = lazy(() => import("./pages/customer/booking/BookingPage"));
+const Signup = lazy(() => import("./pages/customer/home/SingUp"));
 const Footer = lazy(() => import("./pages/customer/Footer"));
-const Login = lazy(() => import("./pages/customer/Home/Login"));
+const Login = lazy(() => import("./pages/customer/home/Login"));
 const UserProfile = lazy(() => import("./pages/customer/UserProfile/UserProfile"));
-const ForgotPassword = lazy(() => import("./pages/customer/Home/ForgotPassword"));
-const Team = lazy(() => import("./pages/customer/Team/Team"));
-const OtpVerification = lazy(() => import("./pages/customer/Home/verify-otp"));
-const VerifyPhone = lazy(() => import("./pages/customer/Home/verify-phone"));
-
-// Import component MapTracking để test
-const MapTrackingTest = lazy(() => import("./components/share/MapTracking").then(m => ({ default: m.MapTracking })));
+const ForgotPassword = lazy(() => import("./pages/customer/home/ForgotPassword"));
+const Team = lazy(() => import("./pages/customer/team/Team"));
+const OtpVerification = lazy(() => import("./pages/customer/home/verify-otp"));
+const VerifyPhone = lazy(() => import("./pages/customer/home/verify-phone"));
 
 const VideoCallRoom = lazy(() => import("./pages/common/VideoCallRoom"));
 const Unauthorized = lazy(() => import("./pages/common/Unauthorized"));
@@ -119,9 +116,6 @@ function App() {
           <Route path="team" element={<Team />} />
           <Route path="otp-verification" element={<OtpVerification />} />
           <Route path="verify-phone" element={<VerifyPhone />} />
-
-          {/* Route test bản đồ */}
-          <Route path="test-map" element={<div className="container mx-auto p-4 md:p-10"><MapTrackingTest /></div>} />
         </Route>
 
         <Route path="/video-call/:roomId" element={<VideoCallRoom />} />
