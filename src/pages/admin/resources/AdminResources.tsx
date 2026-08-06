@@ -1,22 +1,19 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  AlertCircle, 
-  Wrench, 
-  RefreshCw, 
-  X, 
-  Eye, 
-  ToggleLeft, 
+import {
+  Plus,
+  Edit,
+  Trash2,
+  AlertCircle,
+  Wrench,
+  RefreshCw,
+  X,
+  ToggleLeft,
   ToggleRight,
-  Database,
   Search,
-  Activity,
-  Cpu
+  Activity
 } from 'lucide-react';
-import { useFetchClient } from '../../../hook/useFetchClient';
+import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { SERVICE_BAYS_API_ENDPOINTS } from '../../../constants/admin/serviceBayApiEndPoint';
 
 const PAGE_SIZE = 6;
@@ -35,23 +32,9 @@ interface ServiceBay {
   updatedAt?: string;
 }
 
-interface WorkshopTool {
-  id: number;
-  tool_name: string;
-  serial_number: string;
-  bay_id: number | null;
-  current_location: string;
-  status: 'AVAILABLE' | 'IN_USE' | 'MAINTENANCE' | 'BROKEN';
-  purchase_date: string;
-  warranty_expiry: string;
-}
-
 export default function AdminResources() {
   const { showToast } = useOutletContext<OutletContextType>();
-  const { fetchPrivate } = useFetchClient();
-
-  // Navigation sub-tabs: 'bays' (Cầu sửa chữa), 'tools' (Thiết bị)
-  const [activeSubTab, setActiveSubTab] = useState<'bays' | 'tools'>('bays');
+  const { fetchPrivate } = useFetchClient_v2();
 
   // Service Bays State
   const [serviceBays, setServiceBays] = useState<ServiceBay[]>([]);
@@ -69,63 +52,6 @@ export default function AdminResources() {
   const [searchBayQuery, setSearchBayQuery] = useState('');
   const [filterBayStatus, setFilterBayStatus] = useState<string>('all');
   const [bayPage, setBayPage] = useState(1);
-
-  // Tools Mock Data (Interactive state to let user fully experience the UX)
-  const [workshopTools] = useState<WorkshopTool[]>([
-    {
-      id: 1,
-      tool_name: 'Máy chẩn đoán lỗi ô tô OBD2 Autel Maxisys',
-      serial_number: 'MS908S-202401',
-      bay_id: 1,
-      current_location: 'Cầu nâng số 1',
-      status: 'IN_USE',
-      purchase_date: '2024-01-15',
-      warranty_expiry: '2026-01-15'
-    },
-    {
-      id: 2,
-      tool_name: 'Máy cân bằng bánh xe điện tử HPA B225',
-      serial_number: 'HPA-B225-88902',
-      bay_id: null,
-      current_location: 'Khu vực lốp',
-      status: 'AVAILABLE',
-      purchase_date: '2023-08-10',
-      warranty_expiry: '2025-08-10'
-    },
-    {
-      id: 3,
-      tool_name: 'Thiết bị hút xả ga điều hòa Robinair AC375',
-      serial_number: 'ROB-AC375-7761',
-      bay_id: 2,
-      current_location: 'Cầu nâng số 2',
-      status: 'IN_USE',
-      purchase_date: '2024-02-20',
-      warranty_expiry: '2026-02-20'
-    },
-    {
-      id: 4,
-      tool_name: 'Máy nén khí trục vít Jaguar 10HP',
-      serial_number: 'JAG-10HP-5542',
-      bay_id: null,
-      current_location: 'Phòng kỹ thuật nguồn',
-      status: 'MAINTENANCE',
-      purchase_date: '2022-05-12',
-      warranty_expiry: '2024-05-12'
-    },
-    {
-      id: 5,
-      tool_name: 'Súng bắn bu-lông Ingersoll Rand 1/2"',
-      serial_number: 'IR-2235Q-9901',
-      bay_id: 3,
-      current_location: 'Cầu nâng số 3',
-      status: 'AVAILABLE',
-      purchase_date: '2023-11-05',
-      warranty_expiry: '2024-11-05'
-    }
-  ]);
-  const [searchToolQuery, setSearchToolQuery] = useState('');
-  const [filterToolStatus, setFilterToolStatus] = useState<string>('all');
-  const [toolPage, setToolPage] = useState(1);
 
   // Helper to map frontend status to backend status
   const mapStatusToBackend = (status: string): 'available' | 'in_use' | 'maintenance' => {
@@ -341,37 +267,10 @@ export default function AdminResources() {
     }
   };
 
-  // Status mapping colors for Tools
-  const getToolStatusDetails = (status: string) => {
-    switch (status) {
-      case 'AVAILABLE':
-        return {
-          label: 'Sẵn Sàng',
-          colorClass: 'bg-emerald-50 text-emerald-600 border-emerald-100'
-        };
-      case 'IN_USE':
-        return {
-          label: 'Đang Sử Dụng',
-          colorClass: 'bg-blue-50 text-blue-600 border-blue-100'
-        };
-      case 'MAINTENANCE':
-        return {
-          label: 'Bảo Trì',
-          colorClass: 'bg-amber-50 text-amber-600 border-amber-100'
-        };
-      case 'BROKEN':
-      default:
-        return {
-          label: 'Hỏng Hóc',
-          colorClass: 'bg-rose-50 text-rose-600 border-rose-100'
-        };
-    }
-  };
-
   // Filtered Service Bays
   const filteredBays = useMemo(() => serviceBays.filter(bay => {
     const matchesSearch = bay.bay_name.toLowerCase().includes(searchBayQuery.toLowerCase());
-    const matchesStatus = filterBayStatus === 'all' || 
+    const matchesStatus = filterBayStatus === 'all' ||
                           (filterBayStatus === 'inactive' ? !bay.is_active : (bay.status === filterBayStatus && bay.is_active));
     return matchesSearch && matchesStatus;
   }), [serviceBays, searchBayQuery, filterBayStatus]);
@@ -379,18 +278,6 @@ export default function AdminResources() {
   const bayTotalPages = Math.max(1, Math.ceil(filteredBays.length / PAGE_SIZE));
   const baySafePage = Math.min(bayPage, bayTotalPages);
   const bayPageItems = filteredBays.slice((baySafePage - 1) * PAGE_SIZE, baySafePage * PAGE_SIZE);
-
-  // Filtered Tools
-  const filteredTools = useMemo(() => workshopTools.filter(tool => {
-    const matchesSearch = tool.tool_name.toLowerCase().includes(searchToolQuery.toLowerCase()) || 
-                          tool.serial_number.toLowerCase().includes(searchToolQuery.toLowerCase());
-    const matchesStatus = filterToolStatus === 'all' || tool.status === filterToolStatus;
-    return matchesSearch && matchesStatus;
-  }), [workshopTools, searchToolQuery, filterToolStatus]);
-
-  const toolTotalPages = Math.max(1, Math.ceil(filteredTools.length / PAGE_SIZE));
-  const toolSafePage = Math.min(toolPage, toolTotalPages);
-  const toolPageItems = filteredTools.slice((toolSafePage - 1) * PAGE_SIZE, toolSafePage * PAGE_SIZE);
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto font-sans">
@@ -401,7 +288,7 @@ export default function AdminResources() {
             Quản lý Tài nguyên Nhà xưởng
           </h1>
           <p className="text-slate-400 text-sm">
-            Xem và cấu hình cầu nâng sửa chữa, thiết bị kỹ thuật nhà xưởng và tối ưu hiệu suất sửa chữa.
+            Xem và cấu hình cầu nâng sửa chữa, tối ưu hiệu suất sửa chữa.
           </p>
         </div>
         <div className="flex gap-2">
@@ -412,47 +299,18 @@ export default function AdminResources() {
           >
             <RefreshCw size={18} className={isLoadingBays ? 'animate-spin' : ''} />
           </button>
-          {activeSubTab === 'bays' && (
-            <button
-              onClick={handleOpenCreateBay}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-[#00285E] hover:bg-[#062047] text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-[#00285E]/10 hover:shadow-lg"
-            >
-              <Plus size={16} />
-              <span>Thêm cầu nâng mới</span>
-            </button>
-          )}
+          <button
+            onClick={handleOpenCreateBay}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-[#00285E] hover:bg-[#062047] text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-[#00285E]/10 hover:shadow-lg"
+          >
+            <Plus size={16} />
+            <span>Thêm cầu nâng mới</span>
+          </button>
         </div>
       </div>
 
-      {/* TABS NAVIGATION */}
-      <div className="flex border-b border-slate-200">
-        <button
-          onClick={() => setActiveSubTab('bays')}
-          className={`py-3.5 px-6 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
-            activeSubTab === 'bays'
-              ? 'border-[#00285E] text-[#00285E]'
-              : 'border-transparent text-slate-400 hover:text-slate-700'
-          }`}
-        >
-          <Activity size={16} />
-          Cầu nâng sửa chữa ({serviceBays.length})
-        </button>
-        <button
-          onClick={() => setActiveSubTab('tools')}
-          className={`py-3.5 px-6 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
-            activeSubTab === 'tools'
-              ? 'border-[#00285E] text-[#00285E]'
-              : 'border-transparent text-slate-400 hover:text-slate-700'
-          }`}
-        >
-          <Cpu size={16} />
-          Thiết bị kỹ thuật ({workshopTools.length})
-        </button>
-      </div>
-
       {/* SERVICE BAYS CONTENT */}
-      {activeSubTab === 'bays' && (
-        <div className="space-y-6">
+      <div className="space-y-6">
           {/* Filters Bar */}
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-200/50">
             {/* Search */}
@@ -612,153 +470,6 @@ export default function AdminResources() {
           </>
           )}
         </div>
-      )}
-
-      {/* WORKSHOP TOOLS CONTENT */}
-      {activeSubTab === 'tools' && (
-        <div className="space-y-6">
-          {/* Filters Bar */}
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-200/50">
-            {/* Search */}
-            <div className="relative w-full sm:max-w-md">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-              <input
-                type="text"
-                placeholder="Tìm kiếm thiết bị theo tên hoặc số Seri..."
-                value={searchToolQuery}
-                onChange={(e) => { setSearchToolQuery(e.target.value); setToolPage(1); }}
-                className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
-              />
-            </div>
-
-            {/* Status Select Filter */}
-            <div className="flex items-center gap-2 w-full sm:w-auto self-stretch sm:self-center">
-              <span className="text-xs font-bold text-slate-400 whitespace-nowrap hidden sm:inline">Trạng thái:</span>
-              <select
-                value={filterToolStatus}
-                onChange={(e) => { setFilterToolStatus(e.target.value); setToolPage(1); }}
-                className="w-full sm:w-48 bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E]"
-              >
-                <option value="all">Tất cả trạng thái</option>
-                <option value="AVAILABLE">Sẵn sàng (Trống)</option>
-                <option value="IN_USE">Đang sử dụng</option>
-                <option value="MAINTENANCE">Đang bảo trì</option>
-                <option value="BROKEN">Hỏng hóc</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Tools Table */}
-          <div className="bg-white rounded-3xl border border-slate-200/60 shadow-xs overflow-hidden p-6 md:p-8">
-            <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-              <Database className="text-[#00285E]" size={20} />
-              Cơ sở dữ liệu Thiết bị Kỹ thuật Nhà xưởng
-            </h2>
-
-            <div className="overflow-x-auto">
-              {filteredTools.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 font-bold">
-                  Không tìm thấy thiết bị nào phù hợp.
-                </div>
-              ) : (
-                <table className="w-full text-left border-collapse text-slate-600">
-                  <thead>
-                    <tr className="border-b border-slate-100 text-xs font-bold uppercase tracking-wider text-slate-400">
-                      <th className="py-4 px-4">Tên thiết bị / Seri</th>
-                      <th className="py-4 px-4">Vị trí hiện tại</th>
-                      <th className="py-4 px-4 text-center">Gắn với Cầu nâng</th>
-                      <th className="py-4 px-4 text-center">Bảo hành đến</th>
-                      <th className="py-4 px-4">Trạng thái</th>
-                      <th className="py-4 px-4 text-right">Hành động</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {toolPageItems.map((tool) => {
-                      const toolStatus = getToolStatusDetails(tool.status);
-                      const attachedBay = serviceBays.find(b => b.id === tool.bay_id);
-
-                      return (
-                        <tr key={tool.id} className="border-b border-slate-100/60 hover:bg-slate-50/50 transition-colors">
-                          <td className="py-4 px-4">
-                            <span className="text-sm font-bold text-slate-800 block">
-                              {tool.tool_name}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-bold font-mono">
-                              S/N: {tool.serial_number}
-                            </span>
-                          </td>
-                          <td className="py-4 px-4 text-xs font-semibold text-slate-500">
-                            {tool.current_location}
-                          </td>
-                          <td className="py-4 px-4 text-center">
-                            {attachedBay ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-50 text-[#00285E] border border-blue-100">
-                                {attachedBay.bay_name}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-slate-400 font-semibold italic">Không gắn</span>
-                            )}
-                          </td>
-                          <td className="py-4 px-4 text-center text-xs font-semibold text-slate-500">
-                            {tool.warranty_expiry}
-                          </td>
-                          <td className="py-4 px-4">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${toolStatus.colorClass}`}>
-                              {toolStatus.label}
-                            </span>
-                          </td>
-                          <td className="py-4 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => showToast('Mở chi tiết thiết bị...', 'info')}
-                                className="text-slate-400 hover:text-[#00285E] transition-colors p-1.5 rounded-lg hover:bg-blue-50"
-                                title="Xem chi tiết"
-                              >
-                                <Eye size={14} />
-                              </button>
-                              <button
-                                onClick={() => showToast('Chức năng chỉnh sửa thiết bị đang phát triển.', 'info')}
-                                className="text-slate-400 hover:text-indigo-600 transition-colors p-1.5 rounded-lg hover:bg-indigo-50"
-                                title="Chỉnh sửa"
-                              >
-                                <Edit size={14} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-slate-100 bg-slate-50/80">
-              <div className="text-sm text-slate-500">
-                Hiển thị {toolPageItems.length} trên {filteredTools.length} thiết bị
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={toolSafePage <= 1}
-                  onClick={() => setToolPage((prev) => Math.max(prev - 1, 1))}
-                >
-                  Trước
-                </button>
-                <span className="text-sm font-semibold text-slate-600">{toolSafePage} / {toolTotalPages}</span>
-                <button
-                  type="button"
-                  className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={toolSafePage >= toolTotalPages}
-                  onClick={() => setToolPage((prev) => Math.min(prev + 1, toolTotalPages))}
-                >
-                  Tiếp
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* SERVICE BAY EDIT/CREATE MODAL */}
       {isBayModalOpen && (

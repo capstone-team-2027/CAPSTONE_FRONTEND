@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
   Warehouse,
@@ -11,73 +11,108 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
-
+import { useFetchClient_v2 } from '../../../hook/useFetchClient';
+import { INVENTORY_DASHBOARD_API_ENDPOINTS } from '../../../constants/inventory/dashboardApiEndpoint';
 type OutletCtx = {
   searchQuery: string;
   showToast: (text: string, type?: 'success' | 'info' | 'warning') => void;
 };
 
+interface InventoryDashboardData {
+  summary: {
+    totalValue: number;
+    totalSku: number;
+    lowStockCount: number;
+    transactionsToday: number;
+    importsToday: number;
+    exportsToday: number;
+  };
+  stockByCategory: Array<{ name: string; value: number }>;
+  importExportTrend: {
+    labels: string[];
+    importQty: number[];
+    exportQty: number[];
+  };
+  lowStock: Array<{ id: number; name: string; stock_quantity: number; min_threshold: number }>;
+  recentTransactions: Array<{ receipt_code: string; type: string; quantity: number; unit_price: number; createdAt: string; part?: { name?: string; sku?: string } }>;
+  topConsumed: Array<{ name: string; qty: number }>;
+}
+
 export default function InventoryDashboard() {
   const { showToast } = useOutletContext<OutletCtx>();
+  const { fetchPrivate } = useFetchClient_v2();
   const [hoveredSlice, setHoveredSlice] = useState<number | null>(null);
+  const [dashboardData, setDashboardData] = useState<InventoryDashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // ── Quick stat strip (gọn, không phải 4-KPI kiểu admin) ──
+  useEffect(() => {
+    const loadDashboard = async () => {
+      try {
+        setLoading(true);
+        const response = await fetchPrivate(INVENTORY_DASHBOARD_API_ENDPOINTS.SUMMARY);
+        setDashboardData(response.data);
+      } catch (error) {
+        console.error('Failed to load inventory dashboard data', error);
+        showToast('Không thể tải dữ liệu kho', 'warning');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboard();
+  }, [fetchPrivate, showToast]);
+
   const stats = [
-    { id: 'value', label: 'Giá trị tồn kho', value: '1.85 tỷ VND', icon: <Wallet size={18} />, tint: 'text-blue-600 bg-blue-50' },
-    { id: 'sku', label: 'Tổng SKU', value: '1,342', icon: <Boxes size={18} />, tint: 'text-[#00285E] bg-[#EDF3FF]' },
-    { id: 'low', label: 'Sắp hết', value: '24', icon: <AlertTriangle size={18} />, tint: 'text-[#F9A11B] bg-amber-50' },
-    { id: 'util', label: 'Lấp đầy kho', value: '72%', icon: <Warehouse size={18} />, tint: 'text-emerald-600 bg-emerald-50' },
+    { id: 'value', label: 'Giá trị tồn kho', value: `${(dashboardData?.summary?.totalValue || 0).toLocaleString('vi-VN')} VND`, icon: <Wallet size={18} />, tint: 'text-blue-600 bg-blue-50' },
+    { id: 'sku', label: 'Tổng sản phẩm', value: (dashboardData?.summary?.totalSku || 0).toLocaleString('vi-VN'), icon: <Boxes size={18} />, tint: 'text-[#00285E] bg-[#EDF3FF]' },
+    { id: 'low', label: 'Sắp hết', value: (dashboardData?.summary?.lowStockCount || 0).toLocaleString('vi-VN'), icon: <AlertTriangle size={18} />, tint: 'text-[#F9A11B] bg-amber-50' },
+    { id: 'util', label: 'Giao dịch hôm nay', value: (dashboardData?.summary?.transactionsToday || 0).toString(), icon: <Warehouse size={18} />, tint: 'text-emerald-600 bg-emerald-50' },
   ];
 
-  // ── Capacity by zone (sơ đồ sức chứa theo khu) ──
-  const zones = [
-    { name: 'Khu A · Dầu nhớt', pct: 80, used: 480, total: 600 },
-    { name: 'Khu B · Lọc & Bugi', pct: 50, used: 250, total: 500 },
-    { name: 'Khu C · Phanh', pct: 99, used: 396, total: 400 },
-    { name: 'Khu D · Lốp', pct: 64, used: 256, total: 400 },
-    { name: 'Khu E · Ắc quy', pct: 38, used: 76, total: 200 },
-  ];
-
-  const zoneColor = (pct: number) =>
-    pct >= 95 ? 'bg-rose-500' : pct >= 80 ? 'bg-[#F9A11B]' : 'bg-[#00285E]';
-
-  // ── Stock composition donut (cơ cấu tồn kho theo danh mục) ──
-  const composition = [
-    { label: 'Dầu nhớt', value: 38, color: '#00285E' },
-    { label: 'Phanh', value: 24, color: '#B8860B' },
-    { label: 'Lọc', value: 18, color: '#1E40AF' },
-    { label: 'Lốp', value: 12, color: '#059669' },
-    { label: 'Khác', value: 8, color: '#94A3B8' },
-  ];
-
-  // Donut geometry
   const radius = 70;
-  const circumference = 2 * Math.PI * radius;
-  const donutSegments = useMemo(() => {
-    let offset = 0;
-    return composition.map((c) => {
-      const length = (c.value / 100) * circumference;
-      const seg = { ...c, dash: length, gap: circumference - length, offset };
-      offset += length;
-      return seg;
-    });
-  }, [circumference]);
+  const colors = ['#00285E', '#F9A11B', '#0D9488', '#3B82F6', '#8B5CF6', '#94A3B8'];
 
-  // ── Top consumed parts (top tiêu thụ tuần) ──
-  const topConsumed = [
-    { name: 'Dầu nhớt Castrol 5W-30', qty: 142, unit: 'bình', pct: 100 },
-    { name: 'Lọc gió điều hòa Denso', qty: 88, unit: 'cái', pct: 62 },
-    { name: 'Má phanh trước Toyota', qty: 64, unit: 'bộ', pct: 45 },
-    { name: 'Bugi NGK Iridium', qty: 51, unit: 'cái', pct: 36 },
-  ];
+  const categoryProgress = (dashboardData?.stockByCategory || []).map((item, index) => {
+    const total = (dashboardData?.stockByCategory || []).reduce((sum, r) => sum + r.value, 0);
+    return {
+      name: item.name,
+      value: item.value,
+      pct: total > 0 ? Math.round((item.value / total) * 100) : 0,
+      color: colors[index % colors.length],
+    };
+  });
 
-  // ── Recent activity (hoạt động gần đây) ──
-  const activity = [
-    { id: 'a1', type: 'in', text: 'Nhập 120 bình dầu Castrol 5W-30', ref: 'PN-2024-0512', time: '08:20' },
-    { id: 'a2', type: 'out', text: 'Xuất 6 bộ má phanh Toyota', ref: 'PX-2024-0488', time: '09:05' },
-    { id: 'a3', type: 'in', text: 'Nhập 40 lốp Michelin 205/55R16', ref: 'PN-2024-0513', time: '11:15' },
-    { id: 'a4', type: 'out', text: 'Xuất 24 bugi NGK Iridium', ref: 'PX-2024-0490', time: '14:40' },
-  ];
+  const donutSegments = (() => {
+    const total = categoryProgress.reduce((sum, item) => sum + item.value, 0);
+    const circumference = 2 * Math.PI * radius;
+    return categoryProgress.reduce(
+      (acc, row) => {
+        const length = (row.value / Math.max(total, 1)) * circumference;
+        const segment = { ...row, dash: length, gap: circumference - length, offset: acc.offset };
+        return {
+          offset: acc.offset + length,
+          items: [...acc.items, segment],
+        };
+      },
+      { offset: 0, items: [] as Array<{ name: string; value: number; pct: number; color: string; dash: number; gap: number; offset: number }> }
+    ).items;
+  })();
+
+  const topConsumedMaxQty = Math.max(...(dashboardData?.topConsumed || []).map((item) => item.qty), 1);
+  const topConsumed = (dashboardData?.topConsumed || []).map((item) => ({
+    name: item.name,
+    qty: item.qty,
+    unit: 'cái',
+    pct: Math.round((item.qty / topConsumedMaxQty) * 100),
+  }));
+
+  const activity = (dashboardData?.recentTransactions || []).map((item, index) => ({
+    id: `${item.receipt_code}-${index}`,
+    type: item.type === 'IN' ? 'in' : 'out',
+    text: `${item.type === 'IN' ? 'Nhập' : 'Xuất'} ${item.quantity} ${item.part?.name || 'phụ tùng'}`,
+    ref: item.receipt_code,
+    time: new Date(item.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+  }));
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
@@ -101,24 +136,10 @@ export default function InventoryDashboard() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => showToast('Mở biểu mẫu nhập kho...', 'info')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#00285E] rounded-xl text-sm font-bold hover:bg-blue-50 transition-colors shadow-sm"
-            >
-              <ArrowDownToLine size={16} />
-              <span>Nhập kho</span>
-            </button>
-            <button
-              onClick={() => showToast('Mở biểu mẫu xuất kho...', 'info')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white/10 text-white border border-white/20 rounded-xl text-sm font-bold hover:bg-white/20 transition-colors"
-            >
-              <ArrowUpFromLine size={16} />
-              <span>Xuất kho</span>
-            </button>
-          </div>
         </div>
       </div>
+
+      {loading && <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500">Đang tải dữ liệu kho...</div>}
 
       {/* QUICK STAT STRIP */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -138,53 +159,18 @@ export default function InventoryDashboard() {
         ))}
       </div>
 
-      {/* ROW: ZONE CAPACITY (2/3) + COMPOSITION DONUT (1/3) */}
+      {/* ROW: COMPOSITION DONUT + TOP CONSUMED + RECENT ACTIVITY */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Zone capacity */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs lg:col-span-2">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-lg font-bold text-slate-800 tracking-tight">Sức chứa theo khu vực</h2>
-              <p className="text-slate-400 text-xs mt-0.5">Tỷ lệ lấp đầy của từng khu trong kho</p>
-            </div>
-            <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">5 khu</span>
-          </div>
-
-          <div className="space-y-5">
-            {zones.map((z) => (
-              <div key={z.name}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-sm font-bold text-slate-700">{z.name}</span>
-                  <span className="text-xs font-semibold text-slate-400">
-                    {z.used}/{z.total} ·{' '}
-                    <span className={z.pct >= 95 ? 'text-rose-600 font-bold' : 'text-slate-600'}>{z.pct}%</span>
-                    {z.pct >= 95 && <AlertTriangle size={11} className="inline ml-1 mb-0.5 text-rose-500" />}
-                  </span>
-                </div>
-                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${z.pct}%` }}
-                    transition={{ duration: 0.9, ease: 'easeOut' }}
-                    className={`h-full rounded-full ${zoneColor(z.pct)}`}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Composition donut */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs flex flex-col">
           <h2 className="text-lg font-bold text-slate-800 tracking-tight mb-0.5">Cơ cấu tồn kho</h2>
-          <p className="text-slate-400 text-xs mb-4">Phân bổ giá trị theo danh mục</p>
+          <p className="text-slate-400 text-xs mb-4">Phân bổ tồn kho theo danh mục</p>
 
           <div className="relative flex items-center justify-center my-2">
             <svg viewBox="0 0 200 200" className="w-44 h-44 -rotate-90">
               {donutSegments.map((seg, i) => (
                 <circle
-                  key={seg.label}
+                  key={seg.name}
                   cx="100"
                   cy="100"
                   r={radius}
@@ -203,54 +189,53 @@ export default function InventoryDashboard() {
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               {hoveredSlice !== null ? (
                 <>
-                  <span className="text-2xl font-bold text-slate-900">{composition[hoveredSlice].value}%</span>
-                  <span className="text-xs font-semibold text-slate-400">{composition[hoveredSlice].label}</span>
+                  <span className="text-2xl font-bold text-slate-900">{categoryProgress[hoveredSlice].value}%</span>
+                  <span className="text-xs font-semibold text-slate-400">{categoryProgress[hoveredSlice].name}</span>
                 </>
               ) : (
                 <>
-                  <span className="text-2xl font-bold text-slate-900">1,342</span>
-                  <span className="text-xs font-semibold text-slate-400">Tổng SKU</span>
+                  <span className="text-2xl font-bold text-slate-900">{dashboardData?.summary?.totalSku || 0}</span>
+                  <span className="text-xs font-semibold text-slate-400">Tổng sản phẩm</span>
                 </>
               )}
             </div>
           </div>
 
           {/* legend */}
-          <div className="space-y-2 mt-3">
-            {composition.map((c, i) => (
+          <div className="space-y-3 mt-3">
+            {categoryProgress.map((c, i) => (
               <div
-                key={c.label}
+                key={c.name}
                 onMouseEnter={() => setHoveredSlice(i)}
                 onMouseLeave={() => setHoveredSlice(null)}
                 className="flex items-center justify-between text-sm cursor-pointer"
               >
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full" style={{ backgroundColor: c.color }}></span>
-                  <span className={`font-semibold ${hoveredSlice === i ? 'text-slate-900' : 'text-slate-500'}`}>{c.label}</span>
+                  <div>
+                    <p className={`font-semibold ${hoveredSlice === i ? 'text-slate-900' : 'text-slate-500'}`}>{c.name}</p>
+                    <p className="text-[11px] text-slate-400">{c.pct}% tổng tồn kho</p>
+                  </div>
                 </div>
-                <span className="font-bold text-slate-700">{c.value}%</span>
+                <span className="font-bold text-slate-700">{c.value.toLocaleString('vi-VN')}</span>
               </div>
             ))}
           </div>
         </div>
-      </div>
-
-      {/* ROW: TOP CONSUMED (1/2) + RECENT ACTIVITY (1/2) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Top consumed */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs">
           <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="text-lg font-bold text-slate-800 tracking-tight">Tiêu thụ nhiều nhất</h2>
-              <p className="text-slate-400 text-xs mt-0.5">Phụ tùng xuất kho nhiều nhất tuần này</p>
+              <p className="text-slate-400 text-xs mt-0.5">Phụ tùng xuất kho nhiều nhất từ trước đến nay</p>
             </div>
             <TrendingUp size={20} className="text-emerald-500" />
           </div>
 
           <div className="space-y-4">
             {topConsumed.map((item, i) => (
-              <div key={item.name} className="flex items-center gap-3">
+              <div key={`${item.name}-${i}`} className="flex items-center gap-3">
                 <span className="w-6 h-6 rounded-lg bg-slate-100 text-slate-500 text-xs font-bold flex items-center justify-center shrink-0">
                   {i + 1}
                 </span>

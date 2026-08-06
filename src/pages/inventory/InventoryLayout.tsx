@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   LayoutDashboard,
@@ -26,6 +26,7 @@ import type { RootState } from "../../store/store";
 import type { UserModel } from "../../model/User";
 import { useFetchClient } from "../../hook/useFetchClient";
 import { useSocket } from "../../hook/useSocket";
+import { useFetchClient_v2 } from "../../hook/useFetchClient";
 import { loginSuccess, logout } from "../../store/slices/userSlice";
 import { PROFILE_API_ENDPOINTS } from "../../constants/common/profileEndpoints";
 import { NOTIFICATION_API_ENDPOINTS } from "../../constants/inventory/notificationEndpoints";
@@ -35,8 +36,8 @@ export default function InventoryLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
-  const { fetchPrivate } = useFetchClient();
   const socket = useSocket();
+  const { fetchPrivate } = useFetchClient_v2();
   const { i18n } = useTranslation();
 
   const user = useSelector(
@@ -54,15 +55,15 @@ export default function InventoryLayout() {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
 
-  const showToast = (
-    text: string,
-    type: "success" | "info" | "warning" = "success",
-  ) => {
-    setToastMessage({ text, type });
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3000);
-  };
+  const showToast = useCallback(
+    (text: string, type: "success" | "info" | "warning" = "success") => {
+      setToastMessage({ text, type });
+      setTimeout(() => {
+        setToastMessage(null);
+      }, 3000);
+    },
+    [],
+  );
 
   useEffect(() => {
     const fetchUserProfile = async () => {

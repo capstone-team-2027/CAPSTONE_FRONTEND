@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Users,
@@ -8,7 +8,6 @@ import {
   Settings,
   HelpCircle,
   LogOut,
-  Search,
   Bell,
   Menu,
   X,
@@ -24,7 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '../../store/store';
 import type { UserModel } from '../../model/User';
-import { useFetchClient } from '../../hook/useFetchClient';
+import { useFetchClient_v2 } from '../../hook/useFetchClient';
 import { loginSuccess, logout } from '../../store/slices/userSlice';
 import { API_BASE_URL } from '../../constants/customer/profileApiEndpoint';
 import LogoutConfirmModal from '../../components/share/LogoutConfirmModal';
@@ -33,7 +32,7 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
-  const { fetchPrivate } = useFetchClient();
+  const { fetchPrivate } = useFetchClient_v2();
 
   const user = useSelector((state: RootState) => state.user.user as UserModel | null);
   const { i18n } = useTranslation();
@@ -43,12 +42,12 @@ export default function AdminLayout() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'info' | 'warning'; text: string } | null>(null);
 
-  const showToast = (text: string, type: 'success' | 'info' | 'warning' = 'success') => {
+  const showToast = useCallback((text: string, type: 'success' | 'info' | 'warning' = 'success') => {
     setToastMessage({ text, type });
     setTimeout(() => {
       setToastMessage(null);
     }, 3000);
-  };
+  }, []);
 
   const handleLogoutConfirm = () => {
     setShowLogoutConfirm(false);
@@ -213,9 +212,6 @@ export default function AdminLayout() {
         {/* Navigation Section */}
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-7 scrollbar-none">
           <div>
-            <span className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
-              Hệ thống quản trị
-            </span>
             {menuGroups.map((group, groupIndex) => (
               <div key={group.label ?? `group-${groupIndex}`}>
                 {group.label && (

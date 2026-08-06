@@ -396,16 +396,16 @@ export default function Navbar() {
             >
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="h-20 flex items-center ">
-                        <Logo size="md" className="mt-4 -translate-x-20" />
+                        <Logo size="sm" />
 
-                        <nav className="hidden md:flex items-center gap-10 ml-12 mr-auto">
+                        <nav className="hidden lg:flex items-center gap-10 ml-12 mr-auto">
                             {currentNavItems.map((item) => (
                                 <NavLink key={item.name} item={item} active={location.pathname === item.path} />
                             ))}
                         </nav>
 
                         {/* DESKTOP ACTIONS */}
-                        <div className="hidden md:flex items-center gap-5">
+                        <div className="hidden lg:flex items-center gap-5">
                             {/* Language Switcher */}
                             <div className="flex items-center gap-1 border border-white/10 rounded-full p-0.5 bg-white/5 mr-1 select-none shrink-0">
                                 <button
@@ -473,7 +473,7 @@ export default function Navbar() {
                         </div>
 
                         {/* MOBILE ACTIONS */}
-                        <div className="flex md:hidden items-center gap-3">
+                        <div className="flex lg:hidden items-center gap-3 ml-auto">
                             {/* Language Switcher Mobile */}
                             <div className="flex items-center gap-1 border border-white/10 rounded-full p-0.5 bg-white/5 select-none shrink-0">
                                 <button
@@ -529,7 +529,7 @@ export default function Navbar() {
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
                             transition={{ duration: 0.25 }}
-                            className="md:hidden overflow-hidden border-t border-white/5"
+                            className="lg:hidden overflow-hidden border-t border-white/5"
                             style={{ backgroundColor: COLORS.navy }}
                         >
                             <div className="px-4 py-6 space-y-6">
@@ -564,12 +564,12 @@ export default function Navbar() {
                 </AnimatePresence>
             </header>
 
-            <main className="pb-20 md:pb-0">
+            <main className="pb-20 lg:pb-0">
                 <Outlet />
             </main>
 
             {/* MOBILE BOTTOM NAV */}
-            <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#00285E]/95 backdrop-blur-xl border-t border-white/10 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgb(0,0,0,0.5)]">
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#00285E]/95 backdrop-blur-xl border-t border-white/10 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgb(0,0,0,0.5)]">
                 <div className="h-16 flex items-center justify-around px-2 relative">
                     {currentMobileTabItems.map((item) => {
                         const active =
