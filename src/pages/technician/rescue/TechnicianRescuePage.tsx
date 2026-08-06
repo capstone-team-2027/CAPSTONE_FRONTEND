@@ -28,8 +28,35 @@ const carIcon = L.icon({
   popupAnchor: [0, -20],
 });
 
-const userIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/3204/3204936.png',
+// Icon vị trí KTV lúc đứng yên (chưa bắt đầu di chuyển) — phân biệt với garageIcon (Gara thật)
+// và carIcon (xe đang di chuyển trong lúc mô phỏng).
+const technicianIcon = L.divIcon({
+  className: 'custom-technician-marker',
+  html: `
+    <div style="display:flex;align-items:center;justify-content:center;width:35px;height:35px;background:#00285E;border-radius:9999px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8" />
+      </svg>
+    </div>
+  `,
+  iconSize: [35, 35],
+  iconAnchor: [17, 17],
+  popupAnchor: [0, -17],
+});
+
+// Icon vị trí khách hàng — SVG nhúng trực tiếp (lucide MapPin) thay vì ảnh PNG tải từ CDN ngoài,
+// vì các nguồn ảnh bên ngoài (vd flaticon) có thể chặn hotlink và hiện icon lỗi (⊘).
+const userIcon = L.divIcon({
+  className: 'custom-user-marker',
+  html: `
+    <div style="display:flex;align-items:center;justify-content:center;width:45px;height:45px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="45" height="45" viewBox="0 0 24 24" fill="#DC2626" stroke="white" stroke-width="1.5">
+        <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
+        <circle cx="12" cy="10" r="3" fill="white" stroke="none" />
+      </svg>
+    </div>
+  `,
   iconSize: [45, 45],
   iconAnchor: [22, 45],
   popupAnchor: [0, -45],
@@ -46,6 +73,9 @@ const MapFitter = ({ bounds, lat, lng }: { bounds?: L.LatLngBounds | null, lat?:
   }, [lat, lng, bounds, map]);
   return null;
 };
+
+// Toạ độ Gara cố định — khớp với MapTracking.tsx (480 Trần Quốc Hoàn, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng)
+const garageLocation: [number, number] = [15.9675, 108.2605];
 
 export default function TechnicianRescuePage() {
   const { fetchPrivate } = useFetchClient();
@@ -134,40 +164,49 @@ export default function TechnicianRescuePage() {
     }
   }, [socket]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Đoạn 1 (KTV -> khách): điểm xuất phát là GPS realtime của KTV, đích là vị trí khách.
+  // Đoạn 2 (khách -> Gara, khi status = TOWING): điểm xuất phát cố định là vị trí khách (nơi KTV
+  // vừa nhận xe), đích là Gara — không dùng GPS realtime nữa vì KTV đang lái, không đứng yên bấm nút.
   useEffect(() => {
-    if (rescueTask?.customer_lat && rescueTask?.customer_lng) {
-      const fetchRoute = async () => {
-        try {
-          const customerLat = parseFloat(rescueTask.customer_lat);
-          const customerLng = parseFloat(rescueTask.customer_lng);
-          const url = `https://router.project-osrm.org/route/v1/driving/${technicianLocation[1]},${technicianLocation[0]};${customerLng},${customerLat}?overview=full&geometries=geojson`;
-          const response = await fetch(url);
-          const data = await response.json();
+    if (!rescueTask?.customer_lat || !rescueTask?.customer_lng) return;
 
-          if (data.routes && data.routes.length > 0) {
-            const route = data.routes[0];
-            const distKm = (route.distance / 1000).toFixed(1);
-            const durMin = Math.ceil(route.duration / 60);
-            setDistance(`${distKm} km`);
-            setDuration(`${durMin} phút`);
+    const isTowingBack = rescueTask.status === 'TOWING' || rescueTask.status === 'COMPLETED';
+    const customerLat = parseFloat(rescueTask.customer_lat);
+    const customerLng = parseFloat(rescueTask.customer_lng);
+    const from: [number, number] = isTowingBack ? [customerLat, customerLng] : technicianLocation;
+    const to: [number, number] = isTowingBack ? garageLocation : [customerLat, customerLng];
 
-            const coordsArray: [number, number][] = route.geometry.coordinates.map(
-              (c: [number, number]) => [c[1], c[0]]
-            );
-            setRouteCoords(coordsArray);
+    const fetchRoute = async () => {
+      try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=full&geometries=geojson`;
+        const response = await fetch(url);
+        const data = await response.json();
 
-            const bounds = L.latLngBounds([technicianLocation, [customerLat, customerLng]]);
-            coordsArray.forEach(c => bounds.extend(c));
-            setMapBounds(bounds);
-          }
-        } catch (error) {
-          console.error("Lỗi khi lấy đường đi:", error);
+        if (data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          const distKm = (route.distance / 1000).toFixed(1);
+          const durMin = Math.ceil(route.duration / 60);
+          setDistance(`${distKm} km`);
+          setDuration(`${durMin} phút`);
+
+          const coordsArray: [number, number][] = route.geometry.coordinates.map(
+            (c: [number, number]) => [c[1], c[0]]
+          );
+          setRouteCoords(coordsArray);
+          setCarLocation(coordsArray[0]);
+
+          const bounds = L.latLngBounds([from, to]);
+          coordsArray.forEach(c => bounds.extend(c));
+          setMapBounds(bounds);
         }
-      };
+      } catch (error) {
+        console.error("Lỗi khi lấy đường đi:", error);
+      }
+    };
 
-      fetchRoute();
-    }
-  }, [rescueTask?.customer_lat, rescueTask?.customer_lng, technicianLocation]); // eslint-disable-line react-hooks/exhaustive-deps
+    fetchRoute();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rescueTask?.customer_lat, rescueTask?.customer_lng, rescueTask?.status, technicianLocation]);
 
   const updateStatus = async (newStatus: string) => {
     if (!rescueTask) return;
@@ -176,25 +215,30 @@ export default function TechnicianRescuePage() {
       await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.START_RESCUE, 'PATCH', {
         rescueId: rescueTask.id,
         status: newStatus,
-        // Gửi kèm GPS hiện tại của KTV khi bắt đầu di chuyển — BE lưu vào User.latitude/longitude
-        // và gửi lại cho khách hàng để cả 2 phía tính CÙNG 1 route xuất phát từ vị trí thật.
-        ...(newStatus === 'EN_ROUTE' ? { technicianLat: technicianLocation[0], technicianLng: technicianLocation[1] } : {}),
+        // Gửi kèm GPS hiện tại của KTV khi bắt đầu 1 đoạn di chuyển mới (tới khách hoặc chở về
+        // Gara) — BE lưu vào User.latitude/longitude và gửi lại cho khách hàng để cả 2 phía tính
+        // CÙNG 1 route xuất phát từ vị trí thật.
+        ...(newStatus === 'EN_ROUTE' || newStatus === 'TOWING'
+          ? { technicianLat: technicianLocation[0], technicianLng: technicianLocation[1] }
+          : {}),
       });
       setRescueTask({ ...rescueTask, status: newStatus });
-      
+
+      // Không tự gọi startCarSimulation() ở đây — route cho đoạn mới (EN_ROUTE/TOWING) chưa kịp
+      // fetch xong tại thời điểm này. Effect riêng theo dõi routeCoords sẽ tự bắt đầu animation
+      // đúng lúc route mới đã sẵn sàng.
       if (newStatus === 'ACCEPTED') showToast('Đã xác nhận nhận nhiệm vụ!', 'success');
-      else if (newStatus === 'EN_ROUTE') {
-        showToast('Đã bắt đầu di chuyển!', 'success');
-        startCarSimulation();
-      }
+      else if (newStatus === 'EN_ROUTE') showToast('Đã bắt đầu di chuyển!', 'success');
       else if (newStatus === 'ARRIVED') {
         showToast('Đã đến nơi thành công!', 'success');
         if (animationRef.current) clearInterval(animationRef.current);
       }
+      else if (newStatus === 'TOWING') showToast('Đã bắt đầu chở xe về Gara!', 'success');
       else if (newStatus === 'COMPLETED') {
-        showToast('Hoàn tất cứu hộ xuất sắc! Đang chuyển trang...', 'success');
+        showToast('Đã đưa xe về Gara thành công! Đang chuyển trang...', 'success');
+        if (animationRef.current) clearInterval(animationRef.current);
       }
-      
+
     } catch (error) {
       console.error(error);
       showToast('Lỗi cập nhật trạng thái', 'error');
@@ -219,9 +263,10 @@ export default function TechnicianRescuePage() {
     }, 50) as unknown as number;
   };
 
-  // Nếu đang EN_ROUTE khi load trang thì giả lập xe chạy liền
+  // Tự động chạy animation xe di chuyển bất cứ khi nào có route mới cho đoạn đang active
+  // (EN_ROUTE: tới khách, TOWING: chở về Gara) — kể cả khi vừa F5 lại trang giữa chừng.
   useEffect(() => {
-    if (rescueTask?.status === 'EN_ROUTE' && routeCoords.length > 0) {
+    if ((rescueTask?.status === 'EN_ROUTE' || rescueTask?.status === 'TOWING') && routeCoords.length > 0) {
       startCarSimulation();
     }
     return () => {
@@ -301,12 +346,12 @@ export default function TechnicianRescuePage() {
                   attribution='&copy; <a href="https://carto.com/">Carto</a>'
                 />
                 
-                <Marker position={technicianLocation} icon={garageIcon}>
+                <Marker position={technicianLocation} icon={technicianIcon}>
                   <Popup className="font-bold text-blue-800">Vị trí của bạn (KTV)</Popup>
                 </Marker>
 
-                <Marker 
-                  position={[parseFloat(rescueTask.customer_lat), parseFloat(rescueTask.customer_lng)]} 
+                <Marker
+                  position={[parseFloat(rescueTask.customer_lat), parseFloat(rescueTask.customer_lng)]}
                   icon={userIcon}
                 >
                   <Popup className="rounded-xl overflow-hidden shadow-xl font-bold text-slate-800 text-center">
@@ -314,13 +359,20 @@ export default function TechnicianRescuePage() {
                     <span className="text-xs text-rose-500 uppercase tracking-widest mt-1 block">Đang đợi cứu hộ</span>
                   </Popup>
                 </Marker>
-                
+
+                {/* Điểm đến khi đang chở xe về — chỉ hiện ở đoạn TOWING trở đi */}
+                {(rescueTask.status === 'TOWING' || rescueTask.status === 'COMPLETED') && (
+                  <Marker position={garageLocation} icon={garageIcon}>
+                    <Popup className="font-bold text-blue-800">Gara Hệ Thống (điểm đến)</Popup>
+                  </Marker>
+                )}
+
                 {routeCoords.length > 0 && (
                   <Polyline positions={routeCoords} color="#3b82f6" weight={6} opacity={0.6} />
                 )}
 
                 {/* Simulated Car Icon */}
-                {routeCoords.length > 0 && (rescueTask.status === 'EN_ROUTE' || rescueTask.status === 'ARRIVED') && (
+                {routeCoords.length > 0 && (rescueTask.status === 'EN_ROUTE' || rescueTask.status === 'ARRIVED' || rescueTask.status === 'TOWING') && (
                   <Marker position={carLocation} icon={carIcon} zIndexOffset={1000}>
                     <Popup className="font-bold text-green-600">Bạn đang ở đây</Popup>
                   </Marker>
@@ -430,7 +482,18 @@ export default function TechnicianRescuePage() {
               )}
               
               {rescueTask.status === 'ARRIVED' && (
-                <button 
+                <button
+                  onClick={() => updateStatus('TOWING')}
+                  disabled={actionLoading}
+                  className="w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl font-black tracking-wide shadow-2xl hover:scale-105 transition-all flex items-center justify-center gap-2 text-center text-sm sm:text-base leading-snug"
+                >
+                  {actionLoading ? <Loader2 size={24} className="animate-spin shrink-0" /> : <CarFront size={24} className="shrink-0" />}
+                  <span>BẮT ĐẦU CHỞ XE VỀ GARA</span>
+                </button>
+              )}
+
+              {rescueTask.status === 'TOWING' && (
+                <button
                   onClick={async () => {
                     await updateStatus('COMPLETED');
                     setTimeout(() => {
@@ -438,10 +501,10 @@ export default function TechnicianRescuePage() {
                     }, 1500);
                   }}
                   disabled={actionLoading}
-                  className="w-full py-4 bg-slate-800 text-white rounded-full font-black tracking-wide shadow-2xl hover:bg-slate-700 transition-all flex items-center justify-center gap-2 text-lg"
+                  className="w-full py-4 px-6 bg-slate-800 text-white rounded-2xl font-black tracking-wide shadow-2xl hover:bg-slate-700 transition-all flex items-center justify-center gap-2 text-center text-sm sm:text-base leading-snug"
                 >
-                  {actionLoading ? <Loader2 size={24} className="animate-spin" /> : <CheckCircle size={24} />}
-                  HOÀN TẤT CỨU HỘ & CHUYỂN SANG SỬA CHỮA
+                  {actionLoading ? <Loader2 size={24} className="animate-spin shrink-0" /> : <CheckCircle size={24} className="shrink-0" />}
+                  <span>ĐÃ VỀ TỚI GARA</span>
                 </button>
               )}
             </motion.div>

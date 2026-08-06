@@ -174,6 +174,14 @@ export const MapTracking: React.FC = () => {
             setStatusMessage('Kỹ thuật viên đã tới nơi.');
             setSimulationStatus('arrived');
             if (animationRef.current) clearInterval(animationRef.current);
+          } else if (data.status === 'TOWING') {
+            // Đoạn 2: chở xe về Gara — điểm xuất phát là vị trí khách (nơi KTV vừa nhận xe),
+            // điểm đến là Gara cố định, KHÔNG dùng toạ độ KTV nữa vì họ đang lái, không đứng yên.
+            setStatusMessage('Kỹ thuật viên đang chở xe của bạn về Gara.');
+            setSimulationStatus('running');
+            if (userLocation) {
+              fetchRouteAndSimulate(userLocation[0], userLocation[1], garageLocation[0], garageLocation[1]);
+            }
           } else if (data.status === 'COMPLETED') {
             setStatusMessage('Cứu hộ đã hoàn tất, xe đã được đưa về Gara.');
             setSimulationStatus('idle');
@@ -404,10 +412,11 @@ export const MapTracking: React.FC = () => {
 
           <LocationUpdater userLocation={userLocation} />
 
-          {/* Điểm Gara */}
-          <Marker position={rescueRoute.length > 0 ? rescueRoute[0] : garageLocation} icon={garageIcon}>
+          {/* Điểm Gara — vị trí cố định thật, không phụ thuộc route (route không luôn xuất phát/kết
+              thúc tại Gara — đoạn 1 xuất phát từ vị trí KTV, chỉ đoạn 2 mới đi tới Gara). */}
+          <Marker position={garageLocation} icon={garageIcon}>
             <Popup className="font-semibold text-blue-600">
-              Gara Hệ Thống <br /> (Xe cứu hộ xuất phát từ đây)
+              Gara Hệ Thống
             </Popup>
           </Marker>
 

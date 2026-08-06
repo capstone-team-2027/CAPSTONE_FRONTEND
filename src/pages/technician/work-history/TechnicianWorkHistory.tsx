@@ -26,6 +26,7 @@ interface WorkHistoryItem {
   completedAt?: string;
   status: string;
   taskType?: string;
+  amount?: number;
 }
 
 interface CompletedTaskResponse {
@@ -60,6 +61,22 @@ interface CompletedTaskResponse {
       } | null;
     };
   };
+}
+
+interface RescueHistoryResponse {
+  id: number;
+  status: string;
+  rescue_price?: string | number | null;
+  updatedAt?: string;
+  createdAt?: string;
+  customer?: {
+    name?: string | null;
+    phone?: string | null;
+    user?: {
+      fullName?: string | null;
+      phoneNumber?: string | null;
+    } | null;
+  } | null;
 }
 
 interface ApiEnvelope<T> {
@@ -101,12 +118,16 @@ export default function TechnicianWorkHistory() {
     setIsLoading(true);
     setErrorMessage("");
     try {
-      const response = (await fetchPrivate<
-        ApiEnvelope<CompletedTaskResponse[]>
-      >(TASK_ASSIGNMENT_ENDPOINTS.GET_COMPLETED_TASKS)) as ApiEnvelope<
-        CompletedTaskResponse[]
-      >;
-      const mappedItems = (response.data ?? []).map(
+      const [taskResponse, rescueResponse] = await Promise.all([
+        fetchPrivate<ApiEnvelope<CompletedTaskResponse[]>>(
+          TASK_ASSIGNMENT_ENDPOINTS.GET_COMPLETED_TASKS,
+        ) as Promise<ApiEnvelope<CompletedTaskResponse[]>>,
+        fetchPrivate<ApiEnvelope<RescueHistoryResponse[]>>(
+          TASK_ASSIGNMENT_ENDPOINTS.GET_MY_RESCUE_HISTORY,
+        ) as Promise<ApiEnvelope<RescueHistoryResponse[]>>,
+      ]);
+
+      const mappedTasks = (taskResponse.data ?? []).map(
         (assignment): WorkHistoryItem => {
           const serviceOrder = assignment.task.serviceOrder;
           const vehicle = serviceOrder.vehicle;
@@ -133,7 +154,34 @@ export default function TechnicianWorkHistory() {
           };
         },
       );
-      setWorkHistory(mappedItems);
+
+      const mappedRescues = (rescueResponse.data ?? []).map(
+        (rescue): WorkHistoryItem => ({
+          id: -rescue.id, // tách namespace id khỏi task assignment (đều là number, tránh trùng key)
+          code: `RESCUE-${rescue.id}`,
+          customerName:
+            rescue.customer?.name ||
+            rescue.customer?.user?.fullName ||
+            "Khách vãng lai",
+          customerPhone:
+            rescue.customer?.phone || rescue.customer?.user?.phoneNumber || "",
+          vehiclePlate: "—",
+          vehicleModel: "",
+          services: ["Cứu hộ khẩn cấp"],
+          completedAt: rescue.updatedAt || undefined,
+          status: "COMPLETED",
+          taskType: "RESCUE",
+          amount: rescue.rescue_price != null ? Number(rescue.rescue_price) : undefined,
+        }),
+      );
+
+      const merged = [...mappedTasks, ...mappedRescues].sort((a, b) => {
+        const timeA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+        const timeB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      setWorkHistory(merged);
     } catch (error) {
       console.error("Lỗi khi tải lịch sử công việc:", error);
       setErrorMessage(
@@ -313,6 +361,7 @@ export default function TechnicianWorkHistory() {
                       <option value="all">Tất cả công việc</option>
                       <option value="INSPECTION">Kiểm tra</option>
                       <option value="REPAIR">Sửa chữa</option>
+                      <option value="RESCUE">Cứu hộ</option>
                     </select>
                   </label>
                   <label className="block">
@@ -341,7 +390,7 @@ export default function TechnicianWorkHistory() {
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] text-left text-sm">
+          <table className="w-full min-w-[1320px] text-left text-sm">
             <thead className="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-400">
               <tr>
                 <th className="px-4 py-4">Mã</th>
@@ -350,6 +399,7 @@ export default function TechnicianWorkHistory() {
                 <th className="px-4 py-4">Dịch vụ</th>
                 <th className="px-4 py-4">Ngày bắt đầu</th>
                 <th className="px-4 py-4">Ngày hoàn thành</th>
+                <th className="px-4 py-4">Giá tiền</th>
                 <th className="px-4 py-4">Trạng thái</th>
               </tr>
             </thead>
@@ -407,6 +457,9 @@ export default function TechnicianWorkHistory() {
                   </td>
                   <td className="whitespace-nowrap px-4 py-4 text-xs font-medium text-slate-700">
                     {formatDateTime(item.completedAt)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-4 text-xs font-semibold text-slate-700">
+                    {item.amount != null ? `${item.amount.toLocaleString("vi-VN")} VND` : "—"}
                   </td>
                   <td className="px-4 py-4">
                     <span className="inline-flex whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">

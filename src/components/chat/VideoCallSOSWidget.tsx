@@ -17,6 +17,8 @@ export default function VideoCallSOSWidget() {
                 timestamp: new Date()
             });
         }
+        // Điều hướng sang trang chờ — VideoCallRoom.tsx tự hiển thị màn "đang chờ lễ tân tiếp
+        // nhận" và CHỈ thực sự join phòng Zego (bật camera/mic) khi nhận được 'call-answered'.
         navigate(`/video-call/${roomId}`);
     };
 
