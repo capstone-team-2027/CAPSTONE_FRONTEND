@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 export const RECEPTION_API = {
   APPOINTMENTS: `${BASE}/api/reception/appointments`,
