@@ -2520,93 +2520,62 @@ export default function TechnicianAssignments() {
             </div>
 
             {/* Footer */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-4 sm:px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
+            <div className="flex items-center justify-end gap-2 px-4 sm:px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
               {issueReportAssignment.taskType === "INSPECTION" ? (
-                <>
-                  <span className="text-xs text-slate-400 text-center sm:text-left">
-                    {checkedIssueItems.length > 0
-                      ? `${checkedIssueItems.length} lỗi sẽ được báo cáo`
-                      : "Chọn lỗi phát hiện để hoàn tất kiểm tra"}
-                  </span>
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <button
-                      onClick={() => setIssueReportOpen(false)}
-                      disabled={isSubmittingIssueReport}
-                      className="h-11 flex-1 sm:flex-none px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-40"
-                    >
-                      Đóng
-                    </button>
-                    <button
-                      onClick={handleCreateIssuesReport}
-                      disabled={
-                        isSubmittingIssueReport ||
-                        checkedIssueItems.length === 0
-                      }
-                      className="h-11 flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/25 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      {isSubmittingIssueReport ? (
-                        <>
-                          <Loader2 size={15} className="animate-spin" />
-                          Đang gửi...
-                        </>
-                      ) : (
-                        <>
-                          <ClipboardList size={15} />
-                          Hoàn tất & gửi báo cáo
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </>
+                <button
+                  onClick={handleCreateIssuesReport}
+                  disabled={
+                    isSubmittingIssueReport || checkedIssueItems.length === 0
+                  }
+                  className="h-9 flex items-center justify-center gap-1.5 px-4 rounded-lg text-xs font-semibold text-white bg-[#00285E] shadow-sm hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isSubmittingIssueReport ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      Đang gửi...
+                    </>
+                  ) : (
+                    <>
+                      <ClipboardList size={13} />
+                      Hoàn tất & gửi báo cáo
+                    </>
+                  )}
+                </button>
               ) : (
                 <>
-                  <span className="text-xs text-slate-400 text-center sm:text-left">
-                    {checkedIssueItems.length > 0
-                      ? `${checkedIssueItems.length} lỗi phát sinh sẽ được báo cáo`
-                      : "Chọn lỗi phát sinh nếu có, hoặc yêu cầu xuất kho"}
-                  </span>
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-wrap">
-                    {canRequestExportParts && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          issueReportAssignment &&
-                          openRequestExportModal(issueReportAssignment.serviceOrderId)
-                        }
-                        className="h-11 flex items-center justify-center gap-1.5 px-5 rounded-xl text-sm font-bold text-white bg-[#00285E] shadow-sm hover:bg-[#001E46] active:scale-[0.98] transition-all"
-                      >
-                        <Package size={15} />
-                        Yêu cầu xuất kho
-                      </button>
-                    )}
+                  {canRequestExportParts && (
                     <button
-                      onClick={() => setIssueReportOpen(false)}
-                      disabled={isSubmittingIssueReport}
-                      className="h-11 px-5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-40"
-                    >
-                      Đóng
-                    </button>
-                    <button
-                      onClick={handleCreateIssuesReport}
-                      disabled={
-                        isSubmittingIssueReport ||
-                        checkedIssueItems.length === 0
+                      type="button"
+                      onClick={() =>
+                        issueReportAssignment &&
+                        openRequestExportModal(issueReportAssignment.serviceOrderId)
                       }
-                      className="h-11 flex items-center justify-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-[#00285E] shadow-lg shadow-[#00285E]/25 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="h-9 flex items-center justify-center gap-1.5 px-4 rounded-lg text-xs font-bold text-white bg-[#00285E] shadow-sm hover:bg-[#001E46] active:scale-[0.98] transition-all"
                     >
-                      {isSubmittingIssueReport ? (
-                        <>
-                          <Loader2 size={15} className="animate-spin" />
-                          Đang gửi...
-                        </>
-                      ) : (
-                        <>
-                          <ClipboardList size={15} />
-                          Gửi báo cáo lỗi phát sinh
-                        </>
-                      )}
+                      <Package size={13} />
+                      Yêu cầu xuất kho
                     </button>
-                  </div>
+                  )}
+                  <button
+                    onClick={handleCreateIssuesReport}
+                    disabled={
+                      isSubmittingIssueReport ||
+                      checkedIssueItems.length === 0
+                    }
+                    className="h-9 flex items-center justify-center gap-1.5 px-4 rounded-lg text-xs font-semibold text-white bg-[#00285E] shadow-sm hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {isSubmittingIssueReport ? (
+                      <>
+                        <Loader2 size={13} className="animate-spin" />
+                        Đang gửi...
+                      </>
+                    ) : (
+                      <>
+                        <ClipboardList size={13} />
+                        Gửi báo cáo lỗi phát sinh
+                      </>
+                    )}
+                  </button>
                 </>
               )}
             </div>

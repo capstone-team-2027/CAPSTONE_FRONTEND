@@ -32,10 +32,10 @@ interface ServiceItem {
     category: string;
     image: string;
     duration?: string;
-    details?: string[];
     originalPrice?: string;
     discountPercentage?: number;
     promoText?: string;
+    sparePartName?: string;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -53,7 +53,8 @@ const getCategoryIcon = (categoryName: string) => {
 };
 
 export default function Services() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const currentLang = i18n.language?.startsWith('en') ? 'en' : 'vi';
     const navigate = useNavigate();
     const { fetchPublic } = useFetchClient();
     const [activeTab, setActiveTab] = useState('all');
@@ -83,11 +84,11 @@ export default function Services() {
     useEffect(() => {
         const loadCategoriesAndCombos = async () => {
             try {
-                const catRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_CATEGORIES);
+                const catRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.GET_CATEGORIES}?lang=${currentLang}`);
                 if (catRes?.data) {
                     setDbCategories(catRes.data);
                 }
-                const comboRes = await fetchPublic(SERVICE_API_ENDPOINTS.GET_COMBOS);
+                const comboRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.GET_COMBOS}?lang=${currentLang}`);
                 const comboItems = comboRes?.data || [];
                 if (comboItems.length > 0) {
                     const mappedCombos = comboItems.map((c: any) => ({
@@ -107,7 +108,7 @@ export default function Services() {
             }
         };
         loadCategoriesAndCombos();
-    }, []);
+    }, [currentLang]);
 
     useEffect(() => {
         const fetchServices = async () => {
@@ -115,8 +116,8 @@ export default function Services() {
             try {
                 const search = encodeURIComponent(searchQuery);
                 const categoryId = activeTab !== 'all' ? activeTab : '';
-                const query = `page=${currentPage}&limit=${itemsPerPage}&search=${search}&category_id=${categoryId}`;
-                
+                const query = `page=${currentPage}&limit=${itemsPerPage}&search=${search}&category_id=${categoryId}&lang=${currentLang}`;
+
                 const svcRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.SEARCH_SERVICES}?${query}`);
                 if (svcRes?.data) {
                     setDbServices(svcRes.data.items || []);
@@ -135,7 +136,7 @@ export default function Services() {
             fetchServices();
         }, 300);
         return () => clearTimeout(timer);
-    }, [currentPage, searchQuery, activeTab]);
+    }, [currentPage, searchQuery, activeTab, currentLang]);
 
     const getServicePriceValue = (id: number): number => {
         try {
@@ -197,72 +198,6 @@ export default function Services() {
         return "";
     };
 
-    const getServiceDetails = (serviceName: string): string[] => {
-        const lowerS = serviceName.toLowerCase();
-        if (lowerS.includes("cấp 1")) return [
-            "Thay nhớt động cơ chính hãng phù hợp thông số xe.",
-            "Kiểm tra và làm sạch lọc gió động cơ, lọc gió cabin.",
-            "Kiểm tra hệ thống phanh, má phanh, đĩa phanh.",
-            "Kiểm tra bình ắc quy và hệ thống chiếu sáng.",
-            "Đọc lỗi lỗi hộp đen (OBD) bằng thiết bị chuyên dụng."
-        ];
-        if (lowerS.includes("cấp 2")) return [
-            "Thay nhớt & lọc nhớt động cơ chính hãng.",
-            "Kiểm tra, làm sạch lọc gió động cơ & lọc gió điều hòa.",
-            "Tháo bánh xe, vệ sinh và dưỡng hệ thống phanh 4 bánh.",
-            "Đảo lốp và kiểm tra độ mòn của gai lốp.",
-            "Kiểm tra tổng quát gầm xe, các khớp nối, rotuyn."
-        ];
-        if (lowerS.includes("cấp 3")) return [
-            "Thay nhớt, lọc nhớt, thay lọc gió động cơ & điều hòa.",
-            "Thay bugi đánh lửa (nếu cần), vệ sinh bướm ga.",
-            "Vệ sinh phanh 4 bánh chuyên sâu, tra mỡ ắc phanh.",
-            "Kiểm tra cân bằng động lốp xe và cân chỉnh góc đặt bánh xe.",
-            "Kiểm tra toàn bộ hệ thống làm mát, dầu phanh, dầu trợ lực lái."
-        ];
-        if (lowerS.includes("kim phun")) return [
-            "Đo áp suất buồng đốt, kiểm tra tỉ số nén động cơ.",
-            "Xử lý hiện tượng rò rỉ dầu máy, hao nước làm mát.",
-            "Cân chỉnh cam, khắc phục tiếng gõ động cơ lạ.",
-            "Đại tu động cơ chuyên nghiệp theo tiêu chuẩn hãng.",
-            "Vệ sinh kim phun, họng hút và buồng đốt bằng máy chuyên dụng."
-        ];
-        if (lowerS.includes("lốp") || lowerS.includes("bánh xe") || lowerS.includes("phanh")) return [
-            "Cân chỉnh thước lái 3D tiên tiến nhất hiện nay.",
-            "Cân bằng động lốp xe triệt tiêu hiện tượng rung vô lăng.",
-            "Láng đĩa phanh trực tiếp không cần tháo rời.",
-            "Thay mới má phanh chính hãng nhập khẩu.",
-            "Kiểm tra toàn bộ đường ống dẫn dầu và cụm heo phanh."
-        ];
-        if (lowerS.includes("nội thất")) return [
-            "Dọn nội thất toàn diện, hút bụi và giặt thảm sàn.",
-            "Vệ sinh bề mặt da ghế bằng dung dịch chuyên sâu bảo vệ da.",
-            "Khử trùng hệ thống điều hòa và khử mùi ozon cabin.",
-            "Dưỡng bóng táp-lô, táp-pi cửa chống lão hóa tia UV.",
-            "Làm sạch trần nỉ và cốp sau tỉ mỉ."
-        ];
-        if (lowerS.includes("obd") || lowerS.includes("lỗi")) return [
-            "Quét toàn bộ lỗi hệ thống điện thân xe, hộp điều khiển.",
-            "Chẩn đoán lỗi cảm biến ABS, ESP, túi khí SRS.",
-            "Kiểm tra tình trạng máy phát điện, máy khởi động.",
-            "Cập nhật phần mềm hệ thống (ECU flashing) nếu có.",
-            "Xóa các mã lỗi ảo phát sinh do sụt điện."
-        ];
-        if (lowerS.includes("cứu hộ") || lowerS.includes("kích bình")) return [
-            "Hỗ trợ kích nổ ắc quy tại chỗ nhanh chóng.",
-            "Hỗ trợ thay lốp dự phòng khẩn cấp.",
-            "Cung cấp nhiên liệu khẩn cấp trên đường.",
-            "Xe cẩu kéo chuyên dụng đưa về trung tâm dịch vụ.",
-            "Đội ngũ cứu hộ túc trực sẵn sàng 24 giờ mỗi ngày."
-        ];
-        return [
-            "Kiểm tra tổng quát tình trạng hoạt động thực tế.",
-            "Sử dụng phụ tùng và linh kiện chính hãng 100%.",
-            "Bảo hành kỹ thuật dài hạn và tư vấn miễn phí.",
-            "Thực hiện nhanh chóng bởi kỹ thuật viên lành nghề."
-        ];
-    };
-
     const categories = dbCategories.length > 0
         ? [
             { id: 'all', label: t('common.all', 'Tất cả') },
@@ -293,7 +228,7 @@ export default function Services() {
             category: String(s.category_id),
             image: getServiceImage(s.service_name, categoryName),
             duration: s.estimated_duration ? `${s.estimated_duration} phút` : undefined,
-            details: getServiceDetails(s.service_name),
+            sparePartName: s.sparePart?.name,
         };
     });
 
@@ -379,7 +314,7 @@ export default function Services() {
                                     window.open('tel:19001234');
                                 }}
                             >
-                                {t('services.emergencyConsult', 'Tư vấn nhanh')}
+                                {t('services.emergencyConsult', 'Gọi Hotline')}
                             </Button>
                         </div>
                     </motion.div>
@@ -509,6 +444,13 @@ export default function Services() {
                                                     {service.desc}
                                                 </p>
 
+                                                {service.sparePartName && (
+                                                    <div className="mb-3 p-1.5 bg-emerald-50/60 rounded-md border border-emerald-100 flex items-start gap-1 text-[10px] text-emerald-700 font-medium text-left">
+                                                        <span className="shrink-0">🔧</span>
+                                                        <span className="line-clamp-2 leading-tight">{t('services.sparePartIncluded', 'Đã kèm')}: {service.sparePartName}</span>
+                                                    </div>
+                                                )}
+
                                                 {/* Price & Promo Info */}
                                                 <div className="mb-4 py-2 px-3 rounded-xl flex flex-col gap-1 text-left" style={{ backgroundColor: COLORS.navy }}>
                                                     <div className="flex items-baseline justify-between">
@@ -614,7 +556,7 @@ export default function Services() {
                             {t('services.comboTitle', 'Gói Combo Dịch vụ')}
                         </h2>
                         <p className="text-slate-500 text-sm mt-3 max-w-xl font-medium">
-                            Tích hợp các gói chăm sóc, bảo dưỡng định kỳ xe ô tô chuyên nghiệp với chi phí ưu đãi tốt nhất.
+                            {t('services.comboDesc', 'Tích hợp các gói chăm sóc, bảo dưỡng định kỳ xe ô tô chuyên nghiệp với chi phí ưu đãi tốt nhất.')}
                         </p>
                     </div>
                     {/* Slider Navigation Buttons */}
@@ -655,27 +597,33 @@ export default function Services() {
                             >
                                 {/* Discount badge */}
                                 <div className="absolute top-4 right-4 bg-red-500 text-white text-[10px] font-black uppercase px-2.5 py-1 rounded-md tracking-wider shadow-md">
-                                    Giảm {combo.discount_percentage}%
+                                    {t('services.comboDiscountBadge', 'Giảm {{percent}}%', { percent: combo.discount_percentage })}
                                 </div>
 
                                 <div className="space-y-6">
                                     <div className="space-y-2">
                                         <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#F9A11B] bg-amber-50 border border-amber-100/50 px-2.5 py-1 rounded-md inline-block">
-                                            Gói Đặc Biệt
+                                            {t('services.comboSpecialBadge', 'Gói Đặc Biệt')}
                                         </span>
                                         <h3 className="text-lg md:text-xl font-bold text-[#00285E] line-clamp-1">{combo.combo_name}</h3>
                                     </div>
 
                                     {/* Included services list */}
                                     <div className="space-y-3 pt-2">
-                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block text-left">Dịch vụ đi kèm:</span>
+                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block text-left">{t('services.comboIncludedServices', 'Dịch vụ đi kèm:')}</span>
                                         <div className="space-y-2">
                                             {combo.catalogs?.map((cat: any) => {
-                                                const sName = cat.translations?.[0]?.name || cat.service_name || "Dịch vụ bảo dưỡng";
+                                                const sName = cat.translations?.[0]?.name || cat.service_name || t('services.comboFallbackServiceName', 'Dịch vụ bảo dưỡng');
                                                 return (
-                                                    <div key={cat.id} className="flex items-start gap-2.5 text-xs text-slate-600 font-semibold text-left">
+                                                    <div key={cat.id} className="flex items-start gap-2.5 text-xs text-slate-600 font-semibold text-left flex-wrap">
                                                         <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
                                                         <span>{sName}</span>
+                                                        {cat.sparePart?.name && (
+                                                            <span className="inline-flex items-center gap-0.5 bg-emerald-50/60 border border-emerald-100 text-emerald-700 px-1.5 py-0.2 rounded text-[9px] font-medium">
+                                                                <span className="shrink-0">🔧</span>
+                                                                <span>{cat.sparePart.name}</span>
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 );
                                             })}
@@ -687,17 +635,17 @@ export default function Services() {
                                 <div className="pt-6 mt-4 border-t border-slate-100 space-y-4">
                                     <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100 flex flex-col gap-2.5">
                                         <div className="flex justify-between items-center">
-                                            <span className="text-xs text-slate-500 font-semibold">Mua lẻ từng dịch vụ:</span>
-                                            <span className="text-sm text-slate-400 line-through font-bold">{totalOriginal.toLocaleString("vi-VN")}đ</span>
+                                            <span className="text-xs text-slate-500 font-semibold">{t('services.comboRetailPrice', 'Mua lẻ từng dịch vụ:')}</span>
+                                            <span className="text-sm text-slate-400 line-through font-bold">{totalOriginal.toLocaleString("vi-VN")} VNĐ</span>
                                         </div>
                                         <div className="flex justify-between items-center">
-                                            <span className="text-xs text-[#00285E] font-extrabold uppercase tracking-widest">Giá Combo:</span>
-                                            <span className="text-2xl font-black text-[#00285E]">{discounted.toLocaleString("vi-VN")}đ</span>
+                                            <span className="text-xs text-[#00285E] font-extrabold uppercase tracking-widest">{t('services.comboPrice', 'Giá Combo:')}</span>
+                                            <span className="text-2xl font-black text-[#00285E]">{discounted.toLocaleString("vi-VN")} VNĐ</span>
                                         </div>
                                         {(totalOriginal - discounted) > 0 && (
                                             <div className="mt-1 pt-2.5 border-t border-emerald-100 flex justify-between items-center bg-emerald-50/50 -mx-4 -mb-4 px-4 pb-3 rounded-b-2xl">
-                                                <span className="text-[10px] text-emerald-600 font-black uppercase tracking-wider mt-1">Tiết kiệm ngay:</span>
-                                                <span className="text-base font-black text-emerald-600 mt-1">{(totalOriginal - discounted).toLocaleString("vi-VN")}đ</span>
+                                                <span className="text-[10px] text-emerald-600 font-black uppercase tracking-wider mt-1">{t('services.comboSavings', 'Tiết kiệm ngay:')}</span>
+                                                <span className="text-base font-black text-emerald-600 mt-1">{(totalOriginal - discounted).toLocaleString("vi-VN")} VNĐ</span>
                                             </div>
                                         )}
                                     </div>
@@ -706,7 +654,7 @@ export default function Services() {
                                         onClick={() => setSelectedCombo(combo)}
                                         className="w-full py-3.5 bg-[#00285E] text-white hover:bg-[#00285E]/95 font-bold text-xs rounded-xl transition-all shadow-lg shadow-[#00285E]/20 tracking-widest uppercase text-center block relative overflow-hidden group"
                                     >
-                                        <span className="relative z-10">Hiện chi tiết</span>
+                                        <span className="relative z-10">{t('services.comboViewDetails', 'Hiện chi tiết')}</span>
                                         <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out" />
                                     </button>
                                 </div>
@@ -861,21 +809,13 @@ export default function Services() {
                                     <p className="text-xs md:text-sm text-gray-500 leading-relaxed">
                                         {selectedService.desc}
                                     </p>
-                                </div>
-
-                                {selectedService.details && selectedService.details.length > 0 && (
-                                    <div className="space-y-3">
-                                        <h4 className="text-sm font-bold text-brand-blue uppercase tracking-wider">{t('services.modal.itemsLabel', 'Các hạng mục công việc')}</h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-500">
-                                            {selectedService.details.map((detail, index) => (
-                                                <div key={index} className="flex items-start gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                                                    <span className="w-1.5 h-1.5 bg-brand-orange rounded-full shrink-0 mt-1.5" />
-                                                    <span>{detail}</span>
-                                                </div>
-                                            ))}
+                                    {selectedService.sparePartName && (
+                                        <div className="mt-2 p-2 bg-emerald-50/60 rounded-lg border border-emerald-100 flex items-start gap-1.5 text-xs text-emerald-700 font-medium">
+                                            <span className="shrink-0">🔧</span>
+                                            <span>{t('services.sparePartIncluded', 'Đã kèm')}: {selectedService.sparePartName}</span>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
 
                                 <div className="flex items-center gap-3 bg-blue-50/50 p-4 rounded-2xl border border-blue-50 text-[11px] text-gray-500 leading-relaxed">
                                     <ShieldCheck className="w-5 h-5 text-brand-blue shrink-0" />
@@ -954,13 +894,19 @@ export default function Services() {
                                                 const sPrice = cat.total_price !== undefined && cat.total_price !== null ? cat.total_price : (cat.labor_price || 0);
                                                 return (
                                                     <div key={cat.id} className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-                                                        <div className="flex items-center gap-3">
+                                                        <div className="flex items-center gap-3 flex-wrap">
                                                             <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
                                                                 <CheckCircle2 size={16} className="text-emerald-500" />
                                                             </div>
                                                             <span className="font-bold text-[#00285E] text-sm">{sName}</span>
+                                                            {cat.sparePart?.name && (
+                                                                <span className="inline-flex items-center gap-0.5 bg-emerald-50/60 border border-emerald-100 text-emerald-700 px-1.5 py-0.2 rounded text-[9px] font-medium">
+                                                                    <span className="shrink-0">🔧</span>
+                                                                    <span>{cat.sparePart.name}</span>
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                        <span className="font-bold text-slate-400 text-sm whitespace-nowrap">{Number(sPrice) > 0 ? Number(sPrice).toLocaleString("vi-VN") + "đ" : "Liên hệ"}</span>
+                                                        <span className="font-bold text-slate-400 text-sm whitespace-nowrap">{Number(sPrice) > 0 ? Number(sPrice).toLocaleString("vi-VN") + " VNĐ" : "Liên hệ"}</span>
                                                     </div>
                                                 );
                                             })}
@@ -980,7 +926,7 @@ export default function Services() {
                                                 
                                                 <div className="flex justify-between items-center mb-2 relative z-10">
                                                     <span className="text-xs text-slate-500 font-semibold">Tổng giá bán lẻ:</span>
-                                                    <span className="text-sm text-slate-400 line-through font-bold">{totalOriginal.toLocaleString("vi-VN")}đ</span>
+                                                    <span className="text-sm text-slate-400 line-through font-bold">{totalOriginal.toLocaleString("vi-VN")} VNĐ</span>
                                                 </div>
                                                 <div className="flex justify-between items-center mb-3 relative z-10">
                                                     <span className="text-xs text-[#00285E] font-extrabold uppercase tracking-widest">Giá ưu đãi:</span>
@@ -990,13 +936,13 @@ export default function Services() {
                                                                 -{selectedCombo.discount_percentage}%
                                                             </span>
                                                         )}
-                                                        <span className="text-2xl md:text-3xl font-black text-[#00285E]">{discounted.toLocaleString("vi-VN")}đ</span>
+                                                        <span className="text-2xl md:text-3xl font-black text-[#00285E]">{discounted.toLocaleString("vi-VN")} VNĐ</span>
                                                     </div>
                                                 </div>
                                                 {savings > 0 && (
                                                     <div className="pt-3 border-t border-emerald-100 flex justify-between items-center relative z-10">
                                                         <span className="text-[10px] text-emerald-600 font-black uppercase tracking-wider">Bạn tiết kiệm được:</span>
-                                                        <span className="text-base font-black text-emerald-600">{(savings).toLocaleString("vi-VN")}đ</span>
+                                                        <span className="text-base font-black text-emerald-600">{(savings).toLocaleString("vi-VN")} VNĐ</span>
                                                     </div>
                                                 )}
                                             </div>

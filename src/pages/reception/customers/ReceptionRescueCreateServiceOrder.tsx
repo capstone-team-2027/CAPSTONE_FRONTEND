@@ -6,7 +6,6 @@ import {
   User,
   Phone,
   Car,
-  Gauge,
   Wrench,
   CheckSquare,
   Square,
@@ -32,8 +31,6 @@ import { SERVICE_ORDER_API_ENDPOINTS } from '../../../constants/reception/appoin
 import { useFetchClient, useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
 import { SEARCH_API_ENDPOINTS } from '../../../constants/reception/searchEndpoints';
-import SingleServicesSelector from '../../customer/Booking/SingleServicesSelector';
-import ComboServicesSelector from '../../customer/Booking/ComboServicesSelector';
 import { SERVICE_API_ENDPOINTS } from '../../../constants/customer/serviceApiEndpoints';
 import type { ServiceCombo, ServiceItem as CustomerServiceItem } from '../../../model/Service';
 import { useTranslation } from 'react-i18next';
@@ -420,7 +417,8 @@ export default function ReceptionRescueCreateServiceOrder() {
         reviewCount: reviewVal,
         badge: s.badge || undefined,
         details: detailsList,
-        category_id: s.category_id
+        category_id: s.category_id,
+        sparePartName: s.sparePart ? s.sparePart.name : undefined
       };
     });
   }, [activeDbServices]);
@@ -437,7 +435,7 @@ export default function ReceptionRescueCreateServiceOrder() {
         const customerRecord = {
           type: 'customer',
           id: customer.id,
-          name: customer.customer_name || customer.user?.fullName || 'Khách vãng lai',
+          name: customer.name || customer.customer_name || customer.user?.fullName || 'Khách vãng lai',
           phone: '',
           vehicles: customer.vehicles || []
         };
@@ -453,7 +451,7 @@ export default function ReceptionRescueCreateServiceOrder() {
           const customerRecord = {
             type: 'customer',
             id: fullCustomer.id,
-            name: fullCustomer.customer_name,
+            name: fullCustomer.name || fullCustomer.customer_name || 'Khách vãng lai',
             phone: fullCustomer.phone,
             vehicles: fullCustomer.vehicles || []
           };
@@ -463,7 +461,7 @@ export default function ReceptionRescueCreateServiceOrder() {
           const customerRecord = {
             type: 'customer',
             id: customer.id,
-            name: customer.customer_name || customer.user?.fullName || 'Khách vãng lai',
+            name: customer.name || customer.customer_name || customer.user?.fullName || 'Khách vãng lai',
             phone,
             vehicles: customer.vehicles || []
           };
@@ -475,7 +473,7 @@ export default function ReceptionRescueCreateServiceOrder() {
         const customerRecord = {
           type: 'customer',
           id: customer.id,
-          name: customer.customer_name || customer.user?.fullName || 'Khách vãng lai',
+          name: customer.name || customer.customer_name || customer.user?.fullName || 'Khách vãng lai',
           phone,
           vehicles: customer.vehicles || []
         };
@@ -484,7 +482,7 @@ export default function ReceptionRescueCreateServiceOrder() {
         setIsLoadingRecord(false);
       }
     };
-    
+
     loadFullCustomer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customer]);
@@ -557,10 +555,6 @@ export default function ReceptionRescueCreateServiceOrder() {
         }
       }
 
-      if (!currentOdo.trim()) {
-        showToast('Vui lòng nhập số km hiện tại (ODO).', 'warning');
-        return;
-      }
       if (!bookingDate || !bookingTime) {
         showToast('Vui lòng chọn thời gian dự kiến hoàn thành.', 'warning');
         return;
@@ -603,7 +597,7 @@ export default function ReceptionRescueCreateServiceOrder() {
         vehicle_id: finalVehicleId,
         walk_in: walkInPayload,
         bay_id: Number(bayId) || null,
-        current_odo: Number(currentOdo),
+        current_odo: currentOdo.trim() ? Number(currentOdo) : undefined,
         estimated_finish_time: estimated_finish_time,
         service_ids: receptionServiceMode === 'SERVICE' ? selectedServiceIds : undefined,
         combo_ids: receptionServiceMode === 'SERVICE' && selectedComboId ? [selectedComboId] : undefined,
@@ -657,215 +651,82 @@ export default function ReceptionRescueCreateServiceOrder() {
 
       <div className="space-y-6">
         {/* READONLY CUSTOMER & VEHICLE DISPLAY */}
-            {selectedRecord ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* READONLY CUSTOMER INFO */}
-                <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
-                  <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
-                    <User size={16} className="text-[#00285E]" />
-                    Thông tin Khách hàng
-                  </h2>
-                  <div className="space-y-3">
-                    <FormReadonly label="Họ và tên" value={selectedRecord.name} />
-                    <FormReadonly
-                      label="Số điện thoại"
-                      value={selectedRecord.phone}
-                      icon={<Phone size={14} className="text-slate-400" />}
+        {selectedRecord ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* READONLY CUSTOMER INFO */}
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
+              <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
+                <User size={16} className="text-[#00285E]" />
+                Thông tin Khách hàng
+              </h2>
+              <div className="space-y-3">
+                <FormReadonly label="Họ và tên" value={selectedRecord.name} />
+                <FormReadonly
+                  label="Số điện thoại"
+                  value={selectedRecord.phone}
+                  icon={<Phone size={14} className="text-slate-400" />}
+                />
+              </div>
+            </div>
+
+            {/* VEHICLE INFO */}
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
+              <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
+                <Car size={16} className="text-[#00285E]" />
+                Thông tin Xe tiếp nhận
+              </h2>
+
+              <div className="flex gap-6 mb-2">
+                {selectedRecord.vehicles && selectedRecord.vehicles.length > 0 && (
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={vehicleInputMode === 'EXISTING'}
+                      onChange={() => {
+                        setVehicleInputMode('EXISTING');
+                        if (!selectedCustomerVehicleId) setSelectedCustomerVehicleId(String(selectedRecord.vehicles[0].id));
+                      }}
+                      className="accent-[#00285E]"
                     />
+                    <span className="text-sm font-bold text-slate-700">Chọn xe đã có</span>
+                  </label>
+                )}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={vehicleInputMode === 'NEW'}
+                    onChange={() => setVehicleInputMode('NEW')}
+                    className="accent-[#00285E]"
+                  />
+                  <span className="text-sm font-bold text-slate-700">Thêm xe mới</span>
+                </label>
+              </div>
+
+              {vehicleInputMode === 'EXISTING' ? (
+                <div className="space-y-4">
+                  <div className="mb-4">
+                    <select
+                      value={selectedCustomerVehicleId}
+                      onChange={(e) => setSelectedCustomerVehicleId(e.target.value)}
+                      className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm font-semibold text-slate-700 outline-none transition-all focus:border-[#00285E]"
+                    >
+                      {selectedRecord.vehicles?.map((v: any) => (
+                        <option key={v.id} value={v.id} disabled={v.isInGarage}>
+                          {v.license_plate} - {v.brand} {v.model} {v.isInGarage ? '(Đang trong xưởng)' : ''}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                </div>
-
-                {/* VEHICLE INFO */}
-                  <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
-                    <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
-                      <Car size={16} className="text-[#00285E]" />
-                      Thông tin Xe tiếp nhận
-                    </h2>
-
-                    <div className="flex gap-6 mb-2">
-                      {selectedRecord.vehicles && selectedRecord.vehicles.length > 0 && (
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            checked={vehicleInputMode === 'EXISTING'}
-                            onChange={() => {
-                              setVehicleInputMode('EXISTING');
-                              if (!selectedCustomerVehicleId) setSelectedCustomerVehicleId(String(selectedRecord.vehicles[0].id));
-                            }}
-                            className="accent-[#00285E]"
-                          />
-                          <span className="text-sm font-bold text-slate-700">Chọn xe đã có</span>
-                        </label>
-                      )}
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          checked={vehicleInputMode === 'NEW'}
-                          onChange={() => setVehicleInputMode('NEW')}
-                          className="accent-[#00285E]"
-                        />
-                        <span className="text-sm font-bold text-slate-700">Thêm xe mới</span>
-                      </label>
-                    </div>
-
-                    {vehicleInputMode === 'EXISTING' ? (
-                      <div className="space-y-4">
-                        <div className="mb-4">
-                          <select
-                            value={selectedCustomerVehicleId}
-                            onChange={(e) => setSelectedCustomerVehicleId(e.target.value)}
-                            className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm font-semibold text-slate-700 outline-none transition-all focus:border-[#00285E]"
-                          >
-                            {selectedRecord.vehicles?.map((v: any) => (
-                              <option key={v.id} value={v.id} disabled={v.isInGarage}>
-                                {v.license_plate} - {v.brand} {v.model} {v.isInGarage ? '(Đang trong xưởng)' : ''}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        {/* Form Readonly For Selected Vehicle */}
-                        {(() => {
-                          const v = selectedRecord.vehicles?.find((x: any) => String(x.id) === selectedCustomerVehicleId);
-                          if (!v) return null;
-                          return (
-                            <div className="space-y-3 pt-3 border-t border-slate-100">
-                              <FormReadonly label="Biển số" value={v.license_plate} highlight />
-                              <FormReadonly label="Loại xe" value={`${v.brand} ${v.model}`.trim()} />
-                              <FormReadonly label="Năm SX" value={v.year?.toString() || '—'} />
-                              <FormInput
-                                label="Số km hiện tại (ODO) *"
-                                value={currentOdo}
-                                onChange={setCurrentOdo}
-                                placeholder={v.mileage ? `Lần trước: ${v.mileage.toLocaleString('vi-VN')} km` : 'VD: 15000...'}
-                                type="number"
-                                icon={<Gauge size={14} className="text-slate-400" />}
-                              />
-                              <div className="pt-2">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                                  <Clock size={14} className="text-slate-400" />
-                                  Thời gian *
-                                </label>
-                                <div className="grid grid-cols-1 gap-3">
-                                  <input
-                                    type="date"
-                                    value={bookingDate}
-                                    onChange={(e) => setBookingDate(e.target.value)}
-                                    min={minDateStr}
-                                    className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
-                                  />
-                                  <select
-                                    value={bookingTime}
-                                    onChange={(e) => setBookingTime(e.target.value)}
-                                    className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
-                                  >
-                                    <option value="">-- Chọn giờ --</option>
-                                    {timeSlots.map(slot => (
-                                      <option
-                                        key={slot.time}
-                                        value={slot.time}
-                                        disabled={slot.isFull}
-                                        className={slot.isFull ? 'text-gray-300' : ''}
-                                      >
-                                        {slot.time} ({slot.isFull ? 'Kín lịch' : slot.label})
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 gap-4 pt-3 border-t border-slate-100">
-                        <FormInput
-                          label="Biển số xe *"
-                          value={manualVehiclePlate}
-                          onChange={setManualVehiclePlate}
-                          placeholder="VD: 51A-123.45..."
-                        />
-                        <div className="relative" ref={brandRef}>
-                          <FormInput
-                            label="Hãng xe *"
-                            value={vehicleBrand}
-                            onChange={(val) => {
-                              setVehicleBrand(val);
-                              setShowBrandSuggestions(true);
-                              setSelectedMakeId(null);
-                              setVehicleModel('');
-                            }}
-                            placeholder="VD: Toyota"
-                          />
-                          {showBrandSuggestions && brandSuggestions.length > 0 && (
-                            <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                              {brandSuggestions.map((brand: any) => (
-                                <div
-                                  key={brand.id}
-                                  className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm font-semibold text-slate-700"
-                                  onClick={() => {
-                                    setVehicleBrand(brand.make_name);
-                                    setSelectedMakeId(brand.id);
-                                    setShowBrandSuggestions(false);
-                                    setVehicleModel('');
-                                  }}
-                                >
-                                  {brand.make_name}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div className="relative" ref={modelRef}>
-                          <FormInput
-                            label="Dòng xe *"
-                            value={vehicleModel}
-                            onChange={(val) => {
-                              setVehicleModel(val);
-                              setShowModelSuggestions(true);
-                            }}
-                            placeholder="VD: Camry"
-                          />
-                          {showModelSuggestions && modelSuggestions.length > 0 && (
-                            <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                              {modelSuggestions.map((model: any) => (
-                                <div
-                                  key={model.id}
-                                  className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm font-semibold text-slate-700"
-                                  onClick={() => {
-                                    setVehicleModel(model.model_name);
-                                    setVehicleBrand(model.make?.make_name || vehicleBrand);
-                                    if (model.make_id) setSelectedMakeId(model.make_id);
-                                    setShowModelSuggestions(false);
-                                  }}
-                                >
-                                  {model.model_name} <span className="text-xs text-slate-400">({model.make?.make_name})</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <FormInput
-                          label="Số khung (VIN)"
-                          value={manualVehicleVin}
-                          onChange={setManualVehicleVin}
-                          placeholder="VD: 1XYZ234..."
-                        />
-                        <FormInput
-                          label="Năm sản xuất"
-                          value={manualVehicleYear}
-                          onChange={setManualVehicleYear}
-                          placeholder="VD: 2022..."
-                          type="number"
-                        />
-                        <FormInput
-                          label="ODO hiện tại (km) *"
-                          value={currentOdo}
-                          onChange={setCurrentOdo}
-                          placeholder="VD: 15000..."
-                          type="number"
-                          icon={<Gauge size={14} className="text-slate-400" />}
-                        />
-                        <div>
+                  {/* Form Readonly For Selected Vehicle */}
+                  {(() => {
+                    const v = selectedRecord.vehicles?.find((x: any) => String(x.id) === selectedCustomerVehicleId);
+                    if (!v) return null;
+                    return (
+                      <div className="space-y-3 pt-3 border-t border-slate-100">
+                        <FormReadonly label="Biển số" value={v.license_plate} highlight />
+                        <FormReadonly label="Loại xe" value={`${v.brand} ${v.model}`.trim()} />
+                        <FormReadonly label="Năm SX" value={v.year?.toString() || '—'} />
+                        <div className="pt-2">
                           <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
                             <Clock size={14} className="text-slate-400" />
                             Thời gian *
@@ -898,15 +759,132 @@ export default function ReceptionRescueCreateServiceOrder() {
                           </div>
                         </div>
                       </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 pt-3 border-t border-slate-100">
+                  <FormInput
+                    label="Biển số xe *"
+                    value={manualVehiclePlate}
+                    onChange={setManualVehiclePlate}
+                    placeholder="VD: 51A-123.45..."
+                  />
+                  <div className="relative" ref={brandRef}>
+                    <FormInput
+                      label="Hãng xe *"
+                      value={vehicleBrand}
+                      onChange={(val) => {
+                        setVehicleBrand(val);
+                        setShowBrandSuggestions(true);
+                        setSelectedMakeId(null);
+                        setVehicleModel('');
+                      }}
+                      placeholder="VD: Toyota"
+                    />
+                    {showBrandSuggestions && brandSuggestions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                        {brandSuggestions.map((brand: any) => (
+                          <div
+                            key={brand.id}
+                            className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm font-semibold text-slate-700"
+                            onClick={() => {
+                              setVehicleBrand(brand.make_name);
+                              setSelectedMakeId(brand.id);
+                              setShowBrandSuggestions(false);
+                              setVehicleModel('');
+                            }}
+                          >
+                            {brand.make_name}
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
+                  <div className="relative" ref={modelRef}>
+                    <FormInput
+                      label="Dòng xe *"
+                      value={vehicleModel}
+                      onChange={(val) => {
+                        setVehicleModel(val);
+                        setShowModelSuggestions(true);
+                      }}
+                      placeholder="VD: Camry"
+                    />
+                    {showModelSuggestions && modelSuggestions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                        {modelSuggestions.map((model: any) => (
+                          <div
+                            key={model.id}
+                            className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm font-semibold text-slate-700"
+                            onClick={() => {
+                              setVehicleModel(model.model_name);
+                              setVehicleBrand(model.make?.make_name || vehicleBrand);
+                              if (model.make_id) setSelectedMakeId(model.make_id);
+                              setShowModelSuggestions(false);
+                            }}
+                          >
+                            {model.model_name} <span className="text-xs text-slate-400">({model.make?.make_name})</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <FormInput
+                    label="Số khung (VIN)"
+                    value={manualVehicleVin}
+                    onChange={setManualVehicleVin}
+                    placeholder="VD: 1XYZ234..."
+                  />
+                  <FormInput
+                    label="Năm sản xuất"
+                    value={manualVehicleYear}
+                    onChange={setManualVehicleYear}
+                    placeholder="VD: 2022..."
+                    type="number"
+                  />
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                      <Clock size={14} className="text-slate-400" />
+                      Thời gian *
+                    </label>
+                    <div className="grid grid-cols-1 gap-3">
+                      <input
+                        type="date"
+                        value={bookingDate}
+                        onChange={(e) => setBookingDate(e.target.value)}
+                        min={minDateStr}
+                        className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
+                      />
+                      <select
+                        value={bookingTime}
+                        onChange={(e) => setBookingTime(e.target.value)}
+                        className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
+                      >
+                        <option value="">-- Chọn giờ --</option>
+                        {timeSlots.map(slot => (
+                          <option
+                            key={slot.time}
+                            value={slot.time}
+                            disabled={slot.isFull}
+                            className={slot.isFull ? 'text-gray-300' : ''}
+                          >
+                            {slot.time} ({slot.isFull ? 'Kín lịch' : slot.label})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
-            ) : (
-              <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-16 text-center text-slate-400 font-semibold text-sm flex flex-col items-center justify-center gap-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00285E]"></div>
-                Đang tải thông tin khách hàng từ hệ thống...
-              </div>
-            )}
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-16 text-center text-slate-400 font-semibold text-sm flex flex-col items-center justify-center gap-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00285E]"></div>
+            Đang tải thông tin khách hàng từ hệ thống...
+          </div>
+        )}
       </div>
 
       {/* REPAIR NOTES */}

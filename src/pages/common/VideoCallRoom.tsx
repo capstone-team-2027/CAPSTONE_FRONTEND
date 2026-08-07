@@ -4,7 +4,7 @@ import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store/store';
 import { useSocket } from '../../hook/useSocket';
-import { Menu, MapPin, X } from 'lucide-react';
+import { Menu, MapPin, X, PhoneOff, Loader2 } from 'lucide-react';
 import { useFetchClient_v2 } from '../../hook/useFetchClient';
 import { LOCATION_ENDPOINTS } from '../../constants/customer/locationEndpoints';
 
@@ -23,6 +23,11 @@ export default function VideoCallRoom() {
 
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const { fetchPrivate } = useFetchClient_v2();
+
+    // Lễ tân chỉ tới trang này SAU KHI đã bấm "Nghe máy" (ReceptionLayout.tsx) nên vào phòng
+    // ngay. Khách hàng phải chờ 'call-answered' — chưa bật camera/mic, chưa join Zego room.
+    const [hasReceptionistAnswered, setHasReceptionistAnswered] = useState(!isCustomer);
+    const [isTimedOut, setIsTimedOut] = useState(false);
 
     useEffect(() => {
         if (!socket || !roomId) return;
@@ -62,11 +67,12 @@ export default function VideoCallRoom() {
         const handleCallAnswered = (data: any) => {
             if (data.roomId === roomId) {
                 // Trạng thái: Lễ tân ĐÃ NHẬN cuộc gọi.
-                // Lập tức hủy đếm ngược 30 giây để không bị báo "Lễ tân bận" oan.
+                // Lập tức hủy đếm ngược để không bị báo "Lễ tân bận" oan, và cho phép join Zego.
                 if (callTimeoutRef.current) {
                     clearTimeout(callTimeoutRef.current);
                     callTimeoutRef.current = null;
                 }
+                setHasReceptionistAnswered(true);
             }
         };
 
@@ -79,8 +85,26 @@ export default function VideoCallRoom() {
         };
     }, [socket, roomId, navigate]);
 
+    // Đếm ngược 60s ngay khi khách vào màn chờ (KHÔNG phụ thuộc Zego room) — nếu lễ tân không
+    // bấm "Nghe máy" kịp, báo "đang bận" và quay lại, chưa từng bật camera/mic của khách.
     useEffect(() => {
-        if (!roomId || !containerRef.current) return;
+        if (!isCustomer || hasReceptionistAnswered) return;
+
+        callTimeoutRef.current = setTimeout(() => {
+            setIsTimedOut(true);
+            socket?.emit('end-video-call', { roomId });
+        }, 60000);
+
+        return () => {
+            if (callTimeoutRef.current) {
+                clearTimeout(callTimeoutRef.current);
+                callTimeoutRef.current = null;
+            }
+        };
+    }, [isCustomer, hasReceptionistAnswered, socket, roomId]);
+
+    useEffect(() => {
+        if (!roomId || !containerRef.current || !hasReceptionistAnswered) return;
 
         let isMounted = true;
 
@@ -139,35 +163,9 @@ export default function VideoCallRoom() {
                         turnOnCameraWhenJoining: true,
                         turnOnMicrophoneWhenJoining: true,
                         showLeaveRoomConfirmDialog: false,
-                        onJoinRoom: () => {
-                            if (!isMounted) return; // Tránh rò rỉ bộ nhớ nếu component đã unmount
-                            
-                            // Bắt đầu đếm ngược 30 giây khi vào phòng (chỉ áp dụng cho Khách hàng)
-                            const roleCodeStr = (typeof user?.role === 'object' ? user?.role?.roleCode : user?.role)?.toLowerCase();
-                            const isReceptionist = roleCodeStr === 'receptionist';
-                            
-                            if (!isReceptionist) {
-                                callTimeoutRef.current = setTimeout(() => {
-                                    if (!isMounted) return;
-                                    socket?.emit('end-video-call', { roomId });
-                                    // Tự render toast bằng DOM
-                                    const toast = document.createElement('div');
-                                    toast.className = "fixed top-10 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-4 bg-rose-600 text-white rounded-2xl shadow-2xl font-bold transition-all duration-500";
-                                    toast.innerText = "Lễ tân hiện đang bận. Vui lòng thử lại sau!";
-                                    document.body.appendChild(toast);
-                                    setTimeout(() => toast.remove(), 5000);
-
-                                    navigate(-1);
-                                }, 30000);
-                            }
-                        },
-                        onUserJoin: () => {
-                            // Có người (Lễ tân/Khách) vào phòng -> Hủy đếm ngược
-                            if (callTimeoutRef.current) {
-                                clearTimeout(callTimeoutRef.current);
-                                callTimeoutRef.current = null;
-                            }
-                        },
+                        // Không cần đếm ngược ở đây nữa — effect join Zego này chỉ chạy SAU KHI
+                        // hasReceptionistAnswered đã true (lễ tân đã bấm nghe), đếm ngược 60s
+                        // chờ lễ tân đã được xử lý ở effect riêng trước khi vào tới bước này.
                         onLeaveRoom: () => {
                             if (!isMounted) return;
                             // Báo cho phía bên kia biết mình đã thoát
@@ -212,7 +210,7 @@ export default function VideoCallRoom() {
                 });
             }, 500);
         };
-    }, [roomId, navigate]); // Bỏ 'user' khỏi dependency để không bị re-render khi user update
+    }, [roomId, navigate, hasReceptionistAnswered]); // Bỏ 'user' khỏi dependency để không bị re-render khi user update
 
     const handleUpdateLocation = () => {
         if ("geolocation" in navigator) {
@@ -242,6 +240,53 @@ export default function VideoCallRoom() {
         }
         setIsMenuOpen(false);
     };
+
+    // Màn chờ hiển thị cho khách hàng TRƯỚC KHI lễ tân bấm "Nghe máy" — chưa bật camera/mic,
+    // chưa vào phòng Zego thật sự.
+    if (isCustomer && !hasReceptionistAnswered) {
+        return (
+            <div className="w-full h-screen bg-[#1c1f2e] flex flex-col items-center justify-center relative px-6 text-center">
+                {isTimedOut ? (
+                    <>
+                        <div className="w-20 h-20 rounded-full bg-rose-500/10 flex items-center justify-center mb-6">
+                            <PhoneOff size={36} className="text-rose-500" />
+                        </div>
+                        <h2 className="text-white text-xl font-bold mb-2">Lễ tân hiện đang bận</h2>
+                        <p className="text-white/60 text-sm mb-8 max-w-sm">
+                            Không có lễ tân nào tiếp nhận cuộc gọi. Vui lòng thử lại sau ít phút.
+                        </p>
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full font-bold transition-colors"
+                        >
+                            Quay lại
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mb-6 relative">
+                            <span className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
+                            <Loader2 size={36} className="text-red-500 animate-spin relative z-10" />
+                        </div>
+                        <h2 className="text-white text-xl font-bold mb-2">Đang chờ lễ tân tiếp nhận...</h2>
+                        <p className="text-white/60 text-sm mb-8 max-w-sm">
+                            Yêu cầu hỗ trợ khẩn cấp của bạn đã được gửi. Camera/micro sẽ chỉ bật khi lễ tân bắt đầu cuộc gọi.
+                        </p>
+                        <button
+                            onClick={() => {
+                                socket?.emit('end-video-call', { roomId });
+                                navigate(-1);
+                            }}
+                            className="px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-full font-bold transition-colors flex items-center gap-2"
+                        >
+                            <PhoneOff size={18} />
+                            Huỷ yêu cầu
+                        </button>
+                    </>
+                )}
+            </div>
+        );
+    }
 
     return (
         <div className="w-full h-screen bg-[#1c1f2e] flex flex-col items-center justify-center relative">

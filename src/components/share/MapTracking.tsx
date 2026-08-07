@@ -4,9 +4,82 @@ import L from 'leaflet';
 import { MapPin } from 'lucide-react';
 import { useFetchClient_v2 } from '../../hook/useFetchClient';
 import { LOCATION_ENDPOINTS } from '../../constants/customer/locationEndpoints';
+import { PROFILE_API_ENDPOINTS } from '../../constants/customer/profileApiEndpoint';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store/store';
 import { useSocket } from '../../hook/useSocket';
+import 'react-phone-input-2/lib/style.css';
+import * as PhoneInputLib from 'react-phone-input-2';
+
+// resolve default export for PhoneInput
+type PhoneInputMod = { default?: unknown };
+function resolveDefaultPhoneInput<T>(mod: unknown): T {
+  const m = mod as PhoneInputMod;
+  if (m && typeof m === 'object' && 'default' in m) {
+    const d = m.default as unknown;
+    if (d && typeof d === 'object' && 'default' in (d as PhoneInputMod)) {
+      return (d as PhoneInputMod).default as T;
+    }
+    return d as T;
+  }
+  return mod as T;
+}
+type PhoneInputProps = {
+  country?: string;
+  value?: string;
+  onChange?: (value: string) => void;
+  enableSearch?: boolean;
+  searchPlaceholder?: string;
+  inputProps?: Record<string, unknown>;
+  countryCodeEditable?: boolean;
+  disabled?: boolean;
+};
+const PhoneInput = resolveDefaultPhoneInput<React.ComponentType<PhoneInputProps>>(PhoneInputLib);
+
+const rescuePhoneStyles = `
+    .rescue-phone .react-tel-input .form-control {
+        width: 100% !important;
+        height: 42px !important;
+        background: #FFFFFF !important;
+        border: 1px solid #E5E7EB !important;
+        border-radius: 0.5rem !important;
+        padding: 0 20px 0 48px !important;
+        font-size: 14px !important;
+        color: #0F172A !important;
+        letter-spacing: 0.3px !important;
+        outline: none !important;
+        transition: all 0.2s !important;
+    }
+    .rescue-phone .react-tel-input .form-control:focus {
+        border-color: #3B82F6 !important;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+    }
+    .rescue-phone .react-tel-input .flag-dropdown {
+        background: #FFFFFF !important;
+        border: 1px solid #E5E7EB !important;
+        border-right: none !important;
+        border-radius: 0.5rem 0 0 0.5rem !important;
+    }
+    .rescue-phone .react-tel-input .flag-dropdown:hover,
+    .rescue-phone .react-tel-input .flag-dropdown.open {
+        background: #F1F5F9 !important;
+        border-color: #CBD5E1 !important;
+    }
+    .rescue-phone .react-tel-input .selected-flag {
+        background: transparent !important;
+        padding: 0 8px 0 12px !important;
+        border-radius: 0.5rem 0 0 0.5rem !important;
+    }
+    .rescue-phone .react-tel-input .country-list {
+        background: white !important;
+        border: 1px solid #E5E7EB !important;
+        border-radius: 0.5rem !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important;
+        max-height: 220px !important;
+        margin-top: 4px !important;
+        z-index: 1000 !important;
+    }
+`;
 
 // Fix lỗi icon mặc định của leaflet khi dùng chung với React
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
@@ -33,8 +106,18 @@ const garageIcon = L.icon({
   popupAnchor: [0, -35],
 });
 
-const userIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/3204/3204936.png',
+// Icon vị trí khách hàng — dùng SVG nhúng trực tiếp (lucide MapPin) thay vì ảnh PNG tải từ CDN
+// ngoài, vì các nguồn ảnh bên ngoài (vd flaticon) có thể chặn hotlink và hiện icon lỗi (⊘).
+const userIcon = L.divIcon({
+  className: 'custom-user-marker',
+  html: `
+    <div style="display:flex;align-items:center;justify-content:center;width:35px;height:35px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 24 24" fill="#DC2626" stroke="white" stroke-width="1.5">
+        <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
+        <circle cx="12" cy="10" r="3" fill="white" stroke="none" />
+      </svg>
+    </div>
+  `,
   iconSize: [35, 35],
   iconAnchor: [17, 35],
   popupAnchor: [0, -35],
@@ -60,15 +143,31 @@ const LocationUpdater = ({ userLocation }: { userLocation: [number, number] | nu
 
 export const MapTracking: React.FC = () => {
   // Dữ liệu gara cố định tại 480 Trần Quốc Hoàn, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng
-  const garageLocation: [number, number] = [15.9675, 108.2605]; 
-  
+  const garageLocation: [number, number] = [15.9675, 108.2605];
+
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [statusMessage, setStatusMessage] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const { fetchPrivate } = useFetchClient_v2();
 
+  const [issueDescription, setIssueDescription] = useState<string>('');
+  // Người liên hệ có thể khác chủ tài khoản (vd người nhà gọi hộ) — mặc định lấy từ profile,
+  // nhưng cho sửa được, giống cách lễ tân nhập tay ở CreateRescueModal.tsx.
+  const [contactName, setContactName] = useState<string>('');
+  const [contactPhone, setContactPhone] = useState<string>('');
+
+  const [searchAddressQuery, setSearchAddressQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchingAddress, setSearchingAddress] = useState(false);
+
   const user = useSelector((state: RootState) => state.user.user as any);
   const socket = useSocket();
+
+  useEffect(() => {
+    if (user?.fullName) setContactName(user.fullName);
+    if (user?.phoneNumber) setContactPhone(user.phoneNumber);
+  }, [user]);
 
   const [rescueRoute, setRescueRoute] = useState<[number, number][]>([]);
   const [carLocation, setCarLocation] = useState<[number, number] | null>(null);
@@ -81,35 +180,23 @@ export const MapTracking: React.FC = () => {
   const [distanceInfo, setDistanceInfo] = useState<{ distKm: number, durMin: number } | null>(null);
   const [estimatedPrice, setEstimatedPrice] = useState<number>(0);
 
+  // Khôi phục vị trí đã chia sẻ trước đó sau khi F5.
   useEffect(() => {
-    if (!socket || !user?.id) return;
-
-    // Tham gia vào Room bảo mật riêng của khách hàng này
-    socket.emit('join-room', `customer_${user.id}`);
-
-    const handleRescueDispatched = (data: { customerId: number | string, routeCoords?: [number, number][] }) => {
-      // Dù Server chỉ gửi cho room này, nhưng check lại id cho chắc chắn
-      if (String(data.customerId) === String(user.id)) {
-        if (data.routeCoords && data.routeCoords.length > 0) {
-           setRescueRoute(data.routeCoords);
-           setCarLocation(data.routeCoords[0]);
-           startSimulation(data.routeCoords);
-        }
+    if (!user?.id) return;
+    fetchPrivate(PROFILE_API_ENDPOINTS.GET_PROFILE).then((res: any) => {
+      const profile = res?.data;
+      if (profile?.latitude != null && profile?.longitude != null) {
+        setUserLocation([profile.latitude, profile.longitude]);
       }
-    };
-
-    socket.on('rescue-vehicle-dispatched', handleRescueDispatched);
-
-    return () => {
-      socket.off('rescue-vehicle-dispatched', handleRescueDispatched);
-      if (animationRef.current) clearInterval(animationRef.current);
-    };
-  }, [socket, user]);
+    }).catch((err) => {
+      console.error('Lỗi khi khôi phục vị trí đã chia sẻ:', err);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const startSimulation = (routeCoords: [number, number][]) => {
-    setSimulationStatus('running');
     let currentIndex = 0;
-    
+
     // Tốc độ di chuyển của icon xe phải giống với tốc độ bên Lễ tân (50ms)
     animationRef.current = setInterval(() => {
       if (currentIndex < routeCoords.length - 1) {
@@ -117,10 +204,93 @@ export const MapTracking: React.FC = () => {
         setCarLocation(routeCoords[currentIndex]);
       } else {
         if (animationRef.current) clearInterval(animationRef.current);
-        setSimulationStatus('arrived');
       }
     }, 50);
   };
+
+  // KTV bấm "Bắt đầu di chuyển" (EN_ROUTE) — BE gửi kèm GPS thật của KTV lúc đó, FE tính route
+  // từ ĐÚNG vị trí xuất phát của KTV (không phải Gara cố định) rồi chạy animation icon xe.
+  const fetchRouteAndSimulate = async (fromLat: number, fromLng: number, destLat: number, destLng: number) => {
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${destLng},${destLat}?overview=full&geometries=geojson`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.routes && data.routes.length > 0) {
+        const coordsArray: [number, number][] = data.routes[0].geometry.coordinates.map(
+          (c: [number, number]) => [c[1], c[0]]
+        );
+        setRescueRoute(coordsArray);
+        setCarLocation(coordsArray[0]);
+        if (animationRef.current) clearInterval(animationRef.current);
+        startSimulation(coordsArray);
+      }
+    } catch (error) {
+      console.error("Lỗi khi tính lại đường đi cứu hộ:", error);
+    }
+  };
+
+  // Realtime cập nhật trạng thái cứu hộ — dùng chung room 'user-{id}' đã được Header.tsx (layout
+  // cha) tự join sẵn, không cần tự join room riêng nữa. BE emit 'new_notification' kèm {type,
+  // rescueId, status} ở mọi bước: RESCUE_REQUESTED (khách vừa gửi), RESCUE_ASSIGNED (lễ tân gán
+  // KTV), RESCUE_STATUS_UPDATED (KTV accept/en_route/arrived/completed).
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewNotification = (data: any) => {
+      if (!data || !String(data.type || '').startsWith('RESCUE_')) return;
+
+      switch (data.type) {
+        case 'RESCUE_REQUESTED':
+          setStatusMessage('Yêu cầu cứu hộ đã được gửi, vui lòng đợi lễ tân tiếp nhận.');
+          break;
+        case 'RESCUE_ASSIGNED':
+          // Chỉ báo đã có KTV nhận — CHƯA mô phỏng xe chạy, vì KTV chưa bấm "Bắt đầu di chuyển"
+          // và ta cũng chưa có GPS thật của họ ở bước này.
+          setStatusMessage('Kỹ thuật viên đã tiếp nhận yêu cầu cứu hộ của bạn.');
+          break;
+        case 'RESCUE_STATUS_UPDATED':
+          if (data.status === 'EN_ROUTE') {
+            setStatusMessage('Kỹ thuật viên đang trên đường tới vị trí của bạn.');
+            setSimulationStatus('running');
+            if (userLocation && data.technicianLat != null && data.technicianLng != null) {
+              fetchRouteAndSimulate(data.technicianLat, data.technicianLng, userLocation[0], userLocation[1]);
+            }
+          } else if (data.status === 'ARRIVED') {
+            setStatusMessage('Kỹ thuật viên đã tới nơi.');
+            setSimulationStatus('arrived');
+            if (animationRef.current) clearInterval(animationRef.current);
+          } else if (data.status === 'TOWING') {
+            // Đoạn 2: chở xe về Gara — điểm xuất phát là vị trí khách (nơi KTV vừa nhận xe),
+            // điểm đến là Gara cố định, KHÔNG dùng toạ độ KTV nữa vì họ đang lái, không đứng yên.
+            setStatusMessage('Kỹ thuật viên đang chở xe của bạn về Gara.');
+            setSimulationStatus('running');
+            if (userLocation) {
+              fetchRouteAndSimulate(userLocation[0], userLocation[1], garageLocation[0], garageLocation[1]);
+            }
+          } else if (data.status === 'COMPLETED') {
+            setStatusMessage('Cứu hộ đã hoàn tất, xe đã được đưa về Gara.');
+            setSimulationStatus('idle');
+            setUserLocation(null);
+            setRescueRoute([]);
+            setCarLocation(null);
+            if (animationRef.current) clearInterval(animationRef.current);
+          } else if (data.status === 'ACCEPTED') {
+            setStatusMessage('Kỹ thuật viên đã xác nhận nhận cứu hộ của bạn.');
+          }
+          break;
+        default:
+          break;
+      }
+    };
+
+    socket.on('new_notification', handleNewNotification);
+
+    return () => {
+      socket.off('new_notification', handleNewNotification);
+      if (animationRef.current) clearInterval(animationRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket, userLocation]);
 
   const calculatePrice = (distKm: number) => {
     if (distKm <= 15) {
@@ -130,22 +300,61 @@ export const MapTracking: React.FC = () => {
     }
   };
 
+  // Tìm địa chỉ dự phòng khi không lấy được GPS — copy cơ chế từ CreateRescueModal.tsx (lễ tân):
+  // tự động tìm khi gõ (debounce 500ms), không cần bấm nút.
+  const handleSearchAddress = async (query: string) => {
+    setSearchingAddress(true);
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=vn`;
+      const response = await fetch(url, {
+        headers: { 'Accept-Language': 'vi' }
+      });
+      const data = await response.json();
+      setSearchResults(data);
+    } catch (error) {
+      console.error("Lỗi khi tìm kiếm địa chỉ:", error);
+    } finally {
+      setSearchingAddress(false);
+    }
+  };
+
+  useEffect(() => {
+    const query = searchAddressQuery.trim();
+    if (!query) {
+      setSearchResults([]);
+      return;
+    }
+    const timeoutId = setTimeout(() => {
+      handleSearchAddress(query);
+    }, 500);
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchAddressQuery]);
+
+  const handleSelectSearchResult = (result: any) => {
+    const lat = parseFloat(result.lat);
+    const lng = parseFloat(result.lon);
+    setSearchResults([]);
+    setSearchAddressQuery(result.display_name);
+    processLocation(lat, lng);
+  };
+
   const processLocation = async (lat: number, lng: number) => {
     setTempLocation([lat, lng]);
     setIsLoading(true);
     setErrorMsg('');
-    
+
     try {
       // Gọi OSRM API để lấy đường đi và khoảng cách
       const url = `https://router.project-osrm.org/route/v1/driving/${garageLocation[1]},${garageLocation[0]};${lng},${lat}?overview=full&geometries=geojson`;
       const response = await fetch(url);
       const data = await response.json();
-      
+
       if (data.routes && data.routes.length > 0) {
         const route = data.routes[0];
         const distKm = parseFloat((route.distance / 1000).toFixed(1));
         const durMin = Math.ceil(route.duration / 60);
-        
+
         setDistanceInfo({ distKm, durMin });
         setEstimatedPrice(calculatePrice(distKm));
         setShowConfirmModal(true);
@@ -161,16 +370,23 @@ export const MapTracking: React.FC = () => {
   };
 
   const handleConfirmRescue = () => {
-    if (tempLocation) {
-      setUserLocation(tempLocation);
-      setShowConfirmModal(false);
-      // Gửi lên server để Lễ tân thấy
-      fetchPrivate(LOCATION_ENDPOINTS.UPDATE_LOCATION, "PATCH", {
-        latitude: tempLocation[0],
-        longitude: tempLocation[1]
-      }).then(() => console.log("Lưu vị trí thành công!"))
-        .catch(err => console.error("Lỗi khi lưu vị trí lên DB", err));
-    }
+    if (!tempLocation) return;
+    setUserLocation(tempLocation);
+    setShowConfirmModal(false);
+    setIsLoading(true);
+    fetchPrivate(LOCATION_ENDPOINTS.UPDATE_LOCATION, "PATCH", {
+      latitude: tempLocation[0],
+      longitude: tempLocation[1],
+      contactName,
+      contactPhone,
+    }).then((res: any) => {
+      setIsLoading(false);
+      console.log("Lưu vị trí và tạo yêu cầu cứu hộ thành công!", res);
+    }).catch(err => {
+      setIsLoading(false);
+      console.error("Lỗi khi gửi yêu cầu cứu hộ", err);
+      setErrorMsg("Không thể gửi yêu cầu cứu hộ đến hệ thống.");
+    });
   };
 
   const handleCancelRescue = () => {
@@ -193,7 +409,7 @@ export const MapTracking: React.FC = () => {
         (error) => {
           console.error("Lỗi lấy vị trí: ", error);
           setIsLoading(false);
-          
+
           // Xử lý các loại lỗi cụ thể để báo cho người dùng
           if (error.code === error.PERMISSION_DENIED) {
             setErrorMsg("Bạn đã từ chối cấp quyền. Vui lòng bấm vào biểu tượng ổ khoá trên thanh địa chỉ trình duyệt để mở lại quyền Vị trí (Location).");
@@ -214,6 +430,74 @@ export const MapTracking: React.FC = () => {
 
   return (
     <div className="w-full flex flex-col gap-3">
+      <style>{rescuePhoneStyles}</style>
+      {/* Thông tin liên hệ */}
+      <div className="p-4 bg-white border rounded-lg shadow-sm flex flex-col gap-3">
+        <h3 className="font-semibold text-gray-800">Thông tin liên hệ cứu hộ khẩn cấp</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-gray-500 uppercase">Tên người liên hệ</label>
+            <input
+              type="text"
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
+              placeholder="Tên người liên hệ"
+              className="w-full border border-gray-200 rounded-lg p-2 text-sm outline-none focus:border-blue-500"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-gray-500 uppercase">Số điện thoại liên hệ</label>
+            <div className="rescue-phone">
+              <PhoneInput
+                country="vn"
+                value={contactPhone}
+                onChange={(val) => setContactPhone(val)}
+                enableSearch
+                searchPlaceholder="Tìm quốc gia..."
+                inputProps={{ name: 'contactPhone' }}
+                countryCodeEditable={false}
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5 md:col-span-2">
+            <label className="text-xs font-bold text-gray-500 uppercase">Mô tả sự cố xe (Không bắt buộc)</label>
+            <input
+              type="text"
+              value={issueDescription}
+              onChange={(e) => setIssueDescription(e.target.value)}
+              placeholder="VD: Không nổ được máy, xẹp lốp, ngập nước..."
+              className="w-full border border-gray-200 rounded-lg p-2 text-sm outline-none focus:border-blue-500"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5 md:col-span-2">
+            <label className="text-xs font-bold text-gray-500 uppercase">Tìm kiếm vị trí (Địa điểm / Địa chỉ)</label>
+            <input
+              type="text"
+              value={searchAddressQuery}
+              onChange={(e) => setSearchAddressQuery(e.target.value)}
+              placeholder="Dùng khi không lấy được GPS. VD: Đại học Bách Khoa Đà Nẵng..."
+              className="w-full border border-gray-200 rounded-lg p-2 text-sm outline-none focus:border-blue-500"
+            />
+            {searchingAddress && (
+              <span className="text-xs text-gray-400">Đang tìm...</span>
+            )}
+            {searchResults.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-lg shadow-sm max-h-60 overflow-y-auto">
+                {searchResults.map((result, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => handleSelectSearchResult(result)}
+                    className="px-3 py-2 hover:bg-gray-50 text-sm text-gray-700 cursor-pointer border-b border-gray-100 last:border-0"
+                  >
+                    {result.display_name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Khu vực Nút bấm / Cài đặt */}
       <div className="flex items-center justify-between p-4 bg-white border rounded-lg shadow-sm">
         <div>
@@ -226,7 +510,7 @@ export const MapTracking: React.FC = () => {
               onClick={() => {
                 setUserLocation(null);
                 setErrorMsg('');
-                
+
                 // Gửi request xoá vị trí khỏi DB
                 fetchPrivate(LOCATION_ENDPOINTS.UPDATE_LOCATION, "PATCH", {
                   latitude: null,
@@ -239,20 +523,20 @@ export const MapTracking: React.FC = () => {
               Tắt chia sẻ
             </button>
           )}
-          <button 
+          <button
             onClick={handleGetLocation}
             disabled={isLoading}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-300"
           >
             <MapPin size={18} />
-            {isLoading ? 'Đang tìm...' : (userLocation ? 'Cập nhật lại vị trí' : 'Bật Vị Trí Của Tôi')}
+            {isLoading ? 'Đang tìm...' : (userLocation ? 'Cập nhật lại vị trí' : 'Gửi yêu cầu cứu hộ')}
           </button>
         </div>
       </div>
 
       {/* Nút test nhanh (Dùng toạ độ giả) */}
       <div className="flex gap-2">
-        <button 
+        <button
           onClick={() => {
             // Lấy một vị trí ngẫu nhiên gần Gara để test (10-20km)
             const randomLat = garageLocation[0] + (Math.random() - 0.5) * 0.2;
@@ -268,31 +552,39 @@ export const MapTracking: React.FC = () => {
       {/* Thanh thông báo lỗi (nếu có) */}
       {errorMsg && <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-md text-sm">{errorMsg}</div>}
 
-      {/* Trạng thái cứu hộ nổi */}
+      {/* Trạng thái cứu hộ nổi — nội dung realtime từ socket, fallback về text mặc định nếu chưa có */}
       {simulationStatus !== 'idle' && (
         <div className={`p-4 rounded-lg font-bold border flex items-center justify-center text-center animate-pulse ${simulationStatus === 'running' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-          {simulationStatus === 'running' ? '🚑 CỨU HỘ ĐANG TRÊN ĐƯỜNG TỚI VỊ TRÍ CỦA BẠN...' : '✅ CỨU HỘ ĐÃ ĐẾN NƠI!'}
+          {statusMessage || (simulationStatus === 'running' ? '🚑 CỨU HỘ ĐANG TRÊN ĐƯỜNG TỚI VỊ TRÍ CỦA BẠN...' : '✅ CỨU HỘ ĐÃ ĐẾN NƠI!')}
+        </div>
+      )}
+
+      {/* Thông báo realtime khi chưa có xe di chuyển (vd vừa gửi yêu cầu, đang chờ tiếp nhận) */}
+      {statusMessage && simulationStatus === 'idle' && (
+        <div className="p-3 bg-amber-50 text-amber-700 border border-amber-200 rounded-md text-sm font-semibold text-center">
+          {statusMessage}
         </div>
       )}
 
       {/* Bản đồ */}
       <div className="w-full border rounded-lg overflow-hidden relative z-0">
-        <MapContainer 
-          center={rescueRoute.length > 0 ? rescueRoute[0] : garageLocation} 
-          zoom={14} 
+        <MapContainer
+          center={rescueRoute.length > 0 ? rescueRoute[0] : garageLocation}
+          zoom={14}
           style={{ width: '100%', height: '500px' }}
         >
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          
+
           <LocationUpdater userLocation={userLocation} />
-          
-          {/* Điểm Gara */}
-          <Marker position={rescueRoute.length > 0 ? rescueRoute[0] : garageLocation} icon={garageIcon}>
+
+          {/* Điểm Gara — vị trí cố định thật, không phụ thuộc route (route không luôn xuất phát/kết
+              thúc tại Gara — đoạn 1 xuất phát từ vị trí KTV, chỉ đoạn 2 mới đi tới Gara). */}
+          <Marker position={garageLocation} icon={garageIcon}>
             <Popup className="font-semibold text-blue-600">
-              Gara Hệ Thống <br /> (Xe cứu hộ xuất phát từ đây)
+              Gara Hệ Thống
             </Popup>
           </Marker>
 
@@ -319,6 +611,22 @@ export const MapTracking: React.FC = () => {
         </MapContainer>
       </div>
 
+      {/* Chú giải icon trên bản đồ */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 bg-white border rounded-lg shadow-sm text-xs text-gray-600">
+        <div className="flex items-center gap-2">
+          <img src="https://cdn-icons-png.flaticon.com/512/1986/1986937.png" alt="" className="w-5 h-5" />
+          <span>Gara Hệ Thống</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <MapPin size={18} className="text-red-600 fill-white" strokeWidth={1.5} />
+          <span>Vị trí xe hỏng của bạn</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <img src="https://cdn-icons-png.flaticon.com/512/744/744402.png" alt="" className="w-5 h-5" />
+          <span>Xe cứu hộ đang di chuyển</span>
+        </div>
+      </div>
+
       {/* Modal Xác Nhận Cuốc Xe */}
       {showConfirmModal && distanceInfo && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
@@ -330,7 +638,7 @@ export const MapTracking: React.FC = () => {
               <h3 className="font-bold text-white text-xl text-center">Xác nhận gọi cứu hộ</h3>
               <p className="text-blue-200 text-sm mt-1 text-center">Vui lòng kiểm tra chi phí trước khi gọi xe</p>
             </div>
-            
+
             <div className="p-6 space-y-4">
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex justify-between items-center">
                 <span className="text-slate-500 font-medium">Khoảng cách:</span>
@@ -343,7 +651,7 @@ export const MapTracking: React.FC = () => {
               <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex flex-col gap-1">
                 <div className="flex justify-between items-center">
                   <span className="text-blue-700 font-bold">Phí cứu hộ dự kiến:</span>
-                  <span className="font-black text-blue-700 text-2xl">{estimatedPrice.toLocaleString('vi-VN')} đ</span>
+                  <span className="font-black text-blue-700 text-2xl">{estimatedPrice.toLocaleString('vi-VN')} VND</span>
                 </div>
                 <span className="text-xs text-blue-500/80 italic text-right">* Chưa bao gồm phí sửa chữa/vật tư</span>
               </div>

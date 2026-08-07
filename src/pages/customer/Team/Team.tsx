@@ -215,32 +215,34 @@ export default function Team() {
                     <div className="flex flex-col md:flex-row items-center justify-between gap-10">
                         <div className="max-w-xl">
                             <h2 className="text-4xl font-display text-white mb-4 leading-tight">
-                                {t('team.ctaTitle', 'Gia nhập đội ngũ của chúng tôi')}
+                                {t('team.ctaTitle', 'Tin tưởng sử dụng dịch vụ của chúng tôi')}
                             </h2>
                             <p className="text-sm leading-relaxed" style={{ color: `${COLORS.white}60` }}>
-                                {t('team.ctaDesc', 'Bạn có đam mê với ô tô và mong muốn làm việc trong môi trường chuyên nghiệp, hiện đại? Chúng tôi luôn chào đón những tài năng mới.')}
+                                {t('team.ctaDesc', 'Đội ngũ kỹ thuật viên chuyên nghiệp, giàu kinh nghiệm luôn sẵn sàng chăm sóc chiếc xe của bạn với chất lượng tốt nhất.')}
                             </p>
                         </div>
 
                         <div className="flex flex-wrap gap-4 shrink-0">
                             <Button
+                                to="/phone-service"
                                 size="md"
                                 bg={COLORS.orange}
                                 color={COLORS.navy}
                                 icon={<ArrowRight size={18} />}
                                 style={{ boxShadow: '0 8px 24px rgba(249,161,27,0.3)' }}
                             >
-                                {t('team.viewJobs', 'Xem vị trí tuyển dụng')}
+                                {t('team.bookNow', 'Đặt lịch ngay')}
                             </Button>
 
                             <Button
+                                to="/"
                                 size="md"
                                 bg="transparent"
                                 color={COLORS.white}
                                 icon={<Send size={18} />}
                                 style={{ border: `1px solid rgba(255,255,255,0.25)` }}
                             >
-                                {t('team.sendResume', 'Gửi hồ sơ')}
+                                {t('team.viewOverview', 'Tổng quan hệ thống')}
                             </Button>
                         </div>
                     </div>

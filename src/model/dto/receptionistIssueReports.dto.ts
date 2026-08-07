@@ -9,34 +9,34 @@ export interface IssueHistoryComponent {
     parent?: IssueHistoryComponentRef | null;
     children?: IssueHistoryComponentRef[];
 }
-export interface IssueHistoryUser{
+export interface IssueHistoryUser {
     id: number;
     fullName: string | null;
     phone: string | null;
     phoneNumber?: string | null;
 }
-export interface IssueHistoryCustomer{
+export interface IssueHistoryCustomer {
     id: number;
     name: string | null;
     phone: string | null;
     user?: IssueHistoryUser | null;
 }
-export interface IssueHistoryVehiclesModel{
+export interface IssueHistoryVehiclesModel {
     id: number;
     model_name: string;
 }
-export interface IssueHistoryVehicles{
+export interface IssueHistoryVehicles {
     id: number;
     license_plate: string;
     color: string;
     model?: IssueHistoryVehiclesModel
     customer?: IssueHistoryCustomer | null;
 }
-export interface IssueHistoryServiceOrder{
+export interface IssueHistoryServiceOrder {
     id: number;
     vehicle?: IssueHistoryVehicles | null;
 }
-export interface IssueHistoryTask{
+export interface IssueHistoryTask {
     id: number;
     status: string;
     serviceOrder?: IssueHistoryServiceOrder | null

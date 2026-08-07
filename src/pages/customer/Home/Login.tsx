@@ -127,9 +127,10 @@ export default function Login() {
     const dispatch = useDispatch()
     const { i18n } = useTranslation();
     const isVi = i18n.language === 'vi';
-    const [phone, setPhone] = useState('');
+    const rememberedPhone = typeof window !== 'undefined' ? localStorage.getItem('rememberedPhone') : null;
+    const [phone, setPhone] = useState(rememberedPhone ?? '');
     const [password, setPassword] = useState('');
-    const [rememberMe, setRememberMe] = useState(false);
+    const [rememberMe, setRememberMe] = useState(!!rememberedPhone);
     const [showPassword, setShowPassword] = useState(false);
     const [errors, setErrors] = useState<Partial<Record<keyof LoginFormData, string>>>({});
     const [apiError, setApiError] = useState<string | null>(null);
@@ -248,6 +249,13 @@ export default function Login() {
             // --- 4. Lưu Token & Thông tin User vào Storage ---
             const storage = rememberMe ? localStorage : sessionStorage;
 
+            // Ghi nhớ số điện thoại (không lưu mật khẩu) để tự điền ở lần đăng nhập sau
+            if (rememberMe) {
+                localStorage.setItem('rememberedPhone', formData.phone);
+            } else {
+                localStorage.removeItem('rememberedPhone');
+            }
+
             // Luôn khuyến khích đồng bộ accessToken vào localStorage nếu useFetchClient chỉ đọc từ đó
             localStorage.setItem('token', accessToken);
             storage.setItem('accessToken', accessToken);
@@ -297,7 +305,7 @@ export default function Login() {
     const inputErrorClass = 'border-red-400 focus:border-red-400 focus:ring-2 focus:ring-red-100';
 
     return (
-        <div className="min-h-[calc(100vh-80px)] flex items-stretch">
+        <div className="min-h-[calc(100vh-80px)] flex flex-col lg:flex-row items-stretch">
             <style>{phoneStyles}</style>
 
             {/* ── LEFT DECORATION ─────────────────────────────── */}
@@ -366,20 +374,20 @@ export default function Login() {
 
             {/* ── RIGHT LOGIN FORM ─────────────────────────────── */}
             <div
-                className="w-full lg:w-1/2 flex items-center justify-center p-8 md:p-20"
+                className="w-full lg:w-1/2 flex items-center justify-center px-5 py-10 sm:p-10 md:p-16 lg:p-20"
                 style={{ backgroundColor: '#F8FAFC' }}
             >
                 <div className="w-full max-w-md">
-                    <div className="mb-12 text-center lg:text-left">
-                        <h2 className="text-4xl font-display mb-4" style={{ color: COLORS.navy }}>
+                    <div className="mb-8 sm:mb-12 text-center lg:text-left">
+                        <h2 className="text-3xl sm:text-4xl font-display mb-3 sm:mb-4" style={{ color: COLORS.navy }}>
                             {isVi ? 'Chào mừng trở lại!' : 'Welcome back!'}
                         </h2>
-                        <p style={{ color: `${COLORS.navy}80` }}>
+                        <p className="text-sm sm:text-base" style={{ color: `${COLORS.navy}80` }}>
                             {isVi ? 'Vui lòng nhập thông tin của bạn để đăng nhập.' : 'Please enter your details to sign in.'}
                         </p>
                     </div>
 
-                    <form onSubmit={handleLogin} className="space-y-6" noValidate>
+                    <form onSubmit={handleLogin} className="space-y-5 sm:space-y-6" noValidate>
 
                         {/* ── API Error Banner ── */}
                         {apiError && (
@@ -505,8 +513,8 @@ export default function Login() {
                     </form>
 
                     {/* OR divider */}
-                    <div className="mt-12">
-                        <div className="relative flex items-center justify-center mb-10">
+                    <div className="mt-8 sm:mt-12">
+                        <div className="relative flex items-center justify-center mb-8 sm:mb-10">
                             <div className="absolute inset-0 flex items-center px-4">
                                 <div className="w-full border-t border-blue-100" />
                             </div>
@@ -532,7 +540,7 @@ export default function Login() {
                         </Button>
                     </div>
 
-                    <p className="mt-12 text-center text-sm" style={{ color: `${COLORS.navy}80` }}>
+                    <p className="mt-8 sm:mt-12 text-center text-sm" style={{ color: `${COLORS.navy}80` }}>
                         {isVi ? 'Bạn chưa có tài khoản?' : "Don't have an account?"}{' '}
                         <Link
                             to="/verify-phone"

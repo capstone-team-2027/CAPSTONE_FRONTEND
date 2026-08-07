@@ -251,8 +251,8 @@ export default function AdminServiceManagement() {
   };
   const handleGetSpareParts = async () => {
     try {
-      const result = await fetchPrivate(`${SPARE_PART_API_ENDPOINTS.SPARE_PART}?page=1&limit=1000`);
-      setSpareParts(result.data?.items || []);
+      const result = await fetchPrivate(`${SERVICE_CATALOG_API_ENDPOINTS.SPARE_PARTS}?page=1&limit=1000`);
+      setSpareParts(result.data || []);
     } catch (error) {
       console.error("Lỗi lấy danh sách phụ tùng", error);
     }
@@ -323,6 +323,7 @@ export default function AdminServiceManagement() {
   useEffect(() => {
     handleGetCategory();
     handleGetAllServicesForCombo();
+    handleGetSpareParts();
   }, []);
 
   useEffect(() => {

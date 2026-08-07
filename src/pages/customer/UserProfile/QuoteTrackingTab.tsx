@@ -218,8 +218,7 @@ export default function QuoteTrackingTab() {
         'PATCH',
       );
       setSelectedQuote(null);
-      await loadPendingQuotations();
-      setHistoryQuotes([]);
+      await Promise.all([loadPendingQuotations(), loadHistoryQuotations()]);
     } catch (err: any) {
       setActionError(err?.message || t('quoteTracking.errors.approveFailed', 'Không thể duyệt báo giá.'));
     } finally {
@@ -248,8 +247,7 @@ export default function QuoteTrackingTab() {
       setIsRejectModalOpen(false);
       setRejectReason('');
       setSelectedQuote(null);
-      await loadPendingQuotations();
-      setHistoryQuotes([]);
+      await Promise.all([loadPendingQuotations(), loadHistoryQuotations()]);
     } catch (err: any) {
       setActionError(err?.message || t('quoteTracking.errors.rejectFailed', 'Không thể từ chối báo giá.'));
     } finally {
@@ -809,6 +807,15 @@ export default function QuoteTrackingTab() {
                         </tbody>
                       </table>
                     </div>
+                  </div>
+                )}
+
+                {selectedQuote.status === 'REJECTED' && selectedQuote.rejection_reason && (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+                    <p className="text-[11px] font-extrabold uppercase tracking-widest text-rose-500 mb-2">
+                      {t('quoteTracking.modal.rejectionReason', 'Lý do bạn đã từ chối')}
+                    </p>
+                    <p className="text-sm text-rose-700">{selectedQuote.rejection_reason}</p>
                   </div>
                 )}
 

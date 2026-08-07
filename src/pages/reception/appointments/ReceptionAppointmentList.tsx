@@ -21,7 +21,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import type { AppointmentModel } from '../../../model/Appointment';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { useSocket } from '../../../hook/useSocket';
-import { APPOINTMENT_API_ENDPOINTS, SERVICE_ORDER_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
+import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   pending: { label: 'Chờ xác nhận', color: '#D97706', bg: '#FEF3C7', icon: Clock },
@@ -125,93 +125,48 @@ export default function AppointmentList() {
   const [isVinModalOpen, setIsVinModalOpen] = useState(false);
   const [selectedApptId, setSelectedApptId] = useState<string | null>(null);
   const [selectedServiceOrderId, setSelectedServiceOrderId] = useState<string | null>(null);
-  const [vinNumber, setVinNumber] = useState('');
-  const [odoNumber, setOdoNumber] = useState('');
   const [vehicleCondition, setVehicleCondition] = useState('');
   const [isSubmittingVin, setIsSubmittingVin] = useState(false);
 
-  const handleReceiveClick = async (apptId: string, currentStatus: string, serviceOrderId?: string) => {
+  const handleReceiveClick = (apptId: string, currentStatus: string, serviceOrderId?: string) => {
     setSelectedApptId(apptId);
     setSelectedServiceOrderId(serviceOrderId || null);
-    setVinNumber('');
-    setOdoNumber('');
     setVehicleCondition('');
-
-    try {
-      const res = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.CHECK_VEHICLE_INFO(apptId));
-      if (res.success && res.data) {
-        const { has_vin, vin_number, has_odo, last_odo } = res.data;
-
-        // Nếu đã có đủ VIN và ODO, tự động tiếp nhận luôn
-        if (has_vin && has_odo) {
-          if (currentStatus !== 'in_progress') {
-            const receiveRes = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.RECEIVE_APPOINTMENT(apptId), 'PUT');
-            if (!receiveRes.success) throw new Error(receiveRes.message || 'Lỗi tiếp nhận');
-          }
-          showToast('Tiếp nhận thành công (Đã có sẵn VIN và ODO)', 'success');
-          //navigate(`/reception/service-orders/create?appointmentId=${apptId}&odo=${last_odo}`);
-          return;
-        }
-
-        if (has_vin) setVinNumber(vin_number);
-        if (has_odo) setOdoNumber(last_odo.toString());
-      }
-    } catch (e) {
-      console.error(e);
-    }
-
     setIsVinModalOpen(true);
   };
 
   const handleConfirmReceive = async () => {
     if (!selectedApptId) return;
 
-    if (!odoNumber.trim()) {
-      showToast('Vui lòng nhập số ODO của xe!', 'warning');
+    if (!vehicleCondition.trim()) {
+      showToast('Vui lòng nhập tình trạng xe lúc tiếp nhận!', 'warning');
       return;
     }
 
     try {
       setIsSubmittingVin(true);
 
-      // Update VIN if entered
-      if (vinNumber.trim()) {
-        const vinResponse = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.UPDATE_VIN(selectedApptId), 'POST', {
-          vin_number: vinNumber.trim()
-        });
-        if (!vinResponse.success) {
-          throw new Error(vinResponse.message || 'Lỗi cập nhật số khung');
-        }
-      }
-
-      // Update ODO if serviceOrderId exists
-      if (selectedServiceOrderId) {
-        const odoResponse = await fetchPrivate(SERVICE_ORDER_API_ENDPOINTS.UPDATE_ODO(selectedServiceOrderId), 'PUT', {
-          current_odo: parseInt(odoNumber),
-          symptoms: vehicleCondition.trim() || undefined
-        });
-        if (!odoResponse.success) throw new Error(odoResponse.message || 'Lỗi cập nhật ODO');
-      }
-
       // Receive appointment if not already received
       const appt = appointments.find(a => a.id === selectedApptId);
       const isAlreadyReceived = appt?.status === 'in_progress';
 
       if (!isAlreadyReceived) {
-        const receiveResponse = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.RECEIVE_APPOINTMENT(selectedApptId), 'PUT');
+        const receiveResponse = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.RECEIVE_APPOINTMENT(selectedApptId), 'PUT', {
+          vehicleCondition: vehicleCondition.trim(),
+        });
         if (!receiveResponse.success) {
           throw new Error(receiveResponse.message || 'Lỗi tiếp nhận lịch hẹn');
         }
       }
 
-      showToast(`Cập nhật thông tin cho lịch hẹn APT-${selectedApptId.padStart(3, '0')} thành công!`, 'success');
+      showToast(`Tiếp nhận lịch hẹn APT-${selectedApptId.padStart(3, '0')} thành công!`, 'success');
       setIsVinModalOpen(false);
       loadAppointments();
 
       if (selectedServiceOrderId) {
         navigate(`/reception/service-orders/${selectedServiceOrderId}`);
       } else {
-        navigate(`/reception/service-orders/create?appointmentId=${selectedApptId}&odo=${odoNumber}&condition=${encodeURIComponent(vehicleCondition)}`);
+        navigate(`/reception/service-orders/create?appointmentId=${selectedApptId}`);
       }
     } catch (err: any) {
       console.error(err);
@@ -317,6 +272,13 @@ export default function AppointmentList() {
             </p>
           </div>
         </div>
+        <button
+          onClick={() => navigate('/reception/appointments/new')}
+          className="shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#00285E] text-white text-sm font-bold hover:bg-[#00285E]/90 active:scale-[0.98] transition-all shadow-sm"
+        >
+          <CalendarCheck size={18} />
+          Đặt lịch hẹn mới
+        </button>
       </div>
 
       {/* KPI CARDS */}
@@ -502,13 +464,21 @@ export default function AppointmentList() {
                           </button>
                           {(apt.status === 'confirmed' || apt.status === 'pending' || apt.status === 'in_progress') && (
                             <>
-                              {(apt.hasServiceOrder && apt.vinNumber && apt.hasOdo) ? (
+                              {apt.hasServiceOrder ? (
                                 <button
                                   onClick={() => navigate(`/reception/service-orders/${apt.serviceOrderId}`)}
                                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 transition-colors"
                                 >
                                   <CarFront size={13} />
                                   Xem Lệnh S/C
+                                </button>
+                              ) : apt.status === 'in_progress' ? (
+                                <button
+                                  onClick={() => navigate(`/reception/service-orders/create?appointmentId=${apt.id}`)}
+                                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:bg-[#001a3f] transition-colors"
+                                >
+                                  <CarFront size={13} />
+                                  Tạo hóa đơn dịch vụ
                                 </button>
                               ) : (
                                 <button
@@ -575,7 +545,7 @@ export default function AppointmentList() {
           <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl border border-slate-200">
             <h3 className="text-lg font-bold text-[#00285E] mb-2 flex items-center gap-2">
               <CarFront size={20} className="text-amber-500" />
-              Tiếp nhận & Cập nhật Thông tin Xe
+              Tiếp nhận xe
             </h3>
 
             {/* Display Customer & Vehicle Info Summary */}
@@ -620,36 +590,12 @@ export default function AppointmentList() {
             })()}
 
             <p className="text-slate-500 text-sm mb-4">
-              Vui lòng nhập Số khung (VIN) và Số ODO hiện tại của xe. (VIN có thể để trống, ODO là bắt buộc).
+              Vui lòng nhập tình trạng xe lúc tiếp nhận.
             </p>
 
             <div className="space-y-4 mb-6">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Số khung (VIN)</label>
-                <input
-                  type="text"
-                  value={vinNumber}
-                  onChange={(e) => setVinNumber(e.target.value.toUpperCase())}
-                  placeholder="Ví dụ: VF8123456789..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#00285E]/20 focus:border-[#00285E] transition-all uppercase"
-                  disabled={isSubmittingVin}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Số ODO (Km hiện tại) <span className="text-rose-500">*</span></label>
-                <input
-                  type="number"
-                  value={odoNumber}
-                  onChange={(e) => setOdoNumber(e.target.value)}
-                  placeholder="Nhập số km hiện tại (VD: 55000)"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#00285E]/20 focus:border-[#00285E] transition-all"
-                  disabled={isSubmittingVin}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Tình trạng xe lúc tiếp nhận</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Tình trạng xe lúc tiếp nhận <span className="text-rose-500">*</span></label>
                 <textarea
                   value={vehicleCondition}
                   onChange={(e) => setVehicleCondition(e.target.value)}

@@ -337,8 +337,8 @@ export default function ForgotPassword() {
                 setIsLoading(false);
                 return;
             } catch (err: any) {
-                // Nếu lỗi trả về là "Người dùng đã tồn tại, vui lòng đăng nhập" nghĩa là số điện thoại ĐÃ đăng ký trong hệ thống (Hợp lệ cho reset password)
-                if (err.message === 'Người dùng đã tồn tại, vui lòng đăng nhập') {
+                // code PHONE_ALREADY_EXISTS nghĩa là số điện thoại ĐÃ đăng ký trong hệ thống (hợp lệ cho reset password)
+                if (err.code === 'PHONE_ALREADY_EXISTS') {
                     // Số điện thoại hợp lệ, tiếp tục gửi OTP
                 } else {
                     setErrorMsg(err.message || (isVi ? 'Có lỗi xảy ra trong quá trình xác thực.' : 'An error occurred during authentication.'));

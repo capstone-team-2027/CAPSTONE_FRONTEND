@@ -9,6 +9,7 @@ export const TASK_ASSIGNMENT_ENDPOINTS = {
     RESUME_TASK: `${API_BASE_URL}/api/technician/task-assignments/resume`,
     COMPLETE_TASK: `${API_BASE_URL}/api/technician/task-assignments/complete`,
     GET_MY_RESCUE: `${API_BASE_URL}/api/technician/rescue/my-active`,
+    GET_MY_RESCUE_HISTORY: `${API_BASE_URL}/api/technician/rescue/my-history`,
     START_RESCUE: `${API_BASE_URL}/api/technician/rescue/start`,
     CREATE_QUOTATION: `${API_BASE_URL}/api/technician/quote`,
     ISSUES_REPORT: `${API_BASE_URL}/api/technician/issues`,

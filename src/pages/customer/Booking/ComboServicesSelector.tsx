@@ -103,9 +103,10 @@ export default function ComboServicesSelector({
                 const isSelected = selectedComboId === combo.id;
                 const serviceIds = combo.service_ids || [];
                 const original = (combo as any).originalPrice || 0;
-                const comboServiceNames = ((combo as any).catalogs || []).map((cat: any) => {
-                    return cat.translations?.[0]?.name || cat.service_name || "Dịch vụ bảo dưỡng";
-                });
+                const comboServiceRows = ((combo as any).catalogs || []).map((cat: any) => ({
+                    name: cat.translations?.[0]?.name || cat.service_name || "Dịch vụ bảo dưỡng",
+                    sparePartName: cat.sparePart?.name as string | undefined,
+                }));
 
                 return (
                     <div
@@ -155,10 +156,16 @@ export default function ComboServicesSelector({
 
                             <div className="my-3 space-y-1.5 pl-2 border-l-2 border-amber-400/50">
                                 <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block font-display">{t('booking.includedServices', 'Dịch vụ đi kèm:')}</span>
-                                {comboServiceNames.map((name: string, idx: number) => (
-                                    <div key={idx} className="text-[11px] text-slate-500 leading-snug flex items-center gap-1">
+                                {comboServiceRows.map((row: { name: string; sparePartName?: string }, idx: number) => (
+                                    <div key={idx} className="text-[11px] text-slate-500 leading-snug flex items-center gap-1 flex-wrap">
                                         <span className="text-[#F9A11B] shrink-0">•</span>
-                                        <span>{name}</span>
+                                        <span>{row.name}</span>
+                                        {row.sparePartName && (
+                                            <span className="inline-flex items-center gap-0.5 bg-emerald-50/60 border border-emerald-100 text-emerald-700 px-1.5 py-0.2 rounded text-[9px] font-medium">
+                                                <span className="shrink-0">🔧</span>
+                                                <span>{row.sparePartName}</span>
+                                            </span>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -170,8 +177,8 @@ export default function ComboServicesSelector({
                                 <div className="flex items-baseline gap-1.5 flex-wrap">
                                     {original > 0 ? (
                                         <>
-                                            <span className="text-xs font-semibold text-slate-400 line-through">{original.toLocaleString("vi-VN")}đ</span>
-                                            <span className="text-base font-bold text-brand-orange">{(original * (1 - (combo.discount_percentage || 0)/100)).toLocaleString("vi-VN")}đ</span>
+                                            <span className="text-xs font-semibold text-slate-400 line-through">{original.toLocaleString("vi-VN")} VNĐ</span>
+                                            <span className="text-base font-bold text-brand-orange">{(original * (1 - (combo.discount_percentage || 0)/100)).toLocaleString("vi-VN")} VNĐ</span>
                                         </>
                                     ) : (
                                         <span className="text-base font-bold text-brand-orange">Miễn phí</span>

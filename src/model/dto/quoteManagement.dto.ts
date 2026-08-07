@@ -28,37 +28,37 @@ export interface CreateQuotationRequest {
   deposit_amount?: number;
   note?: string;
 }
-export interface IssueHistoryUser{
-    id: number;
-    fullName: string | null;
-    phoneNumber: string | null;
+export interface IssueHistoryUser {
+  id: number;
+  fullName: string | null;
+  phoneNumber: string | null;
 }
-export interface IssueHistoryCustomer{
-    id: number;
-    name: string | null;
-    phone: string | null;
-    user?: IssueHistoryUser | null;
+export interface IssueHistoryCustomer {
+  id: number;
+  name: string | null;
+  phone: string | null;
+  user?: IssueHistoryUser | null;
 }
-export interface IssueHistoryVehiclesModel{
-    id: number;
-    model_name: string;
+export interface IssueHistoryVehiclesModel {
+  id: number;
+  model_name: string;
 }
-export interface IssueHistoryVehicles{
-    id: number;
-    license_plate: string;
-    color: string;
-    model?: IssueHistoryVehiclesModel
-    customer?: IssueHistoryCustomer | null;
+export interface IssueHistoryVehicles {
+  id: number;
+  license_plate: string;
+  color: string;
+  model?: IssueHistoryVehiclesModel
+  customer?: IssueHistoryCustomer | null;
 }
-export interface IssueHistoryServiceOrder{
-    id: number;
-    symptoms?: string | null;
-    vehicle?: IssueHistoryVehicles | null;
+export interface IssueHistoryServiceOrder {
+  id: number;
+  symptoms?: string | null;
+  vehicle?: IssueHistoryVehicles | null;
 }
-export interface IssueHistoryTask{
-    id: number;
-    status: string;
-    serviceOrder?: IssueHistoryServiceOrder | null
+export interface IssueHistoryTask {
+  id: number;
+  status: string;
+  serviceOrder?: IssueHistoryServiceOrder | null
 }
 export interface GetSparePartResponse {
   id: number;
@@ -118,6 +118,7 @@ export interface GetQuotationResponse {
   approved_phone?: string | null;
   status: string;
   note?: string | null;
+  rejection_reason?: string | null;
   approved_at?: string | null;
   createdAt: string;
   creator?: QuotationUserRef | null;

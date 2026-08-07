@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowUpFromLine,
@@ -11,10 +11,16 @@ import {
   Package,
   Eye,
   Loader2,
+  FileDown,
+  Camera,
+  PackageCheck,
 } from "lucide-react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { EXPORT_LOG_API_ENDPOINTS } from "../../../constants/inventory/exportManagementApiEndPoint";
+import { EXPORT_REQUEST_API_ENDPOINTS } from "../../../constants/inventory/approvedQuoteApiEndPoint";
 
 const PAGE_SIZE = 6;
 
@@ -30,6 +36,72 @@ const formatDateTime = (d: string) =>
     hour: "2-digit",
     minute: "2-digit",
   });
+
+const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 8192;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+};
+
+const DIGIT_WORDS = ["không", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín"];
+
+const threeDigitToWords = (n: number, isFirstGroup: boolean): string => {
+  const hundred = Math.floor(n / 100);
+  const remainder = n % 100;
+  const ten = Math.floor(remainder / 10);
+  const unit = remainder % 10;
+  const parts: string[] = [];
+
+  if (hundred > 0 || !isFirstGroup) {
+    parts.push(DIGIT_WORDS[hundred], "trăm");
+  }
+  if (ten === 0) {
+    if (unit > 0 && (hundred > 0 || !isFirstGroup)) parts.push("lẻ");
+    if (unit > 0) parts.push(DIGIT_WORDS[unit]);
+  } else if (ten === 1) {
+    parts.push("mười");
+    if (unit === 1) parts.push("một");
+    else if (unit === 5) parts.push("lăm");
+    else if (unit > 0) parts.push(DIGIT_WORDS[unit]);
+  } else {
+    parts.push(DIGIT_WORDS[ten], "mươi");
+    if (unit === 1) parts.push("mốt");
+    else if (unit === 5) parts.push("lăm");
+    else if (unit > 0) parts.push(DIGIT_WORDS[unit]);
+  }
+  return parts.join(" ");
+};
+
+const numberToVietnameseWords = (value: number): string => {
+  const n = Math.round(Math.abs(value));
+  if (n === 0) return "Không đồng";
+
+  const groups: number[] = [];
+  let remaining = n;
+  while (remaining > 0) {
+    groups.unshift(remaining % 1000);
+    remaining = Math.floor(remaining / 1000);
+  }
+
+  const groupNames = ["", "nghìn", "triệu", "tỷ"];
+  const words: string[] = [];
+  const groupCount = groups.length;
+
+  groups.forEach((group, index) => {
+    if (group === 0) return;
+    const isFirstGroup = index === 0;
+    const groupText = threeDigitToWords(group, isFirstGroup);
+    const suffix = groupNames[groupCount - 1 - index];
+    words.push(suffix ? `${groupText} ${suffix}` : groupText);
+  });
+
+  const sentence = words.join(" ").replace(/\s+/g, " ").trim();
+  return sentence.charAt(0).toUpperCase() + sentence.slice(1) + " đồng";
+};
 
 // 1 phiếu xuất đã gom theo receipt_code (GET /export)
 interface ExportReceipt {
@@ -61,12 +133,12 @@ interface ExportDetailLine {
 const lineTotal = (r: ExportDetailLine) => r.quantity * Number(r.unit_price);
 
 export default function InventoryExport() {
-  const { searchQuery } = useOutletContext<{
+  const { searchQuery, showToast } = useOutletContext<{
     searchQuery: string;
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
 
-  const { fetchPrivate } = useFetchClient();
+  const { fetchPrivate, fetchPrivateForm } = useFetchClient();
   const navigate = useNavigate();
   const [localSearch, setLocalSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -78,6 +150,13 @@ export default function InventoryExport() {
   const [selected, setSelected] = useState<ExportReceipt | null>(null);
   const [detailLines, setDetailLines] = useState<ExportDetailLine[]>([]);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
+  // Xác nhận ký nhận ngay tại modal chi tiết, cho phiếu chưa ai ký (proof_image_url null)
+  const [isSigningMode, setIsSigningMode] = useState(false);
+  const [proofPhotoFile, setProofPhotoFile] = useState<File | null>(null);
+  const [proofPhotoPreview, setProofPhotoPreview] = useState<string | null>(null);
+  const [isSubmittingSignature, setIsSubmittingSignature] = useState(false);
+  const proofPhotoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     handleGetExportHistory();
@@ -115,6 +194,186 @@ export default function InventoryExport() {
   const closeDetail = () => {
     setSelected(null);
     setDetailLines([]);
+    closeSigningMode();
+  };
+
+  const closeSigningMode = () => {
+    setIsSigningMode(false);
+    setProofPhotoFile(null);
+    if (proofPhotoPreview) URL.revokeObjectURL(proofPhotoPreview);
+    setProofPhotoPreview(null);
+    if (proofPhotoInputRef.current) proofPhotoInputRef.current.value = "";
+  };
+
+  const handleProofPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (proofPhotoPreview) URL.revokeObjectURL(proofPhotoPreview);
+    setProofPhotoFile(file);
+    setProofPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const handleSubmitSignature = async () => {
+    if (!selected || !proofPhotoFile) {
+      showToast("Vui lòng chụp ảnh phiếu đã ký trước khi xác nhận", "warning");
+      return;
+    }
+    setIsSubmittingSignature(true);
+    try {
+      const formData = new FormData();
+      formData.append("proofPhoto", proofPhotoFile);
+      await fetchPrivateForm(
+        EXPORT_REQUEST_API_ENDPOINTS.SIGN(selected.receipt_code),
+        "POST",
+        formData,
+      );
+      showToast("Đã xác nhận nhận phụ tùng thành công!", "success");
+      closeSigningMode();
+      await handleGetExportHistory();
+      await openDetail(selected);
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : "Xác nhận thất bại", "warning");
+    } finally {
+      setIsSubmittingSignature(false);
+    }
+  };
+
+  const handleDownloadReceiptPdf = async () => {
+    if (!selected) return;
+    try {
+      const [fontResponse, boldFontResponse] = await Promise.all([
+        fetch("/fonts/NotoSans.ttf"),
+        fetch("/fonts/NotoSans-Bold.ttf"),
+      ]);
+      if (!fontResponse.ok || !boldFontResponse.ok) {
+        throw new Error("Không tải được font của phiếu xuất kho.");
+      }
+      const fontBase64 = arrayBufferToBase64(await fontResponse.arrayBuffer());
+      const boldFontBase64 = arrayBufferToBase64(await boldFontResponse.arrayBuffer());
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      doc.addFileToVFS("NotoSans.ttf", fontBase64);
+      doc.addFileToVFS("NotoSans-Bold.ttf", boldFontBase64);
+      doc.addFont("NotoSans.ttf", "NotoSans", "normal");
+      doc.addFont("NotoSans-Bold.ttf", "NotoSans", "bold");
+      doc.setFont("NotoSans", "normal");
+
+      const navy: [number, number, number] = [0, 40, 94];
+      const navyDark: [number, number, number] = [0, 26, 61];
+      const amber: [number, number, number] = [249, 161, 27];
+      const black: [number, number, number] = [15, 23, 42];
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 14;
+      const contentWidth = pageWidth - margin * 2;
+
+      const receiver = detailLines.find((line) => line.receiver)?.receiver;
+      const receiverName = receiver?.fullName || selected.technician_name || "...................";
+      const exportDate = new Date(selected.exported_at);
+      const day = exportDate.getDate();
+      const month = exportDate.getMonth() + 1;
+      const year = exportDate.getFullYear();
+
+      // ===== HEADER: dải màu thương hiệu =====
+      const headerHeight = 34;
+      doc.setFillColor(...navy);
+      doc.rect(0, 0, pageWidth, headerHeight, "F");
+      doc.setFillColor(...navyDark);
+      doc.circle(pageWidth - 14, -6, 26, "F");
+      doc.setFillColor(...amber);
+      doc.rect(0, headerHeight, pageWidth, 1.4, "F");
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("NotoSans", "bold");
+      doc.setFontSize(14);
+      doc.text("AGM INTELLIGENT GARAGE", margin, 14);
+      doc.setFont("NotoSans", "normal");
+      doc.setFontSize(8);
+      doc.text("Trung tâm chăm sóc & sửa chữa ô tô chính hãng", margin, 20);
+      doc.text("Hotline: 1900 0000 · agmgarage.vn", margin, 25.5);
+
+      doc.setFont("NotoSans", "normal");
+      doc.setFontSize(9);
+      doc.text(`Số: ${selected.receipt_code}`, pageWidth - margin, 16, { align: "right" });
+      doc.setFontSize(8);
+      doc.text(`Ngày ${day} tháng ${month} năm ${year}`, pageWidth - margin, 22, { align: "right" });
+
+      doc.setTextColor(...navy);
+      doc.setFont("NotoSans", "bold");
+      doc.setFontSize(16);
+      doc.text("PHIẾU XUẤT KHO", pageWidth / 2, headerHeight + 12, { align: "center" });
+
+      doc.setTextColor(...black);
+      const infoY = headerHeight + 22;
+      const infoCol2X = margin + contentWidth / 2;
+      doc.setFont("NotoSans", "normal");
+      doc.setFontSize(9.5);
+      doc.text(`Họ và tên người nhận hàng: ${receiverName}`, margin, infoY);
+      doc.text(`Lý do xuất kho: Xuất phụ tùng phục vụ sửa chữa, bảo dưỡng xe`, infoCol2X, infoY);
+      doc.text(`Bộ phận: Kỹ thuật viên`, margin, infoY + 5.5);
+      doc.text(`Xuất tại kho: Kho vật tư - AGM Intelligent Garage`, infoCol2X, infoY + 5.5);
+      doc.text(`Người lập phiếu: ${selected.manager_name}`, margin, infoY + 11);
+
+      autoTable(doc, {
+        startY: infoY + 18,
+        head: [["STT", "Tên, nhãn hiệu phụ tùng", "Mã số", "ĐVT", "SL", "Đơn giá", "Thành tiền"]],
+        body: detailLines.map((line, index) => [
+          index + 1,
+          line.part?.name ?? "—",
+          line.part?.sku ?? "—",
+          "Cái",
+          line.quantity,
+          formatPrice(line.unit_price),
+          formatPrice(lineTotal(line)),
+        ]),
+        foot: [[
+          "", "Cộng", "", "", "", "",
+          formatPrice(selected.total_amount),
+        ]],
+        styles: { font: "NotoSans", fontSize: 8.5, cellPadding: 2.5, textColor: black, lineColor: black, lineWidth: 0.2 },
+        headStyles: { fillColor: [230, 230, 230], textColor: black, font: "NotoSans", fontStyle: "bold", halign: "center" },
+        footStyles: { fillColor: [255, 255, 255], textColor: black, font: "NotoSans", fontStyle: "bold" },
+        theme: "grid",
+        margin: { left: margin, right: margin },
+      });
+
+      const finalY = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
+      const footerY = finalY + 8;
+      doc.setFont("NotoSans", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(...black);
+      doc.text(
+        `Tổng số tiền (bằng chữ): ${numberToVietnameseWords(Number(selected.total_amount))}`,
+        margin,
+        footerY,
+        { maxWidth: contentWidth },
+      );
+      const signBlockY = footerY + 8;
+      const col1 = margin + contentWidth * (1 / 4);
+      const col2 = margin + contentWidth * (3 / 4);
+
+      doc.setFont("NotoSans", "normal");
+      doc.setFontSize(8.5);
+      doc.text(`Ngày ${day} tháng ${month} năm ${year}`, col2, signBlockY, { align: "center" });
+
+      const titleY = signBlockY + 6;
+      doc.setFont("NotoSans", "bold");
+      doc.setFontSize(9);
+      doc.text("Người lập phiếu", col1, titleY, { align: "center" });
+      doc.text("Người nhận hàng", col2, titleY, { align: "center" });
+
+      doc.setFont("NotoSans", "normal");
+      doc.setFontSize(7.5);
+      doc.text("(Ký, họ tên)", col1, titleY + 4, { align: "center" });
+      doc.text("(Ký, họ tên)", col2, titleY + 4, { align: "center" });
+
+      const nameY = titleY + 24;
+      doc.setFontSize(8.5);
+      doc.text(selected.manager_name || "—", col1, nameY, { align: "center" });
+      doc.text(receiverName, col2, nameY, { align: "center" });
+
+      doc.save(`${selected.receipt_code}.pdf`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Không thể tạo phiếu xuất kho.", "warning");
+    }
   };
 
   const filtered = useMemo(
@@ -284,11 +543,11 @@ export default function InventoryExport() {
                     <td className="py-4 px-4">
                       {r.signature_method ? (
                         <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 whitespace-nowrap">
-                          Đã ký · {r.technician_name || "KTV"}
+                          Đã xác nhận · {r.technician_name || "KTV"}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200 whitespace-nowrap">
-                          Chưa ký
+                          Chưa xác nhận
                         </span>
                       )}
                     </td>
@@ -349,7 +608,9 @@ export default function InventoryExport() {
 
       {/* ── DETAIL MODAL ── */}
       <AnimatePresence>
-        {selected && (
+        {selected && (() => {
+          const isSigned = detailLines.some((line) => line.proof_image_url);
+          return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
@@ -382,12 +643,22 @@ export default function InventoryExport() {
                     </span>
                   </div>
                 </div>
-                <button
-                  onClick={closeDetail}
-                  className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
-                >
-                  <X size={18} />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => void handleDownloadReceiptPdf()}
+                    disabled={isLoadingDetail}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white bg-white/10 hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <FileDown size={15} />
+                    Tải phiếu PDF
+                  </button>
+                  <button
+                    onClick={closeDetail}
+                    className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
               </div>
 
               <div className="overflow-y-auto flex-1 px-7 py-6 space-y-5 bg-slate-50/50">
@@ -411,17 +682,79 @@ export default function InventoryExport() {
                   </div>
                 </div>
 
-                {/* Ký nhận */}
+                {/* Xác nhận nhận hàng */}
                 <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
-                    Ký nhận
+                    Xác nhận nhận hàng
                   </span>
                   {(() => {
                     const signedLine = detailLines.find((line) => line.proof_image_url);
                     if (!signedLine) {
+                      if (isSigningMode) {
+                        return (
+                          <div className="space-y-3">
+                            <input
+                              ref={proofPhotoInputRef}
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              className="hidden"
+                              onChange={handleProofPhotoChange}
+                            />
+                            {proofPhotoPreview ? (
+                              <div className="flex items-start gap-4">
+                                <img
+                                  src={proofPhotoPreview}
+                                  alt="Xem trước ảnh phiếu đã ký"
+                                  className="w-40 h-24 object-contain border border-slate-200 rounded-lg bg-slate-50"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => proofPhotoInputRef.current?.click()}
+                                  className="text-xs font-bold text-[#00285E] hover:text-[#001E46]"
+                                >
+                                  Chụp lại
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => proofPhotoInputRef.current?.click()}
+                                className="w-full flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 py-8 text-slate-500 hover:border-[#00285E]/40 hover:text-[#00285E] transition-colors"
+                              >
+                                <Camera size={24} />
+                                <span className="text-sm font-bold">Chụp ảnh phiếu đã ký</span>
+                              </button>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={closeSigningMode}
+                                disabled={isSubmittingSignature}
+                                className="h-10 px-4 rounded-xl text-xs font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-40"
+                              >
+                                Hủy
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleSubmitSignature()}
+                                disabled={isSubmittingSignature || !proofPhotoFile}
+                                className="h-10 flex items-center gap-1.5 px-4 rounded-xl text-xs font-bold text-white bg-[#00285E] hover:bg-[#001E46] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                {isSubmittingSignature ? (
+                                  <Loader2 size={13} className="animate-spin" />
+                                ) : (
+                                  <PackageCheck size={13} />
+                                )}
+                                Xác nhận
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
                       return (
                         <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
-                          Chưa ký nhận
+                          Chưa xác nhận
                         </span>
                       );
                     }
@@ -429,7 +762,7 @@ export default function InventoryExport() {
                       <div className="flex items-start gap-4">
                         <img
                           src={signedLine.proof_image_url ?? undefined}
-                          alt="Chữ ký kỹ thuật viên"
+                          alt="Ảnh phiếu xuất kho đã ký"
                           className="w-40 h-24 object-contain border border-slate-200 rounded-lg bg-slate-50"
                         />
                         <div className="space-y-1">
@@ -438,11 +771,11 @@ export default function InventoryExport() {
                           </p>
                           {signedLine.received_at && (
                             <p className="text-xs text-slate-400">
-                              Ký lúc {formatDateTime(signedLine.received_at)}
+                              Xác nhận lúc {formatDateTime(signedLine.received_at)}
                             </p>
                           )}
                           <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
-                            Ký điện tử
+                            Đã ký nhận
                           </span>
                         </div>
                       </div>
@@ -522,16 +855,29 @@ export default function InventoryExport() {
 
               {/* Footer */}
               <div className="flex items-center justify-between gap-3 px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
-                  Tổng giá trị
-                </span>
-                <span className="text-lg font-bold text-[#00285E]">
-                  {formatPrice(selected.total_amount)}
-                </span>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                    Tổng giá trị
+                  </span>
+                  <span className="text-lg font-bold text-[#00285E]">
+                    {formatPrice(selected.total_amount)}
+                  </span>
+                </div>
+                {!isSigned && (
+                  <button
+                    type="button"
+                    onClick={() => setIsSigningMode(true)}
+                    className="h-11 flex items-center gap-1.5 px-5 rounded-xl text-sm font-bold text-white bg-[#00285E] hover:bg-[#001E46] active:scale-[0.98] transition-all"
+                  >
+                    <Camera size={15} />
+                    Xác nhận ký nhận
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>
-        )}
+          );
+        })()}
       </AnimatePresence>
     </div>
   );

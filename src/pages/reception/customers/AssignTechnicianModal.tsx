@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, User, ShieldCheck, Star, MapPin, Navigation, CheckCircle, XCircle } from 'lucide-react';
+import { X, User, ShieldCheck, Star, MapPin, Navigation, CheckCircle, XCircle, Car, CircleAlert } from 'lucide-react';
 import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { RECEPTION_API } from '../../../constants/reception/receptionApiEndpoint';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
@@ -258,14 +258,31 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
                       </div>
                       <div className="flex-1 min-w-0">
                         <h5 className="font-bold text-slate-800 text-sm truncate">{tech.fullName}</h5>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
                           {isLeader && (
                             <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
                               <ShieldCheck size={10} /> Tổ trưởng
                             </span>
                           )}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5 ${
+                            tech.isBusy
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            <CircleAlert size={10} /> {tech.isBusy ? 'Đang bận' : 'Đang rảnh'}
+                          </span>
                         </div>
                         <p className="text-xs text-slate-500 mt-1 truncate">{tech.phoneNumber}</p>
+                        {tech.isBusy && tech.currentTasks?.length > 0 && (
+                          <div className="mt-1.5 space-y-0.5">
+                            {tech.currentTasks.map((task: any) => (
+                              <p key={task.id} className="text-[11px] text-slate-500 flex items-center gap-1 truncate">
+                                <Car size={11} className="shrink-0 text-slate-400" />
+                                {task.vehiclePlate ? `Đang làm xe ${task.vehiclePlate}` : `Công việc #${task.id}`}
+                              </p>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
                         <div className="flex items-center text-amber-500">

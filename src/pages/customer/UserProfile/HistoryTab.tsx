@@ -68,7 +68,7 @@ interface ServiceOrderHistory {
 }
 
 const formatCurrency = (value?: number | string | null) =>
-    `${Number(value ?? 0).toLocaleString('vi-VN')} VND`;
+    `${Number(value ?? 0).toLocaleString('vi-VN')} VNĐ`;
 
 const formatDate = (value?: string | null) =>
     value ? new Date(value).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
@@ -175,7 +175,13 @@ export default function HistoryTab() {
     const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
     const ITEMS_PER_PAGE = 10;
+
+    const showToast = (text: string) => {
+        setToastMessage(text);
+        setTimeout(() => setToastMessage(null), 3000);
+    };
 
     const loadServiceHistory = async () => {
         setIsLoading(true);
@@ -202,7 +208,7 @@ export default function HistoryTab() {
                 rating,
                 comment: feedbackText
             });
-            alert('Cảm ơn bạn đã đánh giá dịch vụ!');
+            showToast('Cảm ơn bạn đã đánh giá dịch vụ!');
             
             // Cập nhật lại state orders để hiện "Đã đánh giá" mà không cần reload
             setOrders(prev => prev.map(order => 
@@ -351,6 +357,20 @@ export default function HistoryTab() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6 text-left"
         >
+            <AnimatePresence>
+                {toastMessage && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -50, x: "-50%" }}
+                        animate={{ opacity: 1, y: 16, x: "-50%" }}
+                        exit={{ opacity: 0, y: -20, x: "-50%" }}
+                        className="fixed top-0 left-1/2 z-[100] transform -translate-x-1/2 flex items-center gap-2.5 px-5 py-3.5 bg-slate-900 text-white rounded-2xl shadow-xl border border-slate-800 text-sm font-semibold"
+                    >
+                        <CheckCircle2 size={18} className="text-emerald-400" />
+                        <span>{toastMessage}</span>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <ProfileSectionHeader
                     title={t('history.title', 'Lịch Sử Dịch Vụ')}

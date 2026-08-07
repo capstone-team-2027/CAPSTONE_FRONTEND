@@ -1,7 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Boxes,
   Users,
   UserCog,
   Wrench,
@@ -9,7 +8,6 @@ import {
   Settings,
   HelpCircle,
   LogOut,
-  Search,
   Bell,
   Menu,
   X,
@@ -25,28 +23,42 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '../../store/store';
 import type { UserModel } from '../../model/User';
-import { useFetchClient } from '../../hook/useFetchClient';
+import { useFetchClient_v2 } from '../../hook/useFetchClient';
 import { loginSuccess, logout } from '../../store/slices/userSlice';
 import { API_BASE_URL } from '../../constants/customer/profileApiEndpoint';
+import LogoutConfirmModal from '../../components/share/LogoutConfirmModal';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
-  const { fetchPrivate } = useFetchClient();
+  const { fetchPrivate } = useFetchClient_v2();
 
   const user = useSelector((state: RootState) => state.user.user as UserModel | null);
   const { i18n } = useTranslation();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'info' | 'warning'; text: string } | null>(null);
 
-  const showToast = (text: string, type: 'success' | 'info' | 'warning' = 'success') => {
+  const showToast = useCallback((text: string, type: 'success' | 'info' | 'warning' = 'success') => {
     setToastMessage({ text, type });
     setTimeout(() => {
       setToastMessage(null);
     }, 3000);
+  }, []);
+
+  const handleLogoutConfirm = () => {
+    setShowLogoutConfirm(false);
+    setIsMobileSidebarOpen(false);
+    showToast('Đang đăng xuất tài khoản...', 'warning');
+    localStorage.removeItem('token');
+    localStorage.removeItem('userAvatar');
+    dispatch(logout());
+    setTimeout(() => {
+      window.location.href = '/login';
+    }, 1000);
   };
 
   useEffect(() => {
@@ -84,10 +96,6 @@ export default function AdminLayout() {
       items: [{ name: 'Thống kê', icon: BarChart3, path: '/admin/statistics' }],
     },
     {
-      label: 'Kho hàng',
-      items: [{ name: 'Kho phụ tùng', icon: Boxes, path: '/admin/spare-part' }],
-    },
-    {
       label: 'Khách hàng',
       items: [{ name: 'Khách Hàng', icon: Users, path: '/admin/customers' }],
     },
@@ -116,7 +124,6 @@ export default function AdminLayout() {
   const activeMenu = useMemo(() => {
     const path = location.pathname;
     if (path === '/admin' || path === '/admin/' || path.includes('/statistics')) return 'Thống kê';
-    if (path.includes('/spare-part')) return 'Kho phụ tùng';
     if (path.includes('/customers')) return 'Khách Hàng';
     if (path.includes('/staff')) return 'Nhân sự';
     if (path.includes('/shifts')) return 'Ca làm việc';
@@ -205,9 +212,6 @@ export default function AdminLayout() {
         {/* Navigation Section */}
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-7 scrollbar-none">
           <div>
-            <span className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
-              Hệ thống quản trị
-            </span>
             {menuGroups.map((group, groupIndex) => (
               <div key={group.label ?? `group-${groupIndex}`}>
                 {group.label && (
@@ -255,17 +259,7 @@ export default function AdminLayout() {
             <span>Hỗ trợ</span>
           </button>
           <button
-            onClick={() => {
-              if (confirm('Bạn có chắc chắn muốn đăng xuất?')) {
-                showToast('Đang đăng xuất tài khoản...', 'warning');
-                localStorage.removeItem('token');
-                localStorage.removeItem('userAvatar');
-                dispatch(logout());
-                setTimeout(() => {
-                  window.location.href = '/login';
-                }, 1000);
-              }
-            }}
+            onClick={() => setShowLogoutConfirm(true)}
             className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
           >
             <LogOut size={18} />
@@ -353,18 +347,7 @@ export default function AdminLayout() {
                 <span>Hỗ trợ</span>
               </button>
               <button
-                onClick={() => {
-                  if (confirm('Bạn có chắc chắn muốn đăng xuất?')) {
-                    setIsMobileSidebarOpen(false);
-                    showToast('Đang đăng xuất tài khoản...', 'warning');
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('userAvatar');
-                    dispatch(logout());
-                    setTimeout(() => {
-                      window.location.href = '/login';
-                    }, 1000);
-                  }
-                }}
+                onClick={() => setShowLogoutConfirm(true)}
                 className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
               >
                 <LogOut size={18} />
@@ -446,6 +429,12 @@ export default function AdminLayout() {
         </footer>
 
       </main>
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={handleLogoutConfirm}
+      />
 
     </div>
   );
