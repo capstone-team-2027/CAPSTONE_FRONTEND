@@ -382,7 +382,7 @@ export default function BookingPage() {
                 }
 
                 // Fetch max discount percent config
-                const configRes = await fetchPublic((GARAGE_CONFIG_API_ENDPOINTS as any).GET_CONFIGS || `${API_BASE_URL}/api/config`);
+                const configRes = await fetchPublic(GARAGE_CONFIG_API_ENDPOINTS.GET_CONFIGURATIONS);
                 if (configRes && configRes.success && configRes.data) {
                     const maxPctConfig = configRes.data.find((c: any) => c.config_key === 'MAX_LOYALTY_DISCOUNT_PERCENT');
                     if (maxPctConfig) {
