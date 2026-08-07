@@ -14,7 +14,7 @@ import {
 
 const PAGE_SIZE = 6;
 import { useOutletContext } from 'react-router-dom';
-import { useFetchClient } from '../../../hook/useFetchClient';
+import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { WARRANTY_POLICIES_API_ENDPOINTS } from '../../../constants/admin/warrantyPoliciesApiEndpoint';
 
 interface WarrantyPolicy {
@@ -34,7 +34,7 @@ export default function AdminWarrantyPolicies() {
     showToast: (text: string, type?: 'success' | 'info' | 'warning') => void;
   }>();
 
-  const { fetchPrivate, fetchPrivateForm } = useFetchClient();
+  const { fetchPrivate, fetchPrivateForm } = useFetchClient_v2();
 
   const [policies, setPolicies] = useState<WarrantyPolicy[]>([]);
   const [isLoading, setIsLoading] = useState(false);
