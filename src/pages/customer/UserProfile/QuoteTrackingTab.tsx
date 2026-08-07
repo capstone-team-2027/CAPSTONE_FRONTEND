@@ -810,6 +810,15 @@ export default function QuoteTrackingTab() {
                   </div>
                 )}
 
+                {selectedQuote.status === 'REJECTED' && selectedQuote.rejection_reason && (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+                    <p className="text-[11px] font-extrabold uppercase tracking-widest text-rose-500 mb-2">
+                      {t('quoteTracking.modal.rejectionReason', 'Lý do bạn đã từ chối')}
+                    </p>
+                    <p className="text-sm text-rose-700">{selectedQuote.rejection_reason}</p>
+                  </div>
+                )}
+
                 <div className="rounded-xl border border-slate-200/80 bg-slate-50 p-4">
                   <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">
                     {t('quoteTracking.modal.note', 'Ghi chú')}

@@ -446,14 +446,13 @@ export default function ReceptionServiceOrderDetail() {
   };
 
   // Helper cho data mapping
-  const customerName = order.vehicle?.customer?.user?.fullName || 'Khách vãng lai';
+  const customerName = order.vehicle?.customer?.name || order.vehicle?.customer?.user?.fullName || 'Khách vãng lai';
   const customerPhone = order.vehicle?.customer?.phone || '—';
   const customerEmail = order.vehicle?.customer?.user?.email || '—';
 
   const vehiclePlate = order.vehicle?.license_plate || '—';
   const vehicleModel = `${order.vehicle?.model?.make?.make_name || ''} ${order.vehicle?.model?.model_name || ''}`.trim() || '—';
   const vehicleYear = order.vehicle?.year?.toString() || '—';
-  const vehicleMileage = order.current_odo ? `${order.current_odo.toLocaleString('vi-VN')} km` : '—';
   const getBookingTypeLabel = (appointment: any) => {
     if (!appointment) return 'Trực tiếp / Cứu hộ';
     const type = appointment.booking_type;
@@ -496,6 +495,11 @@ export default function ReceptionServiceOrderDetail() {
                 <StatusIcon size={12} className={order.status === 'IN_PROGRESS' ? 'animate-spin' : ''} />
                 {statusCfg.label}
               </span>
+              {order.bay_status === 'WAITING' && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap bg-orange-100 text-orange-700">
+                  <Clock size={12} /> Đang chờ cầu nâng
+                </span>
+              )}
               {isPaid ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap bg-emerald-100 text-emerald-700">
                   <CheckCircle2 size={12} /> Đã thanh toán
@@ -668,10 +672,6 @@ export default function ReceptionServiceOrderDetail() {
                 <span className="text-slate-400">Năm sản xuất:</span>
                 <span className="font-semibold text-slate-800">{vehicleYear}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Số ODO tiếp nhận:</span>
-                <span className="font-bold text-slate-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-250/50">{vehicleMileage}</span>
-              </div>
               <div className="flex flex-col gap-1 pt-2 border-t border-slate-100 mt-2">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tình trạng tiếp nhận</span>
                 <span className="text-xs font-semibold text-slate-800 break-words">{order.symptoms || '—'}</span>
@@ -733,10 +733,10 @@ export default function ReceptionServiceOrderDetail() {
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
                     {(() => {
                       const inspectionRows = (order.tasks || [])
-                        .filter((t: any) => t.type === 'INSPECTION' && t.status !== 'CANCELLED')
+                        .filter((t: any) => t.type === 'INSPECTION' && t.status !== 'CANCELLED' && t.catalog?.service_name)
                         .map((task: any) => ({
                           key: `inspection-${task.id}`,
-                          name: 'Kiểm tra tổng quát tình trạng xe',
+                          name: task.catalog.service_name,
                           cost: 0,
                         }));
                       const serviceRows = (order.quotation?.items || [])
@@ -775,6 +775,16 @@ export default function ReceptionServiceOrderDetail() {
                       ));
                     })()}
                   </tbody>
+                  <tfoot>
+                    <tr className="bg-slate-50 border-t border-slate-200">
+                      <td colSpan={2} className="py-3 px-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        Tổng cộng
+                      </td>
+                      <td className="py-3 px-4 text-right font-black text-[#00285E]">
+                        {formatPrice(getLaborTotal())}
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
@@ -840,6 +850,16 @@ export default function ReceptionServiceOrderDetail() {
                       })
                     )}
                   </tbody>
+                  <tfoot>
+                    <tr className="bg-slate-50 border-t border-slate-200">
+                      <td colSpan={4} className="py-3 px-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        Tổng cộng
+                      </td>
+                      <td className="py-3 px-4 text-right font-black text-[#00285E]">
+                        {formatPrice(getPartsTotal())}
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
@@ -937,23 +957,9 @@ export default function ReceptionServiceOrderDetail() {
         <div className="-mx-6 md:-mx-8 -mb-6 md:-mb-8 mt-8 bg-slate-50 border-t border-slate-200/80 p-6 md:p-8 rounded-b-3xl">
           <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
 
-            {/* Col 1: Tiền công */}
-            <div className="flex-1 min-w-0 space-y-1 text-sm font-semibold text-left">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block whitespace-nowrap">Tiền công sửa chữa</span>
-              <span className="text-base font-black text-slate-800">{formatPrice(getLaborTotal())}</span>
-              <span className="text-[9.5px] text-slate-450 block font-normal whitespace-nowrap">Chi phí nhân công</span>
-            </div>
-
-            {/* Col 2: Tiền phụ tùng */}
-            <div className="flex-1 min-w-0 space-y-1 text-sm font-semibold border-t md:border-t-0 md:border-l border-slate-200 md:pl-4 pt-4 md:pt-0 text-left">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block whitespace-nowrap">Tiền vật tư / phụ tùng</span>
-              <span className="text-base font-black text-slate-800">{formatPrice(getPartsTotal())}</span>
-              <span className="text-[9.5px] text-slate-450 block font-normal whitespace-nowrap">Chi phí linh kiện thay thế</span>
-            </div>
-
             {/* Col: Phí cứu hộ (nếu có) */}
             {getRescuePrice() > 0 && (
-              <div className="flex-1 min-w-0 space-y-1 text-sm font-semibold border-t md:border-t-0 md:border-l border-slate-200 md:pl-4 pt-4 md:pt-0 text-left">
+              <div className="flex-1 min-w-0 space-y-1 text-sm font-semibold text-left">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block whitespace-nowrap">Phí cứu hộ khẩn cấp</span>
                 <span className="text-base font-black text-rose-600">{formatPrice(getRescuePrice())}</span>
                 <span className="text-[9.5px] text-slate-450 block font-normal whitespace-nowrap">Khoảng cách: {order.appointment?.rescueRequest?.distance_km} km</span>
@@ -961,7 +967,7 @@ export default function ReceptionServiceOrderDetail() {
             )}
 
             {/* Col 3: Tổng chi phí dịch vụ */}
-            <div className="flex-1 min-w-0 space-y-1 text-sm font-semibold border-t md:border-t-0 md:border-l border-slate-200 md:pl-4 pt-4 md:pt-0 text-left">
+            <div className={`flex-1 min-w-0 space-y-1 text-sm font-semibold text-left ${getRescuePrice() > 0 ? 'border-t md:border-t-0 md:border-l border-slate-200 md:pl-4 pt-4 md:pt-0' : ''}`}>
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block whitespace-nowrap">Tổng chi phí dịch vụ</span>
               <span className="text-base font-black text-[#00285E]">{formatPrice(getOrderTotal())}</span>
               <span className="text-[9.5px] text-slate-450 block font-normal whitespace-nowrap">Chưa trừ tiền đặt cọc</span>

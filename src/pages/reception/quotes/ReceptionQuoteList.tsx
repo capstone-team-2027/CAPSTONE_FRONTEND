@@ -2171,6 +2171,22 @@ export default function ReceptionQuoteList() {
                 )}
               </div>
 
+              {/* Lý do khách từ chối */}
+              {selectedQuotation.status === "REJECTED" &&
+                selectedQuotation.rejection_reason && (
+                  <div className="bg-rose-50 rounded-2xl border border-rose-200 p-4">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <ClipboardList size={13} className="text-rose-500" />
+                      <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">
+                        Lý do khách từ chối
+                      </span>
+                    </div>
+                    <p className="text-sm text-rose-700 leading-relaxed whitespace-pre-line">
+                      {selectedQuotation.rejection_reason}
+                    </p>
+                  </div>
+                )}
+
               {/* Ghi chú */}
               <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
                 <div className="flex items-center gap-1.5 mb-2">

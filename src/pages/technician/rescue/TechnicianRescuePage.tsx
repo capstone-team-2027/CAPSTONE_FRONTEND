@@ -91,10 +91,10 @@ export default function TechnicianRescuePage() {
   const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
 
   // Car animation state
-  const [carLocation, setCarLocation] = useState<[number, number]>([10.762622, 106.660172]);
+  const [carLocation, setCarLocation] = useState<[number, number]>([15.9675, 108.2605]);
   const animationRef = useRef<number | null>(null);
 
-  const [technicianLocation, setTechnicianLocation] = useState<[number, number]>([10.762622, 106.660172]); // Default to Garage, update via GPS
+  const [technicianLocation, setTechnicianLocation] = useState<[number, number]>([15.9675, 108.2605]); // Default to Garage Đà Nẵng, update via GPS
   const [hasTechnicianLocation, setHasTechnicianLocation] = useState(false);
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' | 'warning') => {
@@ -119,28 +119,55 @@ export default function TechnicianRescuePage() {
   };
 
   useEffect(() => {
-    // Get actual Technician location
+    let watchId: number | null = null;
+    const garageLocation: [number, number] = [15.9675, 108.2605];
+
     if ("geolocation" in navigator) {
+      // Lấy nhanh vị trí GPS hiện tại lần đầu
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setTechnicianLocation([position.coords.latitude, position.coords.longitude]);
-          setCarLocation([position.coords.latitude, position.coords.longitude]);
-          // eslint-disable-next-line react-hooks/set-state-in-effect
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          setTechnicianLocation([lat, lng]);
+          setCarLocation([lat, lng]);
           setHasTechnicianLocation(true);
         },
         (error) => {
-          console.error("Lỗi khi lấy vị trí Kỹ thuật viên:", error);
-          showToast("Không thể lấy vị trí GPS của bạn. Đang dùng vị trí mặc định (Garage).", "warning");
-          // eslint-disable-next-line react-hooks/set-state-in-effect
+          console.error("Lỗi khi lấy vị trí ban đầu của Kỹ thuật viên:", error);
+          showToast("Không thể định vị GPS. Đang dùng vị trí mặc định (Garage Đà Nẵng).", "warning");
+          setTechnicianLocation(garageLocation);
+          setCarLocation(garageLocation);
           setHasTechnicianLocation(true);
+        },
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+
+      // Thiết lập theo dõi vị trí GPS di chuyển liên tục
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          setTechnicianLocation([lat, lng]);
+          setCarLocation([lat, lng]);
+          setHasTechnicianLocation(true);
+        },
+        (error) => {
+          console.error("Lỗi watchPosition của Kỹ thuật viên:", error);
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     } else {
-      showToast("Trình duyệt không hỗ trợ GPS. Đang dùng vị trí mặc định (Garage).", "warning");
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      showToast("Trình duyệt không hỗ trợ GPS. Đang dùng vị trí mặc định (Garage Đà Nẵng).", "warning");
+      setTechnicianLocation(garageLocation);
+      setCarLocation(garageLocation);
       setHasTechnicianLocation(true);
     }
+
+    return () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
   }, []);
 
   useEffect(() => {

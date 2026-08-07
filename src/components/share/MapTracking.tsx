@@ -8,6 +8,78 @@ import { PROFILE_API_ENDPOINTS } from '../../constants/customer/profileApiEndpoi
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store/store';
 import { useSocket } from '../../hook/useSocket';
+import 'react-phone-input-2/lib/style.css';
+import * as PhoneInputLib from 'react-phone-input-2';
+
+// resolve default export for PhoneInput
+type PhoneInputMod = { default?: unknown };
+function resolveDefaultPhoneInput<T>(mod: unknown): T {
+  const m = mod as PhoneInputMod;
+  if (m && typeof m === 'object' && 'default' in m) {
+    const d = m.default as unknown;
+    if (d && typeof d === 'object' && 'default' in (d as PhoneInputMod)) {
+      return (d as PhoneInputMod).default as T;
+    }
+    return d as T;
+  }
+  return mod as T;
+}
+type PhoneInputProps = {
+  country?: string;
+  value?: string;
+  onChange?: (value: string) => void;
+  enableSearch?: boolean;
+  searchPlaceholder?: string;
+  inputProps?: Record<string, unknown>;
+  countryCodeEditable?: boolean;
+  disabled?: boolean;
+};
+const PhoneInput = resolveDefaultPhoneInput<React.ComponentType<PhoneInputProps>>(PhoneInputLib);
+
+const rescuePhoneStyles = `
+    .rescue-phone .react-tel-input .form-control {
+        width: 100% !important;
+        height: 42px !important;
+        background: #FFFFFF !important;
+        border: 1px solid #E5E7EB !important;
+        border-radius: 0.5rem !important;
+        padding: 0 20px 0 48px !important;
+        font-size: 14px !important;
+        color: #0F172A !important;
+        letter-spacing: 0.3px !important;
+        outline: none !important;
+        transition: all 0.2s !important;
+    }
+    .rescue-phone .react-tel-input .form-control:focus {
+        border-color: #3B82F6 !important;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+    }
+    .rescue-phone .react-tel-input .flag-dropdown {
+        background: #FFFFFF !important;
+        border: 1px solid #E5E7EB !important;
+        border-right: none !important;
+        border-radius: 0.5rem 0 0 0.5rem !important;
+    }
+    .rescue-phone .react-tel-input .flag-dropdown:hover,
+    .rescue-phone .react-tel-input .flag-dropdown.open {
+        background: #F1F5F9 !important;
+        border-color: #CBD5E1 !important;
+    }
+    .rescue-phone .react-tel-input .selected-flag {
+        background: transparent !important;
+        padding: 0 8px 0 12px !important;
+        border-radius: 0.5rem 0 0 0.5rem !important;
+    }
+    .rescue-phone .react-tel-input .country-list {
+        background: white !important;
+        border: 1px solid #E5E7EB !important;
+        border-radius: 0.5rem !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important;
+        max-height: 220px !important;
+        margin-top: 4px !important;
+        z-index: 1000 !important;
+    }
+`;
 
 // Fix lỗi icon mặc định của leaflet khi dùng chung với React
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
@@ -80,9 +152,22 @@ export const MapTracking: React.FC = () => {
   const { fetchPrivate } = useFetchClient_v2();
 
   const [issueDescription, setIssueDescription] = useState<string>('');
+  // Người liên hệ có thể khác chủ tài khoản (vd người nhà gọi hộ) — mặc định lấy từ profile,
+  // nhưng cho sửa được, giống cách lễ tân nhập tay ở CreateRescueModal.tsx.
+  const [contactName, setContactName] = useState<string>('');
+  const [contactPhone, setContactPhone] = useState<string>('');
+
+  const [searchAddressQuery, setSearchAddressQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchingAddress, setSearchingAddress] = useState(false);
 
   const user = useSelector((state: RootState) => state.user.user as any);
   const socket = useSocket();
+
+  useEffect(() => {
+    if (user?.fullName) setContactName(user.fullName);
+    if (user?.phoneNumber) setContactPhone(user.phoneNumber);
+  }, [user]);
 
   const [rescueRoute, setRescueRoute] = useState<[number, number][]>([]);
   const [carLocation, setCarLocation] = useState<[number, number] | null>(null);
@@ -215,6 +300,45 @@ export const MapTracking: React.FC = () => {
     }
   };
 
+  // Tìm địa chỉ dự phòng khi không lấy được GPS — copy cơ chế từ CreateRescueModal.tsx (lễ tân):
+  // tự động tìm khi gõ (debounce 500ms), không cần bấm nút.
+  const handleSearchAddress = async (query: string) => {
+    setSearchingAddress(true);
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=vn`;
+      const response = await fetch(url, {
+        headers: { 'Accept-Language': 'vi' }
+      });
+      const data = await response.json();
+      setSearchResults(data);
+    } catch (error) {
+      console.error("Lỗi khi tìm kiếm địa chỉ:", error);
+    } finally {
+      setSearchingAddress(false);
+    }
+  };
+
+  useEffect(() => {
+    const query = searchAddressQuery.trim();
+    if (!query) {
+      setSearchResults([]);
+      return;
+    }
+    const timeoutId = setTimeout(() => {
+      handleSearchAddress(query);
+    }, 500);
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchAddressQuery]);
+
+  const handleSelectSearchResult = (result: any) => {
+    const lat = parseFloat(result.lat);
+    const lng = parseFloat(result.lon);
+    setSearchResults([]);
+    setSearchAddressQuery(result.display_name);
+    processLocation(lat, lng);
+  };
+
   const processLocation = async (lat: number, lng: number) => {
     setTempLocation([lat, lng]);
     setIsLoading(true);
@@ -253,6 +377,8 @@ export const MapTracking: React.FC = () => {
     fetchPrivate(LOCATION_ENDPOINTS.UPDATE_LOCATION, "PATCH", {
       latitude: tempLocation[0],
       longitude: tempLocation[1],
+      contactName,
+      contactPhone,
     }).then((res: any) => {
       setIsLoading(false);
       console.log("Lưu vị trí và tạo yêu cầu cứu hộ thành công!", res);
@@ -304,20 +430,36 @@ export const MapTracking: React.FC = () => {
 
   return (
     <div className="w-full flex flex-col gap-3">
+      <style>{rescuePhoneStyles}</style>
       {/* Thông tin liên hệ */}
       <div className="p-4 bg-white border rounded-lg shadow-sm flex flex-col gap-3">
         <h3 className="font-semibold text-gray-800">Thông tin liên hệ cứu hộ khẩn cấp</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-gray-500 uppercase">Số điện thoại liên hệ</label>
+            <label className="text-xs font-bold text-gray-500 uppercase">Tên người liên hệ</label>
             <input
               type="text"
-              value={user?.phoneNumber || ''}
-              disabled
-              className="w-full border border-gray-200 bg-gray-50 rounded-lg p-2 text-sm text-gray-600"
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
+              placeholder="Tên người liên hệ"
+              className="w-full border border-gray-200 rounded-lg p-2 text-sm outline-none focus:border-blue-500"
             />
           </div>
           <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-gray-500 uppercase">Số điện thoại liên hệ</label>
+            <div className="rescue-phone">
+              <PhoneInput
+                country="vn"
+                value={contactPhone}
+                onChange={(val) => setContactPhone(val)}
+                enableSearch
+                searchPlaceholder="Tìm quốc gia..."
+                inputProps={{ name: 'contactPhone' }}
+                countryCodeEditable={false}
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5 md:col-span-2">
             <label className="text-xs font-bold text-gray-500 uppercase">Mô tả sự cố xe (Không bắt buộc)</label>
             <input
               type="text"
@@ -326,6 +468,32 @@ export const MapTracking: React.FC = () => {
               placeholder="VD: Không nổ được máy, xẹp lốp, ngập nước..."
               className="w-full border border-gray-200 rounded-lg p-2 text-sm outline-none focus:border-blue-500"
             />
+          </div>
+          <div className="flex flex-col gap-1.5 md:col-span-2">
+            <label className="text-xs font-bold text-gray-500 uppercase">Tìm kiếm vị trí (Địa điểm / Địa chỉ)</label>
+            <input
+              type="text"
+              value={searchAddressQuery}
+              onChange={(e) => setSearchAddressQuery(e.target.value)}
+              placeholder="Dùng khi không lấy được GPS. VD: Đại học Bách Khoa Đà Nẵng..."
+              className="w-full border border-gray-200 rounded-lg p-2 text-sm outline-none focus:border-blue-500"
+            />
+            {searchingAddress && (
+              <span className="text-xs text-gray-400">Đang tìm...</span>
+            )}
+            {searchResults.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-lg shadow-sm max-h-60 overflow-y-auto">
+                {searchResults.map((result, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => handleSelectSearchResult(result)}
+                    className="px-3 py-2 hover:bg-gray-50 text-sm text-gray-700 cursor-pointer border-b border-gray-100 last:border-0"
+                  >
+                    {result.display_name}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

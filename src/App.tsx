@@ -44,6 +44,7 @@ const InventoryWaitingStock = lazy(() => import("./pages/inventory/import/Invent
 const ReceptionLayout = lazy(() => import("./pages/reception/ReceptionLayout"));
 const ReceptionAppointmentList = lazy(() => import("./pages/reception/appointments/ReceptionAppointmentList"));
 const ReceptionAppointmentDetail = lazy(() => import("./pages/reception/appointments/ReceptionAppointmentDetail"));
+const ReceptionCreateAppointment = lazy(() => import("./pages/reception/appointments/ReceptionCreateAppointment"));
 const ReceptionServiceOrderList = lazy(() => import("./pages/reception/service-orders/ReceptionServiceOrderList"));
 const ReceptionServiceOrderDetail = lazy(() => import("./pages/reception/service-orders/ReceptionServiceOrderDetail"));
 const ReceptionCreateServiceOrder = lazy(() => import("./pages/reception/service-orders/ReceptionCreateServiceOrder"));
@@ -172,6 +173,7 @@ function App() {
           <Route path="/reception" element={<ReceptionLayout />}>
             <Route path="" element={<Navigate to="appointments" replace />} />
             <Route path="appointments" element={<ReceptionAppointmentList />} />
+            <Route path="appointments/new" element={<ReceptionCreateAppointment />} />
             <Route path="appointments/:id" element={<ReceptionAppointmentDetail />} />
             <Route path="service-orders" element={<ReceptionServiceOrderList />} />
             <Route path="service-orders/:id" element={<ReceptionServiceOrderDetail />} />

@@ -35,6 +35,7 @@ interface ServiceItem {
     originalPrice?: string;
     discountPercentage?: number;
     promoText?: string;
+    sparePartName?: string;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -227,6 +228,7 @@ export default function Services() {
             category: String(s.category_id),
             image: getServiceImage(s.service_name, categoryName),
             duration: s.estimated_duration ? `${s.estimated_duration} phút` : undefined,
+            sparePartName: s.sparePart?.name,
         };
     });
 
@@ -442,6 +444,13 @@ export default function Services() {
                                                     {service.desc}
                                                 </p>
 
+                                                {service.sparePartName && (
+                                                    <div className="mb-3 p-1.5 bg-emerald-50/60 rounded-md border border-emerald-100 flex items-start gap-1 text-[10px] text-emerald-700 font-medium text-left">
+                                                        <span className="shrink-0">🔧</span>
+                                                        <span className="line-clamp-2 leading-tight">{t('services.sparePartIncluded', 'Đã kèm')}: {service.sparePartName}</span>
+                                                    </div>
+                                                )}
+
                                                 {/* Price & Promo Info */}
                                                 <div className="mb-4 py-2 px-3 rounded-xl flex flex-col gap-1 text-left" style={{ backgroundColor: COLORS.navy }}>
                                                     <div className="flex items-baseline justify-between">
@@ -606,9 +615,15 @@ export default function Services() {
                                             {combo.catalogs?.map((cat: any) => {
                                                 const sName = cat.translations?.[0]?.name || cat.service_name || t('services.comboFallbackServiceName', 'Dịch vụ bảo dưỡng');
                                                 return (
-                                                    <div key={cat.id} className="flex items-start gap-2.5 text-xs text-slate-600 font-semibold text-left">
+                                                    <div key={cat.id} className="flex items-start gap-2.5 text-xs text-slate-600 font-semibold text-left flex-wrap">
                                                         <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
                                                         <span>{sName}</span>
+                                                        {cat.sparePart?.name && (
+                                                            <span className="inline-flex items-center gap-0.5 bg-emerald-50/60 border border-emerald-100 text-emerald-700 px-1.5 py-0.2 rounded text-[9px] font-medium">
+                                                                <span className="shrink-0">🔧</span>
+                                                                <span>{cat.sparePart.name}</span>
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 );
                                             })}
@@ -621,16 +636,16 @@ export default function Services() {
                                     <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100 flex flex-col gap-2.5">
                                         <div className="flex justify-between items-center">
                                             <span className="text-xs text-slate-500 font-semibold">{t('services.comboRetailPrice', 'Mua lẻ từng dịch vụ:')}</span>
-                                            <span className="text-sm text-slate-400 line-through font-bold">{totalOriginal.toLocaleString("vi-VN")}đ</span>
+                                            <span className="text-sm text-slate-400 line-through font-bold">{totalOriginal.toLocaleString("vi-VN")} VNĐ</span>
                                         </div>
                                         <div className="flex justify-between items-center">
                                             <span className="text-xs text-[#00285E] font-extrabold uppercase tracking-widest">{t('services.comboPrice', 'Giá Combo:')}</span>
-                                            <span className="text-2xl font-black text-[#00285E]">{discounted.toLocaleString("vi-VN")}đ</span>
+                                            <span className="text-2xl font-black text-[#00285E]">{discounted.toLocaleString("vi-VN")} VNĐ</span>
                                         </div>
                                         {(totalOriginal - discounted) > 0 && (
                                             <div className="mt-1 pt-2.5 border-t border-emerald-100 flex justify-between items-center bg-emerald-50/50 -mx-4 -mb-4 px-4 pb-3 rounded-b-2xl">
                                                 <span className="text-[10px] text-emerald-600 font-black uppercase tracking-wider mt-1">{t('services.comboSavings', 'Tiết kiệm ngay:')}</span>
-                                                <span className="text-base font-black text-emerald-600 mt-1">{(totalOriginal - discounted).toLocaleString("vi-VN")}đ</span>
+                                                <span className="text-base font-black text-emerald-600 mt-1">{(totalOriginal - discounted).toLocaleString("vi-VN")} VNĐ</span>
                                             </div>
                                         )}
                                     </div>
@@ -794,6 +809,12 @@ export default function Services() {
                                     <p className="text-xs md:text-sm text-gray-500 leading-relaxed">
                                         {selectedService.desc}
                                     </p>
+                                    {selectedService.sparePartName && (
+                                        <div className="mt-2 p-2 bg-emerald-50/60 rounded-lg border border-emerald-100 flex items-start gap-1.5 text-xs text-emerald-700 font-medium">
+                                            <span className="shrink-0">🔧</span>
+                                            <span>{t('services.sparePartIncluded', 'Đã kèm')}: {selectedService.sparePartName}</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex items-center gap-3 bg-blue-50/50 p-4 rounded-2xl border border-blue-50 text-[11px] text-gray-500 leading-relaxed">
@@ -873,13 +894,19 @@ export default function Services() {
                                                 const sPrice = cat.total_price !== undefined && cat.total_price !== null ? cat.total_price : (cat.labor_price || 0);
                                                 return (
                                                     <div key={cat.id} className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-                                                        <div className="flex items-center gap-3">
+                                                        <div className="flex items-center gap-3 flex-wrap">
                                                             <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
                                                                 <CheckCircle2 size={16} className="text-emerald-500" />
                                                             </div>
                                                             <span className="font-bold text-[#00285E] text-sm">{sName}</span>
+                                                            {cat.sparePart?.name && (
+                                                                <span className="inline-flex items-center gap-0.5 bg-emerald-50/60 border border-emerald-100 text-emerald-700 px-1.5 py-0.2 rounded text-[9px] font-medium">
+                                                                    <span className="shrink-0">🔧</span>
+                                                                    <span>{cat.sparePart.name}</span>
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                        <span className="font-bold text-slate-400 text-sm whitespace-nowrap">{Number(sPrice) > 0 ? Number(sPrice).toLocaleString("vi-VN") + "đ" : "Liên hệ"}</span>
+                                                        <span className="font-bold text-slate-400 text-sm whitespace-nowrap">{Number(sPrice) > 0 ? Number(sPrice).toLocaleString("vi-VN") + " VNĐ" : "Liên hệ"}</span>
                                                     </div>
                                                 );
                                             })}
@@ -899,7 +926,7 @@ export default function Services() {
                                                 
                                                 <div className="flex justify-between items-center mb-2 relative z-10">
                                                     <span className="text-xs text-slate-500 font-semibold">Tổng giá bán lẻ:</span>
-                                                    <span className="text-sm text-slate-400 line-through font-bold">{totalOriginal.toLocaleString("vi-VN")}đ</span>
+                                                    <span className="text-sm text-slate-400 line-through font-bold">{totalOriginal.toLocaleString("vi-VN")} VNĐ</span>
                                                 </div>
                                                 <div className="flex justify-between items-center mb-3 relative z-10">
                                                     <span className="text-xs text-[#00285E] font-extrabold uppercase tracking-widest">Giá ưu đãi:</span>
@@ -909,13 +936,13 @@ export default function Services() {
                                                                 -{selectedCombo.discount_percentage}%
                                                             </span>
                                                         )}
-                                                        <span className="text-2xl md:text-3xl font-black text-[#00285E]">{discounted.toLocaleString("vi-VN")}đ</span>
+                                                        <span className="text-2xl md:text-3xl font-black text-[#00285E]">{discounted.toLocaleString("vi-VN")} VNĐ</span>
                                                     </div>
                                                 </div>
                                                 {savings > 0 && (
                                                     <div className="pt-3 border-t border-emerald-100 flex justify-between items-center relative z-10">
                                                         <span className="text-[10px] text-emerald-600 font-black uppercase tracking-wider">Bạn tiết kiệm được:</span>
-                                                        <span className="text-base font-black text-emerald-600">{(savings).toLocaleString("vi-VN")}đ</span>
+                                                        <span className="text-base font-black text-emerald-600">{(savings).toLocaleString("vi-VN")} VNĐ</span>
                                                     </div>
                                                 )}
                                             </div>

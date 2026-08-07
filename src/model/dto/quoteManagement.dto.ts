@@ -118,6 +118,7 @@ export interface GetQuotationResponse {
   approved_phone?: string | null;
   status: string;
   note?: string | null;
+  rejection_reason?: string | null;
   approved_at?: string | null;
   createdAt: string;
   creator?: QuotationUserRef | null;

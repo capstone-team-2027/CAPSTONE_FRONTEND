@@ -1,14 +1,13 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import {
-  ClipboardPlus,
+  CalendarCheck,
   ArrowLeft,
   Calendar,
+  Clock,
   User,
   Phone,
   Car,
   Wrench,
-  CheckSquare,
-  Square,
   StickyNote,
   AlertCircle,
   Settings,
@@ -17,39 +16,27 @@ import {
   PlusCircle,
   Layers,
   Package,
-  Folder,
-  ChevronDown,
-  ChevronUp,
-  Tag,
 } from 'lucide-react';
-import { useNavigate, useSearchParams, useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import * as PhoneInputLib from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
-import { SERVICE_ORDER_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
-import { useFetchClient, useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
+import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { SEARCH_API_ENDPOINTS } from '../../../constants/reception/searchEndpoints';
 
 import { SERVICE_API_ENDPOINTS } from '../../../constants/customer/serviceApiEndpoints';
+import { GARAGE_CONFIG_API_ENDPOINTS } from '../../../constants/customer/garage_configurationsEndpoints';
 import type { ServiceCombo, ServiceItem as CustomerServiceItem } from '../../../model/Service';
 import { useTranslation } from 'react-i18next';
 import { VEHICLE_MAKE_MODEL_API_ENDPOINTS } from '../../../constants/customer/vehicelMakeModelEndpoint';
 import SingleServicesSelector from '../../customer/booking/SingleServicesSelector';
 import ComboServicesSelector from '../../customer/booking/ComboServicesSelector';
 
-
-
-
-// ========== MOCK: Available combos ==========
-interface ComboItem {
-  id: string;
-  name: string;
-  price: number;
-  category: string;
-  description: string;
-  services: string[];
-}
+const DEFAULT_SHIFTS = [
+  { start_time: '08:00', end_time: '12:00' },
+  { start_time: '13:00', end_time: '17:00' },
+];
 
 // ── resolve PhoneInput default export ─────────────────────────
 type Mod = { default?: unknown };
@@ -109,26 +96,17 @@ const phoneStyles = `
     }
 `;
 
-const MOCK_APPOINTMENT_DATA: Record<string, any> = {};
-const MOCK_EXISTING_CUSTOMERS: any[] = [];
-
-
-
-export default function ReceptionCreateServiceOrder() {
+export default function ReceptionCreateAppointment() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: 'success' | 'info' | 'warning') => void;
   }>();
 
-  // Tab mode: 'approved_record' (Lịch hẹn/KH có sẵn) or 'first_time' (Khách lần đầu đến)
-  const initialMode = searchParams.get('appointmentId') ? 'approved_record' : 'approved_record';
-  const [mode, setMode] = useState<'approved_record' | 'first_time'>(initialMode);
+  // Tab mode: 'existing' (Khách hàng cũ) or 'first_time' (Khách vãng lai lần đầu)
+  const [mode, setMode] = useState<'existing' | 'first_time'>('existing');
 
-  const rescueId = searchParams.get('rescueId');
-
-  // Search in Tab 1
+  // Search in Tab "Khách hàng cũ"
   const [recordSearch, setRecordSearch] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
@@ -144,9 +122,6 @@ export default function ReceptionCreateServiceOrder() {
   const [manualVehiclePlate, setManualVehiclePlate] = useState('');
   const [manualVehicleColor, setManualVehicleColor] = useState('');
   const [manualVehicleYear, setManualVehicleYear] = useState('');
-  const [currentOdo, setCurrentOdo] = useState(searchParams.get('odo') || '');
-  const [initialCondition, setInitialCondition] = useState(searchParams.get('condition') || '');
-  const [bayId, setBayId] = useState('1'); // Cầu nâng (default 1)
 
   // Vehicle autocomplete states
   const [vehicleBrand, setVehicleBrand] = useState('');
@@ -161,16 +136,12 @@ export default function ReceptionCreateServiceOrder() {
   const modelRef = useRef<HTMLDivElement>(null);
 
   // Common fields
-  const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
-  const [selectedCombos, setSelectedCombos] = useState<Set<string>>(new Set());
-  const [notes, setNotes] = useState(''); // Mô tả tình trạng hỏng hóc
+  const [notes, setNotes] = useState(''); // Ghi chú / mô tả tình trạng cần sửa chữa
   const [receptionServiceMode, setReceptionServiceMode] = useState<'SERVICE' | 'REPAIR'>('SERVICE');
   const [serviceSearch, setServiceSearch] = useState('');
-  const [activeServiceTab, setActiveServiceTab] = useState<'single' | 'combo' | 'category'>('single');
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [activeServiceTab, setActiveServiceTab] = useState<'single' | 'combo'>('single');
 
   const { fetchPrivate, fetchPublic } = useFetchClient_v2();
-  const [isLoadingRecord, setIsLoadingRecord] = useState(false);
 
   // Dynamic Data States for Services
   const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([]);
@@ -180,6 +151,24 @@ export default function ReceptionCreateServiceOrder() {
   const [dbServices, setDbServices] = useState<any[]>([]);
   const [dbCategories, setDbCategories] = useState<any[]>([]);
   const [dbCombos, setDbCombos] = useState<ServiceCombo[]>([]);
+
+  // Garage configuration states (thời gian hẹn khả dụng)
+  const [shifts, setShifts] = useState<any[]>(DEFAULT_SHIFTS);
+  const [bufferMinutes, setBufferMinutes] = useState<number>(90);
+  const [garageCapacity, setGarageCapacity] = useState<number>(1);
+  const [bookedCounts, setBookedCounts] = useState<Record<string, number>>({});
+
+  const getTodayString = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+  const minDateStr = useMemo(() => getTodayString(), []);
+
+  const [bookingDate, setBookingDate] = useState(minDateStr);
+  const [bookingTime, setBookingTime] = useState('');
 
   // Load dynamic categories & services from backend
   useEffect(() => {
@@ -227,6 +216,40 @@ export default function ReceptionCreateServiceOrder() {
     };
     loadDbData();
   }, []);
+
+  // Load garage configuration data (shifts & buffer time & availability theo ngày)
+  useEffect(() => {
+    const loadGarageConfigs = async () => {
+      try {
+        const bufferRes = await fetchPublic(GARAGE_CONFIG_API_ENDPOINTS.GET_CONFIGURATION_BY_KEY("BUFFER_TIME_MINUTES"));
+        if (bufferRes && bufferRes.success && bufferRes.data) {
+          const parsedVal = parseInt(bufferRes.data.config_value, 10);
+          if (!isNaN(parsedVal) && parsedVal > 0) {
+            setBufferMinutes(parsedVal);
+          }
+        }
+      } catch (error) {
+        console.error("Lỗi khi tải cấu hình BUFFER_TIME_MINUTES:", error);
+      }
+
+      try {
+        const dateParam = bookingDate ? `?date=${bookingDate}` : '';
+        const availRes = await fetchPublic(GARAGE_CONFIG_API_ENDPOINTS.GET_AVAILABILITY + dateParam);
+        const data = availRes?.data ?? availRes;
+        if (data) {
+          if (Array.isArray(data.shifts)) {
+            setShifts(data.shifts.length > 0 ? data.shifts : DEFAULT_SHIFTS);
+          }
+          if (data.capacity !== undefined) setGarageCapacity(data.capacity);
+          if (data.bookedCounts) setBookedCounts(data.bookedCounts);
+        }
+      } catch (error) {
+        console.error("Lỗi khi tải dữ liệu ca làm việc và tình trạng sức chứa:", error);
+        setShifts(DEFAULT_SHIFTS);
+      }
+    };
+    loadGarageConfigs();
+  }, [bookingDate, fetchPublic]);
 
   // Handle click outside to close suggestions
   useEffect(() => {
@@ -365,116 +388,99 @@ export default function ReceptionCreateServiceOrder() {
     return filteredServices.slice(start, start + SERVICES_PER_PAGE);
   }, [filteredServices, servicePage]);
 
-  // Handle URL appointmentId param on mount
-  useEffect(() => {
-    const apptId = searchParams.get('appointmentId');
-    if (apptId) {
-      const fetchAppt = async () => {
-        setIsLoadingRecord(true);
-        try {
-          const response = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.GET_APPOINTMENT_DETAIL(apptId));
-          if (response.success && response.data) {
-            const data = response.data;
-            const servicesDetails: any[] = [];
-            if (Array.isArray(data.appointmentDetails)) {
-              data.appointmentDetails.forEach((detail: any) => {
-                if (detail.catalog) {
-                  servicesDetails.push({
-                    id: detail.catalog.id,
-                    name: detail.catalog.service_name,
-                    price: detail.catalog.price,
-                    category: 'Dịch vụ lẻ'
-                  });
-                }
-                if (detail.combo) {
-                  const subServices = detail.combo.catalogs
-                    ? detail.combo.catalogs.map((c: any) => c.service_name)
-                    : [];
-                  servicesDetails.push({
-                    id: detail.combo.id,
-                    name: detail.combo.combo_name,
-                    price: detail.combo.total_price || 0,
-                    category: 'Combo dịch vụ',
-                    description: detail.combo.description,
-                    subServices
-                  });
-                }
-              });
-            }
-
-            let appointmentDate = '';
-            let appointmentTime = '';
-            if (data.scheduled_time) {
-              const dateObj = new Date(data.scheduled_time);
-              appointmentDate = dateObj.getFullYear() + '-' + String(dateObj.getMonth() + 1).padStart(2, '0') + '-' + String(dateObj.getDate()).padStart(2, '0');
-              appointmentTime = String(dateObj.getHours()).padStart(2, '0') + ':' + String(dateObj.getMinutes()).padStart(2, '0');
-            }
-
-            const initialServiceIds: number[] = [];
-            let initialComboId: number | null = null;
-            if (Array.isArray(data.appointmentDetails)) {
-              data.appointmentDetails.forEach((detail: any) => {
-                if (detail.catalog) {
-                  initialServiceIds.push(detail.catalog.id);
-                }
-                if (detail.combo) {
-                  initialComboId = detail.combo.id;
-                }
-              });
-            }
-
-            if (data.booking_type && data.booking_type.includes('REPAIR')) {
-              setReceptionServiceMode('REPAIR');
-              if (data.notes && servicesDetails.length === 0) {
-                servicesDetails.push({
-                  id: 'repair-notes',
-                  name: 'Khám & Sửa chữa lỗi',
-                  price: 0,
-                  category: 'Yêu cầu của khách',
-                  description: data.notes
-                });
-              }
-            } else {
-              setReceptionServiceMode('SERVICE');
-            }
-
-            if (data.notes) {
-              setNotes(data.notes);
-            }
-            if (data.reception_condition) {
-              setInitialCondition(data.reception_condition);
-            }
-
-            setSelectedRecord({
-              type: 'appointment',
-              id: String(data.id),
-              vehicleId: data.vehicle?.id,
-              name: data.customer?.name || data.customer?.user?.fullName || 'Khách vãng lai',
-              phone: data.customer?.user?.phoneNumber || data.customer?.phone || '',
-              plate: data.vehicle?.license_plate || 'Chưa cập nhật',
-              model: data.vehicle?.model ? `${data.vehicle.model.make?.make_name || ''} ${data.vehicle.model.model_name || ''}`.trim() : 'Chưa cập nhật',
-              color: data.vehicle?.color || '',
-              year: data.vehicle?.year || '',
-              mileage: data.vehicle?.mileage || '',
-              appointmentDate,
-              appointmentTime,
-              servicesDetails,
-            });
-            setSelectedServiceIds(initialServiceIds);
-            setSelectedComboId(initialComboId);
-            setMode('approved_record');
-          }
-        } catch (e) {
-          console.error(e);
-        } finally {
-          setIsLoadingRecord(false);
+  // Tính danh sách khung giờ khả dụng theo ca làm việc & sức chứa gara
+  const timeSlots = useMemo(() => {
+    let totalDurationMinutes = 0;
+    if (receptionServiceMode === 'SERVICE') {
+      selectedServiceIds.forEach(id => {
+        const service = dbServices.find(s => s.id === id);
+        if (service && service.estimated_duration) {
+          totalDurationMinutes += parseInt(service.estimated_duration, 10);
+        } else {
+          totalDurationMinutes += 30;
         }
-      };
-      fetchAppt();
+      });
+      if (selectedComboId) {
+        const combo = dbCombos.find(c => c.id === selectedComboId);
+        if (combo && combo.service_ids) {
+          combo.service_ids.forEach(catalogId => {
+            const service = dbServices.find(s => s.id === catalogId);
+            if (service && service.estimated_duration) {
+              totalDurationMinutes += parseInt(service.estimated_duration, 10);
+            } else {
+              totalDurationMinutes += 30;
+            }
+          });
+        }
+      }
     }
-  }, [searchParams]);
 
-  // Search algorithm for Tab 1
+    const slots: { time: string; label: string; isFull: boolean }[] = [];
+    shifts.forEach(shift => {
+      const [startH, startM] = (shift.start_time || "").split(':').map(Number);
+      const [endH, endM] = (shift.end_time || "").split(':').map(Number);
+      if (isNaN(startH) || isNaN(endH)) return;
+
+      let currentMinutes = startH * 60 + (startM || 0);
+      const endMinutes = endH * 60 + (endM || 0);
+
+      while (currentMinutes < endMinutes) {
+        const h = Math.floor(currentMinutes / 60);
+        const m = currentMinutes % 60;
+        const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        const label = h < 12 ? t('booking.timeSlots.morning', 'Sáng') : t('booking.timeSlots.afternoon', 'Chiều');
+
+        let isFull = false;
+
+        if (totalDurationMinutes === 0) {
+          const utcHour = (h - 7 + 24) % 24;
+          isFull = (bookedCounts[utcHour] || 0) >= garageCapacity;
+        } else {
+          const endTotalMinutes = currentMinutes + totalDurationMinutes;
+          let calculatedEndH = Math.floor(endTotalMinutes / 60);
+
+          if (endTotalMinutes % 60 === 0 && calculatedEndH > h) {
+            calculatedEndH -= 1;
+          }
+
+          for (let checkH = h; checkH <= calculatedEndH; checkH++) {
+            const utcHour = (checkH - 7 + 24) % 24;
+            if ((bookedCounts[utcHour] || 0) >= garageCapacity) {
+              isFull = true;
+              break;
+            }
+          }
+        }
+
+        slots.push({ time: timeStr, label, isFull });
+        currentMinutes += bufferMinutes;
+      }
+    });
+
+    if (bookingDate === minDateStr) {
+      const now = new Date();
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      return slots.map(slot => {
+        const [slotH, slotM] = slot.time.split(':').map(Number);
+        const slotMinutes = slotH * 60 + slotM;
+        if (slotMinutes < nowMinutes + 30) {
+          return { ...slot, isFull: true };
+        }
+        return slot;
+      });
+    }
+
+    return slots;
+  }, [shifts, bufferMinutes, t, bookingDate, minDateStr, bookedCounts, garageCapacity, receptionServiceMode, selectedServiceIds, selectedComboId, dbServices, dbCombos]);
+
+  // Reset bookingTime nếu không còn hợp lệ khi đổi ngày hoặc danh sách slot đổi
+  useEffect(() => {
+    if (bookingTime && !timeSlots.some(slot => slot.time === bookingTime)) {
+      setBookingTime('');
+    }
+  }, [bookingDate, timeSlots, bookingTime]);
+
+  // Search algorithm for Tab "Khách hàng cũ"
   const handleSearchRecord = async () => {
     if (!recordSearch || !recordSearch.trim()) {
       setSearchResults([]);
@@ -484,28 +490,9 @@ export default function ReceptionCreateServiceOrder() {
     try {
       const res = await fetchPrivate(SEARCH_API_ENDPOINTS.CUSTOMER_INFO_BY_PHONE, 'POST', { phone: recordSearch });
       if (res && res.success && res.data) {
-        const { customer, appointments } = res.data;
+        const { customer } = res.data;
         const results: any[] = [];
 
-        // 1. Nếu khách hàng có Lịch hẹn (Appointments)
-        if (appointments && appointments.length > 0) {
-          appointments.forEach((apt: any) => {
-            results.push({
-              type: 'appointment',
-              id: String(apt.id),
-              name: apt.customer_name,
-              phone: apt.phone,
-              plate: apt.vehicle?.license_plate || 'Chưa cập nhật',
-              vin: apt.vehicle?.vin_number || '',
-              model: apt.vehicle ? `${apt.vehicle.brand} ${apt.vehicle.model}`.trim() : 'Chưa cập nhật',
-              appointmentDate: apt.appointmentDate,
-              appointmentTime: apt.appointmentTime,
-              vehicleId: apt.vehicle?.id
-            });
-          });
-        }
-
-        // 2. Tùy chọn Tiếp nhận khách vãng lai (Không có lịch hẹn)
         if (customer) {
           results.push({
             type: 'customer',
@@ -520,7 +507,7 @@ export default function ReceptionCreateServiceOrder() {
           setSearchResults(results);
         } else {
           setSearchResults([]);
-          showToast('Không tìm thấy khách hàng hoặc lịch hẹn', 'info');
+          showToast('Không tìm thấy khách hàng', 'info');
         }
       } else {
         setSearchResults([]);
@@ -535,18 +522,14 @@ export default function ReceptionCreateServiceOrder() {
 
   const handleSelectRecord = (record: any) => {
     setSelectedRecord(record);
-    setSelectedServiceIds([]);
-    setSelectedComboId(null);
 
-    if (record.type === 'customer') {
-      if (record.vehicles && record.vehicles.length > 0) {
-        setVehicleInputMode('EXISTING');
-        const availableVehicle = record.vehicles.find((v: any) => !v.isInGarage);
-        setSelectedCustomerVehicleId(String(availableVehicle ? availableVehicle.id : record.vehicles[0].id));
-      } else {
-        setVehicleInputMode('NEW');
-        setSelectedCustomerVehicleId('');
-      }
+    if (record.vehicles && record.vehicles.length > 0) {
+      setVehicleInputMode('EXISTING');
+      const availableVehicle = record.vehicles.find((v: any) => !v.isInGarage);
+      setSelectedCustomerVehicleId(String(availableVehicle ? availableVehicle.id : record.vehicles[0].id));
+    } else {
+      setVehicleInputMode('NEW');
+      setSelectedCustomerVehicleId('');
     }
 
     setRecordSearch('');
@@ -574,34 +557,31 @@ export default function ReceptionCreateServiceOrder() {
 
   const handleSubmit = async () => {
     try {
-      if (mode === 'approved_record') {
+      if (mode === 'existing') {
         if (!selectedRecord) {
-          showToast('Vui lòng tìm kiếm và chọn lịch hẹn hoặc hồ sơ khách hàng.', 'warning');
+          showToast('Vui lòng tìm kiếm và chọn khách hàng.', 'warning');
           return;
         }
-        if (selectedRecord.type === 'appointment') {
-          if (!selectedRecord.vehicleId) {
-            showToast('Không tìm thấy thông tin xe trong lịch hẹn này.', 'warning');
+        if (vehicleInputMode === 'EXISTING' && !selectedCustomerVehicleId) {
+          showToast('Vui lòng chọn xe.', 'warning');
+          return;
+        }
+        if (vehicleInputMode === 'NEW') {
+          if (!manualVehiclePlate.trim() || !vehicleBrand.trim() || !vehicleModel.trim()) {
+            showToast('Vui lòng điền đầy đủ thông tin Xe (Biển số, Hãng, Dòng xe).', 'warning');
             return;
-          }
-        } else if (selectedRecord.type === 'customer') {
-          if (vehicleInputMode === 'EXISTING' && !selectedCustomerVehicleId) {
-            showToast('Vui lòng chọn xe.', 'warning');
-            return;
-          }
-          if (vehicleInputMode === 'NEW') {
-            if (!manualVehiclePlate.trim() || !vehicleBrand.trim() || !vehicleModel.trim()) {
-              showToast('Vui lòng điền đầy đủ thông tin Xe (Biển số, Hãng, Dòng xe).', 'warning');
-              return;
-            }
           }
         }
-
       } else {
         if (!manualCustName.trim() || !manualCustPhone.trim() || !manualVehiclePlate.trim() || !vehicleBrand.trim() || !vehicleModel.trim()) {
           showToast('Vui lòng điền đầy đủ thông tin Khách hàng và Xe.', 'warning');
           return;
         }
+      }
+
+      if (!bookingDate || !bookingTime) {
+        showToast('Vui lòng chọn ngày và giờ hẹn.', 'warning');
+        return;
       }
 
       if (receptionServiceMode === 'SERVICE' && selectedServiceIds.length === 0 && !selectedComboId) {
@@ -613,17 +593,8 @@ export default function ReceptionCreateServiceOrder() {
         return;
       }
 
-      // Determine explicit booking type
-      let finalBookingType = '';
-      if (mode === 'first_time') {
-        finalBookingType = receptionServiceMode === 'SERVICE' ? 'WALK_IN_SPECIFIC' : 'WALK_IN_REPAIR';
-      } else if (mode === 'approved_record' && selectedRecord?.type === 'customer') {
-        finalBookingType = receptionServiceMode === 'SERVICE' ? 'RECEPTIONIST_SPECIFIC' : 'RECEPTIONIST_REPAIR';
-      }
-
-      // Prepare payload
-      let finalVehicleId = null;
-      let walkInPayload = undefined;
+      let finalVehicleId: number | null = null;
+      let walkInPayload: any = undefined;
 
       if (mode === 'first_time') {
         walkInPayload = {
@@ -635,56 +606,39 @@ export default function ReceptionCreateServiceOrder() {
           brand_name: vehicleBrand.trim(),
           model_name: vehicleModel.trim()
         };
-      } else if (mode === 'approved_record') {
-        if (selectedRecord?.type === 'appointment') {
-          finalVehicleId = Number(selectedRecord.vehicleId);
-        } else if (selectedRecord?.type === 'customer') {
-          if (vehicleInputMode === 'EXISTING') {
-            finalVehicleId = Number(selectedCustomerVehicleId);
-          } else {
-            // Thêm mới xe cho khách hàng cũ
-            walkInPayload = {
-              customer_name: selectedRecord?.name || undefined,
-              customer_phone: selectedRecord?.phone,
-              vehicle_plate: manualVehiclePlate.trim(),
-              vehicle_color: manualVehicleColor.trim() || undefined,
-              vehicle_year: manualVehicleYear || undefined,
-              brand_name: vehicleBrand.trim(),
-              model_name: vehicleModel.trim()
-            };
-          }
+      } else if (mode === 'existing') {
+        if (vehicleInputMode === 'EXISTING') {
+          finalVehicleId = Number(selectedCustomerVehicleId);
+        } else {
+          walkInPayload = {
+            customer_name: selectedRecord?.name || undefined,
+            customer_phone: selectedRecord?.phone,
+            vehicle_plate: manualVehiclePlate.trim(),
+            vehicle_color: manualVehicleColor.trim() || undefined,
+            vehicle_year: manualVehicleYear || undefined,
+            brand_name: vehicleBrand.trim(),
+            model_name: vehicleModel.trim()
+          };
         }
       }
 
       const payload: any = {
-        booking_type: finalBookingType || undefined,
         vehicle_id: finalVehicleId,
         walk_in: walkInPayload,
-        bay_id: Number(bayId) || null,
-        current_odo: currentOdo.trim() ? Number(currentOdo) : undefined,
+        scheduled_time: `${bookingDate}T${bookingTime}:00`,
         service_ids: receptionServiceMode === 'SERVICE' ? selectedServiceIds : undefined,
         combo_ids: receptionServiceMode === 'SERVICE' && selectedComboId ? [selectedComboId] : undefined,
         notes: notes.trim() ? notes.trim() : undefined,
-        symptoms: initialCondition.trim() ? initialCondition.trim() : undefined,
-        rescue_id: rescueId ? Number(rescueId) : undefined
       };
 
-      if (mode === 'approved_record' && selectedRecord?.type === 'appointment') {
-        payload.appointment_id = Number(selectedRecord.id);
-      }
-
-      const res = await fetchPrivate(SERVICE_ORDER_API_ENDPOINTS.CREATE, 'POST', payload);
+      const res = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.CREATE_APPOINTMENT, 'POST', payload);
       if (res.success) {
-        showToast('Tạo hóa đơn dịch vụ thành công!', 'success');
+        showToast('Đặt lịch hẹn thành công!', 'success');
         setTimeout(() => {
-          if (rescueId) {
-            navigate('/reception/customers');
-          } else {
-            navigate('/reception/appointments');
-          }
+          navigate('/reception/appointments');
         }, 1000);
       } else {
-        throw new Error(res.message || 'Lỗi khi tạo hóa đơn dịch vụ');
+        throw new Error(res.message || 'Lỗi khi đặt lịch hẹn');
       }
     } catch (err: any) {
       showToast(err.message, 'warning');
@@ -699,7 +653,7 @@ export default function ReceptionCreateServiceOrder() {
       {/* HEADER */}
       <div className="flex items-start gap-3">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/reception/appointments')}
           title="Quay lại"
           className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
         >
@@ -707,11 +661,11 @@ export default function ReceptionCreateServiceOrder() {
         </button>
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-1 flex items-center gap-2">
-            <ClipboardPlus className="text-amber-500" size={28} />
-            Tạo hóa đơn dịch vụ
+            <CalendarCheck className="text-amber-500" size={28} />
+            Đặt lịch hẹn cho khách hàng
           </h1>
           <p className="text-slate-500 text-sm">
-            Tạo phiếu tiếp nhận xe và sửa chữa/bảo dưỡng cho khách hàng.
+            Tạo lịch hẹn trước cho khách hàng — xe chưa cần có mặt tại gara ngay.
           </p>
         </div>
       </div>
@@ -720,10 +674,10 @@ export default function ReceptionCreateServiceOrder() {
       <div className="flex p-1 bg-slate-100 rounded-xl max-w-xl">
         <button
           onClick={() => {
-            setMode('approved_record');
+            setMode('existing');
             setSelectedRecord(null);
           }}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-bold transition-all ${mode === 'approved_record'
+          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-bold transition-all ${mode === 'existing'
             ? 'bg-white text-[#00285E] shadow-sm'
             : 'text-slate-500 hover:text-slate-700'
             }`}
@@ -747,10 +701,10 @@ export default function ReceptionCreateServiceOrder() {
       </div>
 
       <AnimatePresence mode="wait">
-        {mode === 'approved_record' ? (
-          /* SECTION 1: CREATE FROM APPROVED APPOINTMENT OR CHECKED-IN CUSTOMER */
+        {mode === 'existing' ? (
+          /* SECTION 1: EXISTING CUSTOMER */
           <motion.div
-            key="approved-record"
+            key="existing"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
@@ -785,36 +739,29 @@ export default function ReceptionCreateServiceOrder() {
               {/* SEARCH RESULTS DROPDOWN */}
               {searchResults.length > 0 && (
                 <div className="absolute left-5 right-5 z-20 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto divide-y divide-slate-100">
-                  {searchResults.map((r, i) => {
-                    const isDisabled = r.type === 'appointment' && r.isInGarage;
-                    return (
-                      <button
-                        key={i}
-                        type="button"
-                        disabled={isDisabled}
-                        onClick={() => handleSelectRecord(r)}
-                        className={`w-full px-4 py-3 text-left flex items-center justify-between text-sm transition-colors ${isDisabled ? 'bg-rose-50/50 cursor-not-allowed' : 'hover:bg-slate-50'
-                          }`}
-                      >
-                        <div className="flex flex-col">
-                          <span className={`font-bold ${isDisabled ? 'text-rose-700' : 'text-slate-800'}`}>
-                            {r.name} ({r.phone})
-                          </span>
-                          <span className={`text-xs font-semibold mt-0.5 ${isDisabled ? 'text-rose-500' : 'text-slate-400'}`}>
-                            {r.type === 'appointment' ? `Xe: ${r.plate} • ${r.model}` : `Số lượng xe: ${r.vehicles?.length || 0}`}
-                            {isDisabled && ' (ĐANG TRONG XƯỞNG)'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-right">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${isDisabled ? 'text-rose-700 bg-rose-100' : 'text-[#00285E] bg-[#EDF3FF]'
-                            }`}>
-                            {r.type === 'appointment' ? `Lịch hẹn: ${r.id}` : `Hồ sơ: ${r.id}`}
-                          </span>
-                          <UserCheck size={16} className={isDisabled ? "text-rose-400" : "text-[#00285E]"} />
-                        </div>
-                      </button>
-                    );
-                  })}
+                  {searchResults.map((r, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => handleSelectRecord(r)}
+                      className="w-full px-4 py-3 text-left flex items-center justify-between text-sm transition-colors hover:bg-slate-50"
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-bold text-slate-800">
+                          {r.name} ({r.phone})
+                        </span>
+                        <span className="text-xs font-semibold mt-0.5 text-slate-400">
+                          Số lượng xe: {r.vehicles?.length || 0}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-right">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase text-[#00285E] bg-[#EDF3FF]">
+                          Hồ sơ: {r.id}
+                        </span>
+                        <UserCheck size={16} className="text-[#00285E]" />
+                      </div>
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
@@ -835,187 +782,158 @@ export default function ReceptionCreateServiceOrder() {
                       value={selectedRecord.phone}
                       icon={<Phone size={14} className="text-slate-400" />}
                     />
-                    <div>
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                        Trạng thái tiếp nhận xe ban đầu
-                      </label>
-                      <textarea
-                        value={initialCondition}
-                        onChange={(e) => setInitialCondition(e.target.value)}
-                        placeholder="Ghi chú về tình trạng xe khi tiếp nhận (ví dụ: xước xát thân vỏ, móp méo...)"
-                        rows={3}
-                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all resize-none"
-                      />
-                    </div>
                   </div>
                 </div>
 
-                {/* VEHICLE INFO: READONLY OR EDITABLE */}
-                {selectedRecord.type === 'appointment' ? (
-                  <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
-                    <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
-                      <Car size={16} className="text-[#00285E]" />
-                      Thông tin Xe
-                    </h2>
-                    <div className="space-y-3">
-                      <FormReadonly label="Biển số" value={selectedRecord.plate} highlight />
-                      <FormReadonly label="Loại xe" value={selectedRecord.model} />
-                      <FormReadonly label="Màu xe" value={selectedRecord.color || '—'} />
-                      <FormReadonly label="Năm SX" value={selectedRecord.year?.toString() || '—'} />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
-                    <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
-                      <Car size={16} className="text-[#00285E]" />
-                      Thông tin Xe tiếp nhận
-                    </h2>
+                {/* VEHICLE INFO: EXISTING OR NEW */}
+                <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
+                  <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
+                    <Car size={16} className="text-[#00285E]" />
+                    Thông tin Xe đặt lịch
+                  </h2>
 
-                    <div className="flex gap-6 mb-2">
-                      {selectedRecord.vehicles && selectedRecord.vehicles.length > 0 && (
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            checked={vehicleInputMode === 'EXISTING'}
-                            onChange={() => {
-                              setVehicleInputMode('EXISTING');
-                              if (!selectedCustomerVehicleId) setSelectedCustomerVehicleId(String(selectedRecord.vehicles[0].id));
-                            }}
-                            className="accent-[#00285E]"
-                          />
-                          <span className="text-sm font-bold text-slate-700">Chọn xe đã có</span>
-                        </label>
-                      )}
+                  <div className="flex gap-6 mb-2">
+                    {selectedRecord.vehicles && selectedRecord.vehicles.length > 0 && (
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="radio"
-                          checked={vehicleInputMode === 'NEW'}
-                          onChange={() => setVehicleInputMode('NEW')}
+                          checked={vehicleInputMode === 'EXISTING'}
+                          onChange={() => {
+                            setVehicleInputMode('EXISTING');
+                            if (!selectedCustomerVehicleId) setSelectedCustomerVehicleId(String(selectedRecord.vehicles[0].id));
+                          }}
                           className="accent-[#00285E]"
                         />
-                        <span className="text-sm font-bold text-slate-700">Thêm xe mới</span>
+                        <span className="text-sm font-bold text-slate-700">Chọn xe đã có</span>
                       </label>
-                    </div>
-
-                    {vehicleInputMode === 'EXISTING' ? (
-                      <div className="space-y-4">
-                        <div className="mb-4">
-                          <select
-                            value={selectedCustomerVehicleId}
-                            onChange={(e) => setSelectedCustomerVehicleId(e.target.value)}
-                            className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm font-semibold text-slate-700 outline-none transition-all focus:border-[#00285E]"
-                          >
-                            {selectedRecord.vehicles?.map((v: any) => (
-                              <option key={v.id} value={v.id} disabled={v.isInGarage}>
-                                {v.license_plate} - {v.brand} {v.model} {v.isInGarage ? '(Đang trong xưởng)' : ''}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        {/* Form Readonly For Selected Vehicle */}
-                        {(() => {
-                          const v = selectedRecord.vehicles?.find((x: any) => String(x.id) === selectedCustomerVehicleId);
-                          if (!v) return null;
-                          return (
-                            <div className="space-y-3 pt-3 border-t border-slate-100">
-                              <FormReadonly label="Biển số" value={v.license_plate} highlight />
-                              <FormReadonly label="Loại xe" value={`${v.brand} ${v.model}`.trim()} />
-                              <FormReadonly label="Màu xe" value={v.color || '—'} />
-                              <FormReadonly label="Năm SX" value={v.year?.toString() || '—'} />
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 gap-4 pt-3 border-t border-slate-100">
-                        <FormInput
-                          label="Biển số xe *"
-                          value={manualVehiclePlate}
-                          onChange={setManualVehiclePlate}
-                          placeholder="VD: 51A-123.45..."
-                        />
-                        <div className="relative" ref={brandRef}>
-                          <FormInput
-                            label="Hãng xe *"
-                            value={vehicleBrand}
-                            onChange={(val) => {
-                              setVehicleBrand(val);
-                              setShowBrandSuggestions(true);
-                              setSelectedMakeId(null);
-                              setVehicleModel('');
-                            }}
-                            placeholder="VD: Toyota"
-                          />
-                          {showBrandSuggestions && brandSuggestions.length > 0 && (
-                            <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                              {brandSuggestions.map((brand: any) => (
-                                <div
-                                  key={brand.id}
-                                  className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm font-semibold text-slate-700"
-                                  onClick={() => {
-                                    setVehicleBrand(brand.make_name);
-                                    setSelectedMakeId(brand.id);
-                                    setShowBrandSuggestions(false);
-                                    setVehicleModel('');
-                                  }}
-                                >
-                                  {brand.make_name}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div className="relative" ref={modelRef}>
-                          <FormInput
-                            label="Dòng xe *"
-                            value={vehicleModel}
-                            onChange={(val) => {
-                              setVehicleModel(val);
-                              setShowModelSuggestions(true);
-                            }}
-                            placeholder="VD: Camry"
-                          />
-                          {showModelSuggestions && modelSuggestions.length > 0 && (
-                            <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                              {modelSuggestions.map((model: any) => (
-                                <div
-                                  key={model.id}
-                                  className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm font-semibold text-slate-700"
-                                  onClick={() => {
-                                    setVehicleModel(model.model_name);
-                                    setVehicleBrand(model.make?.make_name || vehicleBrand);
-                                    if (model.make_id) setSelectedMakeId(model.make_id);
-                                    setShowModelSuggestions(false);
-                                  }}
-                                >
-                                  {model.model_name} <span className="text-xs text-slate-400">({model.make?.make_name})</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <FormInput
-                          label="Màu xe"
-                          value={manualVehicleColor}
-                          onChange={setManualVehicleColor}
-                          placeholder="VD: Đỏ, Đen, Trắng..."
-                        />
-                        <FormInput
-                          label="Năm sản xuất"
-                          value={manualVehicleYear}
-                          onChange={setManualVehicleYear}
-                          placeholder="VD: 2022..."
-                          type="number"
-                        />
-                      </div>
                     )}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={vehicleInputMode === 'NEW'}
+                        onChange={() => setVehicleInputMode('NEW')}
+                        className="accent-[#00285E]"
+                      />
+                      <span className="text-sm font-bold text-slate-700">Thêm xe mới</span>
+                    </label>
                   </div>
-                )}
+
+                  {vehicleInputMode === 'EXISTING' ? (
+                    <div className="space-y-4">
+                      <div className="mb-4">
+                        <select
+                          value={selectedCustomerVehicleId}
+                          onChange={(e) => setSelectedCustomerVehicleId(e.target.value)}
+                          className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm font-semibold text-slate-700 outline-none transition-all focus:border-[#00285E]"
+                        >
+                          {selectedRecord.vehicles?.map((v: any) => (
+                            <option key={v.id} value={v.id}>
+                              {v.license_plate} - {v.brand} {v.model}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {(() => {
+                        const v = selectedRecord.vehicles?.find((x: any) => String(x.id) === selectedCustomerVehicleId);
+                        if (!v) return null;
+                        return (
+                          <div className="space-y-3 pt-3 border-t border-slate-100">
+                            <FormReadonly label="Biển số" value={v.license_plate} highlight />
+                            <FormReadonly label="Loại xe" value={`${v.brand} ${v.model}`.trim()} />
+                            <FormReadonly label="Năm SX" value={v.year?.toString() || '—'} />
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4 pt-3 border-t border-slate-100">
+                      <FormInput
+                        label="Biển số xe *"
+                        value={manualVehiclePlate}
+                        onChange={setManualVehiclePlate}
+                        placeholder="VD: 51A-123.45..."
+                      />
+                      <div className="relative" ref={brandRef}>
+                        <FormInput
+                          label="Hãng xe *"
+                          value={vehicleBrand}
+                          onChange={(val) => {
+                            setVehicleBrand(val);
+                            setShowBrandSuggestions(true);
+                            setSelectedMakeId(null);
+                            setVehicleModel('');
+                          }}
+                          placeholder="VD: Toyota"
+                        />
+                        {showBrandSuggestions && brandSuggestions.length > 0 && (
+                          <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                            {brandSuggestions.map((brand: any) => (
+                              <div
+                                key={brand.id}
+                                className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm font-semibold text-slate-700"
+                                onClick={() => {
+                                  setVehicleBrand(brand.make_name);
+                                  setSelectedMakeId(brand.id);
+                                  setShowBrandSuggestions(false);
+                                  setVehicleModel('');
+                                }}
+                              >
+                                {brand.make_name}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="relative" ref={modelRef}>
+                        <FormInput
+                          label="Dòng xe *"
+                          value={vehicleModel}
+                          onChange={(val) => {
+                            setVehicleModel(val);
+                            setShowModelSuggestions(true);
+                          }}
+                          placeholder="VD: Camry"
+                        />
+                        {showModelSuggestions && modelSuggestions.length > 0 && (
+                          <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                            {modelSuggestions.map((model: any) => (
+                              <div
+                                key={model.id}
+                                className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm font-semibold text-slate-700"
+                                onClick={() => {
+                                  setVehicleModel(model.model_name);
+                                  setVehicleBrand(model.make?.make_name || vehicleBrand);
+                                  if (model.make_id) setSelectedMakeId(model.make_id);
+                                  setShowModelSuggestions(false);
+                                }}
+                              >
+                                {model.model_name} <span className="text-xs text-slate-400">({model.make?.make_name})</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <FormInput
+                        label="Màu xe"
+                        value={manualVehicleColor}
+                        onChange={setManualVehicleColor}
+                        placeholder="VD: Đỏ, Đen, Trắng..."
+                      />
+                      <FormInput
+                        label="Năm sản xuất"
+                        value={manualVehicleYear}
+                        onChange={setManualVehicleYear}
+                        placeholder="VD: 2022..."
+                        type="number"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             ) : null}
           </motion.div>
         ) : (
-          /* SECTION 2: FOR FIRST-TIME WALK-IN CUSTOMERS WITH EDITABLE FIELDS */
+          /* SECTION 2: FIRST-TIME CUSTOMER WITH EDITABLE FIELDS */
           <motion.div
             key="first-time"
             initial={{ opacity: 0, y: 10 }}
@@ -1058,7 +976,7 @@ export default function ReceptionCreateServiceOrder() {
             <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
               <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
                 <Car size={16} className="text-[#00285E]" />
-                Thông tin Xe tiếp nhận
+                Thông tin Xe đặt lịch
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
@@ -1151,6 +1069,53 @@ export default function ReceptionCreateServiceOrder() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* SCHEDULED TIME */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
+        <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
+          <Calendar size={16} className="text-[#00285E]" />
+          Thời gian hẹn <span className="text-rose-500">*</span>
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+              <Calendar size={14} className="text-slate-400" />
+              Ngày hẹn
+            </label>
+            <input
+              type="date"
+              value={bookingDate}
+              min={minDateStr}
+              onChange={(e) => setBookingDate(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-700"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+              <Clock size={14} className="text-slate-400" />
+              Giờ hẹn
+            </label>
+            <select
+              value={bookingTime}
+              onChange={(e) => setBookingTime(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-700"
+            >
+              <option value="">-- Chọn giờ hẹn --</option>
+              {timeSlots.map((slot) => (
+                <option key={slot.time} value={slot.time} disabled={slot.isFull}>
+                  {slot.time} ({slot.label}){slot.isFull ? ' - Kín lịch' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {timeSlots.length === 0 && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
+            <AlertCircle size={14} />
+            Không có khung giờ khả dụng cho ngày đã chọn.
+          </div>
+        )}
+      </div>
 
       {/* SERVICE OR REPAIR SELECTION */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-6">
@@ -1290,10 +1255,27 @@ export default function ReceptionCreateServiceOrder() {
         )}
       </div>
 
+      {/* NOTES (khi mode SERVICE, ghi chú thêm không bắt buộc) */}
+      {receptionServiceMode === 'SERVICE' && (
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
+          <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 uppercase tracking-widest">
+            <StickyNote size={16} className="text-[#00285E]" />
+            Ghi chú
+          </h2>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Ghi chú thêm cho lịch hẹn (nếu có)..."
+            rows={3}
+            className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all resize-none"
+          />
+        </div>
+      )}
+
       {/* ACTION BUTTONS */}
       <div className="flex items-center justify-end gap-3 pt-2">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/reception/appointments')}
           className="px-6 py-3 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
         >
           Hủy
@@ -1302,8 +1284,8 @@ export default function ReceptionCreateServiceOrder() {
           onClick={handleSubmit}
           className="flex items-center gap-2 px-6 py-3 bg-[#00285E] hover:bg-[#001a3f] text-white rounded-xl text-sm font-bold shadow-md shadow-[#00285E]/15 transition-all transform hover:translate-y-[-1px]"
         >
-          <ClipboardPlus size={16} />
-          Tạo hóa đơn dịch vụ
+          <CalendarCheck size={16} />
+          Đặt lịch hẹn
         </button>
       </div>
     </div>

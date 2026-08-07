@@ -14,11 +14,84 @@ import {
   AlertTriangle,
   Briefcase,
   Search,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+import 'react-phone-input-2/lib/style.css';
+import * as PhoneInputLib from 'react-phone-input-2';
 
 const PAGE_SIZE = 6;
 import { useOutletContext } from "react-router-dom";
 import type { Role, StaffManagement } from "../../../model/dto/staffManagement.dto";
+
+// ── resolve PhoneInput default export ─────────────────────────
+type Mod = { default?: unknown };
+function resolveDefault<T>(mod: unknown): T {
+    const m = mod as Mod;
+    if (m && typeof m === 'object' && 'default' in m) {
+        const d = m.default as unknown;
+        if (d && typeof d === 'object' && 'default' in (d as Mod)) return (d as Mod).default as T;
+        return d as T;
+    }
+    return mod as T;
+}
+type PhoneInputProps = {
+    country?: string;
+    value?: string;
+    onChange?: (value: string) => void;
+    onBlur?: () => void;
+    enableSearch?: boolean;
+    searchPlaceholder?: string;
+    inputProps?: { name?: string };
+    countryCodeEditable?: boolean;
+    disabled?: boolean;
+};
+const PhoneInput = resolveDefault<React.ComponentType<PhoneInputProps>>(PhoneInputLib);
+
+const phoneStyles = `
+    .login-phone .react-tel-input .form-control {
+        width: 100% !important;
+        height: 38px !important;
+        background: #F8FAFC !important;
+        border: 1px solid #E2E8F0 !important;
+        border-radius: 0.375rem !important;
+        padding: 0 20px 0 48px !important;
+        font-size: 14px !important;
+        color: #0F172A !important;
+        letter-spacing: 0.3px !important;
+        outline: none !important;
+        transition: all 0.2s !important;
+    }
+    .login-phone .react-tel-input .form-control:focus {
+        border-color: #00285E !important;
+        box-shadow: 0 0 0 3px rgba(0, 40, 94, 0.15) !important;
+    }
+    .login-phone .react-tel-input .flag-dropdown {
+        background: #F8FAFC !important;
+        border: 1px solid #E2E8F0 !important;
+        border-right: none !important;
+        border-radius: 0.375rem 0 0 0.375rem !important;
+    }
+    .login-phone .react-tel-input .flag-dropdown:hover,
+    .login-phone .react-tel-input .flag-dropdown.open {
+        background: #F1F5F9 !important;
+        border-color: #CBD5E1 !important;
+    }
+    .login-phone .react-tel-input .selected-flag {
+        background: transparent !important;
+        padding: 0 8px 0 12px !important;
+        border-radius: 0.375rem 0 0 0.375rem !important;
+    }
+    .login-phone .react-tel-input .country-list {
+        background: white !important;
+        border: 1px solid #E2E8F0 !important;
+        border-radius: 0.5rem !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important;
+        max-height: 220px !important;
+        margin-top: 4px !important;
+        z-index: 1000 !important;
+    }
+`;
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { STAFF_MANAGEMENT_API_ENDPOINTS } from "../../../constants/admin/staffManagementApiEndPoint";
 
@@ -670,6 +743,8 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   const handleGetRole = async () =>{
       try {
@@ -732,6 +807,7 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <style>{phoneStyles}</style>
       <div
         className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
         onClick={onClose}
@@ -801,17 +877,19 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
             </FormField>
 
         <FormField label="Số điện thoại">
-          <input
-             type="text"
-            value={phoneNumber}
-            onChange={(e) => {
-              const onlyNums = e.target.value.replace(/\D/g, ""); // bỏ ký tự không phải số
-              setPhoneNumber(onlyNums);
-            }}
-            inputMode="numeric"
-            placeholder="Vd: 0901234567"
-            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-          />
+          <div className="login-phone">
+            <PhoneInput
+              country="vn"
+              value={phoneNumber}
+              onChange={(val) => {
+                setPhoneNumber(val);
+              }}
+              enableSearch
+              searchPlaceholder="Tìm quốc gia..."
+              inputProps={{ name: 'phone' }}
+              countryCodeEditable={false}
+            />
+          </div>
         </FormField>
             <div className="grid grid-cols-2 gap-4">
              <FormField label="Vai trò">
@@ -849,22 +927,40 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
             {!isEdit && (
               <div className="grid grid-cols-2 gap-4">
                 <FormField label="Mật khẩu (tùy chọn)">
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Tối thiểu 6 ký tự"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Tối thiểu 6 ký tự"
+                      className="w-full pr-10 pl-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </FormField>
                 <FormField label="Xác nhận mật khẩu">
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Nhập lại mật khẩu"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Nhập lại mật khẩu"
+                      className="w-full pr-10 pl-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </FormField>
               </div>
             )}

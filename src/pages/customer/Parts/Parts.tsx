@@ -55,7 +55,7 @@ interface SparePartApiResponse {
 
 const DEFAULT_PRODUCT_IMAGE = '/images/AB6AXuAMNYLW4EURBChXIjVN12Yo-ExH61l1X_m4xOKrWROwoXwCnwHXEvyHAAXZql3XZKD4REmRdhXBrWUIO2KMxleVt9Y_a-ueUU9I2iw-vfm26ahZgq37lugBwaeIGkGRS-nYSB18TjDdt2fIoYCRhGf2-hyenpCjYHfaX6H_cqrZI2wu99sulXhGYZcMLj-wVJrWH8LJ6ia323w5qs.png';
 
-const formatVnd = (value: number) => `${new Intl.NumberFormat('vi-VN').format(Math.round(value))}đ`;
+const formatVnd = (value: number) => `${new Intl.NumberFormat('vi-VN').format(Math.round(value))} VNĐ`;
 
 const mapPartToProduct = (part: SparePartApiItem): ProductItem => {
     const numericPrice = Number(part.retail_price || 0);
@@ -282,8 +282,8 @@ export default function Parts() {
                                         className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0A2357]"
                                     />
                                     <div className="flex justify-between mt-3 text-[10px] md:text-xs font-mono text-gray-400">
-                                        <span>200.000đ</span>
-                                        <span className="font-bold text-brand-blue">{new Intl.NumberFormat('vi-VN').format(priceRange)}đ</span>
+                                        <span>200.000 VNĐ</span>
+                                        <span className="font-bold text-brand-blue">{new Intl.NumberFormat('vi-VN').format(priceRange)} VNĐ</span>
                                     </div>
                                 </div>
 

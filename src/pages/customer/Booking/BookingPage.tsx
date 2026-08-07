@@ -14,10 +14,11 @@ import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/customer/appointme
 import { GARAGE_CONFIG_API_ENDPOINTS } from '../../../constants/customer/garage_configurationsEndpoints';
 import { PROFILE_API_ENDPOINTS } from '../../../constants/customer/profileApiEndpoint';
 import { VEHICLE_MAKE_MODEL_API_ENDPOINTS } from '../../../constants/customer/vehicelMakeModelEndpoint';
+
+import type { ServiceCombo, ServiceItem } from '../../../model/Service';
 import SingleServicesSelector from './SingleServicesSelector';
 import ComboServicesSelector from './ComboServicesSelector';
 import InlineCalendar from './InlineCalendar';
-import type { ServiceCombo, ServiceItem } from '../../../model/Service';
 
 const DEFAULT_SHIFTS = [
     { start_time: '08:00', end_time: '12:00' },
@@ -572,7 +573,7 @@ export default function BookingPage() {
             const priceValue = s.total_price || s.labor_price || s.price || s.base_price || 0;
             const discountPercent = s.discount_percentage || 0;
             const originalPriceValue = discountPercent > 0 && priceValue > 0 ? Math.round(priceValue / (1 - discountPercent / 100)) : 0;
-            const originalPriceStr = originalPriceValue > 0 ? `Từ ${originalPriceValue.toLocaleString("vi-VN")}đ` : "";
+            const originalPriceStr = originalPriceValue > 0 ? `Từ ${originalPriceValue.toLocaleString("vi-VN")} VNĐ` : "";
 
             const ratingVal = s.rating || 5.0;
             const reviewVal = s.review_count || 0;
@@ -589,7 +590,7 @@ export default function BookingPage() {
                 id: s.id,
                 title: s.service_name,
                 desc: s.description || "",
-                price: priceValue > 0 ? `Từ ${priceValue.toLocaleString("vi-VN")}đ` : "Miễn phí",
+                price: priceValue > 0 ? `Từ ${priceValue.toLocaleString("vi-VN")} VNĐ` : "Miễn phí",
                 numericPrice: priceValue,
                 originalPrice: originalPriceStr || undefined,
                 discountPercentage: discountPercent > 0 ? discountPercent : undefined,
@@ -610,7 +611,7 @@ export default function BookingPage() {
             const priceValue = s.total_price || s.labor_price || s.price || s.base_price || 0;
             const discountPercent = s.discount_percentage || 0;
             const originalPriceValue = discountPercent > 0 && priceValue > 0 ? Math.round(priceValue / (1 - discountPercent / 100)) : 0;
-            const originalPriceStr = originalPriceValue > 0 ? `Từ ${originalPriceValue.toLocaleString("vi-VN")}đ` : "";
+            const originalPriceStr = originalPriceValue > 0 ? `Từ ${originalPriceValue.toLocaleString("vi-VN")} VNĐ` : "";
 
             const ratingVal = s.rating || 5.0;
             const reviewVal = s.review_count || 0;
@@ -627,7 +628,7 @@ export default function BookingPage() {
                 id: s.id,
                 title: s.service_name,
                 desc: s.description || "",
-                price: priceValue > 0 ? `Từ ${priceValue.toLocaleString("vi-VN")}đ` : "Miễn phí",
+                price: priceValue > 0 ? `Từ ${priceValue.toLocaleString("vi-VN")} VNĐ` : "Miễn phí",
                 numericPrice: priceValue,
                 originalPrice: originalPriceStr || undefined,
                 discountPercentage: discountPercent > 0 ? discountPercent : undefined,
@@ -709,7 +710,7 @@ export default function BookingPage() {
                 : t('booking.selection.multipleServicesTitle', '{{count}} dịch vụ đã chọn', { count: selected.length });
             return {
                 title,
-                price: totalPrice > 0 ? t('booking.fromPrice', 'Từ {{price}}đ', { price: totalPrice.toLocaleString('vi-VN') }) : t('booking.selection.contactPrice', 'Liên hệ'),
+                price: totalPrice > 0 ? t('booking.fromPrice', 'Từ {{price}} VNĐ', { price: totalPrice.toLocaleString('vi-VN') }) : t('booking.selection.contactPrice', 'Liên hệ'),
                 numericPrice: totalPrice,
                 originalPrice: undefined,
                 discountPercentage: undefined,
@@ -729,9 +730,9 @@ export default function BookingPage() {
             });
             return {
                 title: c.combo_name,
-                price: discountedPrice > 0 ? `Từ ${discountedPrice.toLocaleString("vi-VN")}đ` : `Miễn phí`,
+                price: discountedPrice > 0 ? `Từ ${discountedPrice.toLocaleString("vi-VN")} VNĐ` : `Miễn phí`,
                 numericPrice: discountedPrice,
-                originalPrice: original > 0 ? `${original.toLocaleString("vi-VN")}đ` : undefined,
+                originalPrice: original > 0 ? `${original.toLocaleString("vi-VN")} VNĐ` : undefined,
                 discountPercentage: discount > 0 ? discount : undefined,
                 promoText: undefined,
                 subItems: subNames,
@@ -964,29 +965,12 @@ export default function BookingPage() {
                 vehicle_plate: bookingFlow === 'SPECIFIC' && vehicleInputMode === 'NEW' ? vehiclePlate : null,
                 vehicle_year: bookingFlow === 'SPECIFIC' && vehicleInputMode === 'NEW' ? parseInt(vehicleYear, 10) : null,
                 vehicle_color: bookingFlow === 'SPECIFIC' && vehicleInputMode === 'NEW' ? (vehicleColor.trim() || null) : null,
-                payment_amount: activeSelection?.numericPrice || 0,
             };
 
             const response = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.CREATE_APPOINTMENT, 'POST', payload);
             if (response && response.success) {
-                const amount = activeSelection?.numericPrice || 0;
-                const finalAmount = Math.max(0, amount - (appliedPoints * 1000));
-
-                if (finalAmount > 0 && response.data?.serviceOrder?.id) {
-                    const orderId = response.data.serviceOrder.id;
-
-                    // Call initPayment so fallback can find it if Bank drops transfer content
-                    await fetchPrivate(`${API_BASE_URL}/api/payment/init-payment`, 'POST', {
-                        orderId: orderId,
-                        amount: finalAmount
-                    });
-
-                    setBookingCode(orderId.toString());
-                    setIsPendingPayment(true);
-                } else {
-                    setIsPendingPayment(false);
-                    setIsSuccess(true);
-                }
+                setIsPendingPayment(false);
+                setIsSuccess(true);
             } else {
                 alert(response.message || t('booking.alerts.submitFailed', 'Đặt lịch thất bại. Vui lòng thử lại.'));
             }
@@ -1162,9 +1146,15 @@ export default function BookingPage() {
                                         type="number"
                                         min="0"
                                         max={maxRedeemablePoints}
-                                        value={pointsToRedeem}
+                                        value={pointsToRedeem === 0 ? '' : pointsToRedeem}
                                         onChange={(e) => {
-                                            const val = parseInt(e.target.value) || 0;
+                                            const raw = e.target.value;
+                                            if (raw === '') {
+                                                setPointsToRedeem(0);
+                                                return;
+                                            }
+                                            const val = parseInt(raw, 10);
+                                            if (isNaN(val)) return;
                                             setPointsToRedeem(Math.min(val, maxRedeemablePoints));
                                         }}
                                         className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm font-semibold text-slate-700 outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 transition-all disabled:bg-slate-100 disabled:text-slate-400"
@@ -2409,7 +2399,7 @@ export default function BookingPage() {
                                 )}
                                 <div className="flex justify-between text-xs text-white/60">
                                     <span>{t('booking.sidebar.servicePrice', 'Giá dịch vụ')}</span>
-                                    <span className="font-mono text-white">{activeSelection ? activeSelection.price : '0đ'}</span>
+                                    <span className="font-mono text-white">{activeSelection ? activeSelection.price : '0 VNĐ'}</span>
                                 </div>
                                 {serviceCategoryMode === 'REPAIR' && (
                                     <div className="flex justify-between text-xs text-white/60 mt-1">
@@ -2429,7 +2419,7 @@ export default function BookingPage() {
                                     <div>
                                         <div className="text-[9px] text-white/40 font-bold uppercase tracking-widest">{t('booking.sidebar.total', 'Tổng cộng')}</div>
                                         <div className="text-2xl md:text-3xl font-bold font-display" style={{ color: COLORS.orange }}>
-                                            {activeSelection ? activeSelection.price : '0đ'}
+                                            {activeSelection ? activeSelection.price : '0 VNĐ'}
                                         </div>
                                     </div>
                                     <div className="text-[9px] text-white/20 italic mb-1">{t('booking.sidebar.estimatedNote', '* Giá tạm tính')}</div>

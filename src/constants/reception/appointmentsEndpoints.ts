@@ -2,6 +2,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localho
 
 export const APPOINTMENT_API_ENDPOINTS = {
     GET_APPOINTMENTS: `${API_BASE_URL}/api/receptionist/appointments`,
+    CREATE_APPOINTMENT: `${API_BASE_URL}/api/receptionist/appointment`,
     GET_APPOINTMENT_DETAIL: (key: string) => `${API_BASE_URL}/api/receptionist/appointment/${key}`,
     RECEIVE_APPOINTMENT: (key: string) => `${API_BASE_URL}/api/receptionist/appointment/${key}/receive`,
     UPDATE_VIN: (key: string) => `${API_BASE_URL}/api/receptionist/appointment/${key}/vin`,

@@ -545,7 +545,7 @@ export default function AppointmentsTab() {
                         {appt.booking_type === 'CONSULTATION'
                           ? 'Miễn phí'
                           : appt.price > 0
-                            ? `${appt.price.toLocaleString()}đ`
+                            ? `${appt.price.toLocaleString()} VNĐ`
                             : 'Chờ kiểm tra & báo giá'}
                       </td>
                       <td className="p-4">
@@ -703,7 +703,7 @@ export default function AppointmentsTab() {
                                   <span className="font-bold text-slate-800 text-xs">{item.name}</span>
                                 </div>
                                 <span className="font-mono font-bold text-slate-900 text-xs">
-                                  {item.price.toLocaleString()}đ
+                                  {item.price.toLocaleString()} VNĐ
                                 </span>
                               </div>
                               {item.services && item.services.length > 0 && (
@@ -713,12 +713,12 @@ export default function AppointmentsTab() {
                                       <div className="flex justify-between items-center w-full gap-4">
                                         <span className="text-slate-600 truncate">{srv.name}</span>
                                         <span className="font-mono font-bold text-slate-700 shrink-0">
-                                          {srv.price.toLocaleString()}đ
+                                          {srv.price.toLocaleString()} VNĐ
                                         </span>
                                       </div>
                                       {srv.partPrice > 0 && (
                                         <div className="text-[8px] text-slate-400 font-medium mt-0.5">
-                                          (Công: {srv.laborPrice.toLocaleString()}đ + Phụ tùng: {srv.partPrice.toLocaleString()}đ)
+                                          (Công: {srv.laborPrice.toLocaleString()} VNĐ + Phụ tùng: {srv.partPrice.toLocaleString()} VNĐ)
                                         </div>
                                       )}
                                     </li>
@@ -735,12 +735,12 @@ export default function AppointmentsTab() {
                                   <span className="font-bold text-slate-800 text-xs">{item.name}</span>
                                 </div>
                                 <span className="font-mono font-bold text-slate-900 text-xs">
-                                  {item.price.toLocaleString()}đ
+                                  {item.price.toLocaleString()} VNĐ
                                 </span>
                               </div>
                               {item.partPrice > 0 && (
                                 <div className="text-[9px] text-slate-400 font-semibold pl-4">
-                                  Công: {item.laborPrice.toLocaleString()}đ + Phụ tùng: {item.partPrice.toLocaleString()}đ
+                                  Công: {item.laborPrice.toLocaleString()} VNĐ + Phụ tùng: {item.partPrice.toLocaleString()} VNĐ
                                 </div>
                               )}
                             </div>
@@ -765,7 +765,7 @@ export default function AppointmentsTab() {
                           {selectedAppt.booking_type === 'CONSULTATION'
                             ? 'Miễn phí'
                             : selectedAppt.price > 0
-                              ? `${selectedAppt.price.toLocaleString()}đ`
+                              ? `${selectedAppt.price.toLocaleString()} VNĐ`
                               : 'Chờ kiểm tra & báo giá'}
                         </span>
                       </div>
