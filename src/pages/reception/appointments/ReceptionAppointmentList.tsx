@@ -14,8 +14,7 @@ import {
   XCircle,
   AlertCircle,
   Loader2,
-  User,
-  Phone,
+  X,
 } from 'lucide-react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import type { AppointmentModel } from '../../../model/Appointment';
@@ -26,10 +25,22 @@ import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/reception/appointm
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   pending: { label: 'Chờ xác nhận', color: '#D97706', bg: '#FEF3C7', icon: Clock },
   confirmed: { label: 'Chờ tiếp nhận', color: '#2563EB', bg: '#DBEAFE', icon: Clock },
+  technicaian_recieved: { label: 'Đã tiếp nhận', color: '#EA580C', bg: '#FED7AA', icon: CheckCircle2 },
+  technician_received: { label: 'Đã tiếp nhận', color: '#EA580C', bg: '#FED7AA', icon: CheckCircle2 },
+  information_recieved: { label: 'Đã tiếp nhận', color: '#EA580C', bg: '#FED7AA', icon: CheckCircle2 },
+  information_received: { label: 'Đã tiếp nhận', color: '#EA580C', bg: '#FED7AA', icon: CheckCircle2 },
   in_progress: { label: 'Đã tiếp nhận ', color: '#EA580C', bg: '#FED7AA', icon: Loader2 },
   completed: { label: 'Đã tiếp nhận', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
   cancelled: { label: 'Đã hủy', color: '#DC2626', bg: '#FEE2E2', icon: XCircle },
   no_show: { label: 'Khách không đến (No Show)', color: '#6B7280', bg: '#F3F4F6', icon: XCircle },
+  expired: { label: 'Đã quá hạn (Hủy)', color: '#94A3B8', bg: '#F1F5F9', icon: XCircle },
+};
+
+const DEFAULT_STATUS_CONFIG = {
+  label: 'Chưa xác định',
+  color: '#64748B',
+  bg: '#F1F5F9',
+  icon: AlertCircle,
 };
 
 const ITEMS_PER_PAGE = 6;
@@ -50,6 +61,7 @@ export default function AppointmentList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('unreceived');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedApptForReceive, setSelectedApptForReceive] = useState<AppointmentModel | null>(null);
 
   const loadAppointments = async () => {
     try {
@@ -76,13 +88,34 @@ export default function AppointmentList() {
 
           let appointmentDate = '';
           let appointmentTime = '';
-          if (appt.scheduled_time) {
-            const dateObj = new Date(appt.scheduled_time);
+          const targetTime = appt.scheduled_time || appt.createdAt || appt.created_at;
+          if (targetTime) {
+            const dateObj = new Date(targetTime);
             appointmentDate = dateObj.getFullYear() + '-' + String(dateObj.getMonth() + 1).padStart(2, '0') + '-' + String(dateObj.getDate()).padStart(2, '0');
             appointmentTime = String(dateObj.getHours()).padStart(2, '0') + ':' + String(dateObj.getMinutes()).padStart(2, '0');
           }
 
-          const status = (appt.status || 'pending').toLowerCase() as any;
+          let status = (appt.status || 'pending').toLowerCase() as any;
+
+          // Check if appointment is expired (should be treated as expired/cancelled)
+          if ((status === 'pending' || status === 'confirmed') && appt.scheduled_time) {
+            const scheduledDate = new Date(appt.scheduled_time);
+            const now = new Date();
+
+            const scheduledDateOnly = new Date(scheduledDate.getFullYear(), scheduledDate.getMonth(), scheduledDate.getDate());
+            const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+            if (scheduledDateOnly < nowDateOnly) {
+              // Past day
+              status = 'expired';
+            } else if (scheduledDateOnly.getTime() === nowDateOnly.getTime()) {
+              // Today: check if scheduled time is more than 1 hour ago
+              const oneHourLater = new Date(scheduledDate.getTime() + 60 * 20 * 1000);
+              if (oneHourLater < now) {
+                status = 'expired';
+              }
+            }
+          }
 
           return {
             id: String(appt.id),
@@ -110,7 +143,15 @@ export default function AppointmentList() {
             createdAt: appt.createdAt || appt.created_at || '',
           } as any;
         });
-        setAppointments(mapped);
+
+        // Sort appointments: chronological ascending (Earliest first)
+        const sorted = mapped.sort((a: any, b: any) => {
+          const timeA = a.appointmentDate && a.appointmentTime ? `${a.appointmentDate}T${a.appointmentTime}` : a.createdAt;
+          const timeB = b.appointmentDate && b.appointmentTime ? `${b.appointmentDate}T${b.appointmentTime}` : b.createdAt;
+          return new Date(timeA).getTime() - new Date(timeB).getTime();
+        });
+
+        setAppointments(sorted);
       } else {
         throw new Error(response.message || 'Lỗi tải danh sách lịch hẹn');
       }
@@ -122,52 +163,27 @@ export default function AppointmentList() {
     }
   };
 
-  const [isVinModalOpen, setIsVinModalOpen] = useState(false);
-  const [selectedApptId, setSelectedApptId] = useState<string | null>(null);
-  const [selectedServiceOrderId, setSelectedServiceOrderId] = useState<string | null>(null);
-  const [vehicleCondition, setVehicleCondition] = useState('');
   const [isSubmittingVin, setIsSubmittingVin] = useState(false);
 
-  const handleReceiveClick = (apptId: string, currentStatus: string, serviceOrderId?: string) => {
-    setSelectedApptId(apptId);
-    setSelectedServiceOrderId(serviceOrderId || null);
-    setVehicleCondition('');
-    setIsVinModalOpen(true);
+  const handleReceiveClick = (appt: AppointmentModel) => {
+    setSelectedApptForReceive(appt);
   };
 
   const handleConfirmReceive = async () => {
-    if (!selectedApptId) return;
-
-    if (!vehicleCondition.trim()) {
-      showToast('Vui lòng nhập tình trạng xe lúc tiếp nhận!', 'warning');
-      return;
-    }
-
+    if (!selectedApptForReceive) return;
+    const apptId = selectedApptForReceive.id;
     try {
       setIsSubmittingVin(true);
-
-      // Receive appointment if not already received
-      const appt = appointments.find(a => a.id === selectedApptId);
-      const isAlreadyReceived = appt?.status === 'in_progress';
-
-      if (!isAlreadyReceived) {
-        const receiveResponse = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.RECEIVE_APPOINTMENT(selectedApptId), 'PUT', {
-          vehicleCondition: vehicleCondition.trim(),
-        });
-        if (!receiveResponse.success) {
-          throw new Error(receiveResponse.message || 'Lỗi tiếp nhận lịch hẹn');
-        }
+      const receiveResponse = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.RECEIVE_APPOINTMENT(apptId), 'PUT', {
+        status: 'Technicaian_recieved',
+      });
+      if (!receiveResponse.success) {
+        throw new Error(receiveResponse.message || 'Lỗi tiếp nhận lịch hẹn');
       }
 
-      showToast(`Tiếp nhận lịch hẹn APT-${selectedApptId.padStart(3, '0')} thành công!`, 'success');
-      setIsVinModalOpen(false);
+      showToast(`Tiếp nhận lịch hẹn APT-${apptId.padStart(3, '0')} thành công!`, 'success');
+      setSelectedApptForReceive(null);
       loadAppointments();
-
-      if (selectedServiceOrderId) {
-        navigate(`/reception/service-orders/${selectedServiceOrderId}`);
-      } else {
-        navigate(`/reception/service-orders/create?appointmentId=${selectedApptId}`);
-      }
     } catch (err: any) {
       console.error(err);
       showToast(err.message || 'Đã xảy ra lỗi', 'warning');
@@ -194,7 +210,7 @@ export default function AppointmentList() {
 
   // Filtered data
   const filteredAppointments = useMemo(() => {
-    return appointments.filter((apt) => {
+    const filtered = appointments.filter((apt) => {
       const formattedId = `APT-${apt.id.padStart(3, '0')}`;
       const matchSearch =
         searchTerm === '' ||
@@ -210,14 +226,21 @@ export default function AppointmentList() {
       } else if (statusFilter === 'unreceived') {
         matchStatus = apt.status === 'pending' || apt.status === 'confirmed';
       } else if (statusFilter === 'received') {
-        matchStatus = apt.status === 'in_progress' || apt.status === 'completed';
+        matchStatus = apt.status === 'technicaian_recieved' || apt.status === 'in_progress' || apt.status === 'completed';
       } else if (statusFilter === 'cancelled') {
-        matchStatus = apt.status === 'cancelled' || apt.status === 'no_show';
+        matchStatus = apt.status === 'cancelled' || apt.status === 'no_show' || apt.status === 'expired';
       } else {
         matchStatus = apt.status === statusFilter;
       }
 
       return matchSearch && matchStatus;
+    });
+
+    // Sort chronological ascending (Earliest first)
+    return filtered.sort((a, b) => {
+      const timeA = a.appointmentDate && a.appointmentTime ? `${a.appointmentDate}T${a.appointmentTime}` : a.createdAt;
+      const timeB = b.appointmentDate && b.appointmentTime ? `${b.appointmentDate}T${b.appointmentTime}` : b.createdAt;
+      return new Date(timeA).getTime() - new Date(timeB).getTime();
     });
   }, [appointments, searchTerm, statusFilter]);
 
@@ -239,8 +262,8 @@ export default function AppointmentList() {
   const tabCounts = useMemo(() => {
     return {
       unreceived: appointments.filter((a) => a.status === 'pending' || a.status === 'confirmed').length,
-      received: appointments.filter((a) => a.status === 'in_progress' || a.status === 'completed').length,
-      cancelled: appointments.filter((a) => a.status === 'cancelled' || a.status === 'no_show').length,
+      received: appointments.filter((a) => a.status === 'technicaian_recieved' || a.status === 'in_progress' || a.status === 'completed').length,
+      cancelled: appointments.filter((a) => a.status === 'cancelled' || a.status === 'no_show' || a.status === 'expired').length,
       all: appointments.length,
     };
   }, [appointments]);
@@ -251,9 +274,9 @@ export default function AppointmentList() {
   };
 
   return (
-    <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
+    <div className="mx-auto w-full max-w-7xl flex-1 space-y-4 p-3 sm:p-4 md:space-y-6 md:p-6 xl:p-8">
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
         <div className="flex items-start gap-3">
           <button
             onClick={() => navigate(-1)}
@@ -272,30 +295,39 @@ export default function AppointmentList() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => navigate('/reception/appointments/new')}
-          className="shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#00285E] text-white text-sm font-bold hover:bg-[#00285E]/90 active:scale-[0.98] transition-all shadow-sm"
-        >
-          <CalendarCheck size={18} />
-          Đặt lịch hẹn mới
-        </button>
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:w-auto xl:gap-3">
+          <button
+            onClick={() => navigate('/reception/customers/receive')}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#00285E] bg-white px-5 py-3 text-sm font-bold text-[#00285E] shadow-sm transition-all hover:bg-[#EDF3FF] active:scale-[0.98]"
+          >
+            <CarFront size={18} />
+            Tiếp nhận khách
+          </button>
+          <button
+            onClick={() => navigate('/reception/appointments/new')}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#00285E] px-5 py-3 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#00285E]/90 active:scale-[0.98]"
+          >
+            <CalendarCheck size={18} />
+            Đặt lịch hẹn mới
+          </button>
+        </div>
       </div>
 
       {/* KPI CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:gap-4">
         {[
           { label: 'Tổng lịch hẹn', value: kpiCounts.total, icon: <CalendarCheck size={22} />, color: '#00285E', bg: '#EFF6FF' },
           { label: 'Chờ xác nhận', value: kpiCounts.pending, icon: <Clock size={22} />, color: '#D97706', bg: '#FEF3C7' },
           { label: 'Đã xác nhận', value: kpiCounts.confirmed, icon: <CheckCircle2 size={22} />, color: '#2563EB', bg: '#DBEAFE' },
           { label: 'Hoàn thành', value: kpiCounts.completed, icon: <CheckCircle2 size={22} />, color: '#059669', bg: '#D1FAE5' },
         ].map((card, i) => (
-          <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs">
+          <div key={i} className="rounded-2xl border border-slate-200/60 bg-white p-3 shadow-xs sm:p-4 xl:p-5">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">{card.label}</span>
-                <span className="text-2xl font-bold text-slate-900 tracking-tight block">{card.value}</span>
+                <span className="block text-xl font-bold tracking-tight text-slate-900 xl:text-2xl">{card.value}</span>
               </div>
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: card.bg, color: card.color }}>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl xl:h-10 xl:w-10" style={{ backgroundColor: card.bg, color: card.color }}>
                 {card.icon}
               </div>
             </div>
@@ -378,7 +410,84 @@ export default function AppointmentList() {
             <p className="text-sm">Thử thay đổi từ khóa hoặc bộ lọc trạng thái.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Mobile and tablet cards */}
+          <div className="grid grid-cols-1 gap-3 bg-slate-50/70 p-3 sm:p-4 lg:grid-cols-2 xl:hidden">
+            {paginatedData.map((apt) => {
+              const statusCfg = STATUS_CONFIG[apt.status] ?? {
+                ...DEFAULT_STATUS_CONFIG,
+                label: apt.status ? apt.status.replaceAll('_', ' ') : DEFAULT_STATUS_CONFIG.label,
+              };
+              const StatusIcon = statusCfg.icon;
+              return (
+                <article key={apt.id} className="flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                  <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[#00285E]">APT-{apt.id.padStart(3, '0')}</p>
+                      <p className="mt-1 truncate text-sm font-bold text-slate-800">{apt.customerName}</p>
+                      <p className="text-xs text-slate-400">{apt.customerPhone}</p>
+                    </div>
+                    <span
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold"
+                      style={{ backgroundColor: statusCfg.bg, color: statusCfg.color }}
+                    >
+                      <StatusIcon size={12} />
+                      {statusCfg.label}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 py-4 text-xs">
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Phương tiện</span>
+                      <p className="mt-1 font-bold text-slate-700">{apt.vehiclePlate}</p>
+                      <p className="truncate text-slate-400">{apt.vehicleModel}</p>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Ngày hẹn</span>
+                      <p className="mt-1 font-bold text-slate-700">{formatDate(apt.appointmentDate)}</p>
+                      <p className="text-slate-400">{apt.appointmentTime}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Dịch vụ</span>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {apt.services.length > 0 ? apt.services.slice(0, 3).map((service, index) => (
+                          <span key={index} className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">{service}</span>
+                        )) : <span className="text-slate-400">Chưa có dịch vụ</span>}
+                        {apt.services.length > 3 && <span className="px-1 py-1 text-[10px] font-bold text-slate-400">+{apt.services.length - 3}</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-auto grid grid-cols-1 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-2">
+                    <button
+                      onClick={() => navigate(`/reception/appointments/${apt.id}`)}
+                      className="flex items-center justify-center gap-1.5 rounded-lg bg-[#EDF3FF] px-3 py-2 text-xs font-bold text-[#00285E] transition-colors hover:bg-[#D2E2FF]"
+                    >
+                      <Eye size={14} /> Chi tiết
+                    </button>
+                    {(apt.status === 'confirmed' || apt.status === 'pending' || apt.status === 'in_progress') && (
+                      apt.hasServiceOrder ? (
+                        <button onClick={() => navigate(`/reception/service-orders/${apt.serviceOrderId}`)} className="flex items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-100 px-3 py-2 text-xs font-bold text-[#00285E] hover:bg-emerald-200">
+                          <CarFront size={14} /> Xem Lệnh S/C
+                        </button>
+                      ) : apt.status === 'in_progress' ? (
+                        <button onClick={() => navigate(`/reception/service-orders/create?appointmentId=${apt.id}`)} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#00285E] px-3 py-2 text-xs font-bold text-white hover:bg-[#001a3f]">
+                          <CarFront size={14} /> Tạo hóa đơn
+                        </button>
+                      ) : (
+                        <button onClick={() => handleReceiveClick(apt)} disabled={isSubmittingVin} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#00285E] px-3 py-2 text-xs font-bold text-white hover:bg-[#001a3f] disabled:opacity-50">
+                          <CarFront size={14} /> Tiếp nhận xe
+                        </button>
+                      )
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {/* Full table for wide desktop screens */}
+          <div className="hidden overflow-x-auto xl:block">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
@@ -393,7 +502,10 @@ export default function AppointmentList() {
               </thead>
               <tbody>
                 {paginatedData.map((apt) => {
-                  const statusCfg = STATUS_CONFIG[apt.status];
+                  const statusCfg = STATUS_CONFIG[apt.status] ?? {
+                    ...DEFAULT_STATUS_CONFIG,
+                    label: apt.status ? apt.status.replaceAll('_', ' ') : DEFAULT_STATUS_CONFIG.label,
+                  };
                   const StatusIcon = statusCfg.icon;
                   return (
                     <tr key={apt.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors">
@@ -482,7 +594,8 @@ export default function AppointmentList() {
                                 </button>
                               ) : (
                                 <button
-                                  onClick={() => handleReceiveClick(apt.id, apt.status, apt.serviceOrderId)}
+                                  onClick={() => handleReceiveClick(apt)}
+                                  disabled={isSubmittingVin}
                                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:bg-[#001a3f] transition-colors"
                                 >
                                   <CarFront size={13} />
@@ -499,11 +612,12 @@ export default function AppointmentList() {
               </tbody>
             </table>
           </div>
+          </>
         )}
 
         {/* PAGINATION */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100">
+          <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-100 px-4 py-4 sm:flex-row sm:px-6">
             <span className="text-xs font-semibold text-slate-400">
               Hiển thị {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredAppointments.length)} / {filteredAppointments.length} lịch hẹn
             </span>
@@ -539,91 +653,123 @@ export default function AppointmentList() {
         )}
       </div>
 
-      {/* VIN MODAL */}
-      {isVinModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl border border-slate-200">
-            <h3 className="text-lg font-bold text-[#00285E] mb-2 flex items-center gap-2">
-              <CarFront size={20} className="text-amber-500" />
-              Tiếp nhận xe
-            </h3>
-
-            {/* Display Customer & Vehicle Info Summary */}
-            {(() => {
-              const appt = appointments.find(a => a.id === selectedApptId) as any;
-              if (!appt) return null;
-              return (
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-5 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-slate-700">
-                    <div className="flex items-center gap-2">
-                      <User size={16} className="text-slate-400" />
-                      <span className="font-semibold">{appt.customerName}</span>
-                    </div>
-                    <div className="hidden sm:block text-slate-300">•</div>
-                    <div className="flex items-center gap-2">
-                      <Phone size={16} className="text-slate-400" />
-                      <span>{appt.customerPhone}</span>
-                    </div>
-                  </div>
-
-                  <div className="h-px bg-slate-200/60 w-full" />
-
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 text-sm text-slate-700">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-1 bg-blue-100 text-[#00285E] font-bold rounded-lg border border-blue-200">
-                        {appt.vehiclePlate}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-y-1 gap-x-4">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-slate-500">Loại xe:</span>
-                        <span className="font-semibold">{appt.vehicleModel}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-slate-500">Màu sắc:</span>
-                        <span className="font-semibold">{appt.vehicleColor || 'Chưa cập nhật'}</span>
-                      </div>
-                    </div>
-                  </div>
+      {selectedApptForReceive && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 backdrop-blur-xs sm:p-5 md:p-8">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="receive-vehicle-modal-title"
+            className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/70 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200 sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-3xl md:max-h-[calc(100dvh-4rem)]"
+          >
+            {/* Header */}
+            <div className="relative shrink-0 bg-[#00285E] px-5 py-4 text-white sm:px-7 sm:py-5 md:px-8">
+              <div className="flex items-center gap-3 pr-10">
+                <div className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 sm:flex">
+                  <CarFront size={23} />
                 </div>
-              );
-            })()}
+                <div>
+                  <h3 id="receive-vehicle-modal-title" className="text-lg font-bold sm:text-xl">Xác nhận tiếp nhận xe vào xưởng</h3>
+                  <p className="mt-1 text-xs font-medium leading-relaxed text-slate-200/80 sm:text-sm">Kiểm tra thông tin khách hàng và phương tiện trước khi xác nhận.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="Đóng cửa sổ tiếp nhận xe"
+                onClick={() => setSelectedApptForReceive(null)}
+                className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-xl text-white/80 transition-colors hover:bg-white/10 hover:text-white sm:right-6 sm:top-5"
+              >
+                <X size={20} />
+              </button>
+            </div>
 
-            <p className="text-slate-500 text-sm mb-4">
-              Vui lòng nhập tình trạng xe lúc tiếp nhận.
-            </p>
+            {/* Content */}
+            <div className="min-h-0 flex-1 overflow-y-auto bg-white p-4 sm:p-6 md:p-8">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
+              <div className="grid grid-cols-2 gap-3 md:col-span-2 md:gap-4">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3.5 sm:p-4">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider mb-1">Mã lịch hẹn</span>
+                  <span className="text-sm font-bold text-[#00285E] sm:text-base">APT-{selectedApptForReceive.id.padStart(3, '0')}</span>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3.5 sm:p-4">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider mb-1">Loại đặt lịch</span>
+                  <span className="text-sm font-bold text-slate-700 sm:text-base">
+                    {selectedApptForReceive.bookingType && selectedApptForReceive.bookingType.includes('WALK') ? 'Khách vãng lai' : 'Đặt lịch trước'}
+                  </span>
+                </div>
+              </div>
 
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Tình trạng xe lúc tiếp nhận <span className="text-rose-500">*</span></label>
-                <textarea
-                  value={vehicleCondition}
-                  onChange={(e) => setVehicleCondition(e.target.value)}
-                  placeholder="Ghi chú tình trạng xe: trầy xước, móp méo, báo lỗi..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#00285E]/20 focus:border-[#00285E] transition-all resize-none h-32"
-                  disabled={isSubmittingVin}
-                />
+              <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200/60 pb-2">Thông tin khách hàng</h4>
+                <div className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-slate-500 font-semibold">Tên khách hàng:</span>
+                  <span className="font-bold text-slate-800 sm:text-right">{selectedApptForReceive.customerName}</span>
+                </div>
+                <div className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-slate-500 font-semibold">Số điện thoại:</span>
+                  <span className="font-bold text-slate-800">{selectedApptForReceive.customerPhone}</span>
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200/60 pb-2">Thông tin xe</h4>
+                <div className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-slate-500 font-semibold">Biển số xe:</span>
+                  <span className="font-bold text-slate-800 uppercase">{selectedApptForReceive.vehiclePlate}</span>
+                </div>
+                <div className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-slate-500 font-semibold">Dòng xe:</span>
+                  <span className="font-bold text-slate-800 sm:text-right">{selectedApptForReceive.vehicleModel}</span>
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 md:col-span-2">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200/60 pb-2">Dịch vụ yêu cầu</h4>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {selectedApptForReceive.services.map((s, i) => (
+                    <span key={i} className="inline-block bg-white text-slate-700 text-xs font-bold px-2.5 py-1 rounded-lg border border-slate-200/60">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {selectedApptForReceive.notes && (
+                <div className="space-y-2 rounded-2xl border border-amber-100 bg-amber-50/60 p-4 sm:p-5 md:col-span-2">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Ghi chú của khách</h4>
+                  <p className="rounded-xl border border-amber-100/80 bg-white p-3 text-sm font-medium leading-relaxed text-slate-600">
+                    {selectedApptForReceive.notes}
+                  </p>
+                </div>
+              )}
               </div>
             </div>
 
-            <div className="flex gap-3 justify-end">
+            {/* Footer */}
+            <div className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-6 sm:py-4 md:px-8">
               <button
-                onClick={() => {
-                  setIsVinModalOpen(false);
-                  setSelectedApptId(null);
-                }}
-                disabled={isSubmittingVin}
-                className="px-4 py-2 rounded-xl text-sm font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+                type="button"
+                onClick={() => setSelectedApptForReceive(null)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-100 sm:px-5 sm:text-sm"
               >
-                Hủy
+                Hủy bỏ
               </button>
               <button
+                type="button"
                 onClick={handleConfirmReceive}
                 disabled={isSubmittingVin}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white bg-[#00285E] hover:bg-[#001a3f] transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-xl bg-[#00285E] px-5 py-2.5 text-xs font-bold text-white shadow-md transition-colors hover:bg-[#001a3f] disabled:cursor-not-allowed disabled:opacity-50 sm:px-6 sm:text-sm"
               >
-                {isSubmittingVin ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
-                Xác nhận tiếp nhận
+                {isSubmittingVin ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    Đang xử lý...
+                  </>
+                ) : (
+                  <>
+                    <CarFront size={13} />
+                    Xác nhận Tiếp nhận
+                  </>
+                )}
               </button>
             </div>
           </div>
