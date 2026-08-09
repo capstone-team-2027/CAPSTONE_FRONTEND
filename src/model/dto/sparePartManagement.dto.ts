@@ -11,6 +11,7 @@ export interface SparePartResponse {
   retail_price: number;
   warranty_km_limit: number;
   warranty_period_months: number;
+  min_threshold: number;
   category: SparePartCategoryResponse;
 }
 
@@ -21,4 +22,5 @@ export interface UpdateSparePartRequest {
   retail_price: number;
   warranty_km_limit: number;
   warranty_period_months: number;
+  min_threshold: number;
 }

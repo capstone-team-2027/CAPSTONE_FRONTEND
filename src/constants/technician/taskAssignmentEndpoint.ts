@@ -50,6 +50,7 @@ export const TASK_ASSIGNMENT_ENDPOINTS = {
     GET_ALL_REPAIR_HISTORY: `${API_BASE_URL}/api/technician/repair-history`,
     SEARCH_REPAIR_HISTORY: (keyword: string) =>
         `${API_BASE_URL}/api/technician/repair-history/search?keyword=${encodeURIComponent(keyword)}`,
+    SEARCH_REPAIR_HISTORY_SMART: `${API_BASE_URL}/api/technician/repair-history/smart-search`,
     FILTER_REPAIR_HISTORY: (params: { makeId?: number; modelId?: number }) => {
         const q = new URLSearchParams();
         if (params.makeId) q.set("makeId", String(params.makeId));

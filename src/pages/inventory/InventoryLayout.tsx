@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Warehouse,
   PackageSearch,
+  Sparkles,
 } from "lucide-react";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -30,7 +31,10 @@ import { useFetchClient_v2 } from "../../hook/useFetchClient";
 import { loginSuccess, logout } from "../../store/slices/userSlice";
 import { PROFILE_API_ENDPOINTS } from "../../constants/common/profileEndpoints";
 import { NOTIFICATION_API_ENDPOINTS } from "../../constants/inventory/notificationEndpoints";
+import { RESTOCK_SUGGESTION_API_ENDPOINTS } from "../../constants/inventory/restockSuggestionApiEndpoint";
 import LogoutConfirmModal from "../../components/share/LogoutConfirmModal";
+import InventoryStockAlertModal from "../../components/share/InventoryStockAlertModal";
+import { playAlertSound } from "../../util/playAlertSound";
 
 export default function InventoryLayout() {
   const navigate = useNavigate();
@@ -54,6 +58,10 @@ export default function InventoryLayout() {
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [stockAlert, setStockAlert] = useState<{
+    outOfStockCount: number;
+    lowStockCount: number;
+  } | null>(null);
 
   const showToast = useCallback(
     (text: string, type: "success" | "info" | "warning" = "success") => {
@@ -88,6 +96,44 @@ export default function InventoryLayout() {
     const token = localStorage.getItem("token");
     if (token && !user) fetchUserProfile();
   }, [dispatch, fetchPrivate, user]);
+
+  // Vừa đăng nhập xong (Login.tsx truyền state justLoggedIn) -> tự động kiểm tra tồn kho,
+  // nếu có phụ tùng hết hàng/sắp hết thì cảnh báo ngay kèm âm thanh. Xoá state khỏi history
+  // ngay sau đó để F5/quay lại trang không hiện lại cảnh báo.
+  useEffect(() => {
+    if (!location.state || !(location.state as { justLoggedIn?: boolean }).justLoggedIn) {
+      return;
+    }
+    window.history.replaceState({}, "");
+
+    const checkStockAlert = async () => {
+      try {
+        const response = await fetchPrivate<{
+          data: { suggestions: Array<{ available_stock: number; projected_demand: number }> };
+        }>(RESTOCK_SUGGESTION_API_ENDPOINTS.LIST);
+        const suggestions = response?.data?.suggestions ?? [];
+        let outOfStockCount = 0;
+        let lowStockCount = 0;
+        for (const item of suggestions) {
+          if (item.available_stock <= 0) {
+            outOfStockCount += 1;
+            continue;
+          }
+          const ratio = item.projected_demand > 0 ? item.available_stock / item.projected_demand : 0;
+          if (ratio < 0.34) lowStockCount += 1;
+        }
+        if (outOfStockCount > 0 || lowStockCount > 0) {
+          setStockAlert({ outOfStockCount, lowStockCount });
+          playAlertSound();
+        }
+      } catch (error) {
+        console.error("Không kiểm tra được cảnh báo tồn kho:", error);
+      }
+    };
+
+    void checkStockAlert();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   const fetchNotifications = async () => {
     try {
@@ -190,6 +236,11 @@ export default function InventoryLayout() {
           icon: Tags,
           path: "/inventory/categories",
         },
+        {
+          name: "Đề xuất nhập hàng",
+          icon: Sparkles,
+          path: "/inventory/restock-suggestions",
+        },
       ],
     },
     {
@@ -237,6 +288,7 @@ export default function InventoryLayout() {
     if (path.includes("/parts")) return "Phụ tùng";
     if (path.includes("/categories")) return "Danh mục phụ tùng";
     if (path.includes("/waiting-stock")) return "Phụ tùng chờ nhập";
+    if (path.includes("/restock-suggestions")) return "Đề xuất nhập hàng";
     if (path.includes("/import")) return "Lịch sử nhập kho";
     if (path.includes("/export")) return "Lịch sử xuất kho";
     if (path.includes("/approved-quotes")) return "Yêu cầu xuất kho";
@@ -271,14 +323,16 @@ export default function InventoryLayout() {
                       : "text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E]"
                   }`}
                 >
-                  <Icon
-                    size={18}
-                    className={
-                      isActive
-                        ? "text-[#F9A11B]"
-                        : "text-slate-500 group-hover:text-[#00285E]"
-                    }
-                  />
+                  {Icon && (
+                    <Icon
+                      size={18}
+                      className={
+                        isActive
+                          ? "text-[#F9A11B]"
+                          : "text-slate-500 group-hover:text-[#00285E]"
+                      }
+                    />
+                  )}
                   <span>{item.name}</span>
                 </button>
               );
@@ -667,6 +721,17 @@ export default function InventoryLayout() {
         isOpen={showLogoutConfirm}
         onCancel={() => setShowLogoutConfirm(false)}
         onConfirm={handleLogoutConfirm}
+      />
+
+      <InventoryStockAlertModal
+        isOpen={stockAlert !== null}
+        outOfStockCount={stockAlert?.outOfStockCount ?? 0}
+        lowStockCount={stockAlert?.lowStockCount ?? 0}
+        onClose={() => setStockAlert(null)}
+        onViewSuggestions={() => {
+          setStockAlert(null);
+          navigate("/inventory/restock-suggestions");
+        }}
       />
     </div>
   );

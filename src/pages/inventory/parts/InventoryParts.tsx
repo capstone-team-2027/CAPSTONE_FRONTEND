@@ -39,6 +39,7 @@ export default function InventoryParts() {
   const [priceInput, setPriceInput] = useState("");
   const [kmInput, setKmInput] = useState("");
   const [monthsInput, setMonthsInput] = useState("");
+  const [thresholdInput, setThresholdInput] = useState("");
   const { fetchPrivate } = useFetchClient();
   const [page, setPage] = useState(1);
 
@@ -94,6 +95,7 @@ export default function InventoryParts() {
         retail_price: Number(editingPart.retail_price),
         warranty_km_limit: Number(editingPart.warranty_km_limit),
         warranty_period_months: Number(editingPart.warranty_period_months),
+        min_threshold: Number(editingPart.min_threshold),
       };
       await fetchPrivate(
         `${SPARE_PART_API_ENDPOINTS.SPARE_PART}/${editingPart.id}`,
@@ -365,6 +367,7 @@ export default function InventoryParts() {
                               setPriceInput(p.retail_price === 0 ? "" : Math.round(p.retail_price).toLocaleString("vi-VN"));
                               setKmInput(p.warranty_km_limit === 0 ? "" : Math.round(p.warranty_km_limit).toLocaleString("vi-VN"));
                               setMonthsInput(p.warranty_period_months === 0 ? "" : String(p.warranty_period_months));
+                              setThresholdInput(p.min_threshold === 0 ? "" : String(p.min_threshold));
                               setEditOpen(true);
                             }}
                             className="h-8 flex items-center gap-1.5 px-3 rounded-lg text-[11px] font-bold text-white bg-[#00285E] hover:brightness-125 active:scale-[0.97] transition-all whitespace-nowrap"
@@ -540,6 +543,27 @@ export default function InventoryParts() {
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">km</span>
                   </div>
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    Ngưỡng cảnh báo tồn kho
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={thresholdInput}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^0-9]/g, "");
+                      setThresholdInput(raw);
+                      setEditingPart({
+                        ...editingPart,
+                        min_threshold: raw === "" ? 0 : Number(raw),
+                      });
+                    }}
+                    className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">Hệ thống sẽ cảnh báo khi tồn kho thực tế giảm xuống dưới ngưỡng này.</p>
                 </div>
               </div>
             </div>

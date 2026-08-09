@@ -175,7 +175,7 @@ export default function Login() {
                 else if (userData.role === 'ADMIN') navigate('/admin/statistics');
                 else if (userData.role === 'RECEPTIONIST') navigate('/reception');
                 else if (userData.role === 'TECHNICIAN') navigate('/technician');
-                else if (userData.role === 'INVENTORY_MANAGER') navigate('/inventory');
+                else if (userData.role === 'INVENTORY_MANAGER') navigate('/inventory', { state: { justLoggedIn: true } });
                 else if (userData.role === 'TECHNICIAN_LEADER') navigate('/leader');
                 else navigate('/');
             } catch {
@@ -289,7 +289,7 @@ export default function Login() {
                 navigate('/technician');
             }
             if (userData.role === "INVENTORY_MANAGER") {
-                navigate('/inventory');
+                navigate('/inventory', { state: { justLoggedIn: true } });
             }
             if (userData.role === "TECHNICIAN_LEADER") {
                 navigate('/leader');

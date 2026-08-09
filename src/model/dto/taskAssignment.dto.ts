@@ -94,10 +94,11 @@ export interface VehicleModel {
     model_name: string;
 }
 
-// Gợi ý nguyên nhân từ AI
+// Gợi ý nguyên nhân từ AI — BE tự lấy triệu chứng từ công việc, KTV không cần nhập tay.
+// followUpQuestion (tùy chọn) dùng khi KTV muốn hỏi thêm sau câu trả lời đầu tiên.
 export interface AiSuggestCausesRequest {
-    symptom: string;
-    modelName?: string;
+    taskAssignmentId: number;
+    followUpQuestion?: string;
 }
 export interface AiSuggestCausesResponse {
     symptom: string;
