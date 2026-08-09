@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   LayoutDashboard,
   ClipboardCheck,
+  ClipboardList,
   ShieldCheck,
   HelpCircle,
   LogOut,
@@ -13,6 +14,7 @@ import {
   Info,
   AlertTriangle,
   CalendarCheck,
+  FileText,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
@@ -167,7 +169,8 @@ export default function LeaderLayout() {
         { name: 'Tổng quan', icon: LayoutDashboard, path: '/leader' },
         { name: 'Lịch hẹn đã nhận', icon: CalendarCheck, path: '/leader/appointments' },
         { name: 'Phân công kỹ thuật', icon: ClipboardCheck, path: '/leader/assignments' },
-        { name: 'Nghiệm thu tổng thể', icon: ShieldCheck, path: '/leader/final-qc' },
+        { name: 'Theo dõi công việc', icon: ClipboardList, path: '/leader/task-tracking' },
+        { name: 'Báo giá', icon: FileText, path: '/leader/quotes' },
       ],
     },
   ];
@@ -179,7 +182,8 @@ export default function LeaderLayout() {
     if (path === '/leader' || path === '/leader/') return 'Tổng quan';
     if (path.includes('/appointments')) return 'Lịch hẹn đã nhận';
     if (path.includes('/assignments')) return 'Phân công kỹ thuật';
-    if (path.includes('/final-qc')) return 'Nghiệm thu tổng thể';
+    if (path.includes('/task-tracking')) return 'Theo dõi công việc';
+    if (path.includes('/quotes')) return 'Báo giá';
     return 'Tổng quan';
   }, [location.pathname]);
 

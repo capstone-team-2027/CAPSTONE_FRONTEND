@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   CalendarCheck,
   ClipboardPlus,
-  FileText,
   CreditCard,
   MessageSquare,
   History,
@@ -273,7 +272,7 @@ export default function ReceptionLayout() {
       label: 'Dịch vụ',
       items: [
         { name: "Lịch hẹn", icon: CalendarCheck, path: "/reception/appointments" },
-        { name: "Quản lý báo giá", icon: FileText, path: "/reception/quotes" },
+        { name: "Báo giá chờ xác nhận", icon: History, path: "/reception/quotes" },
         { name: "Quản lý hóa đơn dịch vụ", icon: ClipboardPlus, path: "/reception/service-orders" },
       ],
     },
@@ -287,7 +286,6 @@ export default function ReceptionLayout() {
     {
       label: 'Hỗ trợ',
       items: [
-        { name: "Báo cáo lỗi", icon: FileText, path: "/reception/issues" },
         { name: "Phản hồi khách hàng", icon: MessageSquare, path: "/reception/feedback" },
       ],
     },
@@ -302,9 +300,7 @@ export default function ReceptionLayout() {
     // "Khách hàng & Cứu hộ" dù route hiện nằm dưới /customers.
     if (path === "/reception/customers/receive") return "Lịch hẹn";
     if (path.includes("/appointments")) return "Lịch hẹn";
-    if (path.includes("/additional-issues")) return "Lỗi phát sinh";
-    if (path.includes("/issues")) return "Báo cáo lỗi";
-    if (path.includes("/quotes")) return "Quản lý báo giá";
+    if (path.includes("/quotes")) return "Báo giá chờ xác nhận";
     if (path.includes('/customers')) return 'Khách hàng & Cứu hộ';
     if (path.includes('/technicians')) return 'Kỹ thuật viên hôm nay';
     if (path.includes("/feedback")) return "Phản hồi khách hàng";

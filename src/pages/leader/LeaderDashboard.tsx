@@ -1,16 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Car, CheckCircle2, ClipboardCheck, ClipboardList, Clock, ShieldCheck, User, UserPlus } from "lucide-react";
+import { Car, ClipboardList, User, UserPlus, Wrench } from "lucide-react";
 import { useFetchClient } from "../../hook/useFetchClient";
 import { TECHNICIAN_LEADER_TASK_ENDPOINTS } from "../../constants/technicianLeader/taskManagementEndpoint";
-import type { GetFinalQcOrderResponse } from "../../model/dto/finalQcManagement.dto";
 import type { GetLeaderTasksResponse } from "../../model/dto/leaderTaskManagement.dto";
-
-interface InspectionStatistics {
-  pendingQC: number;
-  approvedToday: number;
-  rejectedToday: number;
-}
+import type { TaskTrackingServiceOrder } from "../../model/dto/leaderTaskTracking.dto";
 
 const formatDate = (d?: string | null) =>
   d ? new Date(d).toLocaleDateString("vi-VN") : "—";
@@ -19,29 +13,24 @@ export default function LeaderDashboard() {
   const navigate = useNavigate();
   const { fetchPrivate } = useFetchClient();
 
-  const [statistics, setStatistics] = useState<InspectionStatistics | null>(null);
-  const [pendingOrders, setPendingOrders] = useState<GetFinalQcOrderResponse[]>([]);
   const [unassignedOrders, setUnassignedOrders] = useState<GetLeaderTasksResponse[]>([]);
+  const [activeOrders, setActiveOrders] = useState<TaskTrackingServiceOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadOverview = async () => {
       setIsLoading(true);
       try {
-        const [statsRes, ordersRes, tasksRes] = await Promise.all([
-          fetchPrivate<InspectionStatistics>(
-            TECHNICIAN_LEADER_TASK_ENDPOINTS.GET_INSPECTION_STATISTICS,
-          ),
-          fetchPrivate<GetFinalQcOrderResponse[]>(
-            TECHNICIAN_LEADER_TASK_ENDPOINTS.GET_FINAL_QC_ORDERS,
-          ),
+        const [tasksRes, trackingRes] = await Promise.all([
           fetchPrivate<GetLeaderTasksResponse[]>(
             TECHNICIAN_LEADER_TASK_ENDPOINTS.GET_ALL_TASKS,
           ),
+          fetchPrivate<TaskTrackingServiceOrder[]>(
+            TECHNICIAN_LEADER_TASK_ENDPOINTS.GET_TASK_TRACKING,
+          ),
         ]);
-        setStatistics(statsRes?.data ?? null);
-        setPendingOrders(ordersRes?.data ?? []);
         setUnassignedOrders(tasksRes?.data ?? []);
+        setActiveOrders(trackingRes?.data ?? []);
       } catch (error) {
         console.error("Lỗi khi tải tổng quan phân công:", error);
       } finally {
@@ -55,6 +44,10 @@ export default function LeaderDashboard() {
     (sum, order) => sum + order.tasks.length,
     0,
   );
+  const inProgressTaskCount = activeOrders.reduce(
+    (sum, order) => sum + order.tasks.filter((t) => t.status === "IN_PROGRESS").length,
+    0,
+  );
 
   const stats = [
     {
@@ -64,22 +57,16 @@ export default function LeaderDashboard() {
       tint: "bg-blue-50 text-blue-600",
     },
     {
-      label: "Chờ kiểm định",
-      value: isLoading ? "—" : statistics?.pendingQC ?? 0,
-      icon: Clock,
+      label: "Đơn đang hoạt động",
+      value: isLoading ? "—" : activeOrders.length,
+      icon: Car,
       tint: "bg-amber-50 text-amber-600",
     },
     {
-      label: "Đạt chất lượng (hôm nay)",
-      value: isLoading ? "—" : statistics?.approvedToday ?? 0,
-      icon: CheckCircle2,
+      label: "Task đang thực hiện",
+      value: isLoading ? "—" : inProgressTaskCount,
+      icon: Wrench,
       tint: "bg-emerald-50 text-emerald-600",
-    },
-    {
-      label: "Cần sửa lại (hôm nay)",
-      value: isLoading ? "—" : statistics?.rejectedToday ?? 0,
-      icon: ShieldCheck,
-      tint: "bg-rose-50 text-rose-600",
     },
   ];
 
@@ -96,7 +83,7 @@ export default function LeaderDashboard() {
       </div>
 
       {/* SUMMARY CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {stats.map((s) => {
           const Icon = s.icon;
           return (
@@ -188,15 +175,15 @@ export default function LeaderDashboard() {
           )}
         </div>
 
-        {/* PENDING QC LIST */}
+        {/* ACTIVE ORDERS LIST */}
         <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <ClipboardCheck size={16} className="text-[#00285E]" />
-              Lệnh sửa chữa đang chờ nghiệm thu
+              <Wrench size={16} className="text-[#00285E]" />
+              Lệnh sửa chữa đang thực hiện
             </h2>
             <button
-              onClick={() => navigate("/leader/final-qc")}
+              onClick={() => navigate("/leader/task-tracking")}
               className="text-xs font-bold text-[#00285E] hover:text-[#F9A11B] transition-colors"
             >
               Xem tất cả
@@ -207,24 +194,24 @@ export default function LeaderDashboard() {
             <div className="py-12 flex items-center justify-center">
               <div className="w-8 h-8 border-4 border-[#00285E] border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : pendingOrders.length === 0 ? (
+          ) : activeOrders.length === 0 ? (
             <div className="py-12 flex flex-col items-center justify-center text-center gap-3">
               <div className="w-14 h-14 rounded-2xl bg-[#EDF3FF] flex items-center justify-center">
-                <ClipboardCheck size={26} className="text-[#00285E]" />
+                <Wrench size={26} className="text-[#00285E]" />
               </div>
               <h3 className="text-sm font-bold text-slate-800">
-                Không có lệnh sửa chữa nào đang chờ nghiệm thu
+                Không có lệnh sửa chữa nào đang hoạt động
               </h3>
               <p className="text-xs text-slate-500 max-w-md">
-                Danh sách sẽ hiển thị ngay khi có lệnh sửa chữa hoàn tất công việc và cần tổ trưởng nghiệm thu.
+                Danh sách sẽ hiển thị ngay khi có xe đang được kiểm tra hoặc sửa chữa.
               </p>
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {pendingOrders.slice(0, 6).map((order) => (
+              {activeOrders.slice(0, 6).map((order) => (
                 <button
                   key={order.id}
-                  onClick={() => navigate("/leader/final-qc")}
+                  onClick={() => navigate("/leader/task-tracking")}
                   className="w-full flex items-center justify-between gap-4 px-6 py-4 hover:bg-slate-50/60 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -245,10 +232,10 @@ export default function LeaderDashboard() {
                   </div>
                   <div className="text-right shrink-0">
                     <div className="text-xs font-bold text-[#00285E]">
-                      {order.tasks?.length ?? 0} công việc
+                      {order.tasks.length} công việc
                     </div>
                     <div className="text-[11px] text-slate-400">
-                      Tiếp nhận: {formatDate(order.entry_time)}
+                      Tiếp nhận: {formatDate(order.createdAt)}
                     </div>
                   </div>
                 </button>

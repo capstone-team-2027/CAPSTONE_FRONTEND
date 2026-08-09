@@ -294,7 +294,7 @@ const PART_STATUS_CONFIG: Record<
     className: "border-violet-200 bg-violet-50 text-violet-700",
   },
   EXPORTED: {
-    label: "Đã nhận (đã ký)",
+    label: "Đã nhận phụ tùng",
     className: "border-emerald-200 bg-emerald-50 text-emerald-700",
   },
   WAITING_RECEIVE: {
@@ -458,8 +458,12 @@ export default function TechnicianAssignments() {
               allAssignments.find((item) => item.status === "ASSIGNED") ??
               allAssignments.find((item) => item.status === "PENDING_QC") ??
               allAssignments[0];
+            // WAITING_STOCK cũng cho bấm lại "Bắt đầu công việc" — dùng chung đúng luồng
+            // startTask ban đầu (tự động gửi yêu cầu xuất kho qua autoRequestPartsForTask).
+            // An toàn vì hàm đó chỉ request các dòng đang PENDING (phụ tùng đặt riêng vừa
+            // được thủ kho nhập kho xong); dòng đã REQUESTED/EXPORTED sẽ tự bị bỏ qua.
             const unstartedAssignment = allAssignments.find(
-              (item) => item.status === "ASSIGNED",
+              (item) => item.status === "ASSIGNED" || item.status === "WAITING_STOCK",
             );
             const allTasksCompleted =
               (so.tasks?.length ?? 0) > 0 &&
@@ -805,17 +809,22 @@ export default function TechnicianAssignments() {
     }
   };
 
+  // Đổi tab vẫn giữ nguyên triệu chứng gốc của đơn (nếu có) và tự tìm lại theo triệu chứng đó
+  // trên tab mới — tránh việc tab "garage" luôn load toàn bộ không liên quan như trước đây.
   const changeLookupView = (view: "common" | "garage") => {
+    const symptom = issueReportAssignment?.symptom?.trim() ?? "";
     setLookupView(view);
-    setLookupTerm("");
+    setLookupTerm(symptom);
     setDiagMakeId("");
     setDiagModelId("");
     setDiagModels([]);
     setShowFilterPanel(false);
     if (view === "common") {
-      loadAllDiagnostics();
+      if (symptom) searchDiagnostics(symptom);
+      else loadAllDiagnostics();
     } else {
-      loadAllInspectionDiagnostics();
+      if (symptom) searchInspectionDiagnostics(symptom);
+      else loadAllInspectionDiagnostics();
     }
   };
 
@@ -1514,9 +1523,7 @@ export default function TechnicianAssignments() {
 
               {/* SECTION: Tiến độ công việc */}
               {(() => {
-                const modalTasks = issueReportAssignment.tasks.filter(
-                  (t) => t.taskType !== "INSPECTION",
-                );
+                const modalTasks = issueReportAssignment.tasks;
                 const doneCount = modalTasks.filter(
                   (t) => t.status === "COMPLETED" || t.status === "PENDING_QC",
                 ).length;
@@ -1526,35 +1533,6 @@ export default function TechnicianAssignments() {
                     : Math.round((doneCount / modalTasks.length) * 100);
                 return (
                   <div className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden">
-                    {/* Tiến độ tổng */}
-                    <div className="px-4 py-4 border-b border-slate-100">
-                      <div className="flex items-baseline justify-between gap-4 mb-2">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                          Tiến độ công việc
-                        </span>
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-xs text-slate-400 font-medium">
-                            {doneCount}/{modalTasks.length} công việc
-                          </span>
-                          <span className="text-xl font-bold text-[#00285E] tabular-nums leading-none">
-                            {overall}%
-                          </span>
-                        </div>
-                      </div>
-                      <div className="relative h-2.5 w-full rounded-full bg-slate-200/70 overflow-hidden">
-                        {/* Shimmer nền chạy khi chưa hoàn tất, để thanh đỡ trống */}
-                        {overall < 100 && (
-                          <div className="absolute inset-0 progress-shimmer" />
-                        )}
-                        <div
-                          className={`relative h-full rounded-full bg-[#00285E] transition-all duration-700 ease-out ${
-                            overall > 0 && overall < 100 ? "progress-stripes" : ""
-                          }`}
-                          style={{ width: `${overall}%` }}
-                        />
-                      </div>
-                    </div>
-
                     {/* Danh sách công việc + nút hoàn thành */}
                     <div className="divide-y divide-slate-100">
                       {modalTasks.map((t) => {
@@ -1587,7 +1565,7 @@ export default function TechnicianAssignments() {
                                 className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                                   isDone
                                     ? "bg-emerald-50 text-emerald-600"
-                                    : "bg-[#EDF3FF] text-[#00285E]"
+                                    : "bg-[#00285E] text-white"
                                 }`}
                               >
                                 <Wrench size={15} />
@@ -1675,11 +1653,6 @@ export default function TechnicianAssignments() {
                                   <CheckCircle2 size={13} />
                                   Hoàn thành
                                 </span>
-                              ) : t.taskType === "INSPECTION" ? (
-                                // Task kiểm tra: hoàn tất bằng cách gửi báo cáo lỗi bên dưới
-                                <span className="inline-flex self-start sm:self-auto items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200">
-                                  Đang kiểm tra
-                                </span>
                               ) : (
                                 <span
                                   className={`inline-flex items-center gap-1.5 px-2.5 py-2 sm:py-1 rounded-lg text-xs font-bold border self-start sm:self-auto ${
@@ -1700,6 +1673,35 @@ export default function TechnicianAssignments() {
                           </div>
                         );
                       })}
+                    </div>
+
+                    {/* Tiến độ tổng */}
+                    <div className="px-4 py-4 border-t border-slate-100">
+                      <div className="flex items-baseline justify-between gap-4 mb-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          Tiến độ công việc
+                        </span>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xs text-slate-400 font-medium">
+                            {doneCount}/{modalTasks.length} công việc
+                          </span>
+                          <span className="text-xl font-bold text-[#00285E] tabular-nums leading-none">
+                            {overall}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="relative h-2.5 w-full rounded-full bg-slate-200/70 overflow-hidden">
+                        {/* Shimmer nền chạy khi chưa hoàn tất, để thanh đỡ trống */}
+                        {overall < 100 && (
+                          <div className="absolute inset-0 progress-shimmer" />
+                        )}
+                        <div
+                          className={`relative h-full rounded-full bg-[#00285E] transition-all duration-700 ease-out ${
+                            overall > 0 && overall < 100 ? "progress-stripes" : ""
+                          }`}
+                          style={{ width: `${overall}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
                 );

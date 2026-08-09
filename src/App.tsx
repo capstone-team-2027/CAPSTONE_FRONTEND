@@ -53,9 +53,6 @@ const ReceptionReceiveFeedback = lazy(() => import("./pages/reception/feedback/R
 const ReceptionServiceHistory = lazy(() => import("./pages/reception/service-history/ReceptionServiceHistory"));
 const ReceptionProcessPayment = lazy(() => import("./pages/reception/payments/ReceptionProcessPayment"));
 const ReceptionQuoteList = lazy(() => import("./pages/reception/quotes/ReceptionQuoteList"));
-const ReceptionQuoteDetail = lazy(() => import("./pages/reception/quotes/ReceptionQuoteDetail"));
-const ReceptionIssueReports = lazy(() => import("./pages/reception/issues-report/ReceptionIssuesReportHistory"));
-const ReceptionAdditionalIssues = lazy(() => import("./pages/reception/issues-report/ReceptionAdditionalIssues"));
 const ReceptionCustomerList = lazy(() => import("./pages/reception/customers/ReceptionCustomerList"));
 const ReceptionReceiveCustomer = lazy(() => import("./pages/reception/customers/ReceptionReceiveCustomer"));
 const ReceptionRescueCreateServiceOrder = lazy(() => import("./pages/reception/customers/ReceptionRescueCreateServiceOrder"));
@@ -78,9 +75,11 @@ const LeaderLayout = lazy(() => import("./pages/leader/LeaderLayout"));
 const LeaderDashboard = lazy(() => import("./pages/leader/LeaderDashboard"));
 const LeaderAppointmentList = lazy(() => import("./pages/leader/LeaderAppointmentList"));
 const LeaderAssignments = lazy(() => import("./pages/leader/LeaderAssignments"));
-const LeaderFinalQc = lazy(() => import("./pages/leader/LeaderFinalQc"));
+const LeaderTaskTracking = lazy(() => import("./pages/leader/LeaderTaskTracking"));
 const LeaderCreateServiceOrder = lazy(() => import("./pages/leader/LeaderCreateServiceOrder"));
 const LeaderServiceOrderDetail = lazy(() => import("./pages/leader/LeaderServiceOrderDetail"));
+const LeaderQuoteList = lazy(() => import("./pages/leader/quotes/LeaderQuoteList"));
+const LeaderCreateQuotation = lazy(() => import("./pages/leader/quotes/LeaderCreateQuotation"));
 
 const LoadingScreen = () => (
   <div className="fixed inset-0 bg-slate-50/50 backdrop-blur-xs flex flex-col items-center justify-center z-50">
@@ -191,9 +190,6 @@ function App() {
             <Route path="service-history" element={<ReceptionServiceHistory />} />
             <Route path="payments" element={<ReceptionProcessPayment />} />
             <Route path="quotes" element={<ReceptionQuoteList />} />
-            <Route path="quotes/:id" element={<ReceptionQuoteDetail />} />
-            <Route path="issues" element={<ReceptionIssueReports />} />
-            <Route path="additional-issues" element={<ReceptionAdditionalIssues />} />
             <Route path="technicians" element={<ReceptionTechnicianList />} />
           </Route>
         </Route>
@@ -204,7 +200,9 @@ function App() {
             <Route path="appointments/create-service-order" element={<LeaderCreateServiceOrder />} />
             <Route path="service-orders/:id" element={<LeaderServiceOrderDetail />} />
             <Route path="assignments" element={<LeaderAssignments />} />
-            <Route path="final-qc" element={<LeaderFinalQc />} />
+            <Route path="task-tracking" element={<LeaderTaskTracking />} />
+            <Route path="quotes" element={<LeaderQuoteList />} />
+            <Route path="quotes/create" element={<LeaderCreateQuotation />} />
           </Route>
         </Route>
       </Routes>
