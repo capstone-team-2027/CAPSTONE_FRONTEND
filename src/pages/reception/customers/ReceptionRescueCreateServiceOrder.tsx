@@ -639,7 +639,7 @@ export default function ReceptionRescueCreateServiceOrder() {
         showToast('Vui lòng chọn ít nhất 1 dịch vụ hoặc combo.', 'warning');
         return;
       }
-      if (!notes.trim()) {
+      if (receptionServiceMode === 'REPAIR' && !notes.trim()) {
         showToast('Vui lòng điền mô tả tình trạng sửa chữa.', 'warning');
         return;
       }
@@ -666,15 +666,14 @@ export default function ReceptionRescueCreateServiceOrder() {
         };
       }
 
-      const estimated_finish_time = bookingDate && bookingTime ? `${bookingDate}T${bookingTime}:00` : undefined;
-
       const payload: any = {
         appointment_id: linkedAppointmentId ? Number(linkedAppointmentId) : undefined,
         booking_type: finalBookingType || undefined,
         vehicle_id: finalVehicleId,
         walk_in: walkInPayload,
         bay_id: null,
-        estimated_finish_time: estimated_finish_time,
+        // Xe cứu hộ đã về gara nên đây là phiếu tiếp nhận làm ngay, không tạo lịch/xếp ca.
+        estimated_finish_time: undefined,
         service_ids: receptionServiceMode === 'SERVICE' ? selectedServiceIds : undefined,
         combo_ids: receptionServiceMode === 'SERVICE' && selectedComboId ? [selectedComboId] : undefined,
         notes: notes.trim() ? notes.trim() : undefined,
@@ -717,16 +716,16 @@ export default function ReceptionRescueCreateServiceOrder() {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-1 flex items-center gap-2">
             <ClipboardPlus className="text-amber-500" size={28} />
-            Tạo hóa đơn dịch vụ
+            Tiếp nhận xe cứu hộ
           </h1>
           <p className="text-slate-500 text-sm">
-            Tạo phiếu tiếp nhận xe và sửa chữa/bảo dưỡng cho khách hàng.
+            Xe đã được đưa về gara — xác nhận thông tin và chọn dịch vụ hoặc nội dung cần sửa chữa.
           </p>
         </div>
       </div>
 
       {/* QUICK STATUS BAR & SLOTS TOGGLE */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="hidden bg-white p-4 rounded-xl border border-slate-200/60 shadow-xs flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2.5">
           <Clock size={18} className="text-[#00285E]" />
           <div>
@@ -768,7 +767,7 @@ export default function ReceptionRescueCreateServiceOrder() {
 
       {/* COLLAPSIBLE SLOTS BOARD */}
       <AnimatePresence>
-        {showSlotsBoard && (
+        {false && showSlotsBoard && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
@@ -1098,7 +1097,7 @@ export default function ReceptionRescueCreateServiceOrder() {
       </div>
 
       {/* SCHEDULED TIME CARD */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
+      <div className="hidden bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
         <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
           <Calendar size={16} className="text-[#00285E]" />
           Thời gian xếp ca vào sửa <span className="text-slate-400 font-normal">(Chọn khung giờ xếp lớp xe vào sửa)</span>
@@ -1166,7 +1165,7 @@ export default function ReceptionRescueCreateServiceOrder() {
             className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-amber-400 focus:bg-white text-brand-blue resize-none"
           />
         </div>
-        {!notes.trim() && (
+        {receptionServiceMode === 'REPAIR' && !notes.trim() && (
           <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
             <AlertCircle size={14} />
             Cần điền mô tả tình trạng sửa chữa.
@@ -1202,7 +1201,7 @@ export default function ReceptionRescueCreateServiceOrder() {
           className="flex items-center gap-2 px-6 py-3 bg-[#00285E] hover:bg-[#001a3f] text-white rounded-xl text-sm font-bold shadow-md shadow-[#00285E]/15 transition-all transform hover:translate-y-[-1px]"
         >
           <ClipboardPlus size={16} />
-          Tạo hóa đơn dịch vụ
+          Xác nhận tiếp nhận & tạo dịch vụ
         </button>
       </div>
     </div>

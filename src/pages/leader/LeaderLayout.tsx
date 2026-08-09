@@ -15,7 +15,6 @@ import {
   CalendarCheck,
   Volume2,
 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '../../store/store';
@@ -75,8 +74,6 @@ export default function LeaderLayout() {
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
-
-  const { i18n } = useTranslation();
 
   // Mở khóa AudioContext ở tương tác đầu tiên theo chính sách autoplay của trình duyệt.
   useEffect(() => {
@@ -329,20 +326,6 @@ export default function LeaderLayout() {
       {/* MOBILE HEADER BAR */}
       <header className="lg:hidden bg-white px-4 py-3 flex items-center justify-between border-b border-slate-100 shadow-sm z-30 sticky top-0">
         <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex shrink-0 select-none items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-0.5">
-            <button
-              onClick={() => i18n.changeLanguage('vi')}
-              className={`rounded-full px-2 py-1 text-[10px] font-bold transition-all ${i18n.language === 'vi' ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              VI
-            </button>
-            <button
-              onClick={() => i18n.changeLanguage('en')}
-              className={`rounded-full px-2 py-1 text-[10px] font-bold transition-all ${i18n.language.startsWith('en') ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              EN
-            </button>
-          </div>
           <button
             onClick={() => setIsMobileSidebarOpen(true)}
             className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
@@ -543,20 +526,6 @@ export default function LeaderLayout() {
           {/* User profile & Actions */}
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 border border-slate-200 rounded-full p-0.5 bg-slate-50 select-none">
-                <button
-                  onClick={() => i18n.changeLanguage('vi')}
-                  className={`px-2.5 py-1 text-[10px] font-bold rounded-full transition-all ${i18n.language === 'vi' ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  VI
-                </button>
-                <button
-                  onClick={() => i18n.changeLanguage('en')}
-                  className={`px-2.5 py-1 text-[10px] font-bold rounded-full transition-all ${i18n.language.startsWith('en') ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  EN
-                </button>
-              </div>
               <div className="relative">
                 <button
                   onClick={() => setIsNotificationOpen(!isNotificationOpen)}
