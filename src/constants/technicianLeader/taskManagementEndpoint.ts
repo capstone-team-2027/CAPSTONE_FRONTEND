@@ -13,4 +13,5 @@ export const TECHNICIAN_LEADER_TASK_ENDPOINTS = {
         `${API_BASE_URL}/api/head-technician/final-inspection/${serviceOrderId}/approve`,
     REJECT_FINAL_QC: (serviceOrderId: number) =>
         `${API_BASE_URL}/api/head-technician/final-inspection/${serviceOrderId}/reject`,
+    GET_RECEIVED_APPOINTMENTS: `${API_BASE_URL}/api/head-technician/appointments`,
 };

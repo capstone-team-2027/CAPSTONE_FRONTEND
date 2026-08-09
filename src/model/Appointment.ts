@@ -19,7 +19,7 @@ export interface AppointmentModel {
   serviceBay?: string;
   assignedStaff?: string;
   notes?: string;
-  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
+  status: 'pending' | 'confirmed' | 'technicaian_recieved' | 'in_progress' | 'completed' | 'cancelled' | 'no_show' | 'expired';
   bookingType?: string;
   createdAt: string;
 }

@@ -18,6 +18,8 @@ interface SingleServicesSelectorProps {
     setSearchText: React.Dispatch<React.SetStateAction<string>>;
     dbCombos?: ServiceCombo[];
     selectedComboId?: number | null;
+    elevated?: boolean;
+    hideFilters?: boolean;
 }
 
 export default function SingleServicesSelector({
@@ -36,6 +38,8 @@ export default function SingleServicesSelector({
     setSearchText,
     dbCombos = [],
     selectedComboId = null,
+    elevated = false,
+    hideFilters = false,
 }: SingleServicesSelectorProps) {
     // Reset pagination to page 1 when category changes
     const handleCategoryChange = (catId: number | null) => {
@@ -46,6 +50,7 @@ export default function SingleServicesSelector({
     const currentServices = mappedServices;
     return (
         <>
+            {!hideFilters && <>
             {/* Search Input */}
             <div className="mb-4 relative">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -65,17 +70,21 @@ export default function SingleServicesSelector({
                     onClick={() => handleCategoryChange(null)}
                     className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${selectedCategoryId === null
                             ? 'bg-[#00285E] text-white shadow-md'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                            : 'bg-slate-100 text-slate-650 hover:bg-slate-200/70 hover:text-slate-900'
                         }`}
                 >
                     <span>Tất cả</span>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${selectedCategoryId === null ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'
                         }`}>
-                        {mappedServices.length}
+                        {activeCategories.length > 0
+                            ? activeCategories.reduce((sum, c) => sum + (c.service_count || 0), 0)
+                            : mappedServices.length}
                     </span>
                 </button>
                 {activeCategories.map((cat) => {
-                    const count = mappedServices.filter(s => String(s.category_id) === String(cat.id)).length;
+                    const count = cat.service_count !== undefined
+                        ? cat.service_count
+                        : mappedServices.filter(s => String(s.category_id) === String(cat.id)).length;
                     if (count === 0) return null; // Hide empty categories
                     const isActive = selectedCategoryId === cat.id;
                     return (
@@ -85,7 +94,7 @@ export default function SingleServicesSelector({
                             onClick={() => handleCategoryChange(cat.id)}
                             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${isActive
                                     ? 'bg-[#00285E] text-white shadow-md'
-                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                                    : 'bg-slate-100 text-slate-650 hover:bg-slate-200/70 hover:text-slate-900'
                                 }`}
                         >
                             <span>{cat.category_name}</span>
@@ -97,6 +106,7 @@ export default function SingleServicesSelector({
                     );
                 })}
             </div>
+            </>}
             {/* Multi-select count hint */}
             {selectedServiceIds.length > 0 && (
                 <div className="mb-3 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-100 flex items-center gap-2">
@@ -131,13 +141,15 @@ export default function SingleServicesSelector({
                                         : [...prev, service.id]
                                 );
                             }}
-                            className={`relative p-3 rounded-xl border transition-all flex flex-col justify-between text-left min-h-[175px] ${
-                                isInCombo ? 'opacity-50 cursor-not-allowed grayscale bg-slate-50' : 'cursor-pointer group bg-white'
+                            className={`relative p-3 rounded-xl border transition-all duration-200 flex flex-col justify-between text-left min-h-[175px] ${
+                                isInCombo ? 'opacity-50 cursor-not-allowed grayscale bg-slate-50' : `cursor-pointer group bg-white ${elevated ? 'ring-1 ring-slate-100 hover:-translate-y-1 hover:shadow-lg hover:shadow-slate-300/60' : ''}`
+                            } ${!isInCombo && isSelected
+                                ? (elevated ? 'shadow-lg shadow-blue-900/15 ring-1 ring-[#00285E]/15' : 'shadow-md shadow-amber-500/10')
+                                : (elevated && !isInCombo ? 'shadow-md shadow-slate-200/80' : '')
                             }`}
                             style={{
-                                borderColor: isInCombo ? '#E2E8F0' : (isSelected ? COLORS.orange : '#F1F5F9'),
+                                borderColor: isInCombo ? '#E2E8F0' : (isSelected ? COLORS.orange : (elevated ? '#CBD5E1' : '#F1F5F9')),
                                 backgroundColor: isInCombo ? '#F8FAFC' : (isSelected ? 'rgba(249,161,27,0.05)' : '#FFFFFF'),
-                                boxShadow: (!isInCombo && isSelected) ? '0 6px 12px rgba(249,161,27,0.08)' : 'none'
                             }}
                         >
                             <div>

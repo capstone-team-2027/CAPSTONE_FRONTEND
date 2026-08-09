@@ -298,6 +298,9 @@ export default function ReceptionLayout() {
   // Dynamic active menu item based on current URL path
   const activeMenu = useMemo(() => {
     const path = location.pathname;
+    // Trang tiếp nhận khách được mở từ luồng Lịch hẹn, không thuộc danh sách
+    // "Khách hàng & Cứu hộ" dù route hiện nằm dưới /customers.
+    if (path === "/reception/customers/receive") return "Lịch hẹn";
     if (path.includes("/appointments")) return "Lịch hẹn";
     if (path.includes("/additional-issues")) return "Lỗi phát sinh";
     if (path.includes("/issues")) return "Báo cáo lỗi";

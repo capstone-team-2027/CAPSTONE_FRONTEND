@@ -20,6 +20,7 @@ import SingleServicesSelector from './SingleServicesSelector';
 import ComboServicesSelector from './ComboServicesSelector';
 import InlineCalendar from './InlineCalendar';
 
+
 const DEFAULT_SHIFTS = [
     { start_time: '08:00', end_time: '12:00' },
     { start_time: '13:00', end_time: '17:00' },
@@ -219,7 +220,7 @@ export default function BookingPage() {
         const fetchServices = async () => {
             const currentLang = i18n.language || 'vi';
             try {
-                const query = `lang=${currentLang}&page=${servicePage}&limit=16&search=${encodeURIComponent(serviceSearch)}&category_id=${selectedCategoryId || ''}`;
+                const query = `lang=${currentLang}&page=${servicePage}&limit=30&search=${encodeURIComponent(serviceSearch)}&category_id=${selectedCategoryId || ''}`;
                 const svcRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.SEARCH_SERVICES}?${query}`);
                 if (svcRes && svcRes.data) {
                     const newItems = svcRes.data.items || [];
@@ -230,7 +231,7 @@ export default function BookingPage() {
                         newItems.forEach((item: any) => map.set(item.id, item));
                         return Array.from(map.values());
                     });
-                    setServiceTotalPages(svcRes.data.totalPages || 1);
+                    setServiceTotalPages(svcRes.data.pagination?.totalPages || svcRes.data.totalPages || 1);
                 }
             } catch (error) {
                 console.error("Lỗi khi tải dữ liệu services từ backend:", error);
@@ -381,8 +382,7 @@ export default function BookingPage() {
                     }
                 }
 
-                // Fetch max discount percent config
-                const configRes = await fetchPublic((GARAGE_CONFIG_API_ENDPOINTS as any).GET_CONFIGS || `${API_BASE_URL}/api/config`);
+                const configRes = await fetchPublic(GARAGE_CONFIG_API_ENDPOINTS.GET_CONFIGS);
                 if (configRes && configRes.success && configRes.data) {
                     const maxPctConfig = configRes.data.find((c: any) => c.config_key === 'MAX_LOYALTY_DISCOUNT_PERCENT');
                     if (maxPctConfig) {

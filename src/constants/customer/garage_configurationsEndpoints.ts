@@ -3,4 +3,5 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localho
 export const GARAGE_CONFIG_API_ENDPOINTS = {
     GET_CONFIGURATION_BY_KEY: (key: string) => `${API_BASE_URL}/api/guest/garage-configurations/${key}`,
     GET_AVAILABILITY: `${API_BASE_URL}/api/guest/availability`,
+    GET_CONFIGS: `${API_BASE_URL}/api/guest/garage-configurations`,
 };

@@ -12,6 +12,7 @@ import {
   CheckCircle,
   Info,
   AlertTriangle,
+  CalendarCheck,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
@@ -159,12 +160,12 @@ export default function LeaderLayout() {
   const displayName = user?.fullName || 'Tổ trưởng kỹ thuật';
   const displayRole = 'Phân công kỹ thuật';
 
-  // Sidebar menu items for team leader
   const menuGroups = [
     {
       label: 'Nội dung',
       items: [
         { name: 'Tổng quan', icon: LayoutDashboard, path: '/leader' },
+        { name: 'Lịch hẹn đã nhận', icon: CalendarCheck, path: '/leader/appointments' },
         { name: 'Phân công kỹ thuật', icon: ClipboardCheck, path: '/leader/assignments' },
         { name: 'Nghiệm thu tổng thể', icon: ShieldCheck, path: '/leader/final-qc' },
       ],
@@ -173,10 +174,10 @@ export default function LeaderLayout() {
 
   const menuItems = menuGroups.flatMap((group) => group.items);
 
-  // Dynamic active menu item based on current URL path
   const activeMenu = useMemo(() => {
     const path = location.pathname;
     if (path === '/leader' || path === '/leader/') return 'Tổng quan';
+    if (path.includes('/appointments')) return 'Lịch hẹn đã nhận';
     if (path.includes('/assignments')) return 'Phân công kỹ thuật';
     if (path.includes('/final-qc')) return 'Nghiệm thu tổng thể';
     return 'Tổng quan';

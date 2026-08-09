@@ -187,6 +187,7 @@ export default function ReceptionCustomerList() {
                   const activeRescue = latestRescue && ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(latestRescue.status) ? latestRescue : null;
                   const hasLocation = (customer.user?.latitude != null && customer.user?.longitude != null) || (activeRescue?.customer_lat != null && activeRescue?.customer_lng != null);
                   const completedRescue = latestRescue && latestRescue.status === 'COMPLETED' ? latestRescue : null;
+                  const serviceCreatedRescue = latestRescue && latestRescue.status === 'SERVICE_CREATED' ? latestRescue : null;
                   const displayName = customer.name || customer.user?.fullName || "Khách hàng ẩn danh";
 
                   return (
@@ -212,7 +213,11 @@ export default function ReceptionCustomerList() {
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-3">
                           {/* Khối 1: Hiển thị trạng thái định vị / Nút gọi cứu hộ */}
-                          {hasLocation ? (
+                          {serviceCreatedRescue ? (
+                            <span className="text-[10px] font-bold text-[#00285E] bg-[#EDF3FF] px-2.5 py-1 rounded-md border border-blue-100">
+                              ĐÃ CỨU HỘ & TIẾP NHẬN
+                            </span>
+                          ) : hasLocation ? (
                             activeRescue && activeRescue.status !== 'PENDING' ? (
                               <div className="flex flex-col items-end gap-2">
                                 <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-md border border-orange-200">

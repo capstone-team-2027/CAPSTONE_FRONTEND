@@ -142,8 +142,6 @@ export default function ReceptionRescueCreateServiceOrder() {
   const [manualVehiclePlate, setManualVehiclePlate] = useState('');
   const [manualVehicleVin, setManualVehicleVin] = useState('');
   const [manualVehicleYear, setManualVehicleYear] = useState('');
-  const [currentOdo, setCurrentOdo] = useState('');
-  const [bayId, setBayId] = useState('1'); // Cầu nâng (default 1)
 
   // Vehicle autocomplete states
   const [vehicleBrand, setVehicleBrand] = useState('');
@@ -157,13 +155,33 @@ export default function ReceptionRescueCreateServiceOrder() {
   const brandRef = useRef<HTMLDivElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
 
-  // Time selection states
-  const [bookingDate, setBookingDate] = useState('');
-  const [bookingTime, setBookingTime] = useState('');
-  const [shifts, setShifts] = useState<any[]>([]);
-  const [bufferMinutes, setBufferMinutes] = useState<number>(30);
+  // Slots Capacity states
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [shifts, setShifts] = useState<any[]>([
+    { start_time: '08:00', end_time: '12:00' },
+    { start_time: '13:00', end_time: '17:00' }
+  ]);
+  const [bufferMinutes, setBufferMinutes] = useState<number>(90);
   const [garageCapacity, setGarageCapacity] = useState<number>(1);
   const [bookedCounts, setBookedCounts] = useState<Record<string, number>>({});
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  });
+  const [linkedAppointmentId, setLinkedAppointmentId] = useState<string | null>(null);
+  const [showSlotsBoard, setShowSlotsBoard] = useState(false);
+
+  const [bookingDate, setBookingDate] = useState(() => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  });
+  const [bookingTime, setBookingTime] = useState('');
 
   const minDateStr = useMemo(() => {
     const today = new Date();
@@ -173,49 +191,7 @@ export default function ReceptionRescueCreateServiceOrder() {
     return `${y}-${m}-${d}`;
   }, []);
 
-  const timeSlots = useMemo(() => {
-    const slots: { time: string; label: string; isFull: boolean }[] = [];
-    shifts.forEach(shift => {
-      const [startH, startM] = (shift.start_time || "").split(':').map(Number);
-      const [endH, endM] = (shift.end_time || "").split(':').map(Number);
-      if (isNaN(startH) || isNaN(endH)) return;
 
-      let currentMinutes = startH * 60 + (startM || 0);
-      const endMinutes = endH * 60 + (endM || 0);
-
-      while (currentMinutes < endMinutes) {
-        const h = Math.floor(currentMinutes / 60);
-        const m = currentMinutes % 60;
-        const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-        const label = h < 12 ? 'Sáng' : 'Chiều';
-
-        // Calculate UTC hour for bookedCounts matching
-        const utcHour = (h - 7 + 24) % 24;
-        const isFull = (bookedCounts[utcHour] || 0) >= garageCapacity;
-
-        slots.push({ time: timeStr, label, isFull });
-        currentMinutes += bufferMinutes;
-      }
-    });
-
-    if (bookingDate === minDateStr) {
-      const now = new Date();
-      const nowMinutes = now.getHours() * 60 + now.getMinutes();
-      return slots.filter(slot => {
-        const [slotH, slotM] = slot.time.split(':').map(Number);
-        const slotMinutes = slotH * 60 + slotM;
-        return slotMinutes >= nowMinutes + 30;
-      });
-    }
-
-    return slots;
-  }, [shifts, bufferMinutes, bookingDate, minDateStr, bookedCounts, garageCapacity]);
-
-  useEffect(() => {
-    if (bookingTime && !timeSlots.some(slot => slot.time === bookingTime)) {
-      setBookingTime('');
-    }
-  }, [bookingDate, timeSlots, bookingTime]);
 
   // Common fields
   const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
@@ -286,11 +262,11 @@ export default function ReceptionRescueCreateServiceOrder() {
     loadDbData();
   }, []);
 
-  // Fetch Configs
+  // Load garage configurations and appointments for slots capacity monitor
   useEffect(() => {
     const loadGarageConfigs = async () => {
       try {
-        const bufferRes = await fetchPublic(GARAGE_CONFIG_API_ENDPOINTS.GET_CONFIGURATION_BY_KEY("BUFFER_TIME_MINUTES"));
+        const bufferRes = await fetchPrivate(GARAGE_CONFIG_API_ENDPOINTS.GET_CONFIGURATION_BY_KEY("BUFFER_TIME_MINUTES"));
         if (bufferRes && bufferRes.success && bufferRes.data) {
           const parsedVal = parseInt(bufferRes.data.config_value, 10);
           if (!isNaN(parsedVal) && parsedVal > 0) {
@@ -302,20 +278,124 @@ export default function ReceptionRescueCreateServiceOrder() {
       }
 
       try {
-        const dateParam = bookingDate ? `?date=${bookingDate}` : '';
-        const availRes = await fetchPublic(GARAGE_CONFIG_API_ENDPOINTS.GET_AVAILABILITY + dateParam);
-        if (availRes && availRes.success && availRes.data) {
-          const data = availRes.data;
-          if (data.shifts) setShifts(data.shifts);
+        const dateParam = selectedDate ? `?date=${selectedDate}` : '';
+        const availRes = await fetchPrivate(GARAGE_CONFIG_API_ENDPOINTS.GET_AVAILABILITY + dateParam);
+        const data = availRes?.data ?? availRes;
+        if (data) {
+          if (Array.isArray(data.shifts)) {
+            setShifts(data.shifts.length > 0 ? data.shifts : [
+              { start_time: '08:00', end_time: '12:00' },
+              { start_time: '13:00', end_time: '17:00' }
+            ]);
+          }
           if (data.capacity !== undefined) setGarageCapacity(data.capacity);
           if (data.bookedCounts) setBookedCounts(data.bookedCounts);
         }
       } catch (error) {
-        console.error("Lỗi tải ca làm việc và tình trạng sức chứa:", error);
+        console.error("Lỗi khi tải ca làm việc và tình trạng sức chứa:", error);
       }
     };
+
+    const loadAppointments = async () => {
+      try {
+        const response = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.GET_APPOINTMENTS);
+        if (response.success && Array.isArray(response.data)) {
+          const mapped = response.data.map((appt: any) => {
+            let appointmentDate = '';
+            let appointmentTime = '';
+            if (appt.scheduled_time) {
+              const dateObj = new Date(appt.scheduled_time);
+              appointmentDate = dateObj.getFullYear() + '-' + String(dateObj.getMonth() + 1).padStart(2, '0') + '-' + String(dateObj.getDate()).padStart(2, '0');
+              appointmentTime = String(dateObj.getHours()).padStart(2, '0') + ':' + String(dateObj.getMinutes()).padStart(2, '0');
+            }
+            return {
+              id: String(appt.id),
+              customerId: appt.customer?.id ? String(appt.customer.id) : '',
+              customerName: appt.customer?.user?.fullName || appt.customer?.name || 'Khách vãng lai',
+              customerPhone: appt.customer?.user?.phoneNumber || appt.customer?.phone || '',
+              vehicleId: appt.vehicle?.id ? String(appt.vehicle.id) : '',
+              vehiclePlate: appt.vehicle?.license_plate || 'Chưa cập nhật',
+              vehicleModel: appt.vehicle?.model
+                ? `${appt.vehicle.model.make?.make_name || ''} ${appt.vehicle.model.model_name || ''}`.trim()
+                : 'Chưa cập nhật',
+              appointmentDate,
+              appointmentTime,
+              status: (appt.status || 'pending').toLowerCase(),
+              bookingType: appt.booking_type || '',
+            };
+          });
+          setAppointments(mapped);
+        }
+      } catch (error) {
+        console.error("Lỗi khi tải lịch hẹn:", error);
+      }
+    };
+
     loadGarageConfigs();
-  }, [bookingDate, fetchPublic]);
+    loadAppointments();
+  }, [selectedDate]);
+
+  // Synchronize slots board date with booking date
+  useEffect(() => {
+    setSelectedDate(bookingDate);
+  }, [bookingDate]);
+
+  const timeSlots = useMemo(() => {
+    const slots: { time: string; label: string; isFull: boolean; count: number }[] = [];
+    shifts.forEach(shift => {
+      const [startH, startM] = (shift.start_time || "").split(':').map(Number);
+      const [endH, endM] = (shift.end_time || "").split(':').map(Number);
+      if (isNaN(startH) || isNaN(endH)) return;
+
+      let currentMinutes = startH * 60 + (startM || 0);
+      const endMinutes = endH * 60 + (endM || 0);
+
+      while (currentMinutes < endMinutes) {
+        const h = Math.floor(currentMinutes / 60);
+        const m = currentMinutes % 60;
+        const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        const label = h < 12 ? 'Sáng' : 'Chiều';
+
+        const utcHour = (h - 7 + 24) % 24;
+        const count = bookedCounts[utcHour] || 0;
+        const isFull = count >= garageCapacity;
+
+        slots.push({ time: timeStr, label, isFull, count });
+        currentMinutes += bufferMinutes;
+      }
+    });
+
+    let finalSlots = slots;
+    if (bookingDate === minDateStr) {
+      const now = new Date();
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      finalSlots = slots.map(slot => {
+        const [slotH, slotM] = slot.time.split(':').map(Number);
+        const slotMinutes = slotH * 60 + slotM;
+        // Disable past slots for today
+        if (slotMinutes < nowMinutes) {
+          return { ...slot, isFull: true };
+        }
+        return slot;
+      });
+    }
+
+    return finalSlots;
+  }, [shifts, bufferMinutes, bookedCounts, garageCapacity, bookingDate, minDateStr]);
+
+  const slotAppointments = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    appointments.forEach(apt => {
+      if (apt.appointmentDate === selectedDate) {
+        const timeKey = apt.appointmentTime;
+        if (!map[timeKey]) map[timeKey] = [];
+        map[timeKey].push(apt);
+      }
+    });
+    return map;
+  }, [appointments, selectedDate]);
+
+
 
   // Handle click outside to close suggestions
   useEffect(() => {
@@ -555,11 +635,6 @@ export default function ReceptionRescueCreateServiceOrder() {
         }
       }
 
-      if (!bookingDate || !bookingTime) {
-        showToast('Vui lòng chọn thời gian dự kiến hoàn thành.', 'warning');
-        return;
-      }
-
       if (receptionServiceMode === 'SERVICE' && selectedServiceIds.length === 0 && !selectedComboId) {
         showToast('Vui lòng chọn ít nhất 1 dịch vụ hoặc combo.', 'warning');
         return;
@@ -570,10 +645,9 @@ export default function ReceptionRescueCreateServiceOrder() {
       }
 
       // Determine explicit booking type
-      let finalBookingType = 'RECEPTIONIST_REPAIR';
+      let finalBookingType = receptionServiceMode === 'SERVICE' ? 'RECEPTIONIST_SPECIFIC' : 'RECEPTIONIST_REPAIR';
 
       // Prepare payload
-      const estimated_finish_time = `${bookingDate}T${bookingTime}:00`;
       let finalVehicleId = null;
       let walkInPayload = undefined;
 
@@ -592,12 +666,14 @@ export default function ReceptionRescueCreateServiceOrder() {
         };
       }
 
+      const estimated_finish_time = bookingDate && bookingTime ? `${bookingDate}T${bookingTime}:00` : undefined;
+
       const payload: any = {
+        appointment_id: linkedAppointmentId ? Number(linkedAppointmentId) : undefined,
         booking_type: finalBookingType || undefined,
         vehicle_id: finalVehicleId,
         walk_in: walkInPayload,
-        bay_id: Number(bayId) || null,
-        current_odo: currentOdo.trim() ? Number(currentOdo) : undefined,
+        bay_id: null,
         estimated_finish_time: estimated_finish_time,
         service_ids: receptionServiceMode === 'SERVICE' ? selectedServiceIds : undefined,
         combo_ids: receptionServiceMode === 'SERVICE' && selectedComboId ? [selectedComboId] : undefined,
@@ -649,27 +725,224 @@ export default function ReceptionRescueCreateServiceOrder() {
         </div>
       </div>
 
+      {/* QUICK STATUS BAR & SLOTS TOGGLE */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-2.5">
+          <Clock size={18} className="text-[#00285E]" />
+          <div>
+            <span className="text-xs font-bold text-slate-400 block uppercase tracking-wider">
+              Tình trạng xưởng hôm nay
+            </span>
+            <span className="text-sm font-semibold text-slate-700">
+              {linkedAppointmentId ? (
+                <span className="text-blue-600 flex items-center gap-1.5">
+                  <span className="inline-block w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                  Đang liên kết với lịch hẹn: <strong className="font-extrabold">APT-{linkedAppointmentId.padStart(3, '0')}</strong>
+                  <button
+                    type="button"
+                    onClick={() => setLinkedAppointmentId(null)}
+                    className="ml-2 px-2 py-0.5 text-xs text-rose-500 bg-rose-50 border border-rose-100 hover:bg-rose-100 rounded-md font-bold transition-all"
+                  >
+                    Hủy liên kết
+                  </button>
+                </span>
+              ) : (
+                'Tạo phiếu trực tiếp (Chưa liên kết lịch hẹn)'
+              )}
+            </span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowSlotsBoard(!showSlotsBoard)}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 ${showSlotsBoard
+            ? 'bg-[#00285E] text-white border-[#00285E] shadow-sm'
+            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+        >
+          <Calendar size={14} />
+          <span>{showSlotsBoard ? 'Ẩn bảng sức chứa' : 'Xem lịch hẹn & sức chứa hôm nay'}</span>
+        </button>
+      </div>
+
+      {/* COLLAPSIBLE SLOTS BOARD */}
+      <AnimatePresence>
+        {showSlotsBoard && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden space-y-4"
+          >
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/80 space-y-6">
+              {/* Board Header & Date Picker */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-slate-700">Chọn ngày theo dõi:</span>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-semibold text-[#00285E] focus:outline-none focus:ring-2 focus:ring-[#00285E]/20"
+                  />
+                </div>
+                <div className="flex items-center gap-6 text-sm">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3.5 h-3.5 rounded bg-emerald-500" />
+                    <span className="text-slate-600 font-medium">Còn trống</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3.5 h-3.5 rounded bg-blue-500" />
+                    <span className="text-slate-600 font-semibold">Đã đặt xe</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3.5 h-3.5 rounded bg-red-500" />
+                    <span className="text-slate-600 font-medium">Đã kín (Full)</span>
+                  </div>
+                  <div className="h-4 w-px bg-slate-200" />
+                  <div className="text-[#00285E] font-bold">
+                    Sức chứa mỗi ca: {garageCapacity} xe
+                  </div>
+                </div>
+              </div>
+
+              {/* Slots Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {timeSlots.map((slot) => {
+                  const appts = slotAppointments[slot.time] ?? [];
+                  const occupancyPercent = Math.min(100, Math.round((slot.count / garageCapacity) * 100));
+
+                  let statusLabel = 'Còn trống';
+                  let statusBg = 'bg-emerald-50 text-emerald-600 border-emerald-100';
+                  let progressColor = 'bg-emerald-500';
+
+                  if (slot.isFull) {
+                    statusLabel = 'ĐÃ KÍN (FULL)';
+                    statusBg = 'bg-rose-50 text-rose-600 border-rose-100';
+                    progressColor = 'bg-rose-500';
+                  } else if (slot.count > 0) {
+                    statusLabel = `ĐÃ ĐẶT ${slot.count} XE`;
+                    statusBg = 'bg-blue-50 text-blue-600 border-blue-100';
+                    progressColor = 'bg-blue-500';
+                  }
+
+                  return (
+                    <div key={slot.time} className={`bg-white rounded-xl border ${slot.isFull ? 'border-rose-100/80 shadow-rose-50/50' : 'border-slate-200/60'} shadow-xs overflow-hidden flex flex-col justify-between min-h-[280px] transition-all hover:shadow-sm`}>
+                      {/* Slot Header */}
+                      <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-1.5">
+                            <Clock size={14} className="text-[#00285E]" />
+                            <span className="text-sm font-extrabold text-[#00285E]">{slot.time}</span>
+                            <span className="text-[10px] font-semibold text-slate-400">({slot.label})</span>
+                          </div>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase ${statusBg}`}>
+                            {statusLabel}
+                          </span>
+                        </div>
+
+                        {/* Progress occupancy */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] font-semibold text-slate-400">
+                            <span>Sức chứa ca</span>
+                            <span>{slot.count} / {garageCapacity} xe</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                            <div className={`h-full rounded-full transition-all duration-300 ${progressColor}`} style={{ width: `${occupancyPercent}%` }} />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Appointments List for this slot */}
+                      <div className="flex-1 p-4 overflow-y-auto max-h-[160px] divide-y divide-slate-100">
+                        {appts.length === 0 ? (
+                          <div className="h-full flex items-center justify-center text-center text-slate-400 text-[11px] font-semibold py-6">
+                            Chưa có lịch hẹn nào
+                          </div>
+                        ) : (
+                          appts.map((apt) => {
+                            const isLinked = linkedAppointmentId === apt.id;
+                            const isUnreceived = apt.status === 'confirmed' || apt.status === 'pending';
+                            return (
+                              <div key={apt.id} className="py-2.5 first:pt-0 last:pb-0 space-y-1.5">
+                                <div className="flex items-start justify-between gap-1.5">
+                                  <div>
+                                    <span className="text-[9px] font-bold text-slate-400 block">APT-{apt.id.padStart(3, '0')}</span>
+                                    <span className="text-xs font-bold text-slate-800 block">{apt.customerName}</span>
+                                    <span className="text-[10px] font-semibold text-slate-400 block">{apt.customerPhone}</span>
+                                  </div>
+                                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 uppercase">
+                                    {apt.status === 'in_progress' ? 'Đang sửa' : apt.status === 'completed' ? 'Xong' : 'Chưa nhận'}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="px-1.5 py-0.5 rounded bg-blue-50 text-[#00285E] font-bold border border-blue-100 text-[9px]">
+                                    {apt.vehiclePlate}
+                                  </span>
+                                </div>
+
+                                {isUnreceived && (
+                                  <div className="flex items-center justify-end pt-1">
+                                    {isLinked ? (
+                                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                        ✓ Đang liên kết
+                                      </span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setLinkedAppointmentId(apt.id);
+                                          // Auto fill customer & vehicle if same phone/plate
+                                          setVehicleInputMode('EXISTING');
+                                          setSelectedCustomerVehicleId(apt.vehicleId);
+                                          showToast(`Đã liên kết cứu hộ với lịch hẹn APT-${apt.id.padStart(3, '0')}`, 'success');
+                                        }}
+                                        className="px-2 py-0.5 rounded text-[10px] font-bold text-white bg-[#00285E] hover:bg-[#001a3f] transition-all"
+                                      >
+                                        Liên kết lịch hẹn này
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="space-y-6">
         {/* READONLY CUSTOMER & VEHICLE DISPLAY */}
         {selectedRecord ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* READONLY CUSTOMER INFO */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
-              <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
-                <User size={16} className="text-[#00285E]" />
-                Thông tin Khách hàng
-              </h2>
-              <div className="space-y-3">
-                <FormReadonly label="Họ và tên" value={selectedRecord.name} />
-                <FormReadonly
-                  label="Số điện thoại"
-                  value={selectedRecord.phone}
-                  icon={<Phone size={14} className="text-slate-400" />}
-                />
+            {/* COLUMN 1: READONLY CUSTOMER INFO */}
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 flex flex-col justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
+                  <User size={16} className="text-[#00285E]" />
+                  Thông tin Khách hàng
+                </h2>
+                <div className="space-y-3">
+                  <FormReadonly label="Họ và tên" value={selectedRecord.name} />
+                  <FormReadonly
+                    label="Số điện thoại"
+                    value={selectedRecord.phone}
+                    icon={<Phone size={14} className="text-slate-400" />}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* VEHICLE INFO */}
+            {/* COLUMN 2: VEHICLE INFO */}
             <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
               <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
                 <Car size={16} className="text-[#00285E]" />
@@ -726,38 +999,6 @@ export default function ReceptionRescueCreateServiceOrder() {
                         <FormReadonly label="Biển số" value={v.license_plate} highlight />
                         <FormReadonly label="Loại xe" value={`${v.brand} ${v.model}`.trim()} />
                         <FormReadonly label="Năm SX" value={v.year?.toString() || '—'} />
-                        <div className="pt-2">
-                          <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                            <Clock size={14} className="text-slate-400" />
-                            Thời gian *
-                          </label>
-                          <div className="grid grid-cols-1 gap-3">
-                            <input
-                              type="date"
-                              value={bookingDate}
-                              onChange={(e) => setBookingDate(e.target.value)}
-                              min={minDateStr}
-                              className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
-                            />
-                            <select
-                              value={bookingTime}
-                              onChange={(e) => setBookingTime(e.target.value)}
-                              className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
-                            >
-                              <option value="">-- Chọn giờ --</option>
-                              {timeSlots.map(slot => (
-                                <option
-                                  key={slot.time}
-                                  value={slot.time}
-                                  disabled={slot.isFull}
-                                  className={slot.isFull ? 'text-gray-300' : ''}
-                                >
-                                  {slot.time} ({slot.isFull ? 'Kín lịch' : slot.label})
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
                       </div>
                     );
                   })()}
@@ -843,46 +1084,69 @@ export default function ReceptionRescueCreateServiceOrder() {
                     placeholder="VD: 2022..."
                     type="number"
                   />
-                  <div>
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                      <Clock size={14} className="text-slate-400" />
-                      Thời gian *
-                    </label>
-                    <div className="grid grid-cols-1 gap-3">
-                      <input
-                        type="date"
-                        value={bookingDate}
-                        onChange={(e) => setBookingDate(e.target.value)}
-                        min={minDateStr}
-                        className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
-                      />
-                      <select
-                        value={bookingTime}
-                        onChange={(e) => setBookingTime(e.target.value)}
-                        className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue"
-                      >
-                        <option value="">-- Chọn giờ --</option>
-                        {timeSlots.map(slot => (
-                          <option
-                            key={slot.time}
-                            value={slot.time}
-                            disabled={slot.isFull}
-                            className={slot.isFull ? 'text-gray-300' : ''}
-                          >
-                            {slot.time} ({slot.isFull ? 'Kín lịch' : slot.label})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
                 </div>
               )}
             </div>
+
           </div>
         ) : (
           <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-16 text-center text-slate-400 font-semibold text-sm flex flex-col items-center justify-center gap-4">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00285E]"></div>
             Đang tải thông tin khách hàng từ hệ thống...
+          </div>
+        )}
+      </div>
+
+      {/* SCHEDULED TIME CARD */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
+        <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
+          <Calendar size={16} className="text-[#00285E]" />
+          Thời gian xếp ca vào sửa <span className="text-slate-400 font-normal">(Chọn khung giờ xếp lớp xe vào sửa)</span>
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+              <Calendar size={14} className="text-slate-400" />
+              Ngày xếp ca
+            </label>
+            <input
+              type="date"
+              value={bookingDate}
+              min={minDateStr}
+              onChange={(e) => setBookingDate(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-700"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+              <Clock size={14} className="text-slate-400" />
+              Khung ca hẹn khả dụng
+            </label>
+            <select
+              value={bookingTime}
+              onChange={(e) => setBookingTime(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-700"
+            >
+              <option value="">-- Chọn ca hẹn hoặc để trống làm ngay --</option>
+              {timeSlots.map((slot) => {
+                const [slotH, slotM] = slot.time.split(':').map(Number);
+                const slotMinutes = slotH * 60 + slotM;
+                const now = new Date();
+                const nowMinutes = now.getHours() * 60 + now.getMinutes();
+                const isPast = bookingDate === minDateStr && slotMinutes < nowMinutes;
+                return (
+                  <option key={slot.time} value={slot.time} disabled={slot.isFull}>
+                    {slot.time} ({slot.label}){slot.isFull ? (isPast ? ' - Đã qua giờ' : ' - Kín lịch') : ''}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        </div>
+        {timeSlots.length === 0 && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
+            <AlertCircle size={14} />
+            Không có khung giờ khả dụng cho ngày đã chọn.
           </div>
         )}
       </div>
