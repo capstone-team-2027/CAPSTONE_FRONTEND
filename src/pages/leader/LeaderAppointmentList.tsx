@@ -164,7 +164,7 @@ export default function LeaderAppointmentList() {
           };
         });
 
-        // Sort: Emergency -> Bookings (scheduled_time ASC) -> Walk-ins (createdAt ASC)
+        // Ưu tiên ca khẩn cấp, sau đó xếp thời điểm đến/hẹn sớm nhất lên trước.
         const sorted = mapped.sort((a: any, b: any) => {
           const aIsEmergency = a.priorityType === 'EMERGENCY';
           const bIsEmergency = b.priorityType === 'EMERGENCY';
@@ -172,19 +172,15 @@ export default function LeaderAppointmentList() {
             return aIsEmergency ? -1 : 1;
           }
 
-          const aIsWalkIn = a.bookingType && a.bookingType.includes('WALK');
-          const bIsWalkIn = b.bookingType && b.bookingType.includes('WALK');
-          if (aIsWalkIn !== bIsWalkIn) {
-            return aIsWalkIn ? 1 : -1;
-          }
+          const timeA = a.appointmentDate && a.appointmentTime
+            ? `${a.appointmentDate}T${a.appointmentTime}`
+            : a.createdAt;
+          const timeB = b.appointmentDate && b.appointmentTime
+            ? `${b.appointmentDate}T${b.appointmentTime}`
+            : b.createdAt;
+          const difference = new Date(timeA).getTime() - new Date(timeB).getTime();
 
-          if (!aIsWalkIn) {
-            const timeA = a.appointmentDate && a.appointmentTime ? `${a.appointmentDate}T${a.appointmentTime}` : a.createdAt;
-            const timeB = b.appointmentDate && b.appointmentTime ? `${b.appointmentDate}T${b.appointmentTime}` : b.createdAt;
-            return new Date(timeA).getTime() - new Date(timeB).getTime();
-          } else {
-            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-          }
+          return difference || Number(a.id) - Number(b.id);
         });
 
         setAppointments(sorted);
@@ -631,9 +627,9 @@ export default function LeaderAppointmentList() {
       {/* DETAIL MODAL */}
       {selectedAppt && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col relative animate-in fade-in-50 zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl shadow-[#00285E]/20 border-[3px] border-[#00285E] max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col relative animate-in fade-in-50 zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <div className="px-6 py-4 border-b border-[#D2E2FF] flex items-center justify-between bg-[#F6F9FF]">
               <div className="flex items-center gap-2">
                 <FileText className="text-[#00285E]" size={20} />
                 <h3 className="font-bold text-slate-800 text-base">
@@ -642,7 +638,7 @@ export default function LeaderAppointmentList() {
               </div>
               <button
                 onClick={() => setSelectedAppt(null)}
-                className="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors"
+                className="w-8 h-8 rounded-full flex items-center justify-center border border-[#D2E2FF] bg-[#EDF3FF] text-[#00285E] hover:bg-[#D2E2FF] transition-colors"
               >
                 <XCircle size={18} />
               </button>
@@ -764,10 +760,10 @@ export default function LeaderAppointmentList() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-slate-100 flex justify-end bg-slate-50">
+            <div className="px-6 py-4 border-t border-[#D2E2FF] flex justify-end bg-[#F6F9FF]">
               <button
                 onClick={() => setSelectedAppt(null)}
-                className="px-5 py-2.5 rounded-xl text-sm font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 transition-colors"
+                className="px-5 py-2.5 rounded-xl text-sm font-bold border border-[#00285E] bg-[#00285E] text-white hover:bg-[#001a3f] transition-colors shadow-sm"
               >
                 Đóng
               </button>
