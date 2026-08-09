@@ -38,6 +38,9 @@ type Vehicle = {
   year?: number;
   color?: string;
   isInGarage?: boolean;
+  hasActiveAppointment?: boolean;
+  isDisabled?: boolean;
+  disableReason?: string | null;
 };
 
 type CustomerResult = {
@@ -371,7 +374,7 @@ export default function ReceptionReceiveCustomer() {
     setSelectedCustomer(customer);
     setPhoneSearch(customer.phone);
     setResults([]);
-    const availableVehicle = customer.vehicles?.find(vehicle => !vehicle.isInGarage);
+    const availableVehicle = customer.vehicles?.find(vehicle => !vehicle.isDisabled);
     if (availableVehicle) {
       setVehicleMode('existing');
       setSelectedVehicleId(String(availableVehicle.id));
@@ -428,6 +431,15 @@ export default function ReceptionReceiveCustomer() {
       if (vehicleMode === 'existing' && !selectedVehicleId) {
         showToast('Vui lòng chọn xe.', 'warning');
         return;
+      }
+      if (vehicleMode === 'existing') {
+        const selectedVehicle = selectedCustomer.vehicles?.find(
+          vehicle => String(vehicle.id) === selectedVehicleId
+        );
+        if (selectedVehicle?.isDisabled) {
+          showToast(selectedVehicle.disableReason || 'Xe này hiện không thể tiếp nhận.', 'warning');
+          return;
+        }
       }
       if (vehicleMode === 'new' && (!plate.trim() || !brand.trim() || !model.trim())) {
         showToast('Vui lòng nhập biển số, hãng xe và dòng xe.', 'warning');
@@ -647,16 +659,16 @@ export default function ReceptionReceiveCustomer() {
                           type="radio"
                           checked={vehicleMode === 'existing'}
                           onChange={() => {
-                            const availableVehicle = selectedCustomer.vehicles.find(v => !v.isInGarage);
+                            const availableVehicle = selectedCustomer.vehicles.find(v => !v.isDisabled);
                             if (!availableVehicle) {
-                              showToast('Tất cả xe đã lưu hiện đang ở trong xưởng.', 'warning');
+                              showToast('Tất cả xe đã lưu đều đang có lịch hoặc đang ở trong gara.', 'warning');
                               return;
                             }
                             setVehicleMode('existing');
                             const currentVehicle = selectedCustomer.vehicles.find(
                               v => String(v.id) === selectedVehicleId
                             );
-                            if (!currentVehicle || currentVehicle.isInGarage) {
+                            if (!currentVehicle || currentVehicle.isDisabled) {
                               setSelectedVehicleId(String(availableVehicle.id));
                             }
                           }}
@@ -686,8 +698,8 @@ export default function ReceptionReceiveCustomer() {
                         >
                           <option value="">Chọn xe</option>
                           {selectedCustomer.vehicles?.map((v) => (
-                            <option key={v.id} value={v.id} disabled={v.isInGarage}>
-                              {v.license_plate} - {v.brand} {v.model} {v.isInGarage ? '(Đang trong xưởng)' : ''}
+                            <option key={v.id} value={v.id} disabled={v.isDisabled}>
+                              {v.license_plate} - {v.brand} {v.model} {v.isDisabled ? `(${v.disableReason})` : ''}
                             </option>
                           ))}
                         </select>
