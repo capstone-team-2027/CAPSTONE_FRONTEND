@@ -274,9 +274,9 @@ export default function AppointmentList() {
   };
 
   return (
-    <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
+    <div className="mx-auto w-full max-w-7xl flex-1 space-y-4 p-3 sm:p-4 md:space-y-6 md:p-6 xl:p-8">
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
         <div className="flex items-start gap-3">
           <button
             onClick={() => navigate(-1)}
@@ -295,17 +295,17 @@ export default function AppointmentList() {
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:w-auto xl:gap-3">
           <button
             onClick={() => navigate('/reception/customers/receive')}
-            className="shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-[#00285E] bg-white text-[#00285E] text-sm font-bold hover:bg-[#EDF3FF] active:scale-[0.98] transition-all shadow-sm"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#00285E] bg-white px-5 py-3 text-sm font-bold text-[#00285E] shadow-sm transition-all hover:bg-[#EDF3FF] active:scale-[0.98]"
           >
             <CarFront size={18} />
             Tiếp nhận khách
           </button>
           <button
             onClick={() => navigate('/reception/appointments/new')}
-            className="shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#00285E] text-white text-sm font-bold hover:bg-[#00285E]/90 active:scale-[0.98] transition-all shadow-sm"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#00285E] px-5 py-3 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#00285E]/90 active:scale-[0.98]"
           >
             <CalendarCheck size={18} />
             Đặt lịch hẹn mới
@@ -314,20 +314,20 @@ export default function AppointmentList() {
       </div>
 
       {/* KPI CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:gap-4">
         {[
           { label: 'Tổng lịch hẹn', value: kpiCounts.total, icon: <CalendarCheck size={22} />, color: '#00285E', bg: '#EFF6FF' },
           { label: 'Chờ xác nhận', value: kpiCounts.pending, icon: <Clock size={22} />, color: '#D97706', bg: '#FEF3C7' },
           { label: 'Đã xác nhận', value: kpiCounts.confirmed, icon: <CheckCircle2 size={22} />, color: '#2563EB', bg: '#DBEAFE' },
           { label: 'Hoàn thành', value: kpiCounts.completed, icon: <CheckCircle2 size={22} />, color: '#059669', bg: '#D1FAE5' },
         ].map((card, i) => (
-          <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs">
+          <div key={i} className="rounded-2xl border border-slate-200/60 bg-white p-3 shadow-xs sm:p-4 xl:p-5">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">{card.label}</span>
-                <span className="text-2xl font-bold text-slate-900 tracking-tight block">{card.value}</span>
+                <span className="block text-xl font-bold tracking-tight text-slate-900 xl:text-2xl">{card.value}</span>
               </div>
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: card.bg, color: card.color }}>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl xl:h-10 xl:w-10" style={{ backgroundColor: card.bg, color: card.color }}>
                 {card.icon}
               </div>
             </div>
@@ -410,7 +410,84 @@ export default function AppointmentList() {
             <p className="text-sm">Thử thay đổi từ khóa hoặc bộ lọc trạng thái.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Mobile and tablet cards */}
+          <div className="grid grid-cols-1 gap-3 bg-slate-50/70 p-3 sm:p-4 lg:grid-cols-2 xl:hidden">
+            {paginatedData.map((apt) => {
+              const statusCfg = STATUS_CONFIG[apt.status] ?? {
+                ...DEFAULT_STATUS_CONFIG,
+                label: apt.status ? apt.status.replaceAll('_', ' ') : DEFAULT_STATUS_CONFIG.label,
+              };
+              const StatusIcon = statusCfg.icon;
+              return (
+                <article key={apt.id} className="flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                  <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[#00285E]">APT-{apt.id.padStart(3, '0')}</p>
+                      <p className="mt-1 truncate text-sm font-bold text-slate-800">{apt.customerName}</p>
+                      <p className="text-xs text-slate-400">{apt.customerPhone}</p>
+                    </div>
+                    <span
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold"
+                      style={{ backgroundColor: statusCfg.bg, color: statusCfg.color }}
+                    >
+                      <StatusIcon size={12} />
+                      {statusCfg.label}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 py-4 text-xs">
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Phương tiện</span>
+                      <p className="mt-1 font-bold text-slate-700">{apt.vehiclePlate}</p>
+                      <p className="truncate text-slate-400">{apt.vehicleModel}</p>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Ngày hẹn</span>
+                      <p className="mt-1 font-bold text-slate-700">{formatDate(apt.appointmentDate)}</p>
+                      <p className="text-slate-400">{apt.appointmentTime}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Dịch vụ</span>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {apt.services.length > 0 ? apt.services.slice(0, 3).map((service, index) => (
+                          <span key={index} className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">{service}</span>
+                        )) : <span className="text-slate-400">Chưa có dịch vụ</span>}
+                        {apt.services.length > 3 && <span className="px-1 py-1 text-[10px] font-bold text-slate-400">+{apt.services.length - 3}</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-auto grid grid-cols-1 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-2">
+                    <button
+                      onClick={() => navigate(`/reception/appointments/${apt.id}`)}
+                      className="flex items-center justify-center gap-1.5 rounded-lg bg-[#EDF3FF] px-3 py-2 text-xs font-bold text-[#00285E] transition-colors hover:bg-[#D2E2FF]"
+                    >
+                      <Eye size={14} /> Chi tiết
+                    </button>
+                    {(apt.status === 'confirmed' || apt.status === 'pending' || apt.status === 'in_progress') && (
+                      apt.hasServiceOrder ? (
+                        <button onClick={() => navigate(`/reception/service-orders/${apt.serviceOrderId}`)} className="flex items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-100 px-3 py-2 text-xs font-bold text-[#00285E] hover:bg-emerald-200">
+                          <CarFront size={14} /> Xem Lệnh S/C
+                        </button>
+                      ) : apt.status === 'in_progress' ? (
+                        <button onClick={() => navigate(`/reception/service-orders/create?appointmentId=${apt.id}`)} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#00285E] px-3 py-2 text-xs font-bold text-white hover:bg-[#001a3f]">
+                          <CarFront size={14} /> Tạo hóa đơn
+                        </button>
+                      ) : (
+                        <button onClick={() => handleReceiveClick(apt)} disabled={isSubmittingVin} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#00285E] px-3 py-2 text-xs font-bold text-white hover:bg-[#001a3f] disabled:opacity-50">
+                          <CarFront size={14} /> Tiếp nhận xe
+                        </button>
+                      )
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {/* Full table for wide desktop screens */}
+          <div className="hidden overflow-x-auto xl:block">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
@@ -535,11 +612,12 @@ export default function AppointmentList() {
               </tbody>
             </table>
           </div>
+          </>
         )}
 
         {/* PAGINATION */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100">
+          <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-100 px-4 py-4 sm:flex-row sm:px-6">
             <span className="text-xs font-semibold text-slate-400">
               Hiển thị {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredAppointments.length)} / {filteredAppointments.length} lịch hẹn
             </span>

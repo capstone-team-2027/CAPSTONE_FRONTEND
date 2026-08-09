@@ -381,7 +381,6 @@ export default function BookingPage() {
                         setVehicleInputMode('EXISTING');
                     }
                 }
-
                 const configRes = await fetchPublic(GARAGE_CONFIG_API_ENDPOINTS.GET_CONFIGS);
                 if (configRes && configRes.success && configRes.data) {
                     const maxPctConfig = configRes.data.find((c: any) => c.config_key === 'MAX_LOYALTY_DISCOUNT_PERCENT');
@@ -845,7 +844,7 @@ export default function BookingPage() {
             return slots.map(slot => {
                 const [slotH, slotM] = slot.time.split(':').map(Number);
                 const slotMinutes = slotH * 60 + slotM;
-                if (slotMinutes < nowMinutes + 30) {
+                if (slotMinutes < nowMinutes + 1) {
                     return { ...slot, isFull: true };
                 }
                 return slot;

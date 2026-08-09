@@ -19,7 +19,6 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useFetchClient_v2 } from '../../hook/useFetchClient';
 import { useSocket } from '../../hook/useSocket';
 import { TECHNICIAN_LEADER_TASK_ENDPOINTS } from '../../constants/technicianLeader/taskManagementEndpoint';
-import { GARAGE_CONFIG_API_ENDPOINTS } from '../../constants/customer/garage_configurationsEndpoints';
 
 
 interface AppointmentModel {
@@ -36,7 +35,13 @@ interface AppointmentModel {
   vinNumber?: string;
   hasServiceOrder: boolean;
   serviceOrderId: number | null;
+  bayStatus: string | null;
   services: string[];
+  serviceDetails: Array<{
+    type: 'catalog' | 'combo';
+    name: string;
+    includedCatalogs: string[];
+  }>;
   appointmentDate: string;
   appointmentTime: string;
   notes: string;
@@ -56,6 +61,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 const TABS = {
   all: 'Tất cả',
   uncreated: 'Đợi tạo lệnh',
+  waiting: 'Chờ cầu nâng',
   in_progress: 'Đang sửa chữa',
   completed: 'Hoàn thành',
 };
@@ -75,25 +81,8 @@ export default function LeaderAppointmentList() {
   const [error, setError] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'uncreated' | 'in_progress' | 'completed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'uncreated' | 'waiting' | 'in_progress' | 'completed'>('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [garageCapacity, setGarageCapacity] = useState<number>(3);
-  const [bookedCounts, setBookedCounts] = useState<Record<string, number>>({});
-
-  const loadGarageConfigs = async () => {
-    try {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const availRes = await fetchPrivate(GARAGE_CONFIG_API_ENDPOINTS.GET_AVAILABILITY + `?date=${todayStr}`);
-      const data = availRes?.data ?? availRes;
-      if (data) {
-        if (data.capacity !== undefined) setGarageCapacity(data.capacity);
-        if (data.bookedCounts) setBookedCounts(data.bookedCounts);
-      }
-    } catch (error) {
-      console.error("Lỗi khi tải dữ liệu sức chứa của xưởng:", error);
-    }
-  };
-
   // Modal State
   const [selectedAppt, setSelectedAppt] = useState<AppointmentModel | null>(null);
 
@@ -106,19 +95,35 @@ export default function LeaderAppointmentList() {
       if (response.success && Array.isArray(response.data)) {
         const mapped: AppointmentModel[] = response.data.map((appt: any) => {
           const services: string[] = [];
+          const serviceDetails: AppointmentModel['serviceDetails'] = [];
           if (Array.isArray(appt.appointmentDetails)) {
             appt.appointmentDetails.forEach((detail: any) => {
               if (detail.catalog?.service_name) {
                 services.push(detail.catalog.service_name);
+                serviceDetails.push({
+                  type: 'catalog',
+                  name: detail.catalog.service_name,
+                  includedCatalogs: [],
+                });
               }
               if (detail.combo?.combo_name) {
                 services.push(detail.combo.combo_name);
+                serviceDetails.push({
+                  type: 'combo',
+                  name: detail.combo.combo_name,
+                  includedCatalogs: Array.isArray(detail.combo.catalogs)
+                    ? detail.combo.catalogs
+                        .map((catalog: any) => catalog.service_name)
+                        .filter(Boolean)
+                    : [],
+                });
               }
             });
           }
 
           if (services.length === 0 && appt.booking_type && appt.booking_type.includes('REPAIR')) {
             services.push('Kiểm tra');
+            serviceDetails.push({ type: 'catalog', name: 'Kiểm tra', includedCatalogs: [] });
           }
 
           let appointmentDate = '';
@@ -146,7 +151,9 @@ export default function LeaderAppointmentList() {
             vinNumber: appt.vehicle?.vin_number || undefined,
             hasServiceOrder: !!appt.serviceOrder,
             serviceOrderId: appt.serviceOrder?.id || null,
+            bayStatus: appt.serviceOrder?.bay_status || null,
             services,
+            serviceDetails,
             appointmentDate,
             appointmentTime,
             notes: appt.notes || '',
@@ -194,7 +201,6 @@ export default function LeaderAppointmentList() {
 
   useEffect(() => {
     loadAppointments();
-    loadGarageConfigs();
   }, []);
 
   // Realtime notification support for auto-reloading lists
@@ -202,7 +208,6 @@ export default function LeaderAppointmentList() {
     if (!socket) return;
     const handleNewNotification = () => {
       loadAppointments();
-      loadGarageConfigs();
     };
     socket.on('new_notification', handleNewNotification);
     return () => {
@@ -229,8 +234,10 @@ export default function LeaderAppointmentList() {
         matchStatus = true;
       } else if (statusFilter === 'uncreated') {
         matchStatus = statusLower === 'technicaian_recieved' || statusLower === 'information_recieved';
+      } else if (statusFilter === 'waiting') {
+        matchStatus = apt.hasServiceOrder && apt.bayStatus?.toUpperCase() === 'WAITING';
       } else if (statusFilter === 'in_progress') {
-        matchStatus = statusLower === 'in_progress';
+        matchStatus = statusLower === 'in_progress' && apt.bayStatus?.toUpperCase() !== 'WAITING';
       } else if (statusFilter === 'completed') {
         matchStatus = statusLower === 'completed';
       }
@@ -246,7 +253,8 @@ export default function LeaderAppointmentList() {
         const s = a.status.toLowerCase();
         return s === 'technicaian_recieved' || s === 'information_recieved';
       }).length,
-      in_progress: appointments.filter((a) => a.status.toLowerCase() === 'in_progress').length,
+      waiting: appointments.filter((a) => a.hasServiceOrder && a.bayStatus?.toUpperCase() === 'WAITING').length,
+      in_progress: appointments.filter((a) => a.status.toLowerCase() === 'in_progress' && a.bayStatus?.toUpperCase() !== 'WAITING').length,
       completed: appointments.filter((a) => a.status.toLowerCase() === 'completed').length,
     };
   }, [appointments]);
@@ -266,43 +274,30 @@ export default function LeaderAppointmentList() {
     return { total, withOrder, withoutOrder };
   }, [appointments]);
 
-  const isCreateDisabled = (apt: AppointmentModel) => {
-    const isWalkIn = apt.bookingType && apt.bookingType.includes('WALK');
-
-    // Get current local hour
-    const now = new Date();
-    const currentHour = now.getHours();
-
-    const startHour = currentHour;
-    const endHour = currentHour + 1;
-
-    for (let h = startHour; h <= endHour; h++) {
-      const utcHour = (h - 7 + 24) % 24;
-      const count = bookedCounts[utcHour] || 0;
-      if (count >= garageCapacity) {
-        if (isWalkIn) return true;
-
-        if (apt.appointmentTime) {
-          const [scheduledH] = apt.appointmentTime.split(':').map(Number);
-          if (scheduledH !== h) {
-            return true;
-          }
-        } else {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  };
-
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
     return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
+  const getDisplayStatus = (apt: AppointmentModel) => {
+    const isWaitingForBay = apt.hasServiceOrder && apt.bayStatus?.toUpperCase() === 'WAITING';
+    const statusKey = apt.status.toLowerCase();
+    const config = isWaitingForBay ? {
+      label: 'Đang chờ cầu nâng',
+      color: '#D97706',
+      bg: '#FEF3C7',
+      icon: Clock,
+    } : STATUS_CONFIG[statusKey] || {
+      label: apt.status,
+      color: '#EA580C',
+      bg: '#FED7AA',
+      icon: CheckCircle2,
+    };
+    return { config, statusKey, isWaitingForBay };
+  };
+
   return (
-    <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
+    <div className="mx-auto w-full max-w-7xl flex-1 space-y-4 p-3 sm:p-4 lg:space-y-6 lg:p-6 xl:p-8">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
@@ -347,7 +342,7 @@ export default function LeaderAppointmentList() {
       </div>
 
       {/* SEARCH AND FILTERS */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs space-y-4">
+      <div className="space-y-4 rounded-2xl border border-slate-200/60 bg-white p-4 shadow-xs sm:p-5">
         <div className="relative">
           <Search size={16} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
           <input
@@ -360,7 +355,7 @@ export default function LeaderAppointmentList() {
         </div>
 
         {/* TABS */}
-        <div className="flex border-b border-slate-100/80">
+        <div className="flex overflow-x-auto border-b border-slate-100/80 scrollbar-none">
           {Object.entries(TABS).map(([key, label]) => {
             const count = tabCounts[key as keyof typeof tabCounts] ?? 0;
             const isActive = statusFilter === key;
@@ -415,14 +410,85 @@ export default function LeaderAppointmentList() {
             <p className="text-sm">Không tìm thấy dữ liệu phù hợp với bộ lọc.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Compact cards for mobile and tablet */}
+          <div className="space-y-3 bg-slate-50/60 p-3 sm:p-4 xl:hidden">
+            {paginatedData.map((apt) => {
+              const { config, statusKey, isWaitingForBay } = getDisplayStatus(apt);
+              const StatusIcon = config.icon;
+              const isWalkIn = apt.bookingType?.includes('WALK');
+              return (
+                <article key={apt.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span className="font-bold text-[#00285E]">APT-{apt.id.padStart(3, '0')}</span>
+                      <span className={`shrink-0 rounded-md border px-2 py-0.5 text-[9px] font-bold ${isWalkIn
+                        ? 'border-slate-200 bg-slate-100 text-slate-500'
+                        : 'border-blue-100 bg-blue-50 text-blue-600'
+                      }`}>
+                        {isWalkIn ? 'Vãng lai' : 'Đặt lịch'}
+                      </span>
+                    </div>
+                    <span
+                      style={{ color: config.color, backgroundColor: config.bg }}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold"
+                    >
+                      <StatusIcon size={12} className={!isWaitingForBay && statusKey === 'in_progress' ? 'animate-spin' : ''} />
+                      {config.label}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 py-4 sm:grid-cols-3">
+                    <div className="min-w-0">
+                      <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">Khách hàng</span>
+                      <p className="mt-1 truncate text-sm font-semibold text-slate-800">{apt.customerName}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">Biển số xe</span>
+                      <p className="mt-1 truncate text-sm font-semibold text-slate-700">{apt.vehiclePlate}</p>
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">Lịch hẹn</span>
+                      <p className="mt-1 text-sm font-semibold text-slate-700">{formatDate(apt.appointmentDate)} · {apt.appointmentTime}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col justify-end gap-2 border-t border-slate-100 pt-3 sm:flex-row">
+                    <button
+                      onClick={() => setSelectedAppt(apt)}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#EDF3FF] px-4 py-2 text-xs font-bold text-[#00285E] transition-colors hover:bg-[#D2E2FF]"
+                    >
+                      <Eye size={14} /> Chi tiết
+                    </button>
+                    {apt.hasServiceOrder ? (
+                      <button
+                        onClick={() => navigate(`/leader/service-orders/${apt.serviceOrderId}`)}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-100 px-4 py-2 text-xs font-bold text-[#00285E] transition-colors hover:bg-emerald-200"
+                      >
+                        <CarFront size={14} /> Xem lệnh S/C
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => navigate(`/leader/appointments/create-service-order?appointmentId=${apt.id}`)}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#00285E] px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-[#001a3f]"
+                      >
+                        <CarFront size={14} /> Tạo lệnh dịch vụ
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {/* Short table for wide desktop screens */}
+          <div className="hidden overflow-x-auto xl:block">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
                   <th className="py-3 px-4">Mã</th>
                   <th className="py-3 px-4">Khách hàng</th>
                   <th className="py-3 px-4">Xe</th>
-                  <th className="py-3 px-4">Dịch vụ đăng ký</th>
                   <th className="py-3 px-4">Ngày hẹn</th>
                   <th className="py-3 px-4">Trạng thái</th>
                   <th className="py-3 px-4 text-center">Thao tác</th>
@@ -430,6 +496,8 @@ export default function LeaderAppointmentList() {
               </thead>
               <tbody>
                 {paginatedData.map((apt) => {
+                  const { config, statusKey, isWaitingForBay } = getDisplayStatus(apt);
+                  const StatusIcon = config.icon;
                   return (
                     <tr key={apt.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors">
                       <td className="py-4 px-4">
@@ -453,26 +521,12 @@ export default function LeaderAppointmentList() {
                           </div>
                           <div>
                             <p className="font-semibold text-slate-800 text-sm">{apt.customerName}</p>
-                            <p className="text-slate-400 text-xs">{apt.customerPhone}</p>
                           </div>
                         </div>
                       </td>
                       <td className="py-4 px-4">
                         <div>
                           <p className="font-semibold text-slate-700 text-xs">{apt.vehiclePlate}</p>
-                          <p className="text-slate-400 text-xs">{apt.vehicleModel}</p>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="max-w-[200px]">
-                          {apt.services.slice(0, 2).map((s, i) => (
-                            <span key={i} className="inline-block bg-slate-100 text-slate-600 text-[10px] font-semibold px-2 py-0.5 rounded-md mr-1 mb-1">
-                              {s}
-                            </span>
-                          ))}
-                          {apt.services.length > 2 && (
-                            <span className="text-[10px] text-slate-400 font-semibold">+{apt.services.length - 2}</span>
-                          )}
                         </div>
                       </td>
                       <td className="py-4 px-4">
@@ -482,25 +536,13 @@ export default function LeaderAppointmentList() {
                         </div>
                       </td>
                       <td className="py-4 px-4">
-                        {(() => {
-                          const statusKey = apt.status.toLowerCase();
-                          const config = STATUS_CONFIG[statusKey] || {
-                            label: apt.status,
-                            color: '#EA580C',
-                            bg: '#FED7AA',
-                            icon: CheckCircle2,
-                          };
-                          const Icon = config.icon;
-                          return (
-                            <span
-                              style={{ color: config.color, backgroundColor: config.bg }}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold"
-                            >
-                              <Icon size={12} className={statusKey === 'in_progress' ? 'animate-spin' : ''} />
-                              {config.label}
-                            </span>
-                          );
-                        })()}
+                        <span
+                          style={{ color: config.color, backgroundColor: config.bg }}
+                          className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-bold"
+                        >
+                          <StatusIcon size={12} className={!isWaitingForBay && statusKey === 'in_progress' ? 'animate-spin' : ''} />
+                          {config.label}
+                        </span>
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex items-center justify-center gap-2">
@@ -520,24 +562,16 @@ export default function LeaderAppointmentList() {
                               <CarFront size={13} />
                               Xem Lệnh S/C
                             </button>
-                          ) : (() => {
-                            const disabled = isCreateDisabled(apt);
-                            return (
-                              <button
-                                disabled={disabled}
-                                onClick={() => navigate(`/leader/appointments/create-service-order?appointmentId=${apt.id}`)}
-                                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                  disabled
-                                    ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-                                    : 'text-white bg-[#00285E] hover:bg-[#001a3f] transition-colors'
-                                }`}
-                                title={disabled ? "Không thể tạo hóa đơn dịch vụ do xưởng sẽ quá tải vào các khung giờ tới." : "Tạo hóa đơn dịch vụ"}
-                              >
-                                <CarFront size={13} />
-                                {disabled ? 'Đầy cầu nâng' : 'Tạo hóa đơn dịch vụ'}
-                              </button>
-                            );
-                          })()}
+                          ) : (
+                            <button
+                              onClick={() => navigate(`/leader/appointments/create-service-order?appointmentId=${apt.id}`)}
+                              className="flex items-center gap-1 rounded-lg bg-[#00285E] px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#001a3f]"
+                              title="Tạo hóa đơn dịch vụ"
+                            >
+                              <CarFront size={13} />
+                              Tạo hóa đơn dịch vụ
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -546,11 +580,12 @@ export default function LeaderAppointmentList() {
               </tbody>
             </table>
           </div>
+          </>
         )}
 
         {/* PAGINATION */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100">
+          <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-100 px-4 py-4 sm:flex-row sm:px-6">
             <span className="text-xs font-semibold text-slate-400">
               Hiển thị {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredAppointments.length)} / {filteredAppointments.length} lịch hẹn
             </span>
@@ -671,18 +706,51 @@ export default function LeaderAppointmentList() {
               </div>
 
               {/* Services List */}
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                   Dịch vụ đã đăng ký
                 </h4>
-                <div className="flex flex-wrap gap-2">
-                  {selectedAppt.services.map((service, index) => (
-                    <span
-                      key={index}
-                      className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#EDF3FF] text-[#00285E] border border-[#D2E2FF]"
+                <div className="space-y-2.5">
+                  {selectedAppt.serviceDetails.map((service, index) => (
+                    <div
+                      key={`${service.type}-${index}`}
+                      className={`rounded-xl border p-3.5 ${service.type === 'combo'
+                        ? 'border-blue-200 bg-blue-50/60'
+                        : 'border-slate-200 bg-slate-50'
+                      }`}
                     >
-                      {service}
-                    </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`rounded-md px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${service.type === 'combo'
+                          ? 'bg-[#00285E] text-white'
+                          : 'bg-white text-slate-500 ring-1 ring-slate-200'
+                        }`}>
+                          {service.type === 'combo' ? 'Combo' : 'Dịch vụ lẻ'}
+                        </span>
+                        <p className="text-sm font-bold text-[#00285E]">{service.name}</p>
+                      </div>
+
+                      {service.type === 'combo' && (
+                        <div className="mt-3 border-t border-blue-200/70 pt-2.5">
+                          <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">
+                            Dịch vụ thuộc combo ({service.includedCatalogs.length})
+                          </p>
+                          {service.includedCatalogs.length > 0 ? (
+                            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                              {service.includedCatalogs.map((catalogName, catalogIndex) => (
+                                <div key={`${catalogName}-${catalogIndex}`} className="flex items-start gap-2 rounded-lg bg-white px-2.5 py-2 text-xs font-medium text-slate-700 ring-1 ring-blue-100">
+                                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#00285E] text-[8px] font-bold text-white">
+                                    {catalogIndex + 1}
+                                  </span>
+                                  <span>{catalogName}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs italic text-slate-400">Chưa có dữ liệu dịch vụ thành phần.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>

@@ -239,7 +239,7 @@ export default function LeaderLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F7FC] font-sans antialiased text-slate-800 flex flex-col md:flex-row relative">
+    <div className="min-h-screen bg-[#F4F7FC] font-sans antialiased text-slate-800 flex flex-col lg:flex-row relative">
 
       {/* Dynamic Toast Notifications */}
       <AnimatePresence>
@@ -259,8 +259,22 @@ export default function LeaderLayout() {
       </AnimatePresence>
 
       {/* MOBILE HEADER BAR */}
-      <header className="md:hidden bg-white px-4 py-3 flex items-center justify-between border-b border-slate-100 shadow-sm z-30 sticky top-0">
-        <div className="flex items-center gap-3">
+      <header className="lg:hidden bg-white px-4 py-3 flex items-center justify-between border-b border-slate-100 shadow-sm z-30 sticky top-0">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 select-none items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-0.5">
+            <button
+              onClick={() => i18n.changeLanguage('vi')}
+              className={`rounded-full px-2 py-1 text-[10px] font-bold transition-all ${i18n.language === 'vi' ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              VI
+            </button>
+            <button
+              onClick={() => i18n.changeLanguage('en')}
+              className={`rounded-full px-2 py-1 text-[10px] font-bold transition-all ${i18n.language.startsWith('en') ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              EN
+            </button>
+          </div>
           <button
             onClick={() => setIsMobileSidebarOpen(true)}
             className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
@@ -330,6 +344,10 @@ export default function LeaderLayout() {
               </>
             )}
           </div>
+          <div className="hidden min-w-0 flex-col text-right sm:flex">
+            <span className="max-w-32 truncate text-xs font-bold leading-tight text-slate-800">{displayName}</span>
+            <span className="max-w-32 truncate text-[9px] font-semibold uppercase tracking-wide text-slate-400">{displayRole}</span>
+          </div>
           <img
             src={avatarUrl}
             alt="Team Leader Profile"
@@ -340,7 +358,7 @@ export default function LeaderLayout() {
 
       {/* SIDEBAR ON DESKTOP */}
       <aside
-        className="fixed inset-y-0 left-0 bg-[#EDF3FF] border-r border-[#D2E2FF] w-72 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:sticky md:h-screen md:flex md:flex-col shrink-0 hidden md:block"
+        className="fixed inset-y-0 left-0 bg-[#EDF3FF] border-r border-[#D2E2FF] w-72 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out z-40 lg:sticky lg:h-screen lg:flex lg:flex-col shrink-0 hidden lg:block"
         style={{ height: '100vh' }}
       >
         {/* Sidebar Header */}
@@ -384,7 +402,7 @@ export default function LeaderLayout() {
 
       {/* MOBILE DRAWER SIDEBAR */}
       {isMobileSidebarOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
+        <div className="fixed inset-0 z-50 lg:hidden flex">
           <div
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"
             onClick={() => setIsMobileSidebarOpen(false)}
@@ -444,7 +462,7 @@ export default function LeaderLayout() {
       <main className="flex-1 flex flex-col min-w-0 pb-16">
 
         {/* DESKTOP HEADER BAR */}
-        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-30">
+        <header className="hidden lg:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-30">
           {/* User profile & Actions */}
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">

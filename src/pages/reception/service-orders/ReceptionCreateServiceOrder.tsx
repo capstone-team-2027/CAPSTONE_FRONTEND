@@ -675,7 +675,13 @@ export default function ReceptionCreateServiceOrder() {
 
       const res = await fetchPrivate(SERVICE_ORDER_API_ENDPOINTS.CREATE, 'POST', payload);
       if (res.success) {
-        showToast('Tạo hóa đơn dịch vụ thành công!', 'success');
+        const isWaitingForBay = res.data?.bay_status?.toUpperCase() === 'WAITING';
+        showToast(
+          isWaitingForBay
+            ? 'Đã tiếp nhận xe. Xe đang chờ cầu nâng trống.'
+            : 'Tạo hóa đơn dịch vụ thành công!',
+          isWaitingForBay ? 'info' : 'success'
+        );
         setTimeout(() => {
           if (rescueId) {
             navigate('/reception/customers');

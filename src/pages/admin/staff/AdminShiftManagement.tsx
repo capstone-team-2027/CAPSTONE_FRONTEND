@@ -230,11 +230,17 @@ export default function AdminShiftManagement() {
 
   const handleSaveSlot = async () => {
     try {
+      const payload = {
+        ...newSlot,
+        start_time: newSlot.start_time ? newSlot.start_time.substring(0, 5) : "08:00",
+        end_time: newSlot.end_time ? newSlot.end_time.substring(0, 5) : "12:00",
+      };
+
       let res;
       if (editingSlotId) {
-        res = await fetchPrivate(SHIFT_API_ENDPOINTS.UPDATE_SLOT(editingSlotId), "PUT", newSlot);
+        res = await fetchPrivate(SHIFT_API_ENDPOINTS.UPDATE_SLOT(editingSlotId), "PUT", payload);
       } else {
-        res = await fetchPrivate(SHIFT_API_ENDPOINTS.CREATE_SLOT, "POST", newSlot);
+        res = await fetchPrivate(SHIFT_API_ENDPOINTS.CREATE_SLOT, "POST", payload);
       }
 
       if (res.success) {

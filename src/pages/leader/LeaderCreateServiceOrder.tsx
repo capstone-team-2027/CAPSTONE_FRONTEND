@@ -721,7 +721,13 @@ export default function LeaderCreateServiceOrder() {
 
       const res = await fetchPrivate(LEADER_SERVICE_ORDER_API_ENDPOINTS.CREATE, 'POST', payload);
       if (res.success) {
-        showToast('Tạo hóa đơn dịch vụ thành công!', 'success');
+        const isWaitingForBay = res.data?.bay_status?.toUpperCase() === 'WAITING';
+        showToast(
+          isWaitingForBay
+            ? 'Đã tiếp nhận xe. Xe đang chờ cầu nâng trống.'
+            : 'Tạo hóa đơn dịch vụ thành công!',
+          isWaitingForBay ? 'info' : 'success'
+        );
         setTimeout(() => {
           navigate('/leader/appointments');
         }, 1000);
