@@ -108,14 +108,14 @@ export default function LeaderDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* UNASSIGNED TASKS LIST */}
         <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <ClipboardList size={16} className="text-[#00285E]" />
+          <div className="px-6 py-4 flex items-center justify-between" style={{ backgroundColor: "#00285E" }}>
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <ClipboardList size={16} className="text-[#F9A11B]" />
               Xe có công việc chưa gán kỹ thuật viên
             </h2>
             <button
               onClick={() => navigate("/leader/assignments")}
-              className="text-xs font-bold text-[#00285E] hover:text-[#F9A11B] transition-colors"
+              className="text-xs font-bold text-white/80 hover:text-[#F9A11B] transition-colors"
             >
               Xem tất cả
             </button>
@@ -177,14 +177,14 @@ export default function LeaderDashboard() {
 
         {/* ACTIVE ORDERS LIST */}
         <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <Wrench size={16} className="text-[#00285E]" />
+          <div className="px-6 py-4 flex items-center justify-between" style={{ backgroundColor: "#00285E" }}>
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <Wrench size={16} className="text-[#F9A11B]" />
               Lệnh sửa chữa đang thực hiện
             </h2>
             <button
               onClick={() => navigate("/leader/task-tracking")}
-              className="text-xs font-bold text-[#00285E] hover:text-[#F9A11B] transition-colors"
+              className="text-xs font-bold text-white/80 hover:text-[#F9A11B] transition-colors"
             >
               Xem tất cả
             </button>

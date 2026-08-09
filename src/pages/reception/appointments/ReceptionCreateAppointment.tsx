@@ -572,7 +572,7 @@ export default function ReceptionCreateAppointment() {
     setSelectedRecord(record);
 
     if (record.vehicles && record.vehicles.length > 0) {
-      const availableVehicle = record.vehicles.find((v: any) => !v.isInGarage);
+      const availableVehicle = record.vehicles.find((v: any) => !v.isDisabled);
       if (availableVehicle) {
         setVehicleInputMode('EXISTING');
         setSelectedCustomerVehicleId(String(availableVehicle.id));
@@ -623,8 +623,8 @@ export default function ReceptionCreateAppointment() {
           const selectedVehicle = selectedRecord.vehicles?.find(
             (vehicle: any) => String(vehicle.id) === selectedCustomerVehicleId
           );
-          if (selectedVehicle?.isInGarage) {
-            showToast('Xe này đang ở trong xưởng, vui lòng chọn xe khác.', 'warning');
+          if (selectedVehicle?.isDisabled) {
+            showToast(selectedVehicle.disableReason || 'Xe này hiện không thể đặt lịch.', 'warning');
             return;
           }
         }
@@ -731,6 +731,8 @@ export default function ReceptionCreateAppointment() {
         </div>
       </div>
 
+      {/* SINGLE APPOINTMENT FORM */}
+      <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm sm:p-6 md:p-7">
       {/* SEGMENTED TAB CONTROL FOR SECTIONS */}
       <div className="flex w-full rounded-xl bg-slate-100 p-1">
         <button
@@ -769,10 +771,10 @@ export default function ReceptionCreateAppointment() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="space-y-6"
+            className="mt-5 space-y-5"
           >
             {/* SEARCH INPUT BAR */}
-            <div className="bg-slate-50 rounded-2xl border border-slate-200/60 p-5 space-y-3 relative">
+            <div className="relative space-y-3 rounded-xl border border-slate-200/70 bg-slate-50/70 p-4 sm:p-5">
               <h2 className="text-xs font-bold text-[#00285E] uppercase tracking-widest flex items-center gap-2">
                 <Search size={14} />
                 Tìm kiếm Khách hàng hiện tại bằng SĐT
@@ -823,9 +825,9 @@ export default function ReceptionCreateAppointment() {
 
             {/* READONLY CUSTOMER & VEHICLE DISPLAY */}
             {selectedRecord ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-4 border-t border-slate-200 pt-5 md:grid-cols-2">
                 {/* READONLY CUSTOMER INFO */}
-                <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
+                <div className="rounded-xl bg-slate-50/70 p-4 sm:p-5">
                   <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
                     <User size={16} className="text-[#00285E]" />
                     Thông tin Khách hàng
@@ -841,7 +843,7 @@ export default function ReceptionCreateAppointment() {
                 </div>
 
                 {/* VEHICLE INFO: EXISTING OR NEW */}
-                <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
+                <div className="space-y-4 rounded-xl bg-slate-50/70 p-4 sm:p-5">
                   <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
                     <Car size={16} className="text-[#00285E]" />
                     Thông tin Xe đặt lịch
@@ -854,16 +856,16 @@ export default function ReceptionCreateAppointment() {
                           type="radio"
                           checked={vehicleInputMode === 'EXISTING'}
                           onChange={() => {
-                            const availableVehicle = selectedRecord.vehicles.find((v: any) => !v.isInGarage);
+                            const availableVehicle = selectedRecord.vehicles.find((v: any) => !v.isDisabled);
                             if (!availableVehicle) {
-                              showToast('Tất cả xe đã lưu hiện đang ở trong xưởng.', 'warning');
+                              showToast('Tất cả xe đã lưu đều đang có lịch hoặc đang ở trong gara.', 'warning');
                               return;
                             }
                             setVehicleInputMode('EXISTING');
                             const currentVehicle = selectedRecord.vehicles.find(
                               (v: any) => String(v.id) === selectedCustomerVehicleId
                             );
-                            if (!currentVehicle || currentVehicle.isInGarage) {
+                            if (!currentVehicle || currentVehicle.isDisabled) {
                               setSelectedCustomerVehicleId(String(availableVehicle.id));
                             }
                           }}
@@ -892,8 +894,8 @@ export default function ReceptionCreateAppointment() {
                           className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm font-semibold text-slate-700 outline-none transition-all focus:border-[#00285E]"
                         >
                           {selectedRecord.vehicles?.map((v: any) => (
-                            <option key={v.id} value={v.id} disabled={v.isInGarage}>
-                              {v.license_plate} - {v.brand} {v.model} {v.isInGarage ? '(Đang trong xưởng)' : ''}
+                            <option key={v.id} value={v.id} disabled={v.isDisabled}>
+                              {v.license_plate} - {v.brand} {v.model} {v.isDisabled ? `(${v.disableReason})` : ''}
                             </option>
                           ))}
                         </select>
@@ -1004,10 +1006,10 @@ export default function ReceptionCreateAppointment() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="grid grid-cols-1 md:grid-cols-2 gap-6"
+            className="mt-5 grid grid-cols-1 gap-4 border-t border-slate-200 pt-5 md:grid-cols-2"
           >
             {/* EDITABLE CUSTOMER INFO */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
+            <div className="space-y-4 rounded-xl bg-slate-50/70 p-4 sm:p-5">
               <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
                 <User size={16} className="text-[#00285E]" />
                 Thông tin Khách hàng mới
@@ -1039,7 +1041,7 @@ export default function ReceptionCreateAppointment() {
             </div>
 
             {/* EDITABLE VEHICLE INFO */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
+            <div className="space-y-4 rounded-xl bg-slate-50/70 p-4 sm:p-5">
               <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
                 <Car size={16} className="text-[#00285E]" />
                 Thông tin Xe đặt lịch
@@ -1137,7 +1139,7 @@ export default function ReceptionCreateAppointment() {
       </AnimatePresence>
 
       {/* SCHEDULED TIME */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
+      <div className="mt-5 space-y-4 border-t border-slate-200 pt-5">
         <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
           <Calendar size={16} className="text-[#00285E]" />
           Thời gian hẹn <span className="text-rose-500">*</span>
@@ -1184,7 +1186,7 @@ export default function ReceptionCreateAppointment() {
       </div>
 
       {/* SERVICE OR REPAIR SELECTION */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-6">
+      <div className="mt-5 space-y-6 border-t border-slate-200 pt-5">
         {/* Toggle Buttons */}
         <div className="flex gap-2 p-1 bg-slate-100/60 rounded-xl w-fit border border-slate-200/20">
           <button
@@ -1286,6 +1288,7 @@ export default function ReceptionCreateAppointment() {
                     serviceTotalPages={serviceTotalPages}
                     searchText={serviceSearch}
                     setSearchText={setServiceSearch}
+                    elevated
                   />
                 )}
 
@@ -1299,6 +1302,8 @@ export default function ReceptionCreateAppointment() {
                     COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
                     selectedServiceIds={selectedServiceIds}
                     setSelectedServiceIds={setSelectedServiceIds}
+                    compact
+                    elevated
                   />
                 )}
               </div>
@@ -1336,6 +1341,7 @@ export default function ReceptionCreateAppointment() {
           <CalendarCheck size={16} />
           Đặt lịch hẹn
         </button>
+      </div>
       </div>
     </div>
   );

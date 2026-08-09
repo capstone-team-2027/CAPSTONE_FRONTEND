@@ -210,8 +210,10 @@ export default function LeaderAppointmentList() {
       loadAppointments();
     };
     socket.on('new_notification', handleNewNotification);
+    socket.on('customer_received', handleNewNotification);
     return () => {
       socket.off('new_notification', handleNewNotification);
+      socket.off('customer_received', handleNewNotification);
     };
   }, [socket]);
 
@@ -438,7 +440,7 @@ export default function LeaderAppointmentList() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 py-4 sm:grid-cols-3">
+                  <div className={`grid grid-cols-2 items-center gap-4 py-4 ${apt.hasServiceOrder ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
                     <div className="min-w-0">
                       <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">Khách hàng</span>
                       <p className="mt-1 truncate text-sm font-semibold text-slate-800">{apt.customerName}</p>
@@ -451,31 +453,34 @@ export default function LeaderAppointmentList() {
                       <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">Lịch hẹn</span>
                       <p className="mt-1 text-sm font-semibold text-slate-700">{formatDate(apt.appointmentDate)} · {apt.appointmentTime}</p>
                     </div>
+                    {apt.hasServiceOrder && (
+                      <div className="col-span-2 flex justify-end sm:col-span-1">
+                        <button
+                          onClick={() => navigate(`/leader/service-orders/${apt.serviceOrderId}`)}
+                          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-100 px-4 py-2 text-xs font-bold text-[#00285E] transition-colors hover:bg-emerald-200"
+                        >
+                          <CarFront size={14} /> Xem lệnh S/C
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex flex-col justify-end gap-2 border-t border-slate-100 pt-3 sm:flex-row">
-                    <button
-                      onClick={() => setSelectedAppt(apt)}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#EDF3FF] px-4 py-2 text-xs font-bold text-[#00285E] transition-colors hover:bg-[#D2E2FF]"
-                    >
-                      <Eye size={14} /> Chi tiết
-                    </button>
-                    {apt.hasServiceOrder ? (
+                  {!apt.hasServiceOrder && (
+                    <div className="flex flex-col justify-end gap-2 border-t border-slate-100 pt-3 sm:flex-row">
                       <button
-                        onClick={() => navigate(`/leader/service-orders/${apt.serviceOrderId}`)}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-100 px-4 py-2 text-xs font-bold text-[#00285E] transition-colors hover:bg-emerald-200"
+                        onClick={() => setSelectedAppt(apt)}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#EDF3FF] px-4 py-2 text-xs font-bold text-[#00285E] transition-colors hover:bg-[#D2E2FF]"
                       >
-                        <CarFront size={14} /> Xem lệnh S/C
+                        <Eye size={14} /> Chi tiết
                       </button>
-                    ) : (
                       <button
                         onClick={() => navigate(`/leader/appointments/create-service-order?appointmentId=${apt.id}`)}
                         className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#00285E] px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-[#001a3f]"
                       >
                         <CarFront size={14} /> Tạo lệnh dịch vụ
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </article>
               );
             })}
@@ -546,13 +551,15 @@ export default function LeaderAppointmentList() {
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => setSelectedAppt(apt)}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#D2E2FF] transition-colors"
-                          >
-                            <Eye size={13} />
-                            Chi tiết
-                          </button>
+                          {!apt.hasServiceOrder && (
+                            <button
+                              onClick={() => setSelectedAppt(apt)}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-[#EDF3FF] hover:bg-[#D2E2FF] transition-colors"
+                            >
+                              <Eye size={13} />
+                              Chi tiết
+                            </button>
+                          )}
 
                           {apt.hasServiceOrder ? (
                             <button

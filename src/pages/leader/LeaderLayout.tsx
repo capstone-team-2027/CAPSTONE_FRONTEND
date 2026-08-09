@@ -14,6 +14,7 @@ import {
   Info,
   AlertTriangle,
   CalendarCheck,
+  Volume2,
   FileText,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -27,6 +28,38 @@ import { loginSuccess, logout } from '../../store/slices/userSlice';
 import { PROFILE_API_ENDPOINTS } from '../../constants/common/profileEndpoints';
 import { NOTIFICATION_API_ENDPOINTS } from '../../constants/technicianLeader/notificationEndpoints';
 import LogoutConfirmModal from '../../components/share/LogoutConfirmModal';
+
+let leaderAudioContext: AudioContext | null = null;
+
+const getLeaderAudioContext = () => {
+  if (!leaderAudioContext) leaderAudioContext = new AudioContext();
+  return leaderAudioContext;
+};
+
+const playLeaderNotificationSound = async () => {
+  const audioContext = getLeaderAudioContext();
+  if (audioContext.state === 'suspended') await audioContext.resume();
+
+  const playTone = (frequency: number, startAfter: number) => {
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const startAt = audioContext.currentTime + startAfter;
+    const stopAt = startAt + 0.22;
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(frequency, startAt);
+    gain.gain.setValueAtTime(0.0001, startAt);
+    gain.gain.exponentialRampToValueAtTime(0.38, startAt + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start(startAt);
+    oscillator.stop(stopAt);
+  };
+
+  playTone(880, 0);
+  playTone(1175, 0.2);
+};
 
 export default function LeaderLayout() {
   const navigate = useNavigate();
@@ -47,11 +80,37 @@ export default function LeaderLayout() {
 
   const { i18n } = useTranslation();
 
+  // Mở khóa AudioContext ở tương tác đầu tiên theo chính sách autoplay của trình duyệt.
+  useEffect(() => {
+    let unlocked = false;
+    const unlockNotificationSound = async () => {
+      if (unlocked) return;
+      unlocked = true;
+      const audioContext = getLeaderAudioContext();
+      if (audioContext.state === 'suspended') await audioContext.resume();
+      window.removeEventListener('pointerdown', unlockNotificationSound);
+      window.removeEventListener('keydown', unlockNotificationSound);
+    };
+
+    window.addEventListener('pointerdown', unlockNotificationSound, { once: true });
+    window.addEventListener('keydown', unlockNotificationSound, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlockNotificationSound);
+      window.removeEventListener('keydown', unlockNotificationSound);
+    };
+  }, []);
+
   const showToast = (text: string, type: 'success' | 'info' | 'warning' = 'success') => {
     setToastMessage({ text, type });
     setTimeout(() => {
       setToastMessage(null);
     }, 3000);
+  };
+
+  const testNotificationSound = () => {
+    playLeaderNotificationSound()
+      .then(() => showToast('Đã bật âm thanh thông báo.', 'info'))
+      .catch(() => showToast('Trình duyệt đang chặn âm thanh. Hãy cho phép âm thanh cho trang này.', 'warning'));
   };
 
   useEffect(() => {
@@ -144,11 +203,20 @@ export default function LeaderLayout() {
       fetchUnreadCount();
       if (isNotificationOpen) fetchNotifications();
     };
+    const handleCustomerReceived = (payload?: { message?: string }) => {
+      playLeaderNotificationSound().catch(error => console.error('Không thể phát âm báo:', error));
+      showToast(payload?.message || 'Có khách hàng mới vừa được lễ tân tiếp nhận.', 'info');
+      fetchUnreadCount();
+      fetchNotifications();
+      setIsNotificationOpen(true);
+    };
     socket.on('new_notification', handleNewNotification);
+    socket.on('customer_received', handleCustomerReceived);
 
     return () => {
       socket.off('connect', joinRooms);
       socket.off('new_notification', handleNewNotification);
+      socket.off('customer_received', handleCustomerReceived);
     };
   }, [socket, user?.id, user?.role, isNotificationOpen]);
 
@@ -309,6 +377,14 @@ export default function LeaderLayout() {
                 <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden flex flex-col max-h-[80vh]">
                   <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                     <h3 className="font-bold text-slate-800">Thông báo</h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={testNotificationSound}
+                        title="Kiểm tra âm thanh"
+                        className="rounded-lg p-1.5 text-[#00285E] hover:bg-blue-100"
+                      >
+                        <Volume2 size={15} />
+                      </button>
                     {unreadCount > 0 && (
                       <button
                         onClick={handleMarkAllAsRead}
@@ -317,6 +393,7 @@ export default function LeaderLayout() {
                         Đánh dấu đã đọc
                       </button>
                     )}
+                    </div>
                   </div>
                   <div className="overflow-y-auto flex-1 p-2">
                     {notifications.length === 0 ? (
@@ -504,6 +581,14 @@ export default function LeaderLayout() {
                     <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden flex flex-col max-h-[80vh]">
                       <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                         <h3 className="font-bold text-slate-800">Thông báo</h3>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={testNotificationSound}
+                            title="Kiểm tra âm thanh"
+                            className="rounded-lg p-1.5 text-[#00285E] hover:bg-blue-100"
+                          >
+                            <Volume2 size={15} />
+                          </button>
                         {unreadCount > 0 && (
                           <button
                             onClick={handleMarkAllAsRead}
@@ -512,6 +597,7 @@ export default function LeaderLayout() {
                             Đánh dấu đã đọc
                           </button>
                         )}
+                        </div>
                       </div>
                       <div className="overflow-y-auto flex-1 p-2">
                         {notifications.length === 0 ? (

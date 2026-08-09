@@ -612,6 +612,10 @@ export default function ReceptionCreateServiceOrder() {
         showToast('Vui lòng điền mô tả tình trạng sửa chữa.', 'warning');
         return;
       }
+      if (!initialCondition.trim()) {
+        showToast('Vui lòng ghi mô tả tình trạng xe lúc tiếp nhận.', 'warning');
+        return;
+      }
 
       // Determine explicit booking type
       let finalBookingType = '';
@@ -665,7 +669,7 @@ export default function ReceptionCreateServiceOrder() {
         service_ids: receptionServiceMode === 'SERVICE' ? selectedServiceIds : undefined,
         combo_ids: receptionServiceMode === 'SERVICE' && selectedComboId ? [selectedComboId] : undefined,
         notes: notes.trim() ? notes.trim() : undefined,
-        symptoms: initialCondition.trim() ? initialCondition.trim() : undefined,
+        symptoms: initialCondition.trim(),
         rescue_id: rescueId ? Number(rescueId) : undefined
       };
 

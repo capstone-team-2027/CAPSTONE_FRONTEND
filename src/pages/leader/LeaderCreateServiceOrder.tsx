@@ -7,8 +7,6 @@ import {
   Phone,
   Car,
   Wrench,
-  CheckSquare,
-  Square,
   StickyNote,
   AlertCircle,
   Settings,
@@ -22,7 +20,6 @@ import {
   ChevronUp,
   Tag,
   CarFront,
-  Trash2,
 } from 'lucide-react';
 import { useNavigate, useSearchParams, useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -133,8 +130,7 @@ export default function LeaderCreateServiceOrder() {
   const [bayId, setBayId] = useState('1'); // Cầu nâng (default 1)
   const [originalServiceIds, setOriginalServiceIds] = useState<number[]>([]);
   const [originalComboId, setOriginalComboId] = useState<number | null>(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [isServiceEditorOpen, setIsServiceEditorOpen] = useState(false);
 
   // Vehicle autocomplete states
   const [vehicleBrand, setVehicleBrand] = useState('');
@@ -372,13 +368,17 @@ export default function LeaderCreateServiceOrder() {
                   });
                 }
                 if (detail.combo) {
-                  const subServices = detail.combo.catalogs
-                    ? detail.combo.catalogs.map((c: any) => c.service_name)
-                    : [];
+                  const comboCatalogs = Array.isArray(detail.combo.catalogs) ? detail.combo.catalogs : [];
+                  const subServices = comboCatalogs.map((c: any) => c.service_name);
+                  const comboOriginalPrice = comboCatalogs.reduce((sum: number, catalog: any) => (
+                    sum + Number(catalog.total_price || catalog.labor_price || catalog.price || catalog.base_price || 0)
+                  ), 0);
+                  const comboDiscount = Number(detail.combo.discount_percentage || 0);
+                  const calculatedComboPrice = Math.round(comboOriginalPrice * (1 - comboDiscount / 100));
                   servicesDetails.push({
                     id: detail.combo.id,
                     name: detail.combo.combo_name,
-                    price: detail.combo.total_price || 0,
+                    price: Number(detail.combo.total_price) || calculatedComboPrice,
                     category: 'Combo dịch vụ',
                     description: detail.combo.description,
                     subServices,
@@ -492,7 +492,8 @@ export default function LeaderCreateServiceOrder() {
               model: apt.vehicle ? `${apt.vehicle.brand} ${apt.vehicle.model}`.trim() : 'Chưa cập nhật',
               appointmentDate: apt.appointmentDate,
               appointmentTime: apt.appointmentTime,
-              vehicleId: apt.vehicle?.id
+              vehicleId: apt.vehicle?.id,
+              bookingType: apt.bookingType || apt.booking_type,
             });
           });
         }
@@ -529,6 +530,15 @@ export default function LeaderCreateServiceOrder() {
     setSelectedServiceIds([]);
     setSelectedComboId(null);
 
+    if (record.type === 'appointment') {
+      const bookingType = String(record.bookingType || '').toUpperCase();
+      if (bookingType.includes('REPAIR')) {
+        setReceptionServiceMode('REPAIR');
+      } else if (bookingType.includes('SPECIFIC')) {
+        setReceptionServiceMode('SERVICE');
+      }
+    }
+
     if (record.type === 'customer') {
       if (record.vehicles && record.vehicles.length > 0) {
         setVehicleInputMode('EXISTING');
@@ -544,27 +554,6 @@ export default function LeaderCreateServiceOrder() {
     setSearchResults([]);
   };
 
-  const isServiceAlreadySelected = (serviceId: number) => {
-    if (selectedServiceIds.includes(serviceId)) return true;
-    if (selectedComboId) {
-      const combo = dbCombos.find(c => c.id === selectedComboId);
-      if (combo && combo.service_ids?.includes(serviceId)) return true;
-    }
-    return false;
-  };
-
-  const filteredDropdownServices = useMemo(() => {
-    const q = dropdownSearch.trim().toLowerCase();
-    let list = dbServices.filter(s => s.is_active !== false && !isServiceAlreadySelected(s.id));
-    if (q) {
-      list = list.filter(s =>
-        s.service_name.toLowerCase().includes(q) ||
-        (s.description || '').toLowerCase().includes(q)
-      );
-    }
-    return list;
-  }, [dbServices, dropdownSearch, selectedServiceIds, selectedComboId, dbCombos]);
-
   const displayServices = useMemo(() => {
     const list: any[] = [];
 
@@ -572,7 +561,18 @@ export default function LeaderCreateServiceOrder() {
       selectedRecord.servicesDetails.forEach((sd: any) => {
         if (sd.category === 'Combo dịch vụ') {
           if (selectedComboId === sd.id) {
-            list.push(sd);
+            const combo = dbCombos.find(item => item.id === sd.id);
+            const originalPrice = (combo?.service_ids || []).reduce((sum, serviceId) => {
+              const service = mappedServices.find(item => item.id === serviceId);
+              return sum + (service?.numericPrice || 0);
+            }, 0);
+            const calculatedPrice = combo
+              ? Math.round(originalPrice * (1 - (combo.discount_percentage || 10) / 100))
+              : 0;
+            list.push({
+              ...sd,
+              price: calculatedPrice > 0 ? calculatedPrice : sd.price,
+            });
           }
         } else {
           if (selectedServiceIds.includes(sd.id)) {
@@ -598,8 +598,28 @@ export default function LeaderCreateServiceOrder() {
       }
     });
 
+    if (selectedComboId && selectedComboId !== originalComboId) {
+      const combo = dbCombos.find(item => item.id === selectedComboId);
+      if (combo) {
+        const originalPrice = (combo.service_ids || []).reduce((sum, serviceId) => {
+          const service = mappedServices.find(item => item.id === serviceId);
+          return sum + (service?.numericPrice || 0);
+        }, 0);
+        list.push({
+          id: combo.id,
+          name: combo.combo_name,
+          price: Math.round(originalPrice * (1 - (combo.discount_percentage || 10) / 100)),
+          category: 'Combo dịch vụ',
+          subServices: (combo.service_ids || []).map(serviceId =>
+            mappedServices.find(service => service.id === serviceId)?.title
+          ).filter(Boolean),
+          isOriginal: false,
+        });
+      }
+    }
+
     return list;
-  }, [selectedRecord, selectedServiceIds, originalServiceIds, selectedComboId, mappedServices]);
+  }, [selectedRecord, selectedServiceIds, originalServiceIds, selectedComboId, originalComboId, mappedServices, dbCombos]);
 
   const selectedTotal = useMemo(() => {
     const servicesPrice = mappedServices
@@ -620,8 +640,17 @@ export default function LeaderCreateServiceOrder() {
     return servicesPrice + combosPrice;
   }, [selectedServiceIds, selectedComboId, mappedServices, dbCombos]);
 
+  const lockedAppointmentMode = useMemo<'SERVICE' | 'REPAIR' | null>(() => {
+    if (selectedRecord?.type !== 'appointment') return null;
+    const bookingType = String(selectedRecord.bookingType || '').toUpperCase();
+    if (bookingType.includes('REPAIR')) return 'REPAIR';
+    if (bookingType.includes('SPECIFIC')) return 'SERVICE';
+    return null;
+  }, [selectedRecord]);
+
   const handleSubmit = async () => {
     try {
+      const effectiveServiceMode = lockedAppointmentMode || receptionServiceMode;
       if (mode === 'approved_record') {
         if (!selectedRecord) {
           showToast('Vui lòng tìm kiếm và chọn lịch hẹn hoặc hồ sơ khách hàng.', 'warning');
@@ -652,21 +681,25 @@ export default function LeaderCreateServiceOrder() {
         }
       }
 
-      if (receptionServiceMode === 'SERVICE' && selectedServiceIds.length === 0 && !selectedComboId) {
+      if (effectiveServiceMode === 'SERVICE' && selectedServiceIds.length === 0 && !selectedComboId) {
         showToast('Vui lòng chọn ít nhất 1 dịch vụ hoặc combo.', 'warning');
         return;
       }
-      if (receptionServiceMode === 'REPAIR' && !notes.trim()) {
+      if (effectiveServiceMode === 'REPAIR' && !notes.trim()) {
         showToast('Vui lòng điền mô tả tình trạng sửa chữa.', 'warning');
+        return;
+      }
+      if (!initialCondition.trim()) {
+        showToast('Vui lòng ghi mô tả tình trạng xe lúc tiếp nhận.', 'warning');
         return;
       }
 
       // Determine explicit booking type
       let finalBookingType = '';
       if (mode === 'first_time') {
-        finalBookingType = receptionServiceMode === 'SERVICE' ? 'WALK_IN_SPECIFIC' : 'WALK_IN_REPAIR';
+        finalBookingType = effectiveServiceMode === 'SERVICE' ? 'WALK_IN_SPECIFIC' : 'WALK_IN_REPAIR';
       } else if (mode === 'approved_record' && selectedRecord?.type === 'customer') {
-        finalBookingType = receptionServiceMode === 'SERVICE' ? 'RECEPTIONIST_SPECIFIC' : 'RECEPTIONIST_REPAIR';
+        finalBookingType = effectiveServiceMode === 'SERVICE' ? 'RECEPTIONIST_SPECIFIC' : 'RECEPTIONIST_REPAIR';
       }
 
       // Prepare payload
@@ -708,10 +741,10 @@ export default function LeaderCreateServiceOrder() {
         vehicle_id: finalVehicleId,
         walk_in: walkInPayload,
         bay_id: Number(bayId) || null,
-        service_ids: receptionServiceMode === 'SERVICE' ? selectedServiceIds : undefined,
-        combo_ids: receptionServiceMode === 'SERVICE' && selectedComboId ? [selectedComboId] : undefined,
+        service_ids: effectiveServiceMode === 'SERVICE' ? selectedServiceIds : undefined,
+        combo_ids: effectiveServiceMode === 'SERVICE' && selectedComboId ? [selectedComboId] : undefined,
         notes: notes.trim() ? notes.trim() : undefined,
-        symptoms: initialCondition.trim() ? initialCondition.trim() : undefined,
+        symptoms: initialCondition.trim(),
         rescue_id: rescueId ? Number(rescueId) : undefined
       };
 
@@ -1209,27 +1242,42 @@ export default function LeaderCreateServiceOrder() {
         <div className="flex gap-2 p-1 bg-slate-100/60 rounded-xl w-fit border border-slate-200/20">
           <button
             type="button"
-            onClick={() => setReceptionServiceMode('SERVICE')}
+            onClick={() => {
+              if (lockedAppointmentMode !== 'REPAIR') setReceptionServiceMode('SERVICE');
+            }}
+            disabled={lockedAppointmentMode === 'REPAIR'}
             className={`py-2.5 px-5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${receptionServiceMode === 'SERVICE'
               ? 'bg-[#00285E] text-white shadow-sm'
               : 'text-slate-500 hover:text-slate-800'
-              }`}
+              } disabled:cursor-not-allowed disabled:opacity-40`}
           >
             <Settings size={14} />
             Dịch vụ
           </button>
           <button
             type="button"
-            onClick={() => setReceptionServiceMode('REPAIR')}
+            onClick={() => {
+              if (lockedAppointmentMode !== 'SERVICE') setReceptionServiceMode('REPAIR');
+            }}
+            disabled={lockedAppointmentMode === 'SERVICE'}
             className={`py-2.5 px-5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${receptionServiceMode === 'REPAIR'
               ? 'bg-rose-500 text-white shadow-sm'
               : 'text-slate-500 hover:text-slate-800'
-              }`}
+              } disabled:cursor-not-allowed disabled:opacity-40`}
           >
             <Wrench size={14} />
             Kiểm tra và Sửa chữa
           </button>
         </div>
+
+        {lockedAppointmentMode && (
+          <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold text-[#00285E]">
+            <AlertCircle size={14} />
+            {lockedAppointmentMode === 'SERVICE'
+              ? 'Lịch hẹn loại SPECIFIC: chỉ được chọn lại hoặc bổ sung dịch vụ/combo.'
+              : 'Lịch hẹn loại REPAIR: chỉ được cập nhật nội dung mô tả sửa chữa.'}
+          </div>
+        )}
 
         {/* REPAIR NOTES */}
         {receptionServiceMode === 'REPAIR' && (
@@ -1274,12 +1322,27 @@ export default function LeaderCreateServiceOrder() {
                               <Package size={16} className="text-amber-500" />
                               <span className="text-sm font-bold text-slate-800">{s.name}</span>
                               <span className="text-[10px] font-extrabold bg-amber-100 text-amber-600 px-2 py-0.5 rounded uppercase">
-                                Combo gốc trong lịch hẹn
+                                {s.isOriginal ? 'Combo gốc trong lịch hẹn' : 'Combo chọn sau tư vấn'}
                               </span>
                             </div>
-                            <span className="text-sm font-bold text-amber-600">
-                              {formatPrice(s.price)}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-amber-600">
+                                {formatPrice(s.price)}
+                              </span>
+                              <label
+                                className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-bold text-[#00285E] hover:bg-rose-50 hover:text-rose-500"
+                                title="Bỏ dấu tích để bỏ chọn combo"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked
+                                  onChange={() => setSelectedComboId(null)}
+                                  className="h-4 w-4 cursor-pointer accent-[#00285E]"
+                                  aria-label={`Bỏ chọn combo ${s.name}`}
+                                />
+                                Đã chọn
+                              </label>
+                            </div>
                           </div>
                           {/* Sub services in combo */}
                           <div className="pl-6 space-y-1">
@@ -1314,18 +1377,19 @@ export default function LeaderCreateServiceOrder() {
                             <span className="text-sm font-extrabold text-[#00285E]">
                               {s.price ? formatPrice(s.price) : 'Liên hệ'}
                             </span>
-                            {!s.isOriginal && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedServiceIds(prev => prev.filter(x => x !== s.id));
-                                }}
-                                className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                                title="Xóa dịch vụ thêm mới"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            )}
+                            <label
+                              className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-bold text-[#00285E] transition-colors hover:bg-rose-50 hover:text-rose-500"
+                              title="Bỏ dấu tích để bỏ chọn dịch vụ"
+                            >
+                              <input
+                                type="checkbox"
+                                checked
+                                onChange={() => setSelectedServiceIds(prev => prev.filter(x => x !== s.id))}
+                                className="h-4 w-4 cursor-pointer accent-[#00285E]"
+                                aria-label={`Bỏ chọn dịch vụ ${s.name}`}
+                              />
+                              Đã chọn
+                            </label>
                           </div>
                         </div>
                       );
@@ -1339,63 +1403,105 @@ export default function LeaderCreateServiceOrder() {
               )}
             </div>
 
-            {/* Dropdown to add more services */}
-            <div className="relative mt-4">
+            {/* Full service/combo editor used during consultation */}
+            <div className="mt-4 space-y-4">
               <button
                 type="button"
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                onClick={() => setIsServiceEditorOpen(open => !open)}
                 className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:border-[#00285E] text-slate-700 hover:text-[#00285E] rounded-xl text-xs font-bold transition-all shadow-sm"
               >
                 <PlusCircle size={14} />
-                Thêm dịch vụ ngoài lịch hẹn
+                {isServiceEditorOpen ? 'Đóng danh sách tư vấn' : 'Tư vấn / chọn lại dịch vụ và combo'}
+                {isServiceEditorOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </button>
 
-              {isDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-30" onClick={() => setIsDropdownOpen(false)} />
-                  <div className="absolute left-0 mt-2 w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-xl z-40 p-4 space-y-3">
-                    <div className="relative">
-                      <Search size={14} className="absolute left-3 top-3 text-slate-400" />
-                      <input
-                        type="text"
-                        placeholder="Tìm kiếm dịch vụ muốn thêm..."
-                        value={dropdownSearch}
-                        onChange={(e) => setDropdownSearch(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E]"
-                      />
+              {isServiceEditorOpen && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                      <div>
+                        <h3 className="text-sm font-bold uppercase tracking-widest text-[#00285E]">
+                          Chọn lại dịch vụ tư vấn
+                        </h3>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Có thể bỏ lựa chọn cũ, chọn lại hoặc thêm dịch vụ/combo mới.
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-lg bg-[#EDF3FF] px-3 py-1.5 text-xs font-bold text-[#00285E]">
+                        Đã chọn: {selectedServiceIds.length + (selectedComboId ? 1 : 0)} — Tổng: {formatPrice(selectedTotal)}
+                      </span>
                     </div>
 
-                    <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 pr-1">
-                      {filteredDropdownServices.length > 0 ? (
-                        filteredDropdownServices.map(s => (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedServiceIds(prev => [...prev, s.id]);
-                              setIsDropdownOpen(false);
-                              setDropdownSearch('');
-                              showToast(`Đã thêm dịch vụ: ${s.service_name}`, 'success');
-                            }}
-                            className="w-full text-left py-2.5 px-3 hover:bg-slate-50 rounded-xl transition-all flex items-center justify-between"
-                          >
-                            <div>
-                              <span className="text-xs font-bold text-slate-800 block leading-tight">{s.service_name}</span>
-                              <span className="text-[10px] text-slate-400 font-semibold">{s.category?.category_name || 'Dịch vụ lẻ'}</span>
-                            </div>
-                            <span className="text-xs font-extrabold text-[#00285E]">
-                              {s.price || s.base_price ? formatPrice(s.price || s.base_price) : 'Liên hệ'}
-                            </span>
-                          </button>
-                        ))
-                      ) : (
-                        <div className="text-center py-4 text-slate-400 text-xs font-semibold">
-                          Không tìm thấy dịch vụ nào khả dụng
-                        </div>
-                      )}
+                    <div className="flex gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1">
+                      <button
+                        type="button"
+                        onClick={() => setActiveServiceTab('single')}
+                        className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-xs font-bold transition-all ${activeServiceTab === 'single'
+                          ? 'bg-[#00285E] text-white shadow-sm'
+                          : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                      >
+                        <Wrench size={14} /> Dịch vụ lẻ
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveServiceTab('combo')}
+                        className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-xs font-bold transition-all ${activeServiceTab === 'combo'
+                          ? 'bg-[#00285E] text-white shadow-sm'
+                          : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                      >
+                        <Package size={14} /> Combo
+                      </button>
+                    </div>
+
+                    {activeServiceTab === 'single' ? (
+                      <SingleServicesSelector
+                        mappedServices={currentPageServices}
+                        activeCategories={activeCategories}
+                        selectedServiceIds={selectedServiceIds}
+                        setSelectedServiceIds={setSelectedServiceIds}
+                        COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
+                        t={(key, fallback) => String(t(key, { defaultValue: fallback }))}
+                        selectedCategoryId={selectedCategoryId}
+                        setSelectedCategoryId={setSelectedCategoryId}
+                        servicePage={servicePage}
+                        setServicePage={setServicePage}
+                        dbCombos={dbCombos}
+                        selectedComboId={selectedComboId}
+                        serviceTotalPages={serviceTotalPages}
+                        searchText={serviceSearch}
+                        setSearchText={setServiceSearch}
+                      />
+                    ) : (
+                      <ComboServicesSelector
+                        dbCombos={dbCombos}
+                        setDbCombos={setDbCombos}
+                        selectedComboId={selectedComboId}
+                        setSelectedComboId={setSelectedComboId}
+                        mappedServices={mappedServices}
+                        COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
+                        selectedServiceIds={selectedServiceIds}
+                        setSelectedServiceIds={setSelectedServiceIds}
+                      />
+                    )}
+
+                    <div className="flex justify-end border-t border-slate-100 pt-4">
+                      <button
+                        type="button"
+                        onClick={() => setIsServiceEditorOpen(false)}
+                        className="rounded-xl bg-[#00285E] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#001a3f]"
+                      >
+                        Lưu lựa chọn tư vấn
+                      </button>
                     </div>
                   </div>
-                </>
+                </motion.div>
               )}
             </div>
           </div>

@@ -458,13 +458,27 @@ export default function TechnicianAssignments() {
               allAssignments.find((item) => item.status === "ASSIGNED") ??
               allAssignments.find((item) => item.status === "PENDING_QC") ??
               allAssignments[0];
-            // WAITING_STOCK cũng cho bấm lại "Bắt đầu công việc" — dùng chung đúng luồng
-            // startTask ban đầu (tự động gửi yêu cầu xuất kho qua autoRequestPartsForTask).
-            // An toàn vì hàm đó chỉ request các dòng đang PENDING (phụ tùng đặt riêng vừa
-            // được thủ kho nhập kho xong); dòng đã REQUESTED/EXPORTED sẽ tự bị bỏ qua.
-            const unstartedAssignment = allAssignments.find(
-              (item) => item.status === "ASSIGNED" || item.status === "WAITING_STOCK",
-            );
+            // WAITING_STOCK cũng cho bấm lại "Bắt đầu công việc", nhưng CHỈ khi task đó còn
+            // dòng phụ tùng ở PENDING (đã nhập kho/cọc xong nhưng CHƯA từng được request xuất
+            // kho) — bấm "Bắt đầu" lúc đó mới có tác dụng thật (gửi yêu cầu xuất kho qua
+            // autoRequestPartsForTask). Nếu phụ tùng đã REQUESTED (đang chờ thủ kho duyệt)
+            // thì task đang WAITING_STOCK vì lý do khác, không liên quan gì tới KTV nữa —
+            // không được hiện nút, bấm vào cũng không có tác dụng gì.
+            const hasPendingPartToRequest = (task: ServiceTaskApi) => {
+              const details = task.quotationItem?.issue?.quotationDetails;
+              if (details && details.length > 0) {
+                return details.some((d) => d.status === "PENDING");
+              }
+              return task.quotationItem?.status === "PENDING";
+            };
+            const unstartedAssignment = allAssignments.find((item) => {
+              if (item.status === "ASSIGNED") return true;
+              if (item.status !== "WAITING_STOCK") return false;
+              const parentTask = so.tasks?.find((t) =>
+                t.assignments?.some((a) => a.id === item.id),
+              );
+              return parentTask ? hasPendingPartToRequest(parentTask) : false;
+            });
             const allTasksCompleted =
               (so.tasks?.length ?? 0) > 0 &&
               (so.tasks ?? []).every((task) => {

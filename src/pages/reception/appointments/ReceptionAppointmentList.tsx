@@ -45,6 +45,21 @@ const DEFAULT_STATUS_CONFIG = {
 
 const ITEMS_PER_PAGE = 6;
 
+type AppointmentServiceItem = {
+  id: string;
+  kind: 'catalog' | 'combo';
+  name: string;
+  description?: string;
+  includedServices: Array<{
+    id: string;
+    name: string;
+  }>;
+};
+
+type ReceptionAppointment = AppointmentModel & {
+  serviceDetails: AppointmentServiceItem[];
+};
+
 
 export default function AppointmentList() {
   const navigate = useNavigate();
@@ -54,14 +69,15 @@ export default function AppointmentList() {
 
   const { fetchPrivate } = useFetchClient();
   const socket = useSocket();
-  const [appointments, setAppointments] = useState<AppointmentModel[]>([]);
+  const [appointments, setAppointments] = useState<ReceptionAppointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('unreceived');
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedApptForReceive, setSelectedApptForReceive] = useState<AppointmentModel | null>(null);
+  const [selectedApptForReceive, setSelectedApptForReceive] = useState<ReceptionAppointment | null>(null);
+  const [receiveTimePreview, setReceiveTimePreview] = useState<Date | null>(null);
 
   const loadAppointments = async () => {
     try {
@@ -69,15 +85,37 @@ export default function AppointmentList() {
       setError(null);
       const response = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.GET_APPOINTMENTS);
       if (response.success && Array.isArray(response.data)) {
-        const mapped: AppointmentModel[] = response.data.map((appt: any) => {
+        const mapped: ReceptionAppointment[] = response.data.map((appt: any) => {
           const services: string[] = [];
+          const serviceDetails: AppointmentServiceItem[] = [];
           if (Array.isArray(appt.appointmentDetails)) {
-            appt.appointmentDetails.forEach((detail: any) => {
+            appt.appointmentDetails.forEach((detail: any, detailIndex: number) => {
               if (detail.catalog?.service_name) {
                 services.push(detail.catalog.service_name);
+                serviceDetails.push({
+                  id: `catalog-${detail.catalog.id ?? detailIndex}`,
+                  kind: 'catalog',
+                  name: detail.catalog.service_name,
+                  description: detail.catalog.description || undefined,
+                  includedServices: [],
+                });
               }
               if (detail.combo?.combo_name) {
                 services.push(detail.combo.combo_name);
+                serviceDetails.push({
+                  id: `combo-${detail.combo.id ?? detailIndex}`,
+                  kind: 'combo',
+                  name: detail.combo.combo_name,
+                  description: detail.combo.description || undefined,
+                  includedServices: Array.isArray(detail.combo.catalogs)
+                    ? detail.combo.catalogs
+                      .filter((catalog: any) => Boolean(catalog?.service_name))
+                      .map((catalog: any, catalogIndex: number) => ({
+                        id: String(catalog.id ?? `${detailIndex}-${catalogIndex}`),
+                        name: catalog.service_name,
+                      }))
+                    : [],
+                });
               }
             });
           }
@@ -135,13 +173,14 @@ export default function AppointmentList() {
             serviceOrderId: appt.serviceOrder?.id || null,
             hasOdo: (appt.serviceOrder?.current_odo || 0) > 0,
             services,
+            serviceDetails,
             appointmentDate,
             appointmentTime,
             notes: appt.notes || '',
             status,
             bookingType: appt.booking_type || '',
             createdAt: appt.createdAt || appt.created_at || '',
-          } as any;
+          };
         });
 
         // Sort appointments: chronological ascending (Earliest first)
@@ -165,8 +204,14 @@ export default function AppointmentList() {
 
   const [isSubmittingVin, setIsSubmittingVin] = useState(false);
 
-  const handleReceiveClick = (appt: AppointmentModel) => {
+  const handleReceiveClick = (appt: ReceptionAppointment) => {
+    setReceiveTimePreview(new Date());
     setSelectedApptForReceive(appt);
+  };
+
+  const closeReceiveModal = () => {
+    setSelectedApptForReceive(null);
+    setReceiveTimePreview(null);
   };
 
   const handleConfirmReceive = async () => {
@@ -182,7 +227,7 @@ export default function AppointmentList() {
       }
 
       showToast(`Tiếp nhận lịch hẹn APT-${apptId.padStart(3, '0')} thành công!`, 'success');
-      setSelectedApptForReceive(null);
+      closeReceiveModal();
       loadAppointments();
     } catch (err: any) {
       console.error(err);
@@ -195,6 +240,16 @@ export default function AppointmentList() {
   useEffect(() => {
     loadAppointments();
   }, []);
+
+  useEffect(() => {
+    if (!selectedApptForReceive) return;
+
+    const timer = window.setInterval(() => {
+      setReceiveTimePreview(new Date());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [selectedApptForReceive]);
 
   // Có lịch hẹn mới -> BE emit new_notification -> tự tải lại danh sách
   useEffect(() => {
@@ -675,7 +730,7 @@ export default function AppointmentList() {
               <button
                 type="button"
                 aria-label="Đóng cửa sổ tiếp nhận xe"
-                onClick={() => setSelectedApptForReceive(null)}
+                onClick={closeReceiveModal}
                 className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-xl text-white/80 transition-colors hover:bg-white/10 hover:text-white sm:right-6 sm:top-5"
               >
                 <X size={20} />
@@ -685,7 +740,7 @@ export default function AppointmentList() {
             {/* Content */}
             <div className="min-h-0 flex-1 overflow-y-auto bg-white p-4 sm:p-6 md:p-8">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
-              <div className="grid grid-cols-2 gap-3 md:col-span-2 md:gap-4">
+              <div className="grid grid-cols-2 gap-3 md:col-span-2 lg:grid-cols-4 md:gap-4">
                 <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3.5 sm:p-4">
                   <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider mb-1">Mã lịch hẹn</span>
                   <span className="text-sm font-bold text-[#00285E] sm:text-base">APT-{selectedApptForReceive.id.padStart(3, '0')}</span>
@@ -694,6 +749,22 @@ export default function AppointmentList() {
                   <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider mb-1">Loại đặt lịch</span>
                   <span className="text-sm font-bold text-slate-700 sm:text-base">
                     {selectedApptForReceive.bookingType && selectedApptForReceive.bookingType.includes('WALK') ? 'Khách vãng lai' : 'Đặt lịch trước'}
+                  </span>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3.5 sm:p-4">
+                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Ngày giờ hẹn</span>
+                  <span className="block text-sm font-bold text-slate-700 sm:text-base">
+                    {formatDate(selectedApptForReceive.appointmentDate)}
+                  </span>
+                  <span className="mt-0.5 block text-xs font-semibold text-slate-500">{selectedApptForReceive.appointmentTime}</span>
+                </div>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3.5 sm:p-4">
+                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-emerald-700">Giờ tiếp nhận tại gara</span>
+                  <span className="block text-sm font-bold text-emerald-900 sm:text-base">
+                    {receiveTimePreview?.toLocaleDateString('vi-VN') || '--/--/----'}
+                  </span>
+                  <span className="mt-0.5 block text-xs font-bold tabular-nums text-emerald-700">
+                    {receiveTimePreview?.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) || '--:--:--'}
                   </span>
                 </div>
               </div>
@@ -722,15 +793,70 @@ export default function AppointmentList() {
                 </div>
               </div>
 
-              <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 md:col-span-2">
+              <div className="space-y-2.5 rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 sm:p-4 md:col-span-2">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200/60 pb-2">Dịch vụ yêu cầu</h4>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {selectedApptForReceive.services.map((s, i) => (
-                    <span key={i} className="inline-block bg-white text-slate-700 text-xs font-bold px-2.5 py-1 rounded-lg border border-slate-200/60">
-                      {s}
-                    </span>
-                  ))}
-                </div>
+                {selectedApptForReceive.serviceDetails.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                    {selectedApptForReceive.serviceDetails.map((service) => (
+                      <div
+                        key={service.id}
+                        className={`rounded-xl border p-3 ${service.kind === 'combo'
+                          ? 'border-blue-200 bg-blue-50/70 sm:col-span-2'
+                          : 'border-slate-200 bg-white'
+                          }`}
+                      >
+                        <div className={service.kind === 'combo' ? 'grid gap-3 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)] md:items-center md:gap-4' : ''}>
+                          <div className="flex items-start gap-2.5">
+                            <span className={`mt-0.5 shrink-0 rounded-md px-2 py-1 text-[9px] font-extrabold uppercase tracking-wider ${service.kind === 'combo'
+                              ? 'bg-[#00285E] text-white'
+                              : 'bg-slate-100 text-slate-500'
+                              }`}>
+                              {service.kind === 'combo' ? 'Combo' : 'Dịch vụ lẻ'}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold leading-5 text-slate-800">{service.name}</p>
+                              {service.description && (
+                                <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-slate-500">{service.description}</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {service.kind === 'combo' && (
+                            <div className="border-t border-blue-200/70 pt-2.5 md:border-l md:border-t-0 md:pl-4 md:pt-0">
+                              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#00285E]">
+                                Gồm {service.includedServices.length} dịch vụ lẻ
+                              </p>
+                              {service.includedServices.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {service.includedServices.map((includedService, index) => (
+                                    <div key={includedService.id} className="flex min-w-[140px] flex-1 items-center gap-2 rounded-lg bg-white/90 px-2.5 py-1.5 text-xs font-semibold text-slate-700">
+                                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-[#00285E]">
+                                        {index + 1}
+                                      </span>
+                                      <span className="leading-4">{includedService.name}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs font-medium italic text-slate-400">Chưa có thông tin dịch vụ con của combo.</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {selectedApptForReceive.services.length > 0 ? selectedApptForReceive.services.map((service, index) => (
+                      <span key={`${service}-${index}`} className="inline-block rounded-lg border border-slate-200/60 bg-white px-2.5 py-1 text-xs font-bold text-slate-700">
+                        {service}
+                      </span>
+                    )) : (
+                      <span className="text-xs font-medium italic text-slate-400">Chưa có dịch vụ được đăng ký.</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {selectedApptForReceive.notes && (
@@ -748,7 +874,7 @@ export default function AppointmentList() {
             <div className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-6 sm:py-4 md:px-8">
               <button
                 type="button"
-                onClick={() => setSelectedApptForReceive(null)}
+                onClick={closeReceiveModal}
                 className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-100 sm:px-5 sm:text-sm"
               >
                 Hủy bỏ
