@@ -321,7 +321,7 @@ export default function LeaderQuoteList() {
         q.items.some(
           (item) =>
             item.sparePart?.name?.toLowerCase().includes(keyword) ||
-            item.custom_item_name?.toLowerCase().includes(keyword) ||
+            item.customPartOrder?.item_name?.toLowerCase().includes(keyword) ||
             item.service_catalog?.service_name
               ?.toLowerCase()
               .includes(keyword),
@@ -1184,7 +1184,7 @@ export default function LeaderQuoteList() {
                         Chờ cọc{" "}
                         {
                           selectedQuotation.items.filter(
-                            (item) => item.custom_item_name,
+                            (item) => item.customPartOrder,
                           ).length
                         }{" "}
                         phụ tùng
@@ -1241,7 +1241,7 @@ export default function LeaderQuoteList() {
                   /* ===== CHẾ ĐỘ XEM: tách 2 tầng - Phụ tùng và Dịch vụ ===== */
                   (() => {
                     const partItems = selectedQuotation.items.filter(
-                      (i) => i.sparePart || i.custom_item_name,
+                      (i) => i.sparePart || i.customPartOrder,
                     );
                     const serviceItems = selectedQuotation.items.filter(
                       (i) => i.service_catalog,
@@ -1314,19 +1314,21 @@ export default function LeaderQuoteList() {
                                             />
                                             <span className="text-xs font-semibold text-slate-800 truncate max-w-[170px]">
                                               {item.sparePart?.name ||
-                                                item.custom_item_name}
+                                                item.customPartOrder?.item_name}
                                             </span>
                                           </div>
-                                          {item.custom_item_name && (
+                                          {item.customPartOrder && (
                                             <span
-                                              className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.status ===
-                                                "WAITING_DEPOSIT"
+                                              className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.customPartOrder.status === "WAITING_DEPOSIT"
                                                 ? "bg-amber-50 text-amber-700"
-                                                : "bg-emerald-50 text-emerald-700"
+                                                : item.customPartOrder.status === "WAITING_ARRIVAL"
+                                                  ? "bg-blue-50 text-blue-700"
+                                                  : item.customPartOrder.status === "READY_FOR_USE"
+                                                    ? "bg-violet-50 text-violet-700"
+                                                    : "bg-emerald-50 text-emerald-700"
                                                 }`}
                                             >
-                                              {item.status ===
-                                                "WAITING_DEPOSIT" ? (
+                                              {item.customPartOrder.status === "WAITING_DEPOSIT" ? (
                                                 <>
                                                   Phụ tùng đặt riêng · Cần cọc:{" "}
                                                   {formatVND(
@@ -1334,8 +1336,12 @@ export default function LeaderQuoteList() {
                                                     0,
                                                   )}
                                                 </>
+                                              ) : item.customPartOrder.status === "WAITING_ARRIVAL" ? (
+                                                "Phụ tùng đặt riêng · Đã cọc, chờ về hàng"
+                                              ) : item.customPartOrder.status === "READY_FOR_USE" ? (
+                                                "Phụ tùng đặt riêng · Đã về, chờ xuất kho"
                                               ) : (
-                                                "Phụ tùng đặt riêng · Đã cọc"
+                                                "Phụ tùng đặt riêng · Đã xuất kho"
                                               )}
                                             </span>
                                           )}

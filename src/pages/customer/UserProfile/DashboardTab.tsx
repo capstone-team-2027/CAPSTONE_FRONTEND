@@ -40,6 +40,7 @@ interface RecentActivityOrder {
         service_catalog?: { service_name: string } | null;
         sparePart?: { name: string } | null;
         custom_item_name?: string | null;
+        customPartOrder?: { item_name: string } | null;
       }>;
     }>;
   }>;
@@ -186,7 +187,7 @@ export default function DashboardTab({
     return (
       firstItem?.service_catalog?.service_name ||
       firstItem?.sparePart?.name ||
-      firstItem?.custom_item_name ||
+      firstItem?.customPartOrder?.item_name ||
       order.vehicle?.model?.model_name ||
       'Dịch vụ'
     );

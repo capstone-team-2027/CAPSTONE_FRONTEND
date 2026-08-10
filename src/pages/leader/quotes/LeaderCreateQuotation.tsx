@@ -18,6 +18,7 @@ import {
   Search,
   ChevronDown,
   Check,
+  PackagePlus,
 } from "lucide-react";
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { LEADER_QUOTE_MANAGEMENT_ENDPOINTS } from "../../../constants/technicianLeader/quoteManagementEndpoints";
@@ -42,11 +43,15 @@ function PriceInput({
   className,
   placeholder,
   onCommit,
+  readOnly,
+  title,
 }: {
   value: number;
   className?: string;
   placeholder?: string;
   onCommit: (value: number) => void;
+  readOnly?: boolean;
+  title?: string;
 }) {
   const [focused, setFocused] = useState(false);
   const [draft, setDraft] = useState("");
@@ -63,15 +68,20 @@ function PriceInput({
       inputMode="numeric"
       placeholder={placeholder}
       value={display}
+      readOnly={readOnly}
+      title={title}
       onFocus={() => {
+        if (readOnly) return;
         setDraft(value ? String(value) : "");
         setFocused(true);
       }}
       onChange={(e) => {
+        if (readOnly) return;
         const nextDraft = e.target.value.replace(/\D/g, "");
         setDraft(nextDraft);
       }}
       onBlur={() => {
+        if (readOnly) return;
         setFocused(false);
         onCommit(Number(draft) || 0);
       }}
@@ -85,6 +95,10 @@ interface SearchableSelectOption {
   label: string;
   sublabel?: string;
   disabled?: boolean;
+  // Chỉ set khi disabled vì thiếu tồn — hiện nút "Yêu cầu nhập kho" ngay trên option đó.
+  onRequestRestock?: () => void;
+  isRequestingRestock?: boolean;
+  restockRequested?: boolean;
 }
 
 // Dropdown tự vẽ thay cho <select> native — <select> có option quá dài thì trình duyệt tự
@@ -198,6 +212,32 @@ function SearchableSelect({
             ) : (
               filteredOptions.map((option) => {
                 const isSelected = option.value === value;
+                if (option.disabled && option.onRequestRestock) {
+                  return (
+                    <div
+                      key={option.value}
+                      className="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs text-slate-300"
+                    >
+                      <span className="truncate">{option.label}</span>
+                      {option.restockRequested ? (
+                        <span className="shrink-0 text-[10px] font-semibold text-emerald-500">Đã gửi yêu cầu</span>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={option.isRequestingRestock}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            option.onRequestRestock?.();
+                          }}
+                          className="shrink-0 inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-colors"
+                        >
+                          <PackagePlus size={11} />
+                          {option.isRequestingRestock ? "Đang gửi..." : "Yêu cầu nhập kho"}
+                        </button>
+                      )}
+                    </div>
+                  );
+                }
                 return (
                   <button
                     key={option.value}
@@ -298,10 +338,15 @@ export default function LeaderCreateQuotation() {
   const [customPartName, setCustomPartName] = useState("");
   const [customPartQuantity, setCustomPartQuantity] = useState(1);
   const [customPartPrice, setCustomPartPrice] = useState(0);
+  // Bước 1 (đặt trước): chọn 1 dịch vụ rồi tick nhiều hạng mục lỗi cùng lúc để áp dịch vụ đó.
   const [servicePicker, setServicePicker] = useState<number | "">("");
   const [pickedIssueIds, setPickedIssueIds] = useState<number[]>([]);
   const [isSubmittingQuotation, setIsSubmittingQuotation] = useState(false);
   const [approveNow, setApproveNow] = useState(false);
+  // partId đang gửi yêu cầu nhập kho (chặn double-click), và tập partId đã gửi rồi trong phiên
+  // này để đổi label nút thay vì gửi lặp lại.
+  const [requestingRestockId, setRequestingRestockId] = useState<number | null>(null);
+  const [restockRequestedIds, setRestockRequestedIds] = useState<Set<number>>(new Set());
   const issueDraftUidRef = useRef(0);
   const savedTaskIdRef = useRef<number | null>(null);
 
@@ -521,6 +566,24 @@ export default function LeaderCreateQuotation() {
     });
   };
 
+  // Phụ tùng có trong danh mục nhưng hết tồn khả dụng — báo cho thủ kho biết cần mua thêm.
+  // Không tự động nhập kho, chỉ ghi nhận yêu cầu (Restock_Requests) để thủ kho chủ động xử lý.
+  const handleRequestRestock = async (partId: number, partName: string) => {
+    setRequestingRestockId(partId);
+    try {
+      await fetchPrivate(LEADER_QUOTE_MANAGEMENT_ENDPOINTS.CREATE_RESTOCK_REQUEST, "POST", {
+        spare_part_id: partId,
+        quantity_needed: 1,
+      });
+      setRestockRequestedIds((prev) => new Set(prev).add(partId));
+      showToast(`Đã gửi yêu cầu bổ sung "${partName}" cho thủ kho.`, "success");
+    } catch (error: any) {
+      showToast(error?.message || "Không thể gửi yêu cầu bổ sung.", "warning");
+    } finally {
+      setRequestingRestockId(null);
+    }
+  };
+
   const addCustomQuotationItem = (
     issueId: number,
     customItemName: string,
@@ -597,9 +660,10 @@ export default function LeaderCreateQuotation() {
       return prev.filter((item) => item.uid !== uid);
     });
 
+  // Thêm dịch vụ: chọn 1 dịch vụ rồi tick nhiều lỗi -> sinh mỗi lỗi 1 dòng.
   const addQuotationServiceForIssues = (id: number, issueIds: number[]) => {
     const service = services.find((s) => s.id === id);
-    if (!service) return;
+    if (!service || issueIds.length === 0) return;
     const dbPrice = Number(service.labor_price) || 0;
     setQuotationServices((prev) => {
       const newRows = issueIds
@@ -636,9 +700,10 @@ export default function LeaderCreateQuotation() {
   const quotationDeposit = Math.round(customQuotationItemsTotal * 0.3);
   const quotationIssueItems = Array.from(new Map(quotationItems.map((item) => [item.issueId, item])).values());
   const selectedQuotationItemsCount = quotationItems.filter((item) => item.partId || item.isCustom).length;
+  // Mỗi hạng mục lỗi bắt buộc phải có ít nhất 1 dịch vụ (đúng luồng "chọn dịch vụ trước") —
+  // khớp với validate BE: có phụ tùng thì phải có dịch vụ đi kèm, gara không bán rời phụ tùng.
   const hasIncompleteQuotationIssue = quotationIssueItems.some(
-    (issue) =>
-      !quotationItems.some((item) => item.issueId === issue.issueId && (item.partId || item.isCustom)),
+    (issue) => !quotationServices.some((s) => s.issueId === issue.issueId),
   );
 
   const handleCreateQuotation = async () => {
@@ -827,253 +892,69 @@ export default function LeaderCreateQuotation() {
             </div>
           </div>
 
-          {/* Hạng mục báo giá */}
-          <div>
-            <div className="flex items-center justify-between mb-3 px-1">
-              <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                <Package size={14} className="text-slate-500" />
-                Hạng mục báo giá
-              </label>
-              <span
-                className="text-xs font-semibold px-2.5 py-1 rounded-full"
-                style={{ backgroundColor: "#00285E", color: "#fff" }}
-              >
-                {quotationIssueItems.length} hạng mục · {selectedQuotationItemsCount} phụ tùng
-              </span>
-            </div>
-            {quotationItems.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-slate-200/70 p-6 text-center text-sm text-slate-400">
-                Chưa có hạng mục nào trong báo giá.
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-slate-200/70 bg-white">
-                <div className="overflow-x-auto overflow-y-visible rounded-2xl">
-                  <table className="w-full min-w-[680px] border-collapse text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-bold uppercase tracking-widest text-slate-400 [&>th:first-child]:rounded-tl-2xl [&>th:last-child]:rounded-tr-2xl">
-                        <th className="px-4 py-3">Hạng mục lỗi</th>
-                        <th className="px-4 py-3">Sản phẩm trong kho</th>
-                        <th className="w-20 px-3 py-3">SL</th>
-                        <th className="px-4 py-3 text-right">Thành tiền</th>
-                        <th className="w-10 px-2 py-3" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {quotationItems.map((item, itemIndex) => {
-                        const isFirstRowOfIssue =
-                          quotationItems.findIndex((row) => row.issueId === item.issueId) === itemIndex;
-                        const isEmptyItem = !item.partId && !item.isCustom;
-                        return (
-                          <tr key={item.uid} className="border-b border-slate-100 align-top last:border-0">
-                            <td className="px-4 py-3.5 max-w-[200px]">
-                              {isFirstRowOfIssue && (
-                                <>
-                                  <p className="text-xs font-semibold text-slate-800">
-                                    {item.componentName}
-                                  </p>
-                                  {item.description && (
-                                    <p className="mt-0.5 text-[11px] text-slate-400">
-                                      {item.description}
-                                    </p>
-                                  )}
-                                </>
-                              )}
-                            </td>
-                            <td className="px-4 py-3.5">
-                              {!item.isCustom ? (
-                                <SearchableSelect
-                                  value={item.partId}
-                                  placeholder="-- Chọn phụ tùng tiếp theo --"
-                                  emptyText="Không tìm thấy phụ tùng phù hợp."
-                                  invalid={!item.partId}
-                                  onChange={(v) => selectQuotationPart(item.uid, v)}
-                                  options={spareParts.map((part) => {
-                                    const available = Number(part.available_quantity);
-                                    return {
-                                      value: part.id,
-                                      label: `${part.name}${part.brand ? ` - ${part.brand}` : ""}`,
-                                      sublabel: available <= 0 ? "Hết hàng" : `Còn: ${available}`,
-                                      disabled: available <= 0,
-                                    };
-                                  })}
-                                />
-                              ) : (
-                                <div className="grid grid-cols-[minmax(0,1fr)_130px] gap-2">
-                                  <input
-                                    type="text"
-                                    value={item.customItemName}
-                                    onChange={(e) =>
-                                      updateCustomQuotationItem(item.uid, { customItemName: e.target.value })
-                                    }
-                                    placeholder="Tên phụ tùng đặt riêng"
-                                    className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                                  />
-                                  <PriceInput
-                                    value={item.unitPrice}
-                                    placeholder="Đơn giá"
-                                    onCommit={(value) => updateCustomQuotationItem(item.uid, { unitPrice: value })}
-                                    className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                                  />
-                                </div>
-                              )}
-                              {item.isCustom && (
-                                <p className="mt-1 text-[10px] font-semibold text-amber-600">
-                                  Phụ tùng đặt riêng · Cọc 30%:{" "}
-                                  {formatVND(Math.round(item.quantity * item.unitPrice * 0.3))}
-                                </p>
-                              )}
-                            </td>
-                            <td className="px-3 py-3.5">
-                              {!isEmptyItem ? (
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={item.quantity}
-                                  onChange={(e) => updateQuotationQuantity(item.uid, Number(e.target.value))}
-                                  className="w-16 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-800 text-center focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
-                                />
-                              ) : (
-                                <span className="text-xs text-slate-300">—</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                              {!isEmptyItem ? (
-                                <span className="text-xs font-bold text-[#00285E]">
-                                  {formatVND(item.quantity * item.unitPrice)}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-slate-300">—</span>
-                              )}
-                            </td>
-                            <td className="px-2 py-3.5 text-center">
-                              {!isEmptyItem && (
-                                <button
-                                  onClick={() => removeQuotationItem(item.uid)}
-                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                                  title="Xóa phụ tùng"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setCustomPartIssueId(quotationIssueItems[0]?.issueId ?? "");
-                setShowCustomPartForm((v) => !v);
-              }}
-              className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[#00285E]/25 bg-white px-3 text-xs font-semibold text-[#00285E] hover:bg-slate-50"
-            >
-              <Plus size={14} />
-              Đặt phụ tùng riêng
-            </button>
-            {showCustomPartForm && (
-              <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div>
-                    <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                      Hạng mục lỗi
-                    </label>
-                    <select
-                      value={customPartIssueId}
-                      onChange={(e) => setCustomPartIssueId(Number(e.target.value))}
-                      className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                    >
-                      {quotationIssueItems.map((item) => (
-                        <option key={item.issueId} value={item.issueId}>
-                          {item.componentName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                      Tên phụ tùng
-                    </label>
-                    <input
-                      type="text"
-                      value={customPartName}
-                      onChange={(e) => setCustomPartName(e.target.value)}
-                      placeholder="Nhập tên phụ tùng"
-                      className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                      Số lượng
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={customPartQuantity}
-                      onChange={(e) => setCustomPartQuantity(Math.max(1, Number(e.target.value)))}
-                      className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                      Đơn giá
-                    </label>
-                    <PriceInput
-                      value={customPartPrice}
-                      placeholder="Nhập đơn giá"
-                      onCommit={setCustomPartPrice}
-                      className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-right text-xs font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                    />
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center justify-between gap-3">
-                  <div className="text-xs text-slate-500">
-                    Cọc áp dụng: <span className="font-bold text-amber-600">30%</span>
-                    {customPartPrice > 0 && (
-                      <span className="ml-2 font-semibold text-slate-700">
-                        ({formatVND(Math.round(customPartQuantity * customPartPrice * 0.3))})
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={submitCustomQuotationItem}
-                    disabled={
-                      customPartIssueId === "" ||
-                      !customPartName.trim() ||
-                      customPartQuantity <= 0 ||
-                      customPartPrice <= 0
-                    }
-                    className="h-9 rounded-lg bg-[#00285E] px-4 text-xs font-semibold text-white hover:bg-[#003C7D] disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Thêm vào báo giá
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Dịch vụ */}
-          <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                <Wrench size={14} className="text-slate-500" />
-                Dịch vụ
-              </label>
-              {quotationServices.length > 0 && (
+          {/* Danh sách hạng mục lỗi + Chọn dịch vụ cho hạng mục lỗi — chung 1 card, 2 tiêu đề */}
+          <div className="bg-white rounded-2xl border border-slate-200/70 p-4 space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                  <ClipboardList size={14} className="text-slate-500" />
+                  Danh sách hạng mục lỗi
+                </label>
                 <span
                   className="text-xs font-semibold px-2.5 py-1 rounded-full"
                   style={{ backgroundColor: "#00285E", color: "#fff" }}
                 >
-                  {quotationServices.length} dịch vụ
+                  {quotationIssueItems.length} hạng mục
                 </span>
-              )}
+              </div>
+              <div className="space-y-1.5">
+                {quotationIssueItems.map((issueRow) => {
+                  const hasService = quotationServices.some((s) => s.issueId === issueRow.issueId);
+                  return (
+                    <div
+                      key={issueRow.issueId}
+                      className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 ${hasService ? "border-emerald-200 bg-emerald-50/50" : "border-slate-200 bg-slate-50/60"
+                        }`}
+                    >
+                      {hasService ? (
+                        <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />
+                      ) : (
+                        <AlertCircle size={14} className="shrink-0 text-amber-500" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-slate-800 truncate">{issueRow.componentName}</p>
+                        {issueRow.description && (
+                          <p className="text-[11px] text-slate-400 truncate">{issueRow.description}</p>
+                        )}
+                      </div>
+                      <span
+                        className={`shrink-0 text-[10px] font-bold ${hasService ? "text-emerald-600" : "text-amber-600"
+                          }`}
+                      >
+                        {hasService ? "Đã có dịch vụ" : "Chưa có dịch vụ"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-3">
+
+            <div className="pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                  <Wrench size={14} className="text-slate-500" />
+                  Chọn dịch vụ cho hạng mục lỗi
+                </label>
+                {quotationServices.length > 0 && (
+                  <span
+                    className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                    style={{ backgroundColor: "#00285E", color: "#fff" }}
+                  >
+                    {quotationServices.length} dịch vụ
+                  </span>
+                )}
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-3">
               <SearchableSelect
                 value={servicePicker === "" ? null : servicePicker}
                 placeholder="-- Chọn dịch vụ trong hệ thống --"
@@ -1164,41 +1045,264 @@ export default function LeaderCreateQuotation() {
                     </>
                   );
                 })()}
-            </div>
-
-            {quotationServices.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {quotationServices.map((s) => (
-                  <div
-                    key={s.uid}
-                    className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5"
-                  >
-                    <span className="flex-1 min-w-[140px] text-sm font-semibold text-slate-800 truncate">
-                      {s.serviceName}
-                    </span>
-                    <span className="w-40 text-xs font-semibold text-slate-500 truncate">
-                      {quotationIssueItems.find((i) => i.issueId === s.issueId)?.componentName ?? "—"}
-                    </span>
-                    <PriceInput
-                      placeholder="Nhập giá"
-                      value={s.fee}
-                      onCommit={(v) => updateQuotationServiceFee(s.uid, v)}
-                      className="w-32 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-right transition-colors focus:outline-none bg-white text-slate-800 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                    />
-                    <span className="w-28 text-right text-xs font-bold text-[#00285E] whitespace-nowrap">
-                      {formatVND(s.fee)}
-                    </span>
-                    <button
-                      onClick={() => removeQuotationService(s.uid)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                      title="Xóa dịch vụ"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
               </div>
-            )}
+            </div>
+          </div>
+
+          {/* Hạng mục báo giá — bước 2: chỉ hiện lỗi đã có dịch vụ, gắn phụ tùng dùng chung cho lỗi đó */}
+          <div>
+            <div className="flex items-center justify-between mb-3 px-1">
+              <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                <Package size={14} className="text-slate-500" />
+                Hạng mục báo giá
+              </label>
+              <span
+                className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                style={{ backgroundColor: "#00285E", color: "#fff" }}
+              >
+                {quotationIssueItems.length} hạng mục · {selectedQuotationItemsCount} phụ tùng
+              </span>
+            </div>
+            {(() => {
+              const issuesWithService = quotationIssueItems.filter((issueRow) =>
+                quotationServices.some((s) => s.issueId === issueRow.issueId),
+              );
+              if (issuesWithService.length === 0) {
+                return (
+                  <div className="bg-white rounded-2xl border border-slate-200/70 p-6 text-center text-sm text-slate-400">
+                    Chưa có hạng mục nào được áp dịch vụ — chọn dịch vụ ở trên trước.
+                  </div>
+                );
+              }
+              return (
+                <div className="space-y-3">
+                  {issuesWithService.map((issueRow) => {
+                    const issueServices = quotationServices.filter((s) => s.issueId === issueRow.issueId);
+                    const issueParts = quotationItems.filter((item) => item.issueId === issueRow.issueId);
+                    return (
+                      <div key={issueRow.issueId} className="rounded-2xl border border-slate-200/70 bg-white p-4">
+                        <p className="text-xs font-semibold text-slate-800">{issueRow.componentName}</p>
+                        {issueRow.description && (
+                          <p className="mt-0.5 text-[11px] text-slate-400">{issueRow.description}</p>
+                        )}
+
+                        <div className="mt-3">
+                          <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                            Dịch vụ cần dùng
+                          </span>
+                          <div className="space-y-1.5">
+                            {issueServices.map((s) => (
+                              <div
+                                key={s.uid}
+                                className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2"
+                              >
+                                <Wrench size={12} className="shrink-0 text-slate-400" />
+                              <span className="flex-1 min-w-[120px] text-xs font-semibold text-slate-800 truncate">
+                                {s.serviceName}
+                              </span>
+                              <PriceInput
+                                placeholder="Nhập giá"
+                                value={s.fee}
+                                onCommit={(v) => updateQuotationServiceFee(s.uid, v)}
+                                readOnly={s.hasDbPrice}
+                                title={s.hasDbPrice ? "Giá đã có sẵn trong hệ thống, không thể sửa" : undefined}
+                                className={`w-28 border rounded-lg px-2.5 py-1.5 text-xs font-semibold text-right transition-colors focus:outline-none ${s.hasDbPrice
+                                    ? "border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed"
+                                    : "border-slate-200 bg-white text-slate-800 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                  }`}
+                              />
+                                <button
+                                  onClick={() => removeQuotationService(s.uid)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                                  title="Xóa dịch vụ"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 pt-4 border-t border-slate-100">
+                          <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                            Phụ tùng cần dùng
+                          </span>
+                          <div className="space-y-2">
+                            {issueParts.map((item) => {
+                              const isEmptyItem = !item.partId && !item.isCustom;
+                              return (
+                                <div key={item.uid} className="flex items-start gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    {!item.isCustom ? (
+                                      <SearchableSelect
+                                        value={item.partId}
+                                        placeholder="-- Chọn phụ tùng tiếp theo --"
+                                        emptyText="Không tìm thấy phụ tùng phù hợp."
+                                        invalid={!item.partId}
+                                        onChange={(v) => selectQuotationPart(item.uid, v)}
+                                        options={spareParts.map((part) => {
+                                          const available = Number(part.available_quantity);
+                                          const outOfStock = available <= 0;
+                                          return {
+                                            value: part.id,
+                                            label: `${part.name}${part.brand ? ` - ${part.brand}` : ""}`,
+                                            sublabel: outOfStock ? "Hết hàng" : `Còn: ${available}`,
+                                            disabled: outOfStock,
+                                            onRequestRestock: outOfStock
+                                              ? () => handleRequestRestock(part.id, part.name)
+                                              : undefined,
+                                            isRequestingRestock: requestingRestockId === part.id,
+                                            restockRequested: restockRequestedIds.has(part.id),
+                                          };
+                                        })}
+                                      />
+                                    ) : (
+                                      <div className="grid grid-cols-[minmax(0,1fr)_110px] gap-2">
+                                        <input
+                                          type="text"
+                                          value={item.customItemName}
+                                          onChange={(e) =>
+                                            updateCustomQuotationItem(item.uid, { customItemName: e.target.value })
+                                          }
+                                          placeholder="Tên phụ tùng đặt riêng"
+                                          className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                        />
+                                        <PriceInput
+                                          value={item.unitPrice}
+                                          placeholder="Đơn giá"
+                                          onCommit={(value) => updateCustomQuotationItem(item.uid, { unitPrice: value })}
+                                          className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                        />
+                                      </div>
+                                    )}
+                                    {item.isCustom && (
+                                      <p className="mt-1 text-[10px] font-semibold text-amber-600">
+                                        Phụ tùng đặt riêng · Cọc 30%:{" "}
+                                        {formatVND(Math.round(item.quantity * item.unitPrice * 0.3))}
+                                      </p>
+                                    )}
+                                  </div>
+                                  {!isEmptyItem && (
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      value={item.quantity}
+                                      onChange={(e) => updateQuotationQuantity(item.uid, Number(e.target.value))}
+                                      className="w-16 shrink-0 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-800 text-center focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
+                                    />
+                                  )}
+                                  {!isEmptyItem && (
+                                    <span className="w-24 shrink-0 pt-2 text-right text-xs font-bold text-[#00285E]">
+                                      {formatVND(item.quantity * item.unitPrice)}
+                                    </span>
+                                  )}
+                                  {!isEmptyItem && (
+                                    <button
+                                      onClick={() => removeQuotationItem(item.uid)}
+                                      className="shrink-0 p-1.5 mt-0.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                                      title="Xóa phụ tùng"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomPartIssueId(issueRow.issueId);
+                              setShowCustomPartForm((v) => (customPartIssueId === issueRow.issueId ? !v : true));
+                            }}
+                            className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[#00285E]/25 bg-white px-3 text-xs font-semibold text-[#00285E] hover:bg-slate-50"
+                          >
+                            <Plus size={14} />
+                            Đặt phụ tùng riêng
+                          </button>
+                          {showCustomPartForm && customPartIssueId === issueRow.issueId && (
+                            <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-4">
+                              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <div>
+                                  <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                    Tên phụ tùng
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={customPartName}
+                                    onChange={(e) => setCustomPartName(e.target.value)}
+                                    placeholder="Nhập tên phụ tùng"
+                                    className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                    Số lượng
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={customPartQuantity}
+                                    onChange={(e) => setCustomPartQuantity(Math.max(1, Number(e.target.value)))}
+                                    className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                    Đơn giá
+                                  </label>
+                                  <PriceInput
+                                    value={customPartPrice}
+                                    placeholder="Nhập đơn giá"
+                                    onCommit={setCustomPartPrice}
+                                    className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-right text-xs font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                  />
+                                </div>
+                              </div>
+                              <div className="mt-4 flex items-center justify-between gap-3">
+                                <div className="text-xs text-slate-500">
+                                  Cọc áp dụng: <span className="font-bold text-amber-600">30%</span>
+                                  {customPartPrice > 0 && (
+                                    <span className="ml-2 font-semibold text-slate-700">
+                                      ({formatVND(Math.round(customPartQuantity * customPartPrice * 0.3))})
+                                    </span>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={submitCustomQuotationItem}
+                                  disabled={
+                                    customPartIssueId === "" ||
+                                    !customPartName.trim() ||
+                                    customPartQuantity <= 0 ||
+                                    customPartPrice <= 0
+                                  }
+                                  className="h-9 rounded-lg bg-[#00285E] px-4 text-xs font-semibold text-white hover:bg-[#003C7D] disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                  Thêm vào báo giá
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            Thành tiền hạng mục
+                          </span>
+                          <span className="text-sm font-bold text-[#00285E]">
+                            {formatVND(
+                              issueServices.reduce((sum, s) => sum + s.fee, 0) +
+                              issueParts.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Ghi chú */}

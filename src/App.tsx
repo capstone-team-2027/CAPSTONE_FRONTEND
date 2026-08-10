@@ -39,6 +39,7 @@ const InventorySuppliers = lazy(() => import("./pages/inventory/suppliers/Invent
 const InventoryApprovedQuotes = lazy(() => import("./pages/inventory/export/InventoryApprovedQuotes"));
 const InventoryExport = lazy(() => import("./pages/inventory/export/InventoryExport"));
 const InventoryWaitingStock = lazy(() => import("./pages/inventory/import/InventoryWaitingStock"));
+const InventoryRestockRequests = lazy(() => import("./pages/inventory/import/InventoryRestockRequests"));
 const InventoryRestockSuggestions = lazy(() => import("./pages/inventory/restock/InventoryRestockSuggestions"));
 
 // Reception Page Imports
@@ -149,6 +150,7 @@ function App() {
             <Route path="categories" element={<PartCategories />} />
             <Route path="import" element={<ImportHistory />} />
             <Route path="waiting-stock" element={<InventoryWaitingStock />} />
+            <Route path="restock-requests" element={<InventoryRestockRequests />} />
             <Route path="suppliers" element={<InventorySuppliers />} />
             <Route path="approved-quotes" element={<InventoryApprovedQuotes />} />
             <Route path="export" element={<InventoryExport />} />

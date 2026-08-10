@@ -20,6 +20,9 @@ import {
   Wrench,
   Package,
   Phone,
+  Wallet,
+  Copy,
+  CreditCard,
 } from "lucide-react";
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { useSocket } from "../../../hook/useSocket";
@@ -73,6 +76,13 @@ const DEFAULT_STATUS = {
 
 const ITEMS_PER_PAGE = 5;
 
+// Báo giá có phụ tùng đặt riêng thì phải cọc trước; chưa có deposit_paid_at
+// nghĩa là khách chưa chuyển tiền cọc -> lễ tân theo dõi và thu/xác nhận.
+const isAwaitingDeposit = (quotation: GetQuotationResponse) =>
+  ["APPROVED", "PENDING_DEPOSIT"].includes(quotation.status) &&
+  Number(quotation.deposit_amount) > 0 &&
+  !quotation.deposit_paid_at;
+
 const formatVND = (value: number | string) =>
   `${new Intl.NumberFormat("vi-VN").format(Number(value) || 0)} VND`;
 
@@ -90,11 +100,13 @@ export default function ReceptionQuoteList() {
   const [quotations, setQuotations] = useState<GetQuotationResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("PENDING");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedQuotation, setSelectedQuotation] = useState<QuotationRow | null>(null);
   const [isApproving, setIsApproving] = useState(false);
-  const { fetchPrivate } = useFetchClient();
+  const [showDepositQr, setShowDepositQr] = useState(false);
+  const [isDepositPaid, setIsDepositPaid] = useState(false);
+  const { fetchPrivate, fetchPublic } = useFetchClient();
   const socket = useSocket();
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
@@ -124,6 +136,37 @@ export default function ReceptionQuoteList() {
       socket.off("new_notification", handleNewNotification);
     };
   }, [socket]);
+
+  // Modal QR đang mở -> tự hỏi BE mỗi 5s xem Sepay đã đối soát tiền cọc chưa,
+  // giống hệt modal thanh toán cọc bên trang khách hàng (QuoteTrackingTab.tsx).
+  useEffect(() => {
+    if (!showDepositQr || isDepositPaid || !selectedQuotation?.id) return;
+
+    const quotationId = selectedQuotation.id;
+    const amount = Number(selectedQuotation.deposit_amount ?? 0);
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+
+    const intervalId = window.setInterval(async () => {
+      try {
+        const result = await fetchPublic(
+          `${apiBaseUrl}/api/payment/check-status?bookingCode=BG-${quotationId}&amount=${amount}`,
+        );
+        if (result?.success && result?.isPaid) {
+          window.clearInterval(intervalId);
+          setIsDepositPaid(true);
+          await handleGetQuotationHistory();
+          setTimeout(() => {
+            setShowDepositQr(false);
+            setIsDepositPaid(false);
+          }, 2000);
+        }
+      } catch (error) {
+        console.error("Không thể kiểm tra trạng thái thanh toán cọc:", error);
+      }
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
+  }, [showDepositQr, isDepositPaid, selectedQuotation?.id]);
 
   const quotationRows = useMemo<QuotationRow[]>(() => {
     const rows: QuotationRow[] = quotations.map((q) => {
@@ -182,7 +225,15 @@ export default function ReceptionQuoteList() {
   );
 
   const openQuotationDetail = (q: QuotationRow) => setSelectedQuotation(q);
-  const closeQuotationDetail = () => setSelectedQuotation(null);
+  const closeQuotationDetail = () => {
+    setSelectedQuotation(null);
+    setShowDepositQr(false);
+    setIsDepositPaid(false);
+  };
+  const closeDepositQr = () => {
+    setShowDepositQr(false);
+    setIsDepositPaid(false);
+  };
 
   const handleApproveQuotation = async () => {
     if (!selectedQuotation) return;
@@ -214,7 +265,7 @@ export default function ReceptionQuoteList() {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
             <History className="text-[#F9A11B]" size={28} />
-            Báo giá chờ xác nhận
+            Danh sách báo giá
           </h1>
           <p className="text-slate-500 text-sm">
             Gọi điện hoặc gửi PDF qua Zalo cho khách xác nhận, sau đó hỗ trợ duyệt hộ.
@@ -289,7 +340,9 @@ export default function ReceptionQuoteList() {
           >
             <option value="all">Tất cả trạng thái</option>
             <option value="PENDING">Chờ xác nhận</option>
+            <option value="PENDING_DEPOSIT">Chờ đặt cọc</option>
             <option value="APPROVED">Đã duyệt</option>
+            <option value="EXPORTED">Đã xuất kho</option>
             <option value="REJECTED">Từ chối</option>
           </select>
         </div>
@@ -349,17 +402,29 @@ export default function ReceptionQuoteList() {
                         </div>
                       </td>
                       <td className="py-3.5 px-3 align-middle whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold ${statusCfg.className}`}>
-                          {q.status === "PENDING" ? (
-                            <span className="relative flex h-2 w-2 shrink-0">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold ${statusCfg.className}`}>
+                            {q.status === "PENDING" ? (
+                              <span className="relative flex h-2 w-2 shrink-0">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                              </span>
+                            ) : (
+                              <StatusIcon size={11} className="shrink-0" />
+                            )}
+                            {statusCfg.label}
+                          </span>
+                          {/* Phụ tùng đặt riêng chưa thu cọc -> lễ tân cần theo dõi/xác nhận */}
+                          {isAwaitingDeposit(q) && (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200"
+                              title={`Cần thu cọc ${formatVND(q.deposit_amount ?? 0)}`}
+                            >
+                              <Wallet size={11} className="shrink-0" />
+                              Chờ cọc
                             </span>
-                          ) : (
-                            <StatusIcon size={11} className="shrink-0" />
                           )}
-                          {statusCfg.label}
-                        </span>
+                        </div>
                       </td>
                       <td className="py-3.5 px-3 align-middle whitespace-nowrap">
                         <div className="flex items-center justify-center">
@@ -468,7 +533,75 @@ export default function ReceptionQuoteList() {
                         {selectedQuotation.vehicleColor && ` · ${selectedQuotation.vehicleColor}`}
                       </span>
                     </div>
+                    <div className="flex flex-col gap-1 pt-2 border-t border-slate-100 mt-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Tình trạng tiếp nhận
+                      </span>
+                      <span className="text-xs font-semibold text-slate-700 break-words">
+                        {selectedQuotation.task?.serviceOrder?.symptoms || "—"}
+                      </span>
+                    </div>
                   </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+                    Trạng thái
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusConfig(selectedQuotation.status).className}`}>
+                      {selectedQuotation.status === "PENDING" ? (
+                        <span className="relative flex h-2 w-2 shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                        </span>
+                      ) : (
+                        (() => {
+                          const Icon = getStatusConfig(selectedQuotation.status).icon;
+                          return <Icon size={12} className="shrink-0" />;
+                        })()
+                      )}
+                      {getStatusConfig(selectedQuotation.status).label}
+                    </span>
+                    {isAwaitingDeposit(selectedQuotation) && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                        <Wallet size={12} className="shrink-0" />
+                        Chờ cọc{" "}
+                        {selectedQuotation.items.filter((item) => item.customPartOrder).length}{" "}
+                        phụ tùng
+                      </span>
+                    )}
+                  </div>
+                  {isAwaitingDeposit(selectedQuotation) && (
+                    <p className="text-[11px] font-semibold text-amber-600 mt-1.5">
+                      Cần thu cọc: {formatVND(selectedQuotation.deposit_amount ?? 0)}
+                    </p>
+                  )}
+                  {selectedQuotation.deposit_paid_at && (
+                    <p className="text-[11px] text-emerald-600 mt-1.5">
+                      Đã cọc lúc: {formatDateTime(selectedQuotation.deposit_paid_at)}
+                    </p>
+                  )}
+                  {selectedQuotation.approved_at && (
+                    <p className="text-[11px] text-slate-400 mt-1.5">
+                      Duyệt lúc: {formatDateTime(selectedQuotation.approved_at)}
+                    </p>
+                  )}
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+                    Ngày tạo
+                  </span>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {formatDateTime(selectedQuotation.createdAt)}
+                  </p>
+                  {selectedQuotation.creator?.fullName && (
+                    <p className="text-[11px] text-slate-400 mt-1.5">
+                      Người tạo: {selectedQuotation.creator.fullName}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -480,7 +613,7 @@ export default function ReceptionQuoteList() {
                   </span>
                 </div>
                 {(() => {
-                  const partItems = selectedQuotation.items.filter((i) => i.sparePart || i.custom_item_name);
+                  const partItems = selectedQuotation.items.filter((i) => i.sparePart || i.customPartOrder);
                   const serviceItems = selectedQuotation.items.filter((i) => i.service_catalog);
                   return (
                     <div className="space-y-5">
@@ -506,7 +639,7 @@ export default function ReceptionQuoteList() {
                                     <tr key={item.id} className="border-b border-slate-100 last:border-0">
                                       <td className="py-3 px-4">
                                         <span className="text-xs font-semibold text-slate-800 truncate">
-                                          {item.sparePart?.name || item.custom_item_name}
+                                          {item.sparePart?.name || item.customPartOrder?.item_name}
                                         </span>
                                       </td>
                                       <td className="py-3 px-2 text-center">
@@ -584,16 +717,171 @@ export default function ReceptionQuoteList() {
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Tổng cộng</span>
                 <span className="text-lg font-bold text-[#00285E]">{formatVND(selectedQuotation.total_amount)}</span>
               </div>
-              {selectedQuotation.status === "PENDING" && (
-                <button
-                  onClick={() => void handleApproveQuotation()}
-                  disabled={isApproving}
-                  className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-600/25 hover:shadow-emerald-600/40 hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isApproving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                  Khách đã đồng ý, duyệt hộ
-                </button>
-              )}
+              <div className="flex items-center gap-2.5">
+                {isAwaitingDeposit(selectedQuotation) && (
+                  <button
+                    onClick={() => setShowDepositQr(true)}
+                    className="h-11 flex items-center gap-2 px-5 rounded-xl text-sm font-semibold text-white bg-[#F9A11B] shadow-lg shadow-[#F9A11B]/30 hover:brightness-105 active:scale-[0.98] transition-all"
+                  >
+                    <CreditCard size={16} />
+                    Thanh toán cọc
+                  </button>
+                )}
+                {selectedQuotation.status === "PENDING" && (
+                  <button
+                    onClick={() => void handleApproveQuotation()}
+                    disabled={isApproving}
+                    className="h-11 flex items-center gap-2 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-600/25 hover:shadow-emerald-600/40 hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {isApproving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                    Khách đã đồng ý, duyệt hộ
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: QR THANH TOÁN CỌC PHỤ TÙNG ĐẶT RIÊNG (Sepay đối soát tự động qua nội dung BG-<id>) */}
+      {showDepositQr && selectedQuotation && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-4">
+          <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-7 py-5">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-amber-50 p-2.5 text-amber-600">
+                  <Wallet className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-extrabold text-slate-800">Thanh toán tiền cọc</h4>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Quét mã VietQR để thanh toán cọc phụ tùng đặt riêng.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={closeDepositQr}
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 p-6 sm:grid-cols-2">
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-bold uppercase tracking-wide text-amber-800">
+                      Số tiền cần cọc
+                    </p>
+                    <span className="rounded-md border border-amber-200 bg-white/70 px-2 py-1 text-[10px] font-bold text-amber-700">
+                      {selectedQuotation.code}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-2xl font-black text-amber-600">
+                    {formatVND(selectedQuotation.deposit_amount ?? 0)}
+                  </p>
+                  <div className="mt-3 space-y-2 border-t border-amber-200 pt-3">
+                    {selectedQuotation.items
+                      .filter((item) => item.customPartOrder)
+                      .map((item) => (
+                        <div key={item.id} className="rounded-xl border border-amber-100 bg-white/90 px-3 py-2.5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-bold text-slate-700">
+                                {item.customPartOrder?.item_name}
+                              </p>
+                              <p className="mt-1 text-[11px] text-slate-500">
+                                Số lượng: {item.quantity} · Cọc 30%
+                              </p>
+                            </div>
+                            <span className="shrink-0 text-xs font-extrabold text-[#00285E]">
+                              {formatVND(item.amount)}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Khách hàng</p>
+                  <p className="mt-1.5 text-sm font-bold text-slate-700">{selectedQuotation.customerName}</p>
+                  <p className="mt-1 text-xs text-slate-500">{selectedQuotation.customerPhone || "—"}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
+                {!isDepositPaid ? (
+                  <>
+                    <div className="mb-3 flex w-full items-center justify-between border-b border-slate-200 pb-2">
+                      <span className="text-xs font-bold uppercase tracking-wide text-[#00285E]">Quét mã VietQR</span>
+                      <span className="rounded-md border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold text-amber-700">
+                        {import.meta.env.VITE_SEPAY_BANK || "TPBank"}
+                      </span>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                      <img
+                        src={`https://vietqr.app/img?acc=${import.meta.env.VITE_SEPAY_ACC || "05979551201"}&bank=${import.meta.env.VITE_SEPAY_BANK || "TPBank"}&amount=${Math.round(Number(selectedQuotation.deposit_amount) || 0)}&template=compact&showinfo=true&addInfo=BG-${selectedQuotation.id}`}
+                        alt="Mã VietQR thanh toán cọc"
+                        className="h-52 w-52 rounded-xl object-contain"
+                      />
+                    </div>
+                    <div className="mt-3 w-full space-y-2 text-xs">
+                      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        <span className="text-slate-500">Số tài khoản</span>
+                        <button
+                          onClick={() => {
+                            void navigator.clipboard.writeText(import.meta.env.VITE_SEPAY_ACC || "05979551201");
+                            showToast("Đã sao chép số tài khoản", "success");
+                          }}
+                          className="flex items-center gap-1.5 font-mono font-bold text-[#00285E]"
+                        >
+                          {import.meta.env.VITE_SEPAY_ACC || "05979551201"}
+                          <Copy className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        <span className="text-slate-500">Nội dung CK</span>
+                        <button
+                          onClick={() => {
+                            void navigator.clipboard.writeText(`BG-${selectedQuotation.id}`);
+                            showToast("Đã sao chép nội dung chuyển khoản", "success");
+                          }}
+                          className="flex items-center gap-1.5 font-mono font-bold text-[#00285E]"
+                        >
+                          BG-{selectedQuotation.id}
+                          <Copy className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-[11px] font-medium text-slate-500">
+                      Hệ thống đang tự động chờ xác nhận tiền cọc...
+                    </p>
+                  </>
+                ) : (
+                  <div className="my-auto flex flex-col items-center py-12">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                      <CheckCircle2 className="h-8 w-8" strokeWidth={2.5} />
+                    </div>
+                    <p className="mt-4 text-base font-extrabold text-emerald-700">
+                      Thanh toán cọc thành công!
+                    </p>
+                    <p className="mt-2 max-w-[230px] text-xs leading-relaxed text-slate-500">
+                      Hệ thống đã ghi nhận tiền cọc cho báo giá {selectedQuotation.code}.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end border-t border-slate-100 bg-slate-50 px-6 py-3.5">
+              <button
+                onClick={closeDepositQr}
+                className="rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100"
+              >
+                Đóng
+              </button>
             </div>
           </div>
         </div>

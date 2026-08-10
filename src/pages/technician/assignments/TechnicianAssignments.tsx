@@ -133,6 +133,14 @@ interface ServiceTaskApi {
           name?: string | null;
           sku?: string | null;
         } | null;
+        customPartOrder?: {
+          id?: number;
+          item_name?: string | null;
+          quantity?: number;
+          unit_price?: number | string;
+          status?: string | null;
+          arrived_at?: string | null;
+        } | null;
       }>;
       component?: {
         id?: number;
@@ -268,6 +276,14 @@ const PART_STATUS_CONFIG: Record<
   WAITING_DEPOSIT: {
     label: "Đợi cọc",
     className: "border-orange-200 bg-orange-50 text-orange-700",
+  },
+  WAITING_ARRIVAL: {
+    label: "Chờ về hàng",
+    className: "border-amber-200 bg-amber-50 text-amber-700",
+  },
+  READY_FOR_USE: {
+    label: "Đã về, chờ xuất",
+    className: "border-violet-200 bg-violet-50 text-violet-700",
   },
   WAITING_STOCK: {
     label: "Chờ nhập hàng",
@@ -466,10 +482,13 @@ export default function TechnicianAssignments() {
             // không được hiện nút, bấm vào cũng không có tác dụng gì.
             const hasPendingPartToRequest = (task: ServiceTaskApi) => {
               const details = task.quotationItem?.issue?.quotationDetails;
+              // Chỉ xét hàng kho (không có customPartOrder) — phụ tùng đặt riêng có luồng
+              // request-xuất-kho riêng của nó (thủ kho xuất trực tiếp), không qua status PENDING
+              // này (shell của nó mang status CUSTOM_ORDERED/EXPORTED, không bao giờ PENDING).
               if (details && details.length > 0) {
-                return details.some((d) => d.status === "PENDING");
+                return details.some((d) => !d.customPartOrder && d.status === "PENDING");
               }
-              return task.quotationItem?.status === "PENDING";
+              return !task.quotationItem?.custom_item_name && task.quotationItem?.status === "PENDING";
             };
             const unstartedAssignment = allAssignments.find((item) => {
               if (item.status === "ASSIGNED") return true;
@@ -534,12 +553,14 @@ export default function TechnicianAssignments() {
                   .map((detail) => ({
                     name:
                       detail.sparePart?.name ||
-                      detail.custom_item_name ||
+                      detail.customPartOrder?.item_name ||
                       "",
                     sku: detail.sparePart?.sku ?? undefined,
                     quantity: detail.quantity ?? 0,
-                    isCustom: Boolean(detail.custom_item_name),
-                    status: detail.status ?? undefined,
+                    isCustom: Boolean(detail.customPartOrder),
+                    // Phụ tùng đặt riêng dùng trạng thái riêng (WAITING_ARRIVAL/READY_FOR_USE/
+                    // EXPORTED) thay vì status của dòng shell (CUSTOM_ORDERED/EXPORTED).
+                    status: detail.customPartOrder?.status ?? detail.status ?? undefined,
                   }))
                   .filter(
                     (part, index, list) =>

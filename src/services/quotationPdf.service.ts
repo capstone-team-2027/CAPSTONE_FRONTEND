@@ -88,7 +88,7 @@ export const buildQuotationPdfDocument = async (
 
   const serviceItems = quotation.items.filter((item) => item.service_catalog);
   const partItems = quotation.items.filter(
-    (item) => item.sparePart || item.custom_item_name,
+    (item) => item.sparePart || item.customPartOrder,
   );
 
   const drawPageFooter = () => {
@@ -270,7 +270,7 @@ export const buildQuotationPdfDocument = async (
   const bodyRows = allItems.map((item, index) => {
     const itemName =
       item.sparePart?.name ||
-      item.custom_item_name ||
+      item.customPartOrder?.item_name ||
       item.service_catalog?.service_name ||
       "Hạng mục khác";
     const issueText = [
@@ -283,7 +283,7 @@ export const buildQuotationPdfDocument = async (
       index + 1,
       item.service_catalog
         ? "Dịch vụ"
-        : item.custom_item_name
+        : item.customPartOrder
           ? "Phụ tùng đặt riêng"
           : "Phụ tùng",
       itemName,

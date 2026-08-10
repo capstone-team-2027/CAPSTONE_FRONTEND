@@ -19,6 +19,7 @@ import {
   Warehouse,
   PackageSearch,
   Sparkles,
+  PackagePlus,
 } from "lucide-react";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -263,9 +264,14 @@ export default function InventoryLayout() {
           path: "/inventory/approved-quotes",
         },
         {
-          name: "Phụ tùng chờ nhập",
+          name: "Phụ tùng đặt riêng",
           icon: PackageSearch,
           path: "/inventory/waiting-stock",
+        },
+        {
+          name: "Yêu cầu bổ sung",
+          icon: PackagePlus,
+          path: "/inventory/restock-requests",
         },
       ],
     },
@@ -287,7 +293,8 @@ export default function InventoryLayout() {
     if (path === "/inventory" || path === "/inventory/") return "Tổng quan";
     if (path.includes("/parts")) return "Phụ tùng";
     if (path.includes("/categories")) return "Danh mục phụ tùng";
-    if (path.includes("/waiting-stock")) return "Phụ tùng chờ nhập";
+    if (path.includes("/waiting-stock")) return "Phụ tùng đặt riêng";
+    if (path.includes("/restock-requests")) return "Yêu cầu bổ sung";
     if (path.includes("/restock-suggestions")) return "Đề xuất nhập hàng";
     if (path.includes("/import")) return "Lịch sử nhập kho";
     if (path.includes("/export")) return "Lịch sử xuất kho";

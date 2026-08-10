@@ -272,7 +272,7 @@ export default function ReceptionLayout() {
       label: 'Dịch vụ',
       items: [
         { name: "Lịch hẹn", icon: CalendarCheck, path: "/reception/appointments" },
-        { name: "Báo giá chờ xác nhận", icon: History, path: "/reception/quotes" },
+        { name: "Danh sách báo giá", icon: History, path: "/reception/quotes" },
         { name: "Quản lý hóa đơn dịch vụ", icon: ClipboardPlus, path: "/reception/service-orders" },
       ],
     },
@@ -300,7 +300,7 @@ export default function ReceptionLayout() {
     // "Khách hàng & Cứu hộ" dù route hiện nằm dưới /customers.
     if (path === "/reception/customers/receive") return "Lịch hẹn";
     if (path.includes("/appointments")) return "Lịch hẹn";
-    if (path.includes("/quotes")) return "Báo giá chờ xác nhận";
+    if (path.includes("/quotes")) return "Danh sách báo giá";
     if (path.includes('/customers')) return 'Khách hàng & Cứu hộ';
     if (path.includes('/technicians')) return 'Kỹ thuật viên hôm nay';
     if (path.includes("/feedback")) return "Phản hồi khách hàng";

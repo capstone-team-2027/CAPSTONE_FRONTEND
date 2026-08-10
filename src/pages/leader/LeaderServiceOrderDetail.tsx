@@ -742,7 +742,7 @@ export default function LeaderServiceOrderDetail() {
                         .filter((item: any) => parseFloat(item.repair_price) > 0 && item.status !== 'CANCELLED')
                         .map((item: any, idx: number) => ({
                           key: `service-${idx}`,
-                          name: item.custom_item_name || item.service_catalog?.service_name || 'Dịch vụ sửa chữa',
+                          name: item.service_catalog?.service_name || 'Dịch vụ sửa chữa',
                           cost: parseFloat(item.repair_price) || 0,
                         }));
 
@@ -821,14 +821,14 @@ export default function LeaderServiceOrderDetail() {
                             <td className="py-3.5 px-4 text-left">
                               <div className="flex flex-col text-left">
                                 <span className="font-semibold text-slate-800">
-                                  {item.custom_item_name || item.sparePart?.name || 'Phụ tùng'}
+                                  {item.customPartOrder?.item_name || item.sparePart?.name || 'Phụ tùng'}
                                 </span>
-                                {item.status === 'WAITING_DEPOSIT' && (
+                                {item.customPartOrder?.status === 'WAITING_DEPOSIT' && (
                                   <span className="text-[9px] font-bold text-amber-600 uppercase mt-0.5">
                                     Cần cọc linh kiện mới (30%)
                                   </span>
                                 )}
-                                {item.custom_item_name && item.status !== 'WAITING_DEPOSIT' && (
+                                {item.customPartOrder && item.customPartOrder.status !== 'WAITING_DEPOSIT' && (
                                   <span className="text-[9px] font-bold text-emerald-600 uppercase mt-0.5">
                                     Đã cọc linh kiện
                                   </span>
@@ -1023,8 +1023,8 @@ export default function LeaderServiceOrderDetail() {
         const tasks: any[] = order.tasks || [];
 
         const depositBadge = (item: any) => {
-          if (!item.custom_item_name) return null;
-          if (item.status === 'WAITING_DEPOSIT') {
+          if (!item.customPartOrder) return null;
+          if (item.customPartOrder.status === 'WAITING_DEPOSIT') {
             return { label: 'Chưa cọc', className: 'text-amber-600 bg-amber-50' };
           }
           return { label: 'Đã cọc', className: 'text-emerald-600 bg-emerald-50' };
@@ -1129,7 +1129,7 @@ export default function LeaderServiceOrderDetail() {
                       {pendingGroups.map((g) => {
                         const allIdsInGroup = [g.serviceItem.id, ...g.relatedParts.map((p: any) => p.id)];
                         const isChecked = completedItemIds.has(g.serviceItem.id);
-                        const serviceLabel = g.serviceItem.custom_item_name || g.serviceItem.service_catalog?.service_name || 'Hạng mục dịch vụ';
+                        const serviceLabel = g.serviceItem.service_catalog?.service_name || 'Hạng mục dịch vụ';
                         const groupTotal = groupAmount(g);
                         return (
                           <div key={g.serviceItem.id} className={`px-4 py-3 transition-colors ${isChecked ? 'bg-blue-50/60' : 'hover:bg-slate-550'}`}>
@@ -1157,7 +1157,7 @@ export default function LeaderServiceOrderDetail() {
                                   return (
                                     <div key={p.id} className="flex items-center gap-2 text-xs text-slate-500">
                                       <Package size={12} className="text-slate-400 shrink-0" />
-                                      <span className="flex-1 min-w-0 truncate">{p.custom_item_name || p.sparePart?.name || 'Phụ tùng'} (x{p.quantity})</span>
+                                      <span className="flex-1 min-w-0 truncate">{p.customPartOrder?.item_name || p.sparePart?.name || 'Phụ tùng'} (x{p.quantity})</span>
                                       {badge && (
                                         <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${badge.className}`}>
                                           {badge.label}
@@ -1189,7 +1189,7 @@ export default function LeaderServiceOrderDetail() {
                               className="w-4 h-4 rounded accent-[#00285E] shrink-0"
                             />
                             <div className="flex-1 min-w-0">
-                              <span className="font-semibold text-slate-805">{p.custom_item_name || p.sparePart?.name || 'Phụ tùng'}</span>
+                              <span className="font-semibold text-slate-805">{p.customPartOrder?.item_name || p.sparePart?.name || 'Phụ tùng'}</span>
                               <span className={`ml-2 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase align-middle ${badge ? badge.className : 'text-slate-500 bg-slate-100'}`}>
                                 {badge ? badge.label : 'Chưa xuất kho'}
                               </span>
@@ -1397,13 +1397,13 @@ export default function LeaderServiceOrderDetail() {
                             <>
                               {order.quotation.items.filter((item: any) => parseFloat(item.repair_price) > 0 && item.status !== 'CANCELLED').map((item: any, idx: number) => (
                                 <div key={`q-srv-${idx}`} className="flex justify-between items-center text-slate-700">
-                                  <span>• {item.custom_item_name || item.service_catalog?.service_name || 'Dịch vụ'} (Công thợ)</span>
+                                  <span>• {item.service_catalog?.service_name || 'Dịch vụ'} (Công thợ)</span>
                                   <span className="font-bold">{formatPrice(parseFloat(item.repair_price) || 0)}</span>
                                 </div>
                               ))}
                               {order.quotation.items.filter((item: any) => parseFloat(item.unit_price) > 0 && item.status !== 'CANCELLED').map((item: any, idx: number) => (
                                 <div key={`q-part-${idx}`} className="flex justify-between items-center text-slate-500 pl-2">
-                                  <span>• Phụ tùng: {item.custom_item_name || item.sparePart?.name || 'Vật tư'} (x{item.quantity})</span>
+                                  <span>• Phụ tùng: {item.customPartOrder?.item_name || item.sparePart?.name || 'Vật tư'} (x{item.quantity})</span>
                                   <span className="font-bold">{formatPrice((parseFloat(item.unit_price) || 0) * (item.quantity || 1))}</span>
                                 </div>
                               ))}

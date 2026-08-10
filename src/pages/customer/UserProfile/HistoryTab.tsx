@@ -18,6 +18,7 @@ interface QuotationItem {
     custom_item_name: string | null;
     sparePart: { id: number; name: string; sku: string } | null;
     service_catalog: { id: number; service_name: string } | null;
+    customPartOrder?: { id: number; item_name: string; status: string } | null;
 }
 
 interface QuotationSummary {
@@ -74,7 +75,7 @@ const formatDate = (value?: string | null) =>
     value ? new Date(value).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
 const getItemName = (item: QuotationItem) =>
-    item.service_catalog?.service_name || item.sparePart?.name || item.custom_item_name || `Hạng mục #${item.id}`;
+    item.service_catalog?.service_name || item.sparePart?.name || item.customPartOrder?.item_name || item.custom_item_name || `Hạng mục #${item.id}`;
 
 // Cùng logic xác định "đã thanh toán" như trang chi tiết đơn hàng của lễ tân
 const isOrderPaid = (order: ServiceOrderHistory) =>

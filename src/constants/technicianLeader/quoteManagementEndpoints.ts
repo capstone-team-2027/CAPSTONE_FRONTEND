@@ -10,4 +10,5 @@ export const LEADER_QUOTE_MANAGEMENT_ENDPOINTS = {
   GET_QUOTATION_BY_ID: (id: number) => `${API_BASE_URL}/api/head-technician/quotation/${id}`,
   GET_SPARE_PARTS: `${API_BASE_URL}/api/head-technician/spare-parts`,
   GET_SERVICES: `${API_BASE_URL}/api/head-technician/services`,
+  CREATE_RESTOCK_REQUEST: `${API_BASE_URL}/api/head-technician/restock-requests`,
 };

@@ -67,6 +67,16 @@ export default function LeaderTaskTracking() {
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const [completingId, setCompletingId] = useState<number | null>(null);
 
+  // Modal xác nhận trước khi hoàn thành 1 công việc (bấm "Xác nhận hoàn thành" trên danh sách)
+  const [completeConfirmTarget, setCompleteConfirmTarget] = useState<{
+    taskId: number;
+    assignmentId: number;
+    taskType: string;
+    taskName: string;
+    orderId: number;
+    orderLabel: string;
+  } | null>(null);
+
   // Modal hỏi có lỗi phát hiện không khi xác nhận hoàn thành task INSPECTION
   const [components, setComponents] = useState<VehicleComponent[]>([]);
   const [inspectionCompleteTarget, setInspectionCompleteTarget] = useState<{
@@ -153,6 +163,19 @@ export default function LeaderTaskTracking() {
       showToast(error?.message || "Không thể xác nhận hoàn thành.", "warning");
     } finally {
       setCompletingId(null);
+    }
+  };
+
+  const closeCompleteConfirm = () => setCompleteConfirmTarget(null);
+
+  const handleConfirmComplete = () => {
+    if (!completeConfirmTarget) return;
+    const target = completeConfirmTarget;
+    setCompleteConfirmTarget(null);
+    if (target.taskType === "INSPECTION") {
+      openInspectionComplete(target.orderId, target.orderLabel, target.taskId, target.assignmentId);
+    } else {
+      void handleCompleteAssignment(target.assignmentId);
     }
   };
 
@@ -510,14 +533,14 @@ export default function LeaderTaskTracking() {
                                   {completableAssignment && (
                                     <button
                                       onClick={() =>
-                                        task.type === "INSPECTION"
-                                          ? openInspectionComplete(
-                                              order.id,
-                                              `${vehicle?.license_plate || "—"} · ${vehicle?.model?.model_name || "—"}`,
-                                              task.id,
-                                              completableAssignment.id,
-                                            )
-                                          : void handleCompleteAssignment(completableAssignment.id)
+                                        setCompleteConfirmTarget({
+                                          taskId: task.id,
+                                          assignmentId: completableAssignment.id,
+                                          taskType: task.type,
+                                          taskName: task.catalog?.service_name || `Công việc #${task.id}`,
+                                          orderId: order.id,
+                                          orderLabel: `${vehicle?.license_plate || "—"} · ${vehicle?.model?.model_name || "—"}`,
+                                        })
                                       }
                                       disabled={completingId === completableAssignment.id}
                                       className="shrink-0 h-9 flex items-center gap-1.5 px-3.5 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:brightness-125 active:scale-[0.97] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -544,6 +567,54 @@ export default function LeaderTaskTracking() {
           })}
         </div>
       )}
+
+      {/* MODAL: XÁC NHẬN TRƯỚC KHI HOÀN THÀNH 1 CÔNG VIỆC */}
+      <AnimatePresence>
+        {completeConfirmTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+              onClick={closeCompleteConfirm}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              transition={{ duration: 0.2 }}
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden ring-1 ring-slate-900/5"
+            >
+              <div className="p-6 text-center">
+                <div className="mx-auto mb-4 flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50">
+                  <CheckCircle2 size={22} className="text-emerald-600" />
+                </div>
+                <h3 className="text-base font-bold text-slate-800">
+                  Xác nhận hoàn thành công việc?
+                </h3>
+                <p className="text-sm text-slate-500 mt-1.5">
+                  {completeConfirmTarget.taskName} · {completeConfirmTarget.orderLabel}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 px-6 pb-6">
+                <button
+                  onClick={closeCompleteConfirm}
+                  className="flex-1 h-11 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200/60 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleConfirmComplete}
+                  className="flex-1 h-11 rounded-xl text-sm font-bold text-white bg-[#00285E] hover:brightness-125 active:scale-[0.98] transition-all"
+                >
+                  Xác nhận
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* MODAL: HỎI CÓ LỖI PHÁT HIỆN KHÔNG TRƯỚC KHI HOÀN THÀNH TASK INSPECTION */}
       <AnimatePresence>

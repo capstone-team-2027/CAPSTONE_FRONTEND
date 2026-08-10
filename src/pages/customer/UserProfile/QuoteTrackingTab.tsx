@@ -114,7 +114,7 @@ const getIssueText = (item: GetQuotationResponse['items'][number]) => {
 const getItemName = (item: GetQuotationResponse['items'][number], t: TFunction) =>
   item.service_catalog?.service_name ||
   item.sparePart?.name ||
-  item.custom_item_name ||
+  item.customPartOrder?.item_name ||
   t('quoteTracking.unnamedItem', 'Hạng mục #{{id}}', { id: item.id });
 
 const getItemType = (item: GetQuotationResponse['items'][number]) =>
@@ -567,7 +567,7 @@ export default function QuoteTrackingTab() {
         const StatusIcon = statusMeta.icon;
         const partItems = selectedQuote.items.filter((item) => !item.service_catalog);
         const serviceItems = selectedQuote.items.filter((item) => item.service_catalog);
-        const depositItems = partItems.filter((item) => item.custom_item_name);
+        const depositItems = partItems.filter((item) => item.customPartOrder);
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-[2px]">
@@ -734,7 +734,7 @@ export default function QuoteTrackingTab() {
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {partItems.map((item) => {
-                            const isCustom = !!item.custom_item_name;
+                            const isCustom = !!item.customPartOrder;
 
                             return (
                               <tr key={item.id} className="bg-white">
