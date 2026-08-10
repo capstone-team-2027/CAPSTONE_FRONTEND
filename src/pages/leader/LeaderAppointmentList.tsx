@@ -54,8 +54,7 @@ interface AppointmentModel {
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   // Chưa tạo lệnh sửa chữa — trạng thái từ Appointment.status
-  technicaian_recieved: { label: 'Đợi tạo lệnh', color: '#D97706', bg: '#FEF3C7', icon: Clock },
-  information_recieved: { label: 'Đợi tạo lệnh', color: '#D97706', bg: '#FEF3C7', icon: Clock },
+  information_received: { label: 'Đợi tạo lệnh', color: '#D97706', bg: '#FEF3C7', icon: Clock },
   // Đã tạo lệnh sửa chữa — trạng thái từ Service_Order.status
   inspecting: { label: 'Đã tiếp nhận', color: '#6B7280', bg: '#F3F4F6', icon: Clock },
   assigned: { label: 'Đã phân công', color: '#6366F1', bg: '#EEF2FF', icon: Users },
@@ -168,7 +167,7 @@ export default function LeaderAppointmentList() {
             appointmentDate,
             appointmentTime,
             notes: appt.notes || '',
-            status: appt.status || 'Technicaian_recieved',
+            status: appt.status || 'INFORMATION_RECEIVED',
             bookingType: appt.booking_type || '',
             priorityType: appt.priority_type || 'NORMAL',
             createdAt: appt.createdAt || appt.created_at || '',
@@ -243,7 +242,7 @@ export default function LeaderAppointmentList() {
       if (statusFilter === 'all') {
         matchStatus = true;
       } else if (statusFilter === 'uncreated') {
-        matchStatus = statusLower === 'technicaian_recieved' || statusLower === 'information_recieved';
+        matchStatus = statusLower === 'information_received';
       } else if (statusFilter === 'waiting') {
         matchStatus = apt.hasServiceOrder && apt.bayStatus?.toUpperCase() === 'WAITING';
       } else if (statusFilter === 'in_progress') {
@@ -261,7 +260,7 @@ export default function LeaderAppointmentList() {
       all: appointments.length,
       uncreated: appointments.filter((a) => {
         const s = a.status.toLowerCase();
-        return s === 'technicaian_recieved' || s === 'information_recieved';
+        return s === 'information_received';
       }).length,
       waiting: appointments.filter((a) => a.hasServiceOrder && a.bayStatus?.toUpperCase() === 'WAITING').length,
       in_progress: appointments.filter((a) => {

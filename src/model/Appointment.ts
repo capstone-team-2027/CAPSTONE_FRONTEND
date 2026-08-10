@@ -1,25 +1,18 @@
 export interface AppointmentModel {
   id: string;
-  customerId: string;
   customerName: string;
   customerPhone: string;
   customerEmail?: string;
-  vehicleId: string;
   vehiclePlate: string;
   vehicleModel: string;
   vehicleYear?: number;
-  vehicleMileage?: number;
-  vinNumber?: string;
   hasServiceOrder?: boolean;
   serviceOrderId?: string;
-  hasOdo?: boolean;
   services: string[];
   appointmentDate: string;
   appointmentTime: string;
-  serviceBay?: string;
-  assignedStaff?: string;
   notes?: string;
-  status: 'pending' | 'confirmed' | 'technicaian_recieved' | 'in_progress' | 'completed' | 'cancelled' | 'no_show' | 'expired';
+  status: 'pending' | 'confirmed' | 'information_received' | 'in_progress' | 'completed' | 'cancelled' | 'no_show' | 'expired';
   bookingType?: string;
   createdAt: string;
 }

@@ -761,6 +761,11 @@ export default function QuoteTrackingTab() {
                                       )}
                                     </span>
                                   )}
+                                  {!isCustom && item.status === "WAITING_STOCK" && (
+                                    <span className="inline-flex mt-2 px-2 py-1 rounded-full text-[11px] font-semibold bg-[#FFF3DA] text-[#C05600]">
+                                      {t('quoteTracking.modal.partWaitingStock', 'Đang chờ nhập kho')}
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="px-3 py-3.5 text-center text-slate-600">{item.quantity}</td>
                                 <td className="px-3 py-3.5 text-right text-slate-700">{formatCurrency(item.unit_price)}</td>

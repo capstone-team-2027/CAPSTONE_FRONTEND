@@ -386,6 +386,9 @@ export default function TechnicianAssignments() {
   const [aiTaskAssignmentId, setAiTaskAssignmentId] = useState<number | null>(null);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
 
+  const [startingTaskAssignmentId, setStartingTaskAssignmentId] = useState<number | null>(null);
+  const [requestingExportServiceOrderId, setRequestingExportServiceOrderId] = useState<string | null>(null);
+
   const openIssueReportModal = (assignment: Assignment) => {
     setIssueReportAssignment(assignment);
     setLookupTerm("");
@@ -474,30 +477,10 @@ export default function TechnicianAssignments() {
               allAssignments.find((item) => item.status === "ASSIGNED") ??
               allAssignments.find((item) => item.status === "PENDING_QC") ??
               allAssignments[0];
-            // WAITING_STOCK cũng cho bấm lại "Bắt đầu công việc", nhưng CHỈ khi task đó còn
-            // dòng phụ tùng ở PENDING (đã nhập kho/cọc xong nhưng CHƯA từng được request xuất
-            // kho) — bấm "Bắt đầu" lúc đó mới có tác dụng thật (gửi yêu cầu xuất kho qua
-            // autoRequestPartsForTask). Nếu phụ tùng đã REQUESTED (đang chờ thủ kho duyệt)
-            // thì task đang WAITING_STOCK vì lý do khác, không liên quan gì tới KTV nữa —
-            // không được hiện nút, bấm vào cũng không có tác dụng gì.
-            const hasPendingPartToRequest = (task: ServiceTaskApi) => {
-              const details = task.quotationItem?.issue?.quotationDetails;
-              // Chỉ xét hàng kho (không có customPartOrder) — phụ tùng đặt riêng có luồng
-              // request-xuất-kho riêng của nó (thủ kho xuất trực tiếp), không qua status PENDING
-              // này (shell của nó mang status CUSTOM_ORDERED/EXPORTED, không bao giờ PENDING).
-              if (details && details.length > 0) {
-                return details.some((d) => !d.customPartOrder && d.status === "PENDING");
-              }
-              return !task.quotationItem?.custom_item_name && task.quotationItem?.status === "PENDING";
-            };
-            const unstartedAssignment = allAssignments.find((item) => {
-              if (item.status === "ASSIGNED") return true;
-              if (item.status !== "WAITING_STOCK") return false;
-              const parentTask = so.tasks?.find((t) =>
-                t.assignments?.some((a) => a.id === item.id),
-              );
-              return parentTask ? hasPendingPartToRequest(parentTask) : false;
-            });
+            // WAITING_STOCK không còn "Bắt đầu lại" — yêu cầu xuất kho giờ là nút riêng KTV tự
+            // bấm bất cứ lúc nào (xem handleRequestPartsExport), không còn gắn với hành động bắt
+            // đầu công việc. Chỉ ASSIGNED (chưa từng bắt đầu) mới tính là "chưa bắt đầu".
+            const unstartedAssignment = allAssignments.find((item) => item.status === "ASSIGNED");
             const allTasksCompleted =
               (so.tasks?.length ?? 0) > 0 &&
               (so.tasks ?? []).every((task) => {
@@ -647,48 +630,51 @@ export default function TechnicianAssignments() {
     }
   }, [assignments, issueReportAssignment]);
 
-  const handleStartTask = async (asg: Assignment) => {
-    if (!asg.taskAssignmentId) {
-      alert("Không tìm thấy thông tin phân công.");
-      return;
-    }
+  // Bắt đầu ĐÚNG 1 Task trong modal (không còn hiệu ứng dây chuyền bắt cả đơn — khớp với BE
+  // startTask đã sửa chỉ xử lý đúng assignment được bấm). Áp dụng khi 1 đơn có nhiều Task,
+  // Task nào có phụ tùng sẵn thì bắt đầu trước, Task khác đang chờ phụ tùng không bị đụng tới.
+  const handleStartSingleTask = async (taskAssignmentId: number) => {
+    setStartingTaskAssignmentId(taskAssignmentId);
     try {
       await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.START_TASK, "PUT", {
-        taskAssignmentId: asg.taskAssignmentId,
+        taskAssignmentId,
       });
-      const startedAssignment: Assignment = {
-        ...asg,
-        status: "IN_PROGRESS",
-        hasUnstartedTasks: false,
-        tasks: asg.tasks.map((task) => {
-          if (
-            task.status === "COMPLETED" ||
-            task.status === "PAUSED" ||
-            task.status === "IN_PROGRESS" ||
-            task.status === "WAITING_STOCK"
-          ) {
-            return task;
-          }
-
-          return {
-            ...task,
-            status: task.spareParts?.length
-              ? "WAITING_STOCK"
-              : "IN_PROGRESS",
-          };
-        }),
-      };
-      setAssignments((current) =>
-        current.map((item) =>
-          item.id === asg.id ? startedAssignment : item,
-        ),
+      setIssueReportAssignment((prev) =>
+        prev
+          ? {
+              ...prev,
+              tasks: prev.tasks.map((t) =>
+                t.taskAssignmentId === taskAssignmentId
+                  ? { ...t, status: t.spareParts?.length ? "WAITING_STOCK" : "IN_PROGRESS" }
+                  : t,
+              ),
+            }
+          : prev,
       );
-      // Mở modal bằng trạng thái mới, đồng thời refetch để đồng bộ dữ liệu từ BE.
-      openIssueReportModal(startedAssignment);
       setRefreshKey((prev) => prev + 1);
     } catch (error: unknown) {
       console.error("Lỗi khi bắt đầu công việc:", error);
       alert(getErrorMessage(error, "Đã xảy ra lỗi khi bắt đầu công việc."));
+    } finally {
+      setStartingTaskAssignmentId(null);
+    }
+  };
+
+  // KTV tự bấm yêu cầu xuất kho 1 lần cho CẢ ĐƠN — gộp mọi phụ tùng đủ tồn nhưng thủ kho chưa
+  // xuất của toàn bộ Task trong Service Order đó, tách riêng khỏi "Bắt đầu".
+  const handleRequestPartsExport = async (serviceOrderId: string) => {
+    setRequestingExportServiceOrderId(serviceOrderId);
+    try {
+      const res = await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.REQUEST_PARTS_EXPORT, "PUT", {
+        serviceOrderId,
+      });
+      showToast(res?.message || "Đã gửi yêu cầu xuất kho.", "success");
+      setRefreshKey((prev) => prev + 1);
+    } catch (error: unknown) {
+      console.error("Lỗi khi gửi yêu cầu xuất kho:", error);
+      showToast(getErrorMessage(error, "Đã xảy ra lỗi khi gửi yêu cầu xuất kho."), "warning");
+    } finally {
+      setRequestingExportServiceOrderId(null);
     }
   };
 
@@ -1683,27 +1669,42 @@ export default function TechnicianAssignments() {
                                   ) : null}
                                 </div>
                               </div>
-                              {isDone ? (
-                                <span className="inline-flex self-start sm:self-auto items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200">
-                                  <CheckCircle2 size={13} />
-                                  Hoàn thành
-                                </span>
-                              ) : (
-                                <span
-                                  className={`inline-flex items-center gap-1.5 px-2.5 py-2 sm:py-1 rounded-lg text-xs font-bold border self-start sm:self-auto ${
-                                    isWaitingStock
-                                      ? "text-orange-700 bg-orange-50 border-orange-200"
-                                      : isPaused
-                                      ? "text-amber-700 bg-amber-50 border-amber-200"
-                                      : isPending
-                                      ? "text-slate-500 bg-slate-100 border-slate-200"
-                                      : "text-blue-700 bg-blue-50 border-blue-200"
-                                  }`}
-                                >
-                                  <Clock size={13} />
-                                  {taskStatusLabel}
-                                </span>
-                              )}
+                              <div className="flex flex-col items-start sm:items-end gap-1.5">
+                                {isDone ? (
+                                  <span className="inline-flex self-start sm:self-auto items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200">
+                                    <CheckCircle2 size={13} />
+                                    Hoàn thành
+                                  </span>
+                                ) : isPending && t.taskAssignmentId ? (
+                                  <button
+                                    onClick={() => void handleStartSingleTask(t.taskAssignmentId!)}
+                                    disabled={startingTaskAssignmentId === t.taskAssignmentId}
+                                    className="inline-flex self-start sm:self-auto items-center gap-1.5 px-2.5 py-2 sm:py-1 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50"
+                                  >
+                                    {startingTaskAssignmentId === t.taskAssignmentId ? (
+                                      <Loader2 size={13} className="animate-spin" />
+                                    ) : (
+                                      <PlayCircle size={13} />
+                                    )}
+                                    Bắt đầu
+                                  </button>
+                                ) : (
+                                  <span
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-2 sm:py-1 rounded-lg text-xs font-bold border self-start sm:self-auto ${
+                                      isWaitingStock
+                                        ? "text-orange-700 bg-orange-50 border-orange-200"
+                                        : isPaused
+                                        ? "text-amber-700 bg-amber-50 border-amber-200"
+                                        : isPending
+                                        ? "text-slate-500 bg-slate-100 border-slate-200"
+                                        : "text-blue-700 bg-blue-50 border-blue-200"
+                                    }`}
+                                  >
+                                    <Clock size={13} />
+                                    {taskStatusLabel}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
@@ -1744,18 +1745,30 @@ export default function TechnicianAssignments() {
 
             </div>
 
-            {/* Footer */}
-            {issueReportAssignment.hasUnstartedTasks ? (
-              <div className="flex items-center justify-end gap-2 px-4 sm:px-7 py-4 border-t border-slate-200 shrink-0 bg-white">
+            {/* FOOTER: Yêu cầu xuất kho chung cho cả đơn */}
+            {issueReportAssignment.tasks.some(
+              (t) =>
+                t.status !== "COMPLETED" &&
+                t.status !== "PENDING_QC" &&
+                (t.spareParts?.some((part) => part.status === "PENDING") ?? false),
+            ) ? (
+              <div className="flex items-center justify-end px-4 sm:px-7 py-3.5 border-t border-slate-100 shrink-0 bg-white">
                 <button
-                  onClick={() => handleStartTask(issueReportAssignment)}
-                  className="h-9 flex items-center justify-center gap-1.5 px-4 rounded-lg text-xs font-bold text-white bg-[#00285E] shadow-sm hover:brightness-110 active:scale-[0.98] transition-all"
+                  onClick={() => void handleRequestPartsExport(issueReportAssignment.serviceOrderId)}
+                  disabled={requestingExportServiceOrderId === issueReportAssignment.serviceOrderId}
+                  className="inline-flex items-center justify-center gap-1.5 px-5 py-3 rounded-lg text-xs font-bold text-white transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
+                  style={{ backgroundColor: "#00285E" }}
                 >
-                  <PlayCircle size={13} />
-                  Bắt đầu công việc
+                  {requestingExportServiceOrderId === issueReportAssignment.serviceOrderId ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Send size={13} />
+                  )}
+                  Yêu cầu xuất kho
                 </button>
               </div>
             ) : null}
+
           </div>
         </div>
       )}
