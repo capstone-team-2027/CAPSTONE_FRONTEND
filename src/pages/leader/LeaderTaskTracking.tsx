@@ -723,7 +723,7 @@ export default function LeaderTaskTracking() {
                             type="text"
                             value={componentDescriptions[componentId] ?? ""}
                             onChange={(e) => updateComponentDescription(componentId, e.target.value)}
-                            placeholder="Mô tả lỗi thợ vừa báo miệng..."
+                            placeholder="Mô tả lỗi thợ vừa báo"
                             className="flex-1 h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
                           />
                           <button

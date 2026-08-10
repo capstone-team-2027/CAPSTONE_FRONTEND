@@ -18,7 +18,6 @@ import {
   Search,
   ChevronDown,
   Check,
-  PackagePlus,
 } from "lucide-react";
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { LEADER_QUOTE_MANAGEMENT_ENDPOINTS } from "../../../constants/technicianLeader/quoteManagementEndpoints";
@@ -94,11 +93,9 @@ interface SearchableSelectOption {
   value: number;
   label: string;
   sublabel?: string;
-  disabled?: boolean;
-  // Chỉ set khi disabled vì thiếu tồn — hiện nút "Yêu cầu nhập kho" ngay trên option đó.
-  onRequestRestock?: () => void;
-  isRequestingRestock?: boolean;
-  restockRequested?: boolean;
+  // Thiếu tồn khả dụng — vẫn chọn được bình thường, chỉ hiện badge cảnh báo. Yêu cầu nhập kho
+  // thực sự được hệ thống tự tạo khi khách hàng duyệt báo giá, không cần Leader tự bấm ở đây.
+  outOfStock?: boolean;
 }
 
 // Dropdown tự vẽ thay cho <select> native — <select> có option quá dài thì trình duyệt tự
@@ -212,53 +209,26 @@ function SearchableSelect({
             ) : (
               filteredOptions.map((option) => {
                 const isSelected = option.value === value;
-                if (option.disabled && option.onRequestRestock) {
-                  return (
-                    <div
-                      key={option.value}
-                      className="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs text-slate-300"
-                    >
-                      <span className="truncate">{option.label}</span>
-                      {option.restockRequested ? (
-                        <span className="shrink-0 text-[10px] font-semibold text-emerald-500">Đã gửi yêu cầu</span>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={option.isRequestingRestock}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            option.onRequestRestock?.();
-                          }}
-                          className="shrink-0 inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-colors"
-                        >
-                          <PackagePlus size={11} />
-                          {option.isRequestingRestock ? "Đang gửi..." : "Yêu cầu nhập kho"}
-                        </button>
-                      )}
-                    </div>
-                  );
-                }
                 return (
                   <button
                     key={option.value}
                     type="button"
-                    disabled={option.disabled}
                     onClick={() => {
                       onChange(option.value);
                       setOpen(false);
                       setKeyword("");
                     }}
                     className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-xs text-left transition-colors ${
-                      option.disabled
-                        ? "text-slate-300 cursor-not-allowed"
-                        : isSelected
-                          ? "bg-[#EDF3FF] text-[#00285E] font-semibold"
-                          : "text-slate-700 hover:bg-slate-50"
+                      isSelected
+                        ? "bg-[#EDF3FF] text-[#00285E] font-semibold"
+                        : "text-slate-700 hover:bg-slate-50"
                     }`}
                   >
                     <span className="truncate">{option.label}</span>
                     {isSelected ? (
                       <Check size={13} className="shrink-0 text-[#00285E]" />
+                    ) : option.outOfStock ? (
+                      <span className="shrink-0 text-[10px] font-semibold text-amber-600">Thiếu tồn — chờ nhập kho</span>
                     ) : option.sublabel ? (
                       <span className="shrink-0 text-[10px] font-semibold text-slate-400">{option.sublabel}</span>
                     ) : null}
@@ -343,10 +313,6 @@ export default function LeaderCreateQuotation() {
   const [pickedIssueIds, setPickedIssueIds] = useState<number[]>([]);
   const [isSubmittingQuotation, setIsSubmittingQuotation] = useState(false);
   const [approveNow, setApproveNow] = useState(false);
-  // partId đang gửi yêu cầu nhập kho (chặn double-click), và tập partId đã gửi rồi trong phiên
-  // này để đổi label nút thay vì gửi lặp lại.
-  const [requestingRestockId, setRequestingRestockId] = useState<number | null>(null);
-  const [restockRequestedIds, setRestockRequestedIds] = useState<Set<number>>(new Set());
   const issueDraftUidRef = useRef(0);
   const savedTaskIdRef = useRef<number | null>(null);
 
@@ -493,21 +459,6 @@ export default function LeaderCreateQuotation() {
     setStep("build-quotation");
   };
 
-  const getRemainingStock = (
-    items: QuotationItemForm[],
-    uid: number,
-    partId: number | null,
-  ) => {
-    if (!partId) return Infinity;
-    const part = spareParts.find((p) => p.id === partId);
-    if (!part) return Infinity;
-    const usedByOthers = items.reduce(
-      (sum, it) => (it.uid !== uid && it.partId === partId ? sum + it.quantity : sum),
-      0,
-    );
-    return Math.max(0, Number(part.available_quantity) - usedByOthers);
-  };
-
   const selectQuotationPart = (uid: number, partId: number | null) => {
     const part = spareParts.find((p) => p.id === partId);
     const currentItem = quotationItems.find((item) => item.uid === uid);
@@ -520,23 +471,17 @@ export default function LeaderCreateQuotation() {
         showToast(`"${part.name}" đã được chọn cho hạng mục lỗi này.`, "warning");
         return;
       }
-      const remaining = getRemainingStock(quotationItems, uid, partId);
-      if (remaining <= 0) {
-        showToast(`"${part.name}" đã hết hàng khả dụng trong kho.`, "warning");
-        return;
-      }
     }
     setQuotationItems((prev) => {
       const updatedItems = prev.map((item) => {
         if (item.uid !== uid) return item;
-        const remaining = getRemainingStock(prev, uid, partId);
         return {
           ...item,
           partId,
           isCustom: false,
           customItemName: "",
           unitPrice: Number(part?.retail_price ?? 0) || 0,
-          quantity: part ? Math.min(Math.max(1, item.quantity), remaining) : item.quantity,
+          quantity: Math.max(1, item.quantity),
         };
       });
       if (!partId || !currentItem) return updatedItems;
@@ -564,24 +509,6 @@ export default function LeaderCreateQuotation() {
         ...updatedItems.slice(lastIssueIndex + 1),
       ];
     });
-  };
-
-  // Phụ tùng có trong danh mục nhưng hết tồn khả dụng — báo cho thủ kho biết cần mua thêm.
-  // Không tự động nhập kho, chỉ ghi nhận yêu cầu (Restock_Requests) để thủ kho chủ động xử lý.
-  const handleRequestRestock = async (partId: number, partName: string) => {
-    setRequestingRestockId(partId);
-    try {
-      await fetchPrivate(LEADER_QUOTE_MANAGEMENT_ENDPOINTS.CREATE_RESTOCK_REQUEST, "POST", {
-        spare_part_id: partId,
-        quantity_needed: 1,
-      });
-      setRestockRequestedIds((prev) => new Set(prev).add(partId));
-      showToast(`Đã gửi yêu cầu bổ sung "${partName}" cho thủ kho.`, "success");
-    } catch (error: any) {
-      showToast(error?.message || "Không thể gửi yêu cầu bổ sung.", "warning");
-    } finally {
-      setRequestingRestockId(null);
-    }
   };
 
   const addCustomQuotationItem = (
@@ -639,8 +566,7 @@ export default function LeaderCreateQuotation() {
     setQuotationItems((prev) =>
       prev.map((it) => {
         if (it.uid !== uid) return it;
-        const remaining = getRemainingStock(prev, uid, it.partId);
-        return { ...it, quantity: Math.min(Math.max(0, quantity), remaining) };
+        return { ...it, quantity: Math.max(0, quantity) };
       }),
     );
   };
@@ -681,6 +607,27 @@ export default function LeaderCreateQuotation() {
         });
       return [...prev, ...newRows];
     });
+  };
+
+  // Dịch vụ khách yêu cầu thêm ngoài các hạng mục lỗi đã báo (vd rửa xe, thay dầu định kỳ) —
+  // không gắn issueId, không bị validate "phải có phụ tùng đi kèm dịch vụ" ở BE vì đó chỉ áp
+  // dụng cho các dòng có issue_id.
+  const addStandaloneQuotationService = (id: number) => {
+    const service = services.find((s) => s.id === id);
+    if (!service) return;
+    const dbPrice = Number(service.labor_price) || 0;
+    issueDraftUidRef.current += 1;
+    setQuotationServices((prev) => [
+      ...prev,
+      {
+        uid: issueDraftUidRef.current,
+        serviceId: id,
+        serviceName: service.service_name,
+        fee: dbPrice,
+        hasDbPrice: dbPrice > 0,
+        issueId: null,
+      },
+    ]);
   };
 
   const updateQuotationServiceFee = (uid: number, fee: number) =>
@@ -1042,6 +989,17 @@ export default function LeaderCreateQuotation() {
                       >
                         Thêm dịch vụ cho {pickedIssueIds.length} hạng mục
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          addStandaloneQuotationService(servicePicker);
+                          setServicePicker("");
+                          setPickedIssueIds([]);
+                        }}
+                        className="w-full py-2 rounded-lg border border-[#00285E]/25 text-xs font-semibold text-[#00285E] transition-all hover:bg-slate-50"
+                      >
+                        Thêm dịch vụ này không thuộc hạng mục lỗi nào
+                      </button>
                     </>
                   );
                 })()}
@@ -1147,12 +1105,7 @@ export default function LeaderCreateQuotation() {
                                             value: part.id,
                                             label: `${part.name}${part.brand ? ` - ${part.brand}` : ""}`,
                                             sublabel: outOfStock ? "Hết hàng" : `Còn: ${available}`,
-                                            disabled: outOfStock,
-                                            onRequestRestock: outOfStock
-                                              ? () => handleRequestRestock(part.id, part.name)
-                                              : undefined,
-                                            isRequestingRestock: requestingRestockId === part.id,
-                                            restockRequested: restockRequestedIds.has(part.id),
+                                            outOfStock,
                                           };
                                         })}
                                       />
@@ -1181,6 +1134,15 @@ export default function LeaderCreateQuotation() {
                                         {formatVND(Math.round(item.quantity * item.unitPrice * 0.3))}
                                       </p>
                                     )}
+                                    {!item.isCustom && item.partId && (() => {
+                                      const selectedPart = spareParts.find((p) => p.id === item.partId);
+                                      if (!selectedPart || Number(selectedPart.available_quantity) > 0) return null;
+                                      return (
+                                        <p className="mt-1 text-[10px] font-semibold text-amber-600">
+                                          Thiếu tồn kho — sẽ tự động gửi yêu cầu nhập kho khi khách duyệt báo giá.
+                                        </p>
+                                      );
+                                    })()}
                                   </div>
                                   {!isEmptyItem && (
                                     <input
@@ -1304,6 +1266,53 @@ export default function LeaderCreateQuotation() {
               );
             })()}
           </div>
+
+          {/* Dịch vụ không thuộc hạng mục lỗi nào — khách yêu cầu thêm ngoài các lỗi đã báo */}
+          {quotationServices.some((s) => s.issueId === null) && (
+            <div>
+              <div className="flex items-center justify-between mb-3 px-1">
+                <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                  <Wrench size={14} className="text-slate-500" />
+                  Dịch vụ khác (không thuộc hạng mục lỗi)
+                </label>
+              </div>
+              <div className="rounded-2xl border border-slate-200/70 bg-white p-4">
+                <div className="space-y-1.5">
+                  {quotationServices
+                    .filter((s) => s.issueId === null)
+                    .map((s) => (
+                      <div
+                        key={s.uid}
+                        className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2"
+                      >
+                        <Wrench size={12} className="shrink-0 text-slate-400" />
+                        <span className="flex-1 min-w-[120px] text-xs font-semibold text-slate-800 truncate">
+                          {s.serviceName}
+                        </span>
+                        <PriceInput
+                          placeholder="Nhập giá"
+                          value={s.fee}
+                          onCommit={(v) => updateQuotationServiceFee(s.uid, v)}
+                          readOnly={s.hasDbPrice}
+                          title={s.hasDbPrice ? "Giá đã có sẵn trong hệ thống, không thể sửa" : undefined}
+                          className={`w-28 border rounded-lg px-2.5 py-1.5 text-xs font-semibold text-right transition-colors focus:outline-none ${s.hasDbPrice
+                              ? "border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed"
+                              : "border-slate-200 bg-white text-slate-800 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                            }`}
+                        />
+                        <button
+                          onClick={() => removeQuotationService(s.uid)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                          title="Xóa dịch vụ"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Ghi chú */}
           <div className="bg-white rounded-2xl border border-slate-200/70 p-4">

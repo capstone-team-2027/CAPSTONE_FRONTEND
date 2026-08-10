@@ -7,12 +7,8 @@ import {
   Phone,
   Mail,
   Car,
-  Gauge,
   Wrench,
   StickyNote,
-  MapPin,
-  UserCog,
-  Edit,
   XCircle,
   CheckCircle2,
   Loader2,
@@ -28,11 +24,15 @@ import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/reception/appointm
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   pending: { label: 'Chờ xác nhận', color: '#D97706', bg: '#FEF3C7', icon: Clock },
   confirmed: { label: 'Chờ tiếp nhận', color: '#2563EB', bg: '#DBEAFE', icon: Clock },
+  information_received: { label: 'Đã tiếp nhận', color: '#EA580C', bg: '#FED7AA', icon: CheckCircle2 },
   in_progress: { label: 'Đã tiếp nhận (Đang sửa)', color: '#EA580C', bg: '#FED7AA', icon: Loader2 },
   completed: { label: 'Đã tiếp nhận (Hoàn thành)', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
   cancelled: { label: 'Đã hủy', color: '#DC2626', bg: '#FEE2E2', icon: XCircle },
   no_show: { label: 'Khách không đến (No Show)', color: '#6B7280', bg: '#F3F4F6', icon: XCircle },
+  expired: { label: 'Đã quá hạn (Hủy)', color: '#94A3B8', bg: '#F1F5F9', icon: XCircle },
 };
+
+const DEFAULT_STATUS_CONFIG = { label: 'Chưa xác định', color: '#64748B', bg: '#F1F5F9', icon: AlertTriangle };
 
 const TIME_SLOTS_AVAILABILITY: Record<string, { bay: string; tech: string; open: boolean; available: boolean; reason?: string }> = {
   '08:00': { bay: 'Còn 2 khoang trống', tech: '3 KTV sẵn sàng', open: true, available: true },
@@ -103,17 +103,14 @@ export default function ReceptionAppointmentDetail() {
 
         const mapped: AppointmentModel = {
           id: String(appt.id),
-          customerId: appt.customer?.id ? String(appt.customer.id) : '',
           customerName: appt.customer?.name || appt.customer?.user?.fullName || 'Khách vãng lai',
           customerPhone: appt.customer?.user?.phoneNumber || appt.customer?.phone || '',
           customerEmail: appt.customer?.user?.email || undefined,
-          vehicleId: appt.vehicle?.id ? String(appt.vehicle.id) : '',
           vehiclePlate: appt.vehicle?.license_plate || 'Chưa cập nhật',
           vehicleModel: appt.vehicle?.model
             ? `${appt.vehicle.model.make?.make_name || ''} ${appt.vehicle.model.model_name || ''}`.trim()
             : 'Chưa cập nhật',
           vehicleYear: appt.vehicle?.year || undefined,
-          vinNumber: appt.vehicle?.vin_number || undefined,
           hasServiceOrder: !!appt.serviceOrder,
           services,
           appointmentDate,
@@ -187,7 +184,7 @@ export default function ReceptionAppointmentDetail() {
     );
   }
 
-  const statusCfg = STATUS_CONFIG[appointment.status];
+  const statusCfg = STATUS_CONFIG[appointment.status] ?? DEFAULT_STATUS_CONFIG;
   const StatusIcon = statusCfg.icon;
 
   const formatDate = (dateStr: string) => {
@@ -281,115 +278,75 @@ export default function ReceptionAppointmentDetail() {
             <ArrowLeft size={24} />
           </button>
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-1">
+            <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
               Chi tiết Lịch hẹn
             </h1>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
               <span className="text-sm font-bold text-slate-500">APT-{appointment.id.padStart(3, '0')}</span>
+              <span
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold"
+                style={{ backgroundColor: statusCfg.bg, color: statusCfg.color }}
+              >
+                <StatusIcon size={12} />
+                {statusCfg.label}
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* DETAIL GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Appointment Info */}
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
-          <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-widest">
-            <Calendar size={16} className="text-[#00285E]" />
-            Thông tin Lịch hẹn
-          </h2>
-          <div className="space-y-3">
+      {/* DETAIL */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs divide-y divide-slate-100">
+        <section className="p-6">
+          <SectionTitle icon={<Calendar size={15} />} label="Thông tin lịch hẹn" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <InfoRow label="Mã lịch hẹn" value={`APT-${appointment.id.padStart(3, '0')}`} />
-            <InfoRow label="Ngày hẹn" value={formatDate(appointment.appointmentDate)} />
-            <InfoRow label="Giờ hẹn" value={appointment.appointmentTime} />
             <InfoRow label="Ngày tạo" value={formatDateTime(appointment.createdAt)} />
+            <InfoRow label="Ngày hẹn" value={appointment.appointmentDate ? formatDate(appointment.appointmentDate) : '—'} />
+            {appointment.appointmentDate && <InfoRow label="Giờ hẹn" value={appointment.appointmentTime} />}
           </div>
-        </div>
+        </section>
 
-        {/* Customer Info */}
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 flex flex-col justify-between">
-          <div>
-            <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-widest">
-              <User size={16} className="text-[#00285E]" />
-              Thông tin Khách hàng
-            </h2>
-            <div className="space-y-3">
-              <InfoRow label="Họ và tên" value={appointment.customerName} />
-              <InfoRow label="Số điện thoại" value={appointment.customerPhone} icon={<Phone size={14} className="text-slate-400" />} />
-              <InfoRow label="Email" value={appointment.customerEmail || '—'} icon={<Mail size={14} className="text-slate-400" />} />
-            </div>
+        <section className="p-6">
+          <SectionTitle icon={<User size={15} />} label="Thông tin khách hàng" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <InfoRow label="Họ và tên" value={appointment.customerName} />
+            <InfoRow label="Số điện thoại" value={appointment.customerPhone} icon={<Phone size={13} className="text-slate-400" />} />
+            <InfoRow label="Email" value={appointment.customerEmail || '—'} icon={<Mail size={13} className="text-slate-400" />} />
           </div>
-          {/* SPAM & TRUST CHECK (Câu 65) */}
-          <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
-            <span className="text-[9px] font-extrabold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
-              SĐT ĐÃ XÁC MINH OTP
-            </span>
-            <span className="text-[9px] font-extrabold text-[#00285E] bg-[#EDF3FF] border border-[#00285E]/10 px-2 py-0.5 rounded-full">
-              ĐANG HOẠT ĐỘNG: 1 LỊCH
-            </span>
-            <span className="text-[9px] font-extrabold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-              TỶ LỆ NO-SHOW: 0%
-            </span>
-          </div>
-        </div>
+        </section>
 
-        {/* Vehicle Info */}
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
-          <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-widest">
-            <Car size={16} className="text-[#00285E]" />
-            Thông tin Xe
-          </h2>
-          <div className="space-y-3">
+        <section className="p-6">
+          <SectionTitle icon={<Car size={15} />} label="Thông tin xe" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <InfoRow label="Biển số" value={appointment.vehiclePlate} highlight />
             <InfoRow label="Loại xe" value={appointment.vehicleModel} />
             <InfoRow label="Năm sản xuất" value={appointment.vehicleYear?.toString() || '—'} />
-            <InfoRow label="Số km" value={appointment.vehicleMileage ? `${appointment.vehicleMileage.toLocaleString('vi-VN')} km` : '—'} icon={<Gauge size={14} className="text-slate-400" />} />
           </div>
-        </div>
+        </section>
 
-        {/* Services */}
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
-          <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-widest">
-            <Wrench size={16} className="text-[#00285E]" />
-            Dịch vụ đã đặt
-          </h2>
-          <div className="space-y-2">
+        <section className="p-6">
+          <SectionTitle icon={<Wrench size={15} />} label="Dịch vụ đã đặt" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {appointment.services.map((service, idx) => (
               <div key={idx} className="flex items-center gap-3 px-3 py-2.5 bg-slate-50 rounded-xl">
-                <span className="w-6 h-6 rounded-lg bg-[#00285E] text-white text-xs font-bold flex items-center justify-center">
+                <span className="w-6 h-6 shrink-0 rounded-lg bg-[#00285E] text-white text-xs font-bold flex items-center justify-center">
                   {idx + 1}
                 </span>
                 <span className="text-sm font-semibold text-slate-700">{service}</span>
               </div>
             ))}
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Notes */}
-      {appointment.notes && (
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
-          <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 uppercase tracking-widest">
-            <StickyNote size={16} className="text-[#00285E]" />
-            Ghi chú
-          </h2>
-          <p className="text-sm text-slate-600 leading-relaxed bg-amber-50 border border-amber-100 rounded-xl p-4">
-            {appointment.notes}
-          </p>
-        </div>
-      )}
-
-      {/* Assignment */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
-        <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-widest">
-          <UserCog size={16} className="text-[#00285E]" />
-          Phân công
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <InfoRow label="Khoang dịch vụ" value={appointment.serviceBay || 'Chưa phân công'} icon={<MapPin size={14} className="text-slate-400" />} />
-          <InfoRow label="Kỹ thuật viên" value={appointment.assignedStaff || 'Chưa phân công'} icon={<UserCog size={14} className="text-slate-400" />} />
-        </div>
+        {appointment.notes && (
+          <section className="p-6">
+            <SectionTitle icon={<StickyNote size={15} />} label="Ghi chú" />
+            <p className="text-sm text-slate-600 leading-relaxed bg-amber-50 border border-amber-100 rounded-xl p-4">
+              {appointment.notes}
+            </p>
+          </section>
+        )}
       </div>
 
       {/* CANCEL MODAL */}
@@ -567,17 +524,29 @@ export default function ReceptionAppointmentDetail() {
   );
 }
 
+// Section heading with a small icon badge
+function SectionTitle({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <h2 className="flex items-center gap-2.5 mb-4">
+      <span className="w-7 h-7 shrink-0 rounded-lg bg-[#EDF3FF] text-[#00285E] flex items-center justify-center">
+        {icon}
+      </span>
+      <span className="text-xs font-bold text-slate-800 uppercase tracking-widest">{label}</span>
+    </h2>
+  );
+}
+
 // Reusable info row component
 function InfoRow({ label, value, icon, highlight }: { label: string; value: string; icon?: React.ReactNode; highlight?: boolean }) {
   return (
-    <div className="flex items-start justify-between py-1">
-      <span className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+    <div className="min-w-0">
+      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1">
         {icon}
         {label}
       </span>
-      <span className={`text-sm font-bold text-right ${highlight ? 'text-[#00285E] bg-[#EDF3FF] px-2 py-0.5 rounded-md' : 'text-slate-700'}`}>
+      <p className={`text-base font-bold truncate ${highlight ? 'inline-block text-[#00285E] bg-[#EDF3FF] px-2.5 py-1 rounded-lg' : 'text-slate-800'}`}>
         {value}
-      </span>
+      </p>
     </div>
   );
 }

@@ -127,13 +127,15 @@ export default function ReceptionReceiveCustomer() {
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  // SĐT khách mới trùng khách đã có trong hệ thống — chặn tạo mới, mời chuyển sang dùng khách cũ.
+  const [duplicateCustomer, setDuplicateCustomer] = useState<CustomerResult | null>(null);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
   const [plate, setPlate] = useState('');
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
   const [color, setColor] = useState('');
   const [year, setYear] = useState('');
   const [odo, setOdo] = useState('');
-  const [condition, setCondition] = useState('');
 
   const [serviceMode, setServiceMode] = useState<'SERVICE' | 'REPAIR'>('SERVICE');
   const [services, setServices] = useState<any[]>([]);
@@ -232,6 +234,39 @@ export default function ReceptionReceiveCustomer() {
     }, 500);
     return () => clearTimeout(timer);
   }, [customerMode, phoneSearch, selectedCustomer, fetchPrivate]);
+
+  // Ở tab "Khách hàng mới": SĐT vừa gõ có thể đã thuộc về 1 khách có sẵn trong hệ thống —
+  // cảnh báo ngay để lễ tân chuyển sang dùng khách cũ, tránh BE âm thầm ghi đè/lẫn tên khách.
+  useEffect(() => {
+    if (customerMode !== 'new') {
+      setDuplicateCustomer(null);
+      return;
+    }
+    const searchTerm = customerPhone.replace(/\D/g, '').replace(/^84/, '');
+    if (!searchTerm) {
+      setDuplicateCustomer(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsCheckingDuplicate(true);
+      try {
+        const response = await fetchPrivate(SEARCH_API_ENDPOINTS.CUSTOMER_INFO_BY_PHONE, 'POST', {
+          phone: searchTerm,
+          partial: true,
+        });
+        const matches: CustomerResult[] = Array.isArray(response?.data?.customers) ? response.data.customers : [];
+        const exactMatch = matches.find((c) => c.phone.replace(/\D/g, '').replace(/^84/, '') === searchTerm);
+        setDuplicateCustomer(exactMatch ?? null);
+      } catch (error) {
+        console.error('Không thể kiểm tra số điện thoại:', error);
+        setDuplicateCustomer(null);
+      } finally {
+        setIsCheckingDuplicate(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [customerMode, customerPhone, fetchPrivate]);
 
   // Handle click outside to close suggestions
   useEffect(() => {
@@ -391,13 +426,13 @@ export default function ReceptionReceiveCustomer() {
     setSelectedVehicleId('');
     setCustomerName('');
     setCustomerPhone('');
+    setDuplicateCustomer(null);
     setPlate('');
     setBrand('');
     setModel('');
     setColor('');
     setYear('');
     setOdo('');
-    setCondition('');
     setSelectedServiceIds([]);
     setSelectedComboId(null);
     setRepairNotes('');
@@ -450,6 +485,10 @@ export default function ReceptionReceiveCustomer() {
         showToast('Vui lòng nhập họ tên và số điện thoại khách hàng.', 'warning');
         return;
       }
+      if (duplicateCustomer) {
+        showToast('Số điện thoại này đã có khách hàng trong hệ thống. Vui lòng chọn khách hàng có sẵn.', 'warning');
+        return;
+      }
       if (!plate.trim() || !brand.trim() || !model.trim()) {
         showToast('Vui lòng nhập biển số, hãng xe và dòng xe.', 'warning');
         return;
@@ -461,10 +500,6 @@ export default function ReceptionReceiveCustomer() {
     }
     if (serviceMode === 'REPAIR' && !repairNotes.trim()) {
       showToast('Vui lòng mô tả tình trạng cần sửa chữa.', 'warning');
-      return;
-    }
-    if (!condition.trim()) {
-      showToast('Vui lòng ghi mô tả tình trạng xe lúc tiếp nhận.', 'warning');
       return;
     }
 
@@ -487,7 +522,6 @@ export default function ReceptionReceiveCustomer() {
       service_ids: serviceMode === 'SERVICE' ? selectedServiceIds : undefined,
       combo_ids: serviceMode === 'SERVICE' && selectedComboId ? [selectedComboId] : undefined,
       notes: serviceMode === 'REPAIR' ? repairNotes.trim() : undefined,
-      symptoms: condition.trim(),
     };
 
     setIsSubmitting(true);
@@ -845,6 +879,34 @@ export default function ReceptionReceiveCustomer() {
                       inputProps={{ name: 'phone' }}
                     />
                   </div>
+                  {isCheckingDuplicate && (
+                    <p className="mt-2 text-xs font-semibold text-slate-400">Đang kiểm tra số điện thoại...</p>
+                  )}
+                  {duplicateCustomer && (
+                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3.5">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-amber-800">
+                            Số điện thoại này đã thuộc về khách hàng "{duplicateCustomer.customer_name}"
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-amber-700">
+                            Đã có {duplicateCustomer.vehicles?.length || 0} xe trong hệ thống. Vui lòng chọn khách hàng có sẵn để tránh trùng/nhầm hồ sơ.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomerMode('existing');
+                              selectCustomer(duplicateCustomer);
+                            }}
+                            className="mt-2.5 rounded-lg bg-amber-600 px-3 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-amber-700"
+                          >
+                            Chọn khách hàng này
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -982,12 +1044,12 @@ export default function ReceptionReceiveCustomer() {
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
                 <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
                   <StickyNote size={16} className="text-[#00285E]" />
-                  Mô tả dấu hiệu hư hỏng <span className="text-rose-500">*</span>
+                  Mô tả vấn đề về xe của khách hàng <span className="text-rose-500">*</span>
                 </h2>
                 <textarea
                   value={repairNotes}
                   onChange={(e) => setRepairNotes(e.target.value)}
-                  placeholder="Mô tả dấu hiệu hư hỏng, tiếng động hoặc yêu cầu kiểm tra..."
+                  placeholder="Mô tả vấn đề về xe của khách hàng..."
                   rows={5}
                   className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-[#00285E] focus:bg-white text-brand-blue resize-none"
                 />
@@ -1122,7 +1184,7 @@ export default function ReceptionReceiveCustomer() {
             {serviceMode === 'REPAIR' && !repairNotes.trim() && (
               <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
                 <AlertCircle size={14} />
-                Cần điền mô tả tình trạng sửa chữa.
+                Cần điền mô tả tình trạng về xe khách hàng gặp phải.
               </div>
             )}
           </div>
