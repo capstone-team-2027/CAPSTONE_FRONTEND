@@ -254,8 +254,7 @@ export default function TechnicianRescuePage() {
       // Không tự gọi startCarSimulation() ở đây — route cho đoạn mới (EN_ROUTE/TOWING) chưa kịp
       // fetch xong tại thời điểm này. Effect riêng theo dõi routeCoords sẽ tự bắt đầu animation
       // đúng lúc route mới đã sẵn sàng.
-      if (newStatus === 'ACCEPTED') showToast('Đã xác nhận nhận nhiệm vụ!', 'success');
-      else if (newStatus === 'EN_ROUTE') showToast('Đã bắt đầu di chuyển!', 'success');
+      if (newStatus === 'EN_ROUTE') showToast('Đã bắt đầu di chuyển!', 'success');
       else if (newStatus === 'ARRIVED') {
         showToast('Đã đến nơi thành công!', 'success');
         if (animationRef.current) clearInterval(animationRef.current);
@@ -486,7 +485,7 @@ export default function TechnicianRescuePage() {
               animate={{ opacity: 1, y: 0 }}
               className="pointer-events-auto mx-auto w-full max-w-md"
             >
-              {(rescueTask.status === 'ASSIGNED' || rescueTask.status === 'ACCEPTED') && (
+              {rescueTask.status === 'ASSIGNED' && (
                 <button 
                   onClick={() => updateStatus('EN_ROUTE')}
                   disabled={actionLoading}

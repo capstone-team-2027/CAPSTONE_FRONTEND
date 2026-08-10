@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -43,6 +43,8 @@ const C = {
   teal: '#0D9488',
 };
 
+const SHOW_LEGACY_ADVANCED_ANALYSIS = false;
+
 // Simple bold parser (replacing **text** with <strong>text</strong>)
 const parseBoldText = (text: string) => {
   const parts = text.split(/\*\*([^*]+)\*\*/g);
@@ -83,6 +85,73 @@ const renderMarkdown = (text: string) => {
   });
 };
 
+const YearRevenueComparisonChart = ({ rows, currentYear, lastYear }: {
+  rows: any[];
+  currentYear: number;
+  lastYear: number;
+}) => {
+  const currentMonth = new Date().getMonth() + 1;
+  const points = (rows || [])
+    .filter((row) => Number(row.month) <= currentMonth)
+    .sort((a, b) => Number(a.month) - Number(b.month));
+
+  if (!points.length) {
+    return <p className="py-10 text-center text-xs font-semibold text-slate-400">Chưa có dữ liệu doanh thu theo tháng</p>;
+  }
+
+  const width = 900;
+  const height = 280;
+  const padding = { left: 58, right: 24, top: 26, bottom: 42 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const maxRevenue = Math.max(
+    ...points.flatMap((row) => [Number(row.this_year_revenue || 0), Number(row.last_year_revenue || 0)]),
+    1
+  );
+  const x = (index: number) => padding.left + (points.length === 1 ? plotWidth / 2 : (index * plotWidth) / (points.length - 1));
+  const y = (value: number) => padding.top + plotHeight - (value / maxRevenue) * plotHeight;
+  const thisYearLine = points.map((row, index) => `${x(index)},${y(Number(row.this_year_revenue || 0))}`).join(' ');
+  const lastYearLine = points.map((row, index) => `${x(index)},${y(Number(row.last_year_revenue || 0))}`).join(' ');
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap justify-end gap-4 text-[11px] font-semibold text-slate-500">
+        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-[#00285E]" />Năm {currentYear}</span>
+        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-[#8B5CF6]" />Năm {lastYear}</span>
+      </div>
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${width} ${height}`} className="min-w-[680px] w-full" role="img" aria-label={`Biểu đồ doanh thu năm ${currentYear} và ${lastYear} theo tháng`}>
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+            const gridY = padding.top + plotHeight * ratio;
+            const value = maxRevenue * (1 - ratio) / 1_000_000;
+            return (
+              <g key={ratio}>
+                <line x1={padding.left} y1={gridY} x2={width - padding.right} y2={gridY} stroke="#E2E8F0" strokeWidth="1" />
+                <text x={padding.left - 9} y={gridY + 4} textAnchor="end" fontSize="10" fill="#94A3B8">{value.toFixed(value >= 10 ? 0 : 1)}</text>
+              </g>
+            );
+          })}
+          <polyline points={lastYearLine} fill="none" stroke="#8B5CF6" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+          <polyline points={thisYearLine} fill="none" stroke="#00285E" strokeWidth="3.5" strokeLinejoin="round" strokeLinecap="round" />
+          {points.map((row, index) => (
+            <g key={row.month}>
+              <line x1={x(index)} y1={padding.top} x2={x(index)} y2={padding.top + plotHeight} stroke="#CBD5E1" strokeDasharray="3 5" opacity="0.55" />
+              <circle cx={x(index)} cy={y(Number(row.last_year_revenue || 0))} r="5" fill="#8B5CF6" stroke="white" strokeWidth="2">
+                <title>{`Tháng ${row.month} - Năm ${lastYear}: ${Number(row.last_year_revenue || 0).toLocaleString('vi-VN')} đ`}</title>
+              </circle>
+              <circle cx={x(index)} cy={y(Number(row.this_year_revenue || 0))} r="5" fill="#00285E" stroke="white" strokeWidth="2">
+                <title>{`Tháng ${row.month} - Năm ${currentYear}: ${Number(row.this_year_revenue || 0).toLocaleString('vi-VN')} đ`}</title>
+              </circle>
+              <text x={x(index)} y={height - 15} textAnchor="middle" fontSize="11" fontWeight="600" fill="#64748B">T{row.month}</text>
+            </g>
+          ))}
+        </svg>
+      </div>
+      <p className="mt-1 text-[10px] text-slate-400">Trục dọc: triệu đồng · Di chuột vào từng điểm để xem doanh thu chính xác</p>
+    </div>
+  );
+};
+
 export default function AdminStatistics() {
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: 'success' | 'info' | 'warning') => void;
@@ -90,46 +159,64 @@ export default function AdminStatistics() {
   const { fetchPrivate } = useFetchClient();
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
+  const [isChartDragging, setIsChartDragging] = useState(false);
+  const chartScrollRef = useRef<HTMLDivElement>(null);
+  const chartDragRef = useRef({ startX: 0, scrollLeft: 0 });
 
-  const [timeframe, setTimeframe] = useState<'today' | '7days' | 'month' | 'lastMonth' | 'quarter' | 'year' | 'lastYear'>('7days');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [isCustomMode, setIsCustomMode] = useState(false);
-
-  const [filterType, setFilterType] = useState<'preset' | 'custom' | 'structured'>('preset');
-  const [selectedYear, setSelectedYear] = useState<string>('2026');
-  const [selectedMonth, setSelectedMonth] = useState<string>('');
-  const [selectedWeek, setSelectedWeek] = useState<string>('');
+  const formatLocalDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const today = new Date();
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(today.getDate() - 29);
+  const [startDate, setStartDate] = useState(() => formatLocalDate(thirtyDaysAgo));
+  const [endDate, setEndDate] = useState(() => formatLocalDate(today));
 
   // Tabs for basic vs advanced pandas analysis
   const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
+  const [advancedView, setAdvancedView] = useState<'analysis' | 'plan'>('analysis');
+  const [comparisonMode, setComparisonMode] = useState<'month_previous' | 'month_last_year' | 'year_last_year'>('month_previous');
   const [advancedData, setAdvancedData] = useState<any>(null);
   const [isAdvancedLoading, setIsAdvancedLoading] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [seasonMonth, setSeasonMonth] = useState<string>('7');
 
+  const analysisRange = useMemo(() => {
+    const now = new Date();
+    if (comparisonMode === 'month_previous' || comparisonMode === 'month_last_year') {
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { startDate: formatLocalDate(monthStart), endDate: formatLocalDate(now) };
+    }
+    if (comparisonMode === 'year_last_year') {
+      return {
+        startDate: `${now.getFullYear()}-01-01`,
+        endDate: formatLocalDate(now),
+      };
+    }
+    return { startDate: `${now.getFullYear()}-01-01`, endDate: `${now.getFullYear()}-12-31` };
+  }, [comparisonMode, startDate, endDate]);
+
+  const compareWithLastYear = comparisonMode === 'month_last_year'
+    || comparisonMode === 'year_last_year';
+  const currentPeriodLabel = comparisonMode.startsWith('month_')
+    ? 'Tháng này'
+    : 'Năm nay';
+  const comparisonPeriodLabel = comparisonMode === 'month_previous'
+    ? 'Tháng trước'
+    : comparisonMode === 'month_last_year'
+      ? 'Cùng tháng năm trước'
+      : 'Năm trước';
+
   // Fetch stats from API
   const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
-      let url = '';
-      if (filterType === 'structured' && selectedYear) {
-        url = STATISTICS_API_ENDPOINTS.GET_STATS('custom');
-        url += `&year=${selectedYear}`;
-        if (selectedMonth) {
-          url += `&month=${selectedMonth}`;
-          if (selectedWeek) {
-            url += `&week=${selectedWeek}`;
-          }
-        }
-      } else {
-        url = STATISTICS_API_ENDPOINTS.GET_STATS(
-          timeframe,
-          filterType === 'custom' ? startDate : undefined,
-          filterType === 'custom' ? endDate : undefined
-        );
-      }
+      const url = STATISTICS_API_ENDPOINTS.GET_STATS('custom', startDate, endDate);
 
       const res = await fetchPrivate(url);
       if (res.success && res.data) {
@@ -142,12 +229,13 @@ export default function AdminStatistics() {
     } finally {
       setIsLoading(false);
     }
-  }, [timeframe, startDate, endDate, filterType, selectedYear, selectedMonth, selectedWeek, fetchPrivate, showToast]);
+  }, [startDate, endDate, fetchPrivate, showToast]);
 
   const fetchAdvancedData = useCallback(async () => {
     try {
       setIsAdvancedLoading(true);
-      const res = await fetchPrivate(STATISTICS_API_ENDPOINTS.GET_ADVANCED);
+      const advancedUrl = `${STATISTICS_API_ENDPOINTS.GET_ADVANCED}?timeframe=custom&startDate=${analysisRange.startDate}&endDate=${analysisRange.endDate}`;
+      const res = await fetchPrivate(advancedUrl);
       if (res.success && res.data) {
         setAdvancedData(res.data);
       } else {
@@ -158,16 +246,16 @@ export default function AdminStatistics() {
     } finally {
       setIsAdvancedLoading(false);
     }
-  }, [fetchPrivate, showToast]);
+  }, [fetchPrivate, showToast, analysisRange.startDate, analysisRange.endDate]);
 
   const fetchAiStrategy = useCallback(async () => {
     try {
       setIsAiLoading(true);
-      showToast('Đang kết nối Gemini AI để phân tích chiến lược...', 'info');
-      const res = await fetchPrivate(`${STATISTICS_API_ENDPOINTS.GET_ADVANCED}?generateAi=true`);
+      const res = await fetchPrivate(
+        `${STATISTICS_API_ENDPOINTS.GET_ADVANCED}?generateAi=true&timeframe=custom&startDate=${analysisRange.startDate}&endDate=${analysisRange.endDate}`
+      );
       if (res.success && res.data) {
         setAdvancedData(res.data);
-        showToast('Lập kế hoạch phát triển với Gemini AI thành công!', 'success');
       } else {
         showToast('Không lấy được kế hoạch phân tích từ AI.', 'warning');
       }
@@ -176,21 +264,22 @@ export default function AdminStatistics() {
     } finally {
       setIsAiLoading(false);
     }
-  }, [fetchPrivate, showToast]);
+  }, [fetchPrivate, showToast, analysisRange.startDate, analysisRange.endDate]);
+
+  useEffect(() => {
+    // A report is tied to its selected period; never reuse it for another range.
+    setAdvancedData(null);
+  }, [startDate, endDate, comparisonMode]);
 
   useEffect(() => {
     if (activeTab === 'basic') {
-      if (filterType === 'preset') {
-        fetchData();
-      } else if (filterType === 'custom' && startDate && endDate) {
-        fetchData();
-      } else if (filterType === 'structured' && selectedYear) {
+      if (startDate && endDate) {
         fetchData();
       }
     } else if (activeTab === 'advanced' && !advancedData) {
       fetchAdvancedData();
     }
-  }, [fetchData, fetchAdvancedData, filterType, startDate, endDate, selectedYear, activeTab, advancedData]);
+  }, [fetchData, fetchAdvancedData, startDate, endDate, activeTab, advancedData]);
 
   // Dynamic calculations based on timeframe
   const currentData = useMemo(() => {
@@ -215,12 +304,12 @@ export default function AdminStatistics() {
 
   const handleFilterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (filterType === 'custom' && (!startDate || !endDate)) {
+    if (!startDate || !endDate) {
       showToast('Vui lòng chọn đầy đủ ngày bắt đầu và ngày kết thúc.', 'warning');
       return;
     }
-    if (filterType === 'structured' && !selectedYear) {
-      showToast('Vui lòng chọn năm cần xem thống kê.', 'warning');
+    if (startDate > endDate) {
+      showToast('Ngày bắt đầu không được lớn hơn ngày kết thúc.', 'warning');
       return;
     }
     fetchData();
@@ -249,7 +338,8 @@ export default function AdminStatistics() {
 
   // SVGs Chart computations
   const chartHeight = 220;
-  const chartWidth = 600;
+  const isScrollableChart = currentData.days.length > 14;
+  const chartWidth = isScrollableChart ? Math.max(600, currentData.days.length * 58) : 600;
   const padding = 40;
   const usableWidth = chartWidth - padding * 2;
   const usableHeight = chartHeight - padding * 2;
@@ -263,6 +353,30 @@ export default function AdminStatistics() {
     const yOrders = chartHeight - padding - ((currentData.orders[idx] || 0) / maxOrdersVal) * usableHeight;
     return { x, yRevenue, yOrders, day, revenue: currentData.revenue[idx] || 0, order: currentData.orders[idx] || 0 };
   });
+
+  // Keep long date ranges readable while preserving every point for hover/tooltips.
+  const chartTickStep = isScrollableChart ? 1 : Math.max(1, Math.ceil(points.length / 7));
+  const shouldShowChartTick = (index: number) =>
+    index === 0 || index === points.length - 1 || index % chartTickStep === 0;
+
+  const stopChartDragging = () => setIsChartDragging(false);
+
+  const handleChartMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!isScrollableChart || !chartScrollRef.current) return;
+    setIsChartDragging(true);
+    chartDragRef.current = {
+      startX: event.clientX,
+      scrollLeft: chartScrollRef.current.scrollLeft,
+    };
+  };
+
+  const handleChartMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!isChartDragging || !chartScrollRef.current) return;
+    event.preventDefault();
+    const distance = event.clientX - chartDragRef.current.startX;
+    chartScrollRef.current.scrollLeft = chartDragRef.current.scrollLeft - distance;
+    setHoveredPointIndex(null);
+  };
 
   const getLinePath = (ptList: typeof points, type: 'revenue' | 'orders') => {
     let path = '';
@@ -337,7 +451,10 @@ export default function AdminStatistics() {
           Thống kê cơ bản
         </button>
         <button
-          onClick={() => setActiveTab('advanced')}
+          onClick={() => {
+            setActiveTab('advanced');
+            setAdvancedView('analysis');
+          }}
           className={`py-3 px-6 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${activeTab === 'advanced'
             ? 'border-amber-500 text-amber-500'
             : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -355,76 +472,19 @@ export default function AdminStatistics() {
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-widest">
-                  <Calendar size={15} /> Chế độ lọc:
-                </div>
-                <div className="flex bg-slate-100 p-1 rounded-xl">
-                  {[
-                    { id: 'preset', label: 'Mốc nhanh' },
-                    { id: 'structured', label: 'Chọn năm/tháng/tuần' },
-                    { id: 'custom', label: 'Tùy chỉnh ngày' },
-                  ].map((item) => (
-                    <button
-                      type="button"
-                      key={item.id}
-                      onClick={() => {
-                        setFilterType(item.id as any);
-                        if (item.id === 'preset') {
-                          setIsCustomMode(false);
-                        } else if (item.id === 'custom') {
-                          setIsCustomMode(true);
-                        } else {
-                          setIsCustomMode(false);
-                        }
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${filterType === item.id
-                        ? 'bg-white text-[#00285E] shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+                  <Calendar size={15} /> Lọc theo ngày
                 </div>
               </div>
             </div>
 
             <form onSubmit={handleFilterSubmit} className="flex flex-wrap items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-              {filterType === 'preset' && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold text-slate-500">Mốc thời gian:</span>
-                  <div className="flex bg-slate-100 p-1 rounded-xl flex-wrap gap-1">
-                    {[
-                      { id: 'today', label: 'Hôm nay' },
-                      { id: '7days', label: '7 ngày qua' },
-                      { id: 'month', label: 'Tháng này' },
-                      { id: 'lastMonth', label: 'Tháng trước' },
-                      { id: 'quarter', label: 'Quý này' },
-                      { id: 'year', label: 'Năm nay' },
-                      { id: 'lastYear', label: 'Năm trước' },
-                    ].map((item) => (
-                      <button
-                        type="button"
-                        key={item.id}
-                        onClick={() => setTimeframe(item.id as any)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${timeframe === item.id
-                          ? 'bg-white text-[#00285E] shadow-sm'
-                          : 'text-slate-500 hover:text-slate-700'
-                          }`}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {filterType === 'custom' && (
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-bold text-slate-500">Từ ngày:</span>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
+                    max={endDate}
                     className="border border-slate-200 rounded-xl text-xs px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-100"
                   />
                   <span className="text-slate-400 text-xs font-semibold">→</span>
@@ -433,68 +493,10 @@ export default function AdminStatistics() {
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
+                    min={startDate}
                     className="border border-slate-200 rounded-xl text-xs px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-100"
                   />
-                </div>
-              )}
-
-              {filterType === 'structured' && (
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-slate-500">Năm:</span>
-                    <select
-                      value={selectedYear}
-                      onChange={(e) => {
-                        setSelectedYear(e.target.value);
-                        setSelectedMonth('');
-                        setSelectedWeek('');
-                      }}
-                      className="border border-slate-200 rounded-xl text-xs px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
-                    >
-                      <option value="">-- Chọn Năm --</option>
-                      <option value="2025">Năm 2025</option>
-                      <option value="2026">Năm 2026</option>
-                      <option value="2027">Năm 2027</option>
-                    </select>
-                  </div>
-
-                  {selectedYear && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-slate-500">Tháng:</span>
-                      <select
-                        value={selectedMonth}
-                        onChange={(e) => {
-                          setSelectedMonth(e.target.value);
-                          setSelectedWeek('');
-                        }}
-                        className="border border-slate-200 rounded-xl text-xs px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
-                      >
-                        <option value="">Cả Năm</option>
-                        {[...Array(12)].map((_, idx) => (
-                          <option key={idx + 1} value={String(idx + 1)}>Tháng {idx + 1}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {selectedYear && selectedMonth && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-slate-500">Tuần:</span>
-                      <select
-                        value={selectedWeek}
-                        onChange={(e) => setSelectedWeek(e.target.value)}
-                        className="border border-slate-200 rounded-xl text-xs px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
-                      >
-                        <option value="">Cả Tháng</option>
-                        <option value="1">Tuần 1 (Ngày 1-7)</option>
-                        <option value="2">Tuần 2 (Ngày 8-14)</option>
-                        <option value="3">Tuần 3 (Ngày 15-21)</option>
-                        <option value="4">Tuần 4 (Ngày 22 trở đi)</option>
-                      </select>
-                    </div>
-                  )}
-                </div>
-              )}
+              </div>
 
               <button
                 type="submit"
@@ -549,7 +551,25 @@ export default function AdminStatistics() {
                 </div>
               </div>
 
-              <div className="flex-1 w-full flex items-center justify-center py-4 relative min-h-[220px]">
+              {isScrollableChart && (
+                <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-400">
+                  <span>↔</span> Giữ chuột và kéo để xem các ngày khác
+                </div>
+              )}
+              <div
+                ref={chartScrollRef}
+                className={`flex-1 w-full overflow-x-auto overflow-y-hidden pb-2 ${isScrollableChart
+                  ? isChartDragging ? 'cursor-grabbing' : 'cursor-grab'
+                  : ''}`}
+                onMouseDown={handleChartMouseDown}
+                onMouseMove={handleChartMouseMove}
+                onMouseUp={stopChartDragging}
+                onMouseLeave={stopChartDragging}
+              >
+                <div
+                  className="flex items-center justify-center py-4 relative min-h-[220px]"
+                  style={{ width: isScrollableChart ? `${chartWidth}px` : '100%' }}
+                >
                 {/* Gridlines */}
                 <div className="absolute inset-0 flex flex-col justify-between py-10 pointer-events-none opacity-20">
                   <div className="w-full h-[1px] bg-slate-400" />
@@ -558,7 +578,50 @@ export default function AdminStatistics() {
                   <div className="w-full h-[1px] bg-slate-400" />
                 </div>
 
-                <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-full max-h-[240px] select-none">
+                {hoveredPointIndex !== null && points[hoveredPointIndex] && (
+                  <div
+                    className="absolute z-20 pointer-events-none min-w-[170px] rounded-xl border border-slate-200 bg-white/95 px-3 py-2.5 shadow-lg backdrop-blur-sm"
+                    style={{
+                      left: `${(points[hoveredPointIndex].x / chartWidth) * 100}%`,
+                      top: '8px',
+                      transform: hoveredPointIndex === 0
+                        ? 'translateX(0)'
+                        : hoveredPointIndex === points.length - 1
+                          ? 'translateX(-100%)'
+                          : 'translateX(-50%)',
+                    }}
+                  >
+                    <div className="mb-2 text-xs font-bold text-slate-800">
+                      {points[hoveredPointIndex].day}
+                    </div>
+                    <div className="space-y-1.5 text-[11px] font-semibold">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="flex items-center gap-1.5 text-slate-500">
+                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: C.navy }} />
+                          Doanh thu
+                        </span>
+                        <span className="font-bold text-[#00285E]">
+                          {(points[hoveredPointIndex].revenue * 1_000_000).toLocaleString('vi-VN')} đ
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="flex items-center gap-1.5 text-slate-500">
+                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: C.orange }} />
+                          Lượt dịch vụ
+                        </span>
+                        <span className="font-bold text-amber-600">
+                          {points[hoveredPointIndex].order.toLocaleString('vi-VN')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <svg
+                  viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                  className="w-full h-full max-h-[240px] select-none"
+                  onMouseLeave={() => setHoveredPointIndex(null)}
+                >
                   <defs>
                     <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={C.navy} stopOpacity={0.2} />
@@ -579,8 +642,17 @@ export default function AdminStatistics() {
                   )}
 
                   {/* Grid Lines */}
-                  {points.map((pt: (typeof points)[number], i: number) => (
-                    <line key={`grid-${i}`} x1={pt.x} y1={padding} x2={pt.x} y2={chartHeight - padding} stroke="#E2E8F0" strokeWidth={1} strokeDasharray="4 4" />
+                  {points.map((pt: (typeof points)[number], i: number) => shouldShowChartTick(i) && (
+                    <line
+                      key={`grid-${i}`}
+                      x1={pt.x}
+                      y1={padding}
+                      x2={pt.x}
+                      y2={chartHeight - padding}
+                      stroke={hoveredPointIndex === i ? C.blue : '#E2E8F0'}
+                      strokeWidth={hoveredPointIndex === i ? 1.5 : 1}
+                      strokeDasharray="4 4"
+                    />
                   ))}
 
                   {/* Line paths */}
@@ -594,18 +666,46 @@ export default function AdminStatistics() {
                   {/* Data circles */}
                   {points.map((pt: (typeof points)[number], index: number) => (
                     <g key={index}>
-                      <circle cx={pt.x} cy={pt.yRevenue} r={4} fill={C.navy} stroke="#FFFFFF" strokeWidth={2} />
-                      <circle cx={pt.x} cy={pt.yOrders} r={4} fill={C.orange} stroke="#FFFFFF" strokeWidth={2} />
+                      {(pt.revenue > 0 || hoveredPointIndex === index) && (
+                        <circle cx={pt.x} cy={pt.yRevenue} r={hoveredPointIndex === index ? 6 : 4} fill={C.navy} stroke="#FFFFFF" strokeWidth={2} />
+                      )}
+                      {(pt.order > 0 || hoveredPointIndex === index) && (
+                        <circle cx={pt.x} cy={pt.yOrders} r={hoveredPointIndex === index ? 6 : 4} fill={C.orange} stroke="#FFFFFF" strokeWidth={2} />
+                      )}
                     </g>
                   ))}
 
+                  {/* Wide invisible hover zones make every data point easy to target. */}
+                  {points.map((pt: (typeof points)[number], index: number) => {
+                    const previousX = points[index - 1]?.x ?? padding;
+                    const nextX = points[index + 1]?.x ?? chartWidth - padding;
+                    const left = index === 0 ? padding : (previousX + pt.x) / 2;
+                    const right = index === points.length - 1 ? chartWidth - padding : (pt.x + nextX) / 2;
+                    return (
+                      <rect
+                        key={`hover-${index}`}
+                        x={left}
+                        y={padding}
+                        width={Math.max(right - left, 1)}
+                        height={usableHeight}
+                        fill="transparent"
+                        className={isScrollableChart
+                          ? isChartDragging ? 'cursor-grabbing' : 'cursor-grab'
+                          : 'cursor-crosshair'}
+                        onMouseEnter={() => setHoveredPointIndex(index)}
+                        onMouseMove={() => setHoveredPointIndex(index)}
+                      />
+                    );
+                  })}
+
                   {/* X-axis labels */}
-                  {points.map((pt: (typeof points)[number], i: number) => (
+                  {points.map((pt: (typeof points)[number], i: number) => shouldShowChartTick(i) && (
                     <text key={i} x={pt.x} y={chartHeight - 12} textAnchor="middle" fill="#94A3B8" fontSize={11} fontWeight="600">
                       {pt.day}
                     </text>
                   ))}
                 </svg>
+                </div>
               </div>
             </div>
 
@@ -711,37 +811,37 @@ export default function AdminStatistics() {
               </div>
             </div>
 
-            {/* Technician productivity Table */}
+            {/* Top customers by paid service orders */}
             <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 overflow-hidden">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-slate-800 tracking-tight flex items-center gap-1.5">
-                  <UserCheck size={18} className="text-[#00285E]" /> Hiệu suất và năng suất nhân viên
+                  <UserCheck size={18} className="text-[#00285E]" /> Khách hàng sử dụng dịch vụ nhiều nhất
                 </h2>
-                <span className="text-xs text-slate-400 font-semibold">Theo kỹ thuật viên (KTV)</span>
+                <span className="text-xs text-slate-400 font-semibold">Theo khoảng ngày đã lọc</span>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
-                      <th className="py-2.5 px-3">Kỹ thuật viên</th>
-                      <th className="py-2.5 px-3 text-center">Số nhiệm vụ hoàn thành</th>
-                      <th className="py-2.5 px-3 text-right">Doanh thu đóng góp</th>
-                      <th className="py-2.5 px-3 text-center">Đánh giá trung bình</th>
+                      <th className="py-2.5 px-3">Khách hàng</th>
+                      <th className="py-2.5 px-3">Số điện thoại</th>
+                      <th className="py-2.5 px-3 text-center">Lượt sử dụng dịch vụ</th>
+                      <th className="py-2.5 px-3 text-right">Tổng tiền đã trả</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(data?.topTechnicians || []).map((t: any, idx: number) => (
+                    {(data?.topCustomers || []).map((customer: any, idx: number) => (
                       <tr key={idx} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                        <td className="py-3 px-3 font-semibold text-slate-800">{t.name}</td>
-                        <td className="py-3 px-3 text-center font-bold text-slate-700">{t.completedTasks} tác vụ</td>
-                        <td className="py-3 px-3 text-right font-bold text-emerald-600">{t.revenueContribution.toLocaleString('vi-VN')} đ</td>
-                        <td className="py-3 px-3 text-center font-bold text-amber-500">⭐ {t.rating}</td>
+                        <td className="py-3 px-3 font-semibold text-slate-800">{customer.name}</td>
+                        <td className="py-3 px-3 font-semibold text-slate-500">{customer.phone || '—'}</td>
+                        <td className="py-3 px-3 text-center font-bold text-slate-700">{customer.serviceCount} lượt</td>
+                        <td className="py-3 px-3 text-right font-bold text-emerald-600">{customer.totalPaid.toLocaleString('vi-VN')} đ</td>
                       </tr>
                     ))}
-                    {(data?.topTechnicians || []).length === 0 && (
+                    {(data?.topCustomers || []).length === 0 && (
                       <tr>
-                        <td colSpan={4} className="text-center py-4 text-slate-400 font-medium">Không có dữ liệu nhân viên</td>
+                        <td colSpan={4} className="text-center py-4 text-slate-400 font-medium">Không có khách hàng sử dụng dịch vụ trong khoảng này</td>
                       </tr>
                     )}
                   </tbody>
@@ -752,7 +852,215 @@ export default function AdminStatistics() {
         </>
       )}
 
-      {activeTab === 'advanced' && (
+      {activeTab === 'advanced' && advancedView === 'plan' && (
+        <div className="space-y-5">
+          <div className="bg-gradient-to-r from-indigo-700 to-[#00285E] p-5 rounded-2xl text-white flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold flex items-center gap-2"><Sparkles size={19} /> Kế hoạch phát triển AI</h2>
+              <p className="text-xs text-indigo-100 mt-1">Bản kế hoạch hành động được chọn lọc từ kết quả phân tích.</p>
+            </div>
+            <button
+              onClick={() => setAdvancedView('analysis')}
+              className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold"
+            >
+              ← Quay lại phân tích
+            </button>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-indigo-100 p-6 min-h-[320px]">
+            {isAiLoading ? (
+              <div className="min-h-[270px] flex flex-col items-center justify-center">
+                <Sparkles size={30} className="text-indigo-600 animate-pulse" />
+                <p className="text-sm font-bold text-slate-700 mt-3">Đang xây dựng kế hoạch...</p>
+                <p className="text-xs text-slate-400 mt-1">AI đang chọn tối đa 3 hành động ưu tiên.</p>
+              </div>
+            ) : advancedData?.gemini_insights ? (
+              <div className="max-w-none">{renderMarkdown(advancedData.gemini_insights)}</div>
+            ) : (
+              <div className="min-h-[270px] flex flex-col items-center justify-center text-center">
+                <Lightbulb size={30} className="text-slate-300" />
+                <p className="text-sm font-bold text-slate-700 mt-3">Chưa tạo được kế hoạch</p>
+                <button onClick={fetchAiStrategy} className="mt-4 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold">Thử tạo lại</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'advanced' && advancedView === 'analysis' && (
+        <div className="space-y-5">
+          <div className="bg-gradient-to-r from-[#00285E] to-[#06478f] p-5 rounded-2xl text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold flex items-center gap-2"><BarChart3 size={19} /> Phân tích chuyên sâu</h2>
+              <p className="text-xs text-blue-100 mt-1">Số liệu so sánh, điểm đáng chú ý và hành động đề xuất từ hệ thống.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <select
+                value={comparisonMode}
+                onChange={(event) => setComparisonMode(event.target.value as typeof comparisonMode)}
+                className="px-3 py-2.5 rounded-xl bg-white text-[#00285E] text-xs font-bold outline-none"
+              >
+                <option value="month_previous">Tháng này với tháng trước</option>
+                <option value="month_last_year">Tháng này với cùng tháng năm trước</option>
+                <option value="year_last_year">Năm nay với năm trước</option>
+              </select>
+              <button
+                onClick={() => fetchAdvancedData()}
+                disabled={isAdvancedLoading}
+                className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold flex items-center gap-2 disabled:opacity-60"
+              >
+                <RefreshCw size={14} className={isAdvancedLoading ? 'animate-spin' : ''} /> Làm mới số liệu
+              </button>
+              <button
+                onClick={() => {
+                  setAdvancedView('plan');
+                  if (!advancedData?.gemini_insights) fetchAiStrategy();
+                }}
+                disabled={isAiLoading || isAdvancedLoading || !advancedData}
+                className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-[#00285E] text-xs font-bold flex items-center gap-2 disabled:opacity-60"
+              >
+                <Sparkles size={14} className={isAiLoading ? 'animate-spin' : ''} />
+                {isAiLoading ? 'Đang lập kế hoạch...' : 'Tạo kế hoạch AI'}
+              </button>
+            </div>
+          </div>
+
+          {isAdvancedLoading ? (
+            <div className="min-h-[300px] bg-white rounded-2xl border border-slate-200 flex flex-col items-center justify-center">
+              <RefreshCw size={28} className="animate-spin text-amber-500" />
+              <p className="text-sm font-bold text-slate-700 mt-3">Đang phân tích ba kỳ dữ liệu...</p>
+            </div>
+          ) : advancedData ? (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  {
+                    label: `Doanh thu ${currentPeriodLabel.toLowerCase()}`,
+                    value: `${((advancedData.summary?.total_this_year || 0) / 1_000_000).toFixed(1)} Tr.đ`,
+                    sub: `${advancedData.summary?.this_year_orders || 0} lượt dịch vụ`,
+                    color: 'text-emerald-600',
+                  },
+                  {
+                    label: `Doanh thu ${comparisonPeriodLabel.toLowerCase()}`,
+                    value: `${(((compareWithLastYear ? advancedData.summary?.total_last_year : advancedData.summary?.total_previous_period) || 0) / 1_000_000).toFixed(1)} Tr.đ`,
+                    sub: compareWithLastYear
+                      ? `${advancedData.summary?.last_year_orders || 0} lượt dịch vụ`
+                      : `${advancedData.summary?.previous_period_orders || 0} lượt dịch vụ`,
+                    color: 'text-blue-600',
+                  },
+                  {
+                    label: `Tăng trưởng so với ${comparisonPeriodLabel.toLowerCase()}`,
+                    value: `${(compareWithLastYear ? advancedData.summary?.yoy_growth_pct : advancedData.summary?.previous_period_growth_pct) >= 0 ? '+' : ''}${(compareWithLastYear ? advancedData.summary?.yoy_growth_pct : advancedData.summary?.previous_period_growth_pct) || 0}%`,
+                    sub: `${currentPeriodLabel} so với ${comparisonPeriodLabel}`,
+                    color: (compareWithLastYear ? advancedData.summary?.yoy_growth_pct : advancedData.summary?.previous_period_growth_pct) >= 0 ? 'text-emerald-600' : 'text-rose-500',
+                  },
+                  {
+                    label: 'Hóa đơn trung bình',
+                    value: `${Math.round(advancedData.summary?.this_year_avg_ticket || 0).toLocaleString('vi-VN')} đ`,
+                    sub: `${advancedData.dashboard_stats?.kpis?.activeCustomers || 0} khách hoạt động`,
+                    color: 'text-[#00285E]',
+                  },
+                ].map((item) => (
+                  <div key={item.label} className="bg-white rounded-2xl border border-slate-200/70 p-5">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{item.label}</p>
+                    <p className={`text-xl font-black mt-2 ${item.color}`}>{item.value}</p>
+                    <p className="text-[10px] font-semibold text-slate-400 mt-1">{item.sub}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200/70 p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
+                  <div>
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2"><BarChart3 size={17} className="text-[#00285E]" /> {currentPeriodLabel} so với {comparisonPeriodLabel}</h3>
+                    <p className="text-[10px] text-slate-400 mt-1">Đơn vị: triệu đồng · Chỉ hiển thị hai kỳ đang chọn</p>
+                  </div>
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    {advancedData.summary?.selected_period?.startDate} → {advancedData.summary?.selected_period?.endDate}
+                  </span>
+                </div>
+                {comparisonMode === 'year_last_year' ? (
+                  <YearRevenueComparisonChart
+                    rows={advancedData.yoy_comparison || []}
+                    currentYear={Number(advancedData.summary?.current_year || new Date().getFullYear())}
+                    lastYear={Number(advancedData.summary?.last_year || new Date().getFullYear() - 1)}
+                  />
+                ) : <div className="space-y-4">
+                  {[
+                    { label: currentPeriodLabel, value: Number(advancedData.summary?.total_this_year || 0), color: '#00285E' },
+                    {
+                      label: comparisonPeriodLabel,
+                      value: Number((compareWithLastYear ? advancedData.summary?.total_last_year : advancedData.summary?.total_previous_period) || 0),
+                      color: compareWithLastYear ? '#3B82F6' : '#8B5CF6'
+                    },
+                  ].map((bar) => {
+                    const maxValue = Math.max(
+                      Number(advancedData.summary?.total_this_year || 0),
+                      Number((compareWithLastYear ? advancedData.summary?.total_last_year : advancedData.summary?.total_previous_period) || 0),
+                      1
+                    );
+                    return (
+                      <div key={bar.label} className="grid grid-cols-[105px_1fr_85px] items-center gap-3">
+                        <span className="text-[11px] font-bold text-slate-600">{bar.label}</span>
+                        <div className="h-8 bg-slate-100 rounded-lg overflow-hidden">
+                          <div
+                            className="h-full rounded-lg transition-all duration-500"
+                            style={{ width: `${Math.max((bar.value / maxValue) * 100, bar.value > 0 ? 3 : 0)}%`, backgroundColor: bar.color }}
+                          />
+                        </div>
+                        <span className="text-xs font-black text-slate-700 text-right">{(bar.value / 1_000_000).toFixed(1)} Tr.đ</span>
+                      </div>
+                    );
+                  })}
+                </div>}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div className="bg-white rounded-2xl border border-slate-200/70 p-5">
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2"><Target size={17} className="text-blue-600" /> Điểm cần chú ý</h3>
+                  <div className="mt-4 space-y-3">
+                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+                      <p className="text-[10px] font-bold uppercase text-emerald-700">Dịch vụ nổi bật</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1">{advancedData.top_services?.[0]?.service_name || 'Chưa đủ dữ liệu'}</p>
+                      <p className="text-xs text-slate-500">{advancedData.top_services?.[0]?.total_qty || 0} lượt · {Number(advancedData.top_services?.[0]?.total_revenue || 0).toLocaleString('vi-VN')} đ</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-100">
+                      <p className="text-[10px] font-bold uppercase text-rose-700">Dịch vụ cần cải thiện</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1">{advancedData.ai_planner?.low_demand_plans?.[0]?.service_name || 'Chưa phát hiện'}</p>
+                      <p className="text-xs text-slate-500">{advancedData.ai_planner?.low_demand_plans?.[0]?.annual_count || 0} lượt trong kỳ đã chọn</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-100">
+                      <p className="text-[10px] font-bold uppercase text-amber-700">Phụ tùng cần chuẩn bị</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1">{advancedData.ai_planner?.import_suggestions?.[0]?.part_name || 'Chưa có cảnh báo nhập kho'}</p>
+                      {advancedData.ai_planner?.import_suggestions?.[0] && (
+                        <p className="text-xs text-slate-500">Đề xuất chuẩn bị {advancedData.ai_planner.import_suggestions[0].suggested_import} sản phẩm</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-slate-200/70 p-5">
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2"><Lightbulb size={17} className="text-amber-500" /> 3 hành động ưu tiên</h3>
+                  <div className="mt-4 space-y-3">
+                    <div className="flex gap-3"><span className="w-7 h-7 rounded-full bg-[#00285E] text-white text-xs font-bold flex items-center justify-center shrink-0">1</span><p className="text-xs text-slate-600 leading-relaxed"><strong className="text-slate-800">Tập trung dịch vụ chủ lực:</strong> duy trì chất lượng và bán kèm cho “{advancedData.top_services?.[0]?.service_name || 'dịch vụ đang dẫn đầu'}”.</p></div>
+                    <div className="flex gap-3"><span className="w-7 h-7 rounded-full bg-[#00285E] text-white text-xs font-bold flex items-center justify-center shrink-0">2</span><p className="text-xs text-slate-600 leading-relaxed"><strong className="text-slate-800">Kích cầu có chọn lọc:</strong> thử ưu đãi ngắn hạn cho “{advancedData.ai_planner?.low_demand_plans?.[0]?.service_name || 'dịch vụ ít khách'}” và đo số lượt phát sinh.</p></div>
+                    <div className="flex gap-3"><span className="w-7 h-7 rounded-full bg-[#00285E] text-white text-xs font-bold flex items-center justify-center shrink-0">3</span><p className="text-xs text-slate-600 leading-relaxed"><strong className="text-slate-800">Chuẩn bị vận hành:</strong> ưu tiên tồn kho “{advancedData.ai_planner?.import_suggestions?.[0]?.part_name || advancedData.top_parts?.[0]?.name || 'phụ tùng bán chạy'}” và bố trí nhân lực theo nhu cầu.</p></div>
+                  </div>
+                </div>
+              </div>
+
+            </>
+          ) : (
+            <div className="min-h-[260px] bg-white rounded-2xl border border-slate-200 flex flex-col items-center justify-center">
+              <BarChart3 size={30} className="text-slate-300" />
+              <p className="text-sm font-bold text-slate-700 mt-3">Chưa có dữ liệu phân tích</p>
+              <button onClick={fetchAdvancedData} className="mt-4 px-4 py-2 bg-[#00285E] text-white rounded-xl text-xs font-bold">Bắt đầu phân tích</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'advanced' && SHOW_LEGACY_ADVANCED_ANALYSIS && (
         <div className="space-y-6">
           {/* Header + Reanalyze Button */}
           <div className="bg-gradient-to-r from-[#00285E] to-[#003d8f] p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -795,7 +1103,7 @@ export default function AdminStatistics() {
             <div className="flex flex-col items-center justify-center min-h-[400px] bg-white rounded-2xl border border-slate-200/60 shadow-xs">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500 mb-4"></div>
               <p className="text-slate-700 text-sm font-bold">Đang xử lý dữ liệu Pandas...</p>
-              <p className="text-slate-400 text-xs mt-1">Truy vấn & phân tích từ database, vui lòng chờ</p>
+              <p className="text-slate-400 text-xs mt-1">Đang phân tích kỳ đã chọn và các kỳ so sánh, vui lòng chờ</p>
             </div>
           ) : advancedData ? (
             <div className="space-y-6">
@@ -806,16 +1114,22 @@ export default function AdminStatistics() {
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
                       {
-                        label: `Doanh thu năm ${advancedData?.summary?.current_year}`,
+                        label: 'Doanh thu kỳ đã chọn',
                         value: `${((advancedData?.summary?.total_this_year || 0) / 1_000_000).toFixed(1)} Tr.đ`,
                         icon: <TrendingUp size={20} />, color: '#10B981', bg: '#D1FAE5',
-                        sub: `Tháng đỉnh: T${advancedData?.summary?.best_month_this_year ?? '--'}`,
+                        sub: `${advancedData?.summary?.selected_period?.startDate || '--'} → ${advancedData?.summary?.selected_period?.endDate || '--'}`,
                       },
                       {
-                        label: `Doanh thu năm ${advancedData?.summary?.last_year}`,
+                        label: 'Doanh thu kỳ liền trước',
+                        value: `${((advancedData?.summary?.total_previous_period || 0) / 1_000_000).toFixed(1)} Tr.đ`,
+                        icon: <Calendar size={20} />, color: '#8B5CF6', bg: '#F3E8FF',
+                        sub: `${advancedData?.summary?.previous_period?.startDate || '--'} → ${advancedData?.summary?.previous_period?.endDate || '--'}`,
+                      },
+                      {
+                        label: 'Doanh thu cùng kỳ năm trước',
                         value: `${((advancedData?.summary?.total_last_year || 0) / 1_000_000).toFixed(1)} Tr.đ`,
                         icon: <Calendar size={20} />, color: '#3B82F6', bg: '#EFF6FF',
-                        sub: `Tháng đỉnh: T${advancedData?.summary?.best_month_last_year ?? '--'}`,
+                        sub: `${advancedData?.summary?.same_period_last_year?.startDate || '--'} → ${advancedData?.summary?.same_period_last_year?.endDate || '--'}`,
                       },
                       {
                         label: 'Tăng trưởng YoY',
@@ -824,12 +1138,6 @@ export default function AdminStatistics() {
                         color: advancedData?.summary?.yoy_growth_pct >= 0 ? '#10B981' : '#EF4444',
                         bg: advancedData?.summary?.yoy_growth_pct >= 0 ? '#D1FAE5' : '#FEE2E2',
                         sub: 'So với cùng kỳ năm ngoái',
-                      },
-                      {
-                        label: 'Dịch vụ phổ biến nhất',
-                        value: advancedData?.top_services?.[0]?.service_name?.split(' ').slice(0, 3).join(' ') || '--',
-                        icon: <Star size={20} />, color: '#F59E0B', bg: '#FEF3C7',
-                        sub: `${advancedData?.top_services?.[0]?.total_qty ?? 0} lượt thực hiện`,
                       },
                     ].map((card, i) => (
                       <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs">
@@ -890,7 +1198,7 @@ export default function AdminStatistics() {
                         </div>
                         <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
                           Doanh thu biến động do số lượng xe ghé Gara thay đổi.
-                          Lượng xe đã thay đổi <span className="font-bold text-white">{advancedData?.summary?.this_year_orders - advancedData?.summary?.last_year_orders} lượt xe</span> so với năm ngoái.
+                          Lượng xe đã thay đổi <span className="font-bold text-white">{advancedData?.summary?.this_year_orders - advancedData?.summary?.last_year_orders} lượt xe</span> so với cùng kỳ năm trước.
                         </p>
                       </div>
 
@@ -905,7 +1213,7 @@ export default function AdminStatistics() {
                         </div>
                         <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
                           Doanh thu biến động do khách làm nhiều hạng mục hơn hoặc thay linh kiện đắt tiền hơn.
-                          Hóa đơn trung bình đạt <span className="font-bold text-white">{Math.round(advancedData?.summary?.this_year_avg_ticket || 0).toLocaleString('vi-VN')} đ</span> (năm ngoái là {Math.round(advancedData?.summary?.last_year_avg_ticket || 0).toLocaleString('vi-VN')} đ).
+                          Hóa đơn trung bình đạt <span className="font-bold text-white">{Math.round(advancedData?.summary?.this_year_avg_ticket || 0).toLocaleString('vi-VN')} đ</span> (cùng kỳ năm trước là {Math.round(advancedData?.summary?.last_year_avg_ticket || 0).toLocaleString('vi-VN')} đ).
                         </p>
                       </div>
 
@@ -933,7 +1241,7 @@ export default function AdminStatistics() {
                       <div>
                         <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
                           <BarChart3 size={18} className="text-[#00285E]" />
-                          📈 Biểu đồ Doanh thu từng tháng so với năm ngoái
+                          📈 Biểu đồ doanh thu kỳ đã chọn và cùng kỳ năm trước
                         </h2>
                         <p className="text-xs text-slate-400 mt-0.5">So sánh chi tiết kết quả kinh doanh (đơn vị tính: Triệu đồng)</p>
                       </div>

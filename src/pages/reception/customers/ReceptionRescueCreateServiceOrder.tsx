@@ -27,8 +27,7 @@ import { useNavigate, useParams, useLocation, useOutletContext } from 'react-rou
 import { motion, AnimatePresence } from 'motion/react';
 import * as PhoneInputLib from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
-import { SERVICE_ORDER_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
-import { useFetchClient, useFetchClient_v2 } from '../../../hook/useFetchClient';
+import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
 import { SEARCH_API_ENDPOINTS } from '../../../constants/reception/searchEndpoints';
 import { SERVICE_API_ENDPOINTS } from '../../../constants/customer/serviceApiEndpoints';
@@ -36,6 +35,8 @@ import type { ServiceCombo, ServiceItem as CustomerServiceItem } from '../../../
 import { useTranslation } from 'react-i18next';
 import { VEHICLE_MAKE_MODEL_API_ENDPOINTS } from '../../../constants/customer/vehicelMakeModelEndpoint';
 import { GARAGE_CONFIG_API_ENDPOINTS } from '../../../constants/customer/garage_configurationsEndpoints';
+import SingleServicesSelector from '../../customer/booking/SingleServicesSelector';
+import ComboServicesSelector from '../../customer/booking/ComboServicesSelector';
 
 
 
@@ -200,11 +201,13 @@ export default function ReceptionRescueCreateServiceOrder() {
   const [initialCondition, setInitialCondition] = useState(''); // Trạng thái tiếp nhận xe ban đầu
   const [receptionServiceMode, setReceptionServiceMode] = useState<'SERVICE' | 'REPAIR'>('REPAIR');
   const [serviceSearch, setServiceSearch] = useState('');
+  const [comboSearch, setComboSearch] = useState('');
   const [activeServiceTab, setActiveServiceTab] = useState<'single' | 'combo' | 'category'>('single');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   const { fetchPrivate, fetchPublic } = useFetchClient_v2();
   const [isLoadingRecord, setIsLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Dynamic Data States for Services
   const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([]);
@@ -503,6 +506,36 @@ export default function ReceptionRescueCreateServiceOrder() {
     });
   }, [activeDbServices]);
 
+  const SERVICES_PER_PAGE = 8;
+  const filteredServices = useMemo(() => {
+    let list = mappedServices;
+    if (selectedCategoryId !== null) {
+      list = list.filter(service => String(service.category_id) === String(selectedCategoryId));
+    }
+    const query = serviceSearch.trim().toLowerCase();
+    if (query) {
+      list = list.filter(service =>
+        service.title.toLowerCase().includes(query) ||
+        (service.desc || '').toLowerCase().includes(query)
+      );
+    }
+    return list;
+  }, [mappedServices, selectedCategoryId, serviceSearch]);
+
+  const serviceTotalPages = Math.max(1, Math.ceil(filteredServices.length / SERVICES_PER_PAGE));
+  const currentPageServices = useMemo(() => {
+    const start = (servicePage - 1) * SERVICES_PER_PAGE;
+    return filteredServices.slice(start, start + SERVICES_PER_PAGE);
+  }, [filteredServices, servicePage]);
+
+  useEffect(() => {
+    setServicePage(1);
+  }, [selectedCategoryId, serviceSearch]);
+
+  useEffect(() => {
+    if (servicePage > serviceTotalPages) setServicePage(serviceTotalPages);
+  }, [servicePage, serviceTotalPages]);
+
   useEffect(() => {
     const loadFullCustomer = async () => {
       if (!customer) {
@@ -574,9 +607,14 @@ export default function ReceptionRescueCreateServiceOrder() {
 
     if (record.type === 'customer') {
       if (record.vehicles && record.vehicles.length > 0) {
-        setVehicleInputMode('EXISTING');
-        const availableVehicle = record.vehicles.find((v: any) => !v.isInGarage);
-        setSelectedCustomerVehicleId(String(availableVehicle ? availableVehicle.id : record.vehicles[0].id));
+        const availableVehicle = record.vehicles.find((v: any) => !v.isDisabled);
+        if (availableVehicle) {
+          setVehicleInputMode('EXISTING');
+          setSelectedCustomerVehicleId(String(availableVehicle.id));
+        } else {
+          setVehicleInputMode('NEW');
+          setSelectedCustomerVehicleId('');
+        }
       } else {
         setVehicleInputMode('NEW');
         setSelectedCustomerVehicleId('');
@@ -620,6 +658,15 @@ export default function ReceptionRescueCreateServiceOrder() {
             showToast('Vui lòng chọn xe.', 'warning');
             return;
           }
+          if (vehicleInputMode === 'EXISTING') {
+            const selectedVehicle = selectedRecord.vehicles?.find(
+              (vehicle: any) => String(vehicle.id) === selectedCustomerVehicleId
+            );
+            if (selectedVehicle?.isDisabled) {
+              showToast(selectedVehicle.disableReason || 'Xe này hiện không thể tiếp nhận.', 'warning');
+              return;
+            }
+          }
           if (vehicleInputMode === 'NEW') {
             if (!manualVehiclePlate.trim() || !vehicleBrand.trim() || !vehicleModel.trim()) {
               showToast('Vui lòng điền đầy đủ thông tin Xe (Biển số, Hãng, Dòng xe).', 'warning');
@@ -645,8 +692,6 @@ export default function ReceptionRescueCreateServiceOrder() {
       }
 
       // Determine explicit booking type
-      let finalBookingType = receptionServiceMode === 'SERVICE' ? 'RECEPTIONIST_SPECIFIC' : 'RECEPTIONIST_REPAIR';
-
       // Prepare payload
       let finalVehicleId = null;
       let walkInPayload = undefined;
@@ -667,35 +712,29 @@ export default function ReceptionRescueCreateServiceOrder() {
       }
 
       const payload: any = {
-        appointment_id: linkedAppointmentId ? Number(linkedAppointmentId) : undefined,
-        booking_type: finalBookingType || undefined,
         vehicle_id: finalVehicleId,
         walk_in: walkInPayload,
-        bay_id: null,
-        // Xe cứu hộ đã về gara nên đây là phiếu tiếp nhận làm ngay, không tạo lịch/xếp ca.
-        estimated_finish_time: undefined,
         service_ids: receptionServiceMode === 'SERVICE' ? selectedServiceIds : undefined,
         combo_ids: receptionServiceMode === 'SERVICE' && selectedComboId ? [selectedComboId] : undefined,
         notes: notes.trim() ? notes.trim() : undefined,
-        symptoms: initialCondition.trim() ? initialCondition.trim() : undefined,
+        reception_condition: initialCondition.trim() ? initialCondition.trim() : undefined,
         rescue_id: rescueId ? Number(rescueId) : undefined
       };
 
-      const res = await fetchPrivate(SERVICE_ORDER_API_ENDPOINTS.CREATE, 'POST', payload);
+      setIsSubmitting(true);
+      const res = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.CREATE_WALK_IN, 'POST', payload);
       if (res.success) {
-        showToast('Tạo hóa đơn dịch vụ thành công!', 'success');
+        showToast('Tiếp nhận xe cứu hộ thành công!', 'success');
         setTimeout(() => {
-          if (rescueId) {
-            navigate('/reception/customers');
-          } else {
-            navigate('/reception/appointments');
-          }
+          navigate('/reception/appointments');
         }, 1000);
       } else {
-        throw new Error(res.message || 'Lỗi khi tạo hóa đơn dịch vụ');
+        throw new Error(res.message || 'Lỗi khi tiếp nhận xe cứu hộ');
       }
     } catch (err: any) {
       showToast(err.message, 'warning');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -919,12 +958,12 @@ export default function ReceptionRescueCreateServiceOrder() {
         )}
       </AnimatePresence>
 
-      <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm sm:p-6 md:p-7">
         {/* READONLY CUSTOMER & VEHICLE DISPLAY */}
         {selectedRecord ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {/* COLUMN 1: READONLY CUSTOMER INFO */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 flex flex-col justify-between">
+            <div className="rounded-xl bg-slate-50/70 p-4 sm:p-5 flex flex-col justify-between">
               <div>
                 <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
                   <User size={16} className="text-[#00285E]" />
@@ -942,7 +981,7 @@ export default function ReceptionRescueCreateServiceOrder() {
             </div>
 
             {/* COLUMN 2: VEHICLE INFO */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
+            <div className="rounded-xl bg-slate-50/70 p-4 sm:p-5 space-y-4">
               <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
                 <Car size={16} className="text-[#00285E]" />
                 Thông tin Xe tiếp nhận
@@ -955,8 +994,18 @@ export default function ReceptionRescueCreateServiceOrder() {
                       type="radio"
                       checked={vehicleInputMode === 'EXISTING'}
                       onChange={() => {
+                        const availableVehicle = selectedRecord.vehicles.find((v: any) => !v.isDisabled);
+                        if (!availableVehicle) {
+                          showToast('Tất cả xe đã lưu đều đang có lịch hoặc đang ở trong gara.', 'warning');
+                          return;
+                        }
                         setVehicleInputMode('EXISTING');
-                        if (!selectedCustomerVehicleId) setSelectedCustomerVehicleId(String(selectedRecord.vehicles[0].id));
+                        const currentVehicle = selectedRecord.vehicles.find(
+                          (v: any) => String(v.id) === selectedCustomerVehicleId
+                        );
+                        if (!currentVehicle || currentVehicle.isDisabled) {
+                          setSelectedCustomerVehicleId(String(availableVehicle.id));
+                        }
                       }}
                       className="accent-[#00285E]"
                     />
@@ -982,9 +1031,10 @@ export default function ReceptionRescueCreateServiceOrder() {
                       onChange={(e) => setSelectedCustomerVehicleId(e.target.value)}
                       className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm font-semibold text-slate-700 outline-none transition-all focus:border-[#00285E]"
                     >
+                      <option value="">Chọn xe</option>
                       {selectedRecord.vehicles?.map((v: any) => (
-                        <option key={v.id} value={v.id} disabled={v.isInGarage}>
-                          {v.license_plate} - {v.brand} {v.model} {v.isInGarage ? '(Đang trong xưởng)' : ''}
+                        <option key={v.id} value={v.id} disabled={v.isDisabled}>
+                          {v.license_plate} - {v.brand} {v.model} {v.isDisabled ? `(${v.disableReason})` : ''}
                         </option>
                       ))}
                     </select>
@@ -1094,8 +1144,6 @@ export default function ReceptionRescueCreateServiceOrder() {
             Đang tải thông tin khách hàng từ hệ thống...
           </div>
         )}
-      </div>
-
       {/* SCHEDULED TIME CARD */}
       <div className="hidden bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
         <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
@@ -1150,8 +1198,147 @@ export default function ReceptionRescueCreateServiceOrder() {
         )}
       </div>
 
+      {/* SERVICES / REPAIR */}
+      <div className="mt-5 space-y-5 border-t border-slate-200 pt-5">
+        <div className="flex w-fit gap-2 rounded-xl border border-slate-200/20 bg-slate-100/60 p-1">
+          <button
+            type="button"
+            onClick={() => setReceptionServiceMode('SERVICE')}
+            className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-xs font-bold transition-all ${receptionServiceMode === 'SERVICE'
+              ? 'bg-[#00285E] text-white shadow-sm'
+              : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Settings size={14} />
+            Dịch vụ
+          </button>
+          <button
+            type="button"
+            onClick={() => setReceptionServiceMode('REPAIR')}
+            className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-xs font-bold transition-all ${receptionServiceMode === 'REPAIR'
+              ? 'bg-rose-500 text-white shadow-sm'
+              : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Wrench size={14} />
+            Kiểm tra và Sửa chữa
+          </button>
+        </div>
+
+        {receptionServiceMode === 'SERVICE' && (
+          <div>
+            <div className="mb-4 flex flex-col gap-2 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-slate-800">
+                <Settings size={16} className="text-[#00285E]" />
+                Chọn dịch vụ <span className="text-rose-500">*</span>
+              </h2>
+              <span className="rounded-lg bg-[#EDF3FF] px-3 py-1 text-xs font-bold text-[#00285E]">
+                Đã chọn: {selectedServiceIds.length + (selectedComboId ? 1 : 0)} — Tổng: {formatPrice(selectedTotal)}
+              </span>
+            </div>
+
+            <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_260px]">
+              <div className="relative">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={activeServiceTab === 'single' ? serviceSearch : comboSearch}
+                  onChange={(event) => activeServiceTab === 'single'
+                    ? setServiceSearch(event.target.value)
+                    : setComboSearch(event.target.value)}
+                  placeholder={activeServiceTab === 'single' ? 'Tìm kiếm dịch vụ...' : 'Tìm kiếm combo...'}
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-xs font-medium text-[#00285E] shadow-sm outline-none transition-all focus:border-[#00285E] focus:ring-2 focus:ring-[#00285E]/10"
+                />
+              </div>
+              {activeServiceTab === 'single' && (
+                <select
+                  value={selectedCategoryId ?? ''}
+                  onChange={(event) => setSelectedCategoryId(event.target.value ? Number(event.target.value) : null)}
+                  aria-label="Lọc theo danh mục dịch vụ"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-700 shadow-sm outline-none focus:border-[#00285E]"
+                >
+                  <option value="">Tất cả danh mục</option>
+                  {activeCategories.filter((category: any) => (category.service_count ?? 0) > 0).map((category: any) => (
+                    <option key={category.id} value={category.id}>
+                      {category.category_name} ({category.service_count ?? 0})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div className="mb-4 flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-1">
+              <button
+                type="button"
+                onClick={() => setActiveServiceTab('single')}
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-5 py-2.5 text-xs font-bold ${activeServiceTab === 'single'
+                  ? 'bg-[#00285E] text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-white hover:text-[#00285E]'
+                }`}
+              >
+                <Wrench size={14} /> Dịch vụ lẻ
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveServiceTab('combo')}
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-5 py-2.5 text-xs font-bold ${activeServiceTab === 'combo'
+                  ? 'bg-[#00285E] text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-white hover:text-[#00285E]'
+                }`}
+              >
+                <Package size={14} /> Combo
+              </button>
+            </div>
+
+            {activeServiceTab === 'single' ? (
+              <SingleServicesSelector
+                mappedServices={currentPageServices}
+                activeCategories={activeCategories}
+                selectedServiceIds={selectedServiceIds}
+                setSelectedServiceIds={setSelectedServiceIds}
+                COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
+                t={(key, fallback) => (t as any)(key, fallback)}
+                selectedCategoryId={selectedCategoryId}
+                setSelectedCategoryId={setSelectedCategoryId}
+                servicePage={servicePage}
+                setServicePage={setServicePage}
+                dbCombos={dbCombos}
+                selectedComboId={selectedComboId}
+                serviceTotalPages={serviceTotalPages}
+                searchText={serviceSearch}
+                setSearchText={setServiceSearch}
+                elevated
+                hideFilters
+              />
+            ) : (
+              <ComboServicesSelector
+                dbCombos={dbCombos}
+                setDbCombos={setDbCombos}
+                selectedComboId={selectedComboId}
+                setSelectedComboId={setSelectedComboId}
+                mappedServices={mappedServices}
+                COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
+                selectedServiceIds={selectedServiceIds}
+                setSelectedServiceIds={setSelectedServiceIds}
+                compact
+                elevated
+                hideSearch
+                externalSearchText={comboSearch}
+              />
+            )}
+
+            {selectedServiceIds.length === 0 && !selectedComboId && (
+              <div className="mt-3 flex items-center gap-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-600">
+                <AlertCircle size={14} /> Cần chọn ít nhất 1 dịch vụ hoặc combo.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* REPAIR NOTES */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-6">
+      {receptionServiceMode === 'REPAIR' && (
+      <div className="mt-5 space-y-6 border-t border-slate-200 pt-5">
         <div>
           <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
             <StickyNote size={16} className="text-[#00285E]" />
@@ -1172,21 +1359,7 @@ export default function ReceptionRescueCreateServiceOrder() {
           </div>
         )}
       </div>
-
-      {/* INITIAL VEHICLE CONDITION */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
-        <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 uppercase tracking-widest">
-          <StickyNote size={16} className="text-[#00285E]" />
-          Trạng thái tiếp nhận xe ban đầu
-        </h2>
-        <textarea
-          value={initialCondition}
-          onChange={(e) => setInitialCondition(e.target.value)}
-          placeholder="Ghi chú về tình trạng xe khi tiếp nhận (ví dụ: xước xát thân vỏ, móp méo...)"
-          rows={3}
-          className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all resize-none"
-        />
-      </div>
+      )}
 
       {/* ACTION BUTTONS */}
       <div className="flex items-center justify-end gap-3 pt-2">
@@ -1198,11 +1371,13 @@ export default function ReceptionRescueCreateServiceOrder() {
         </button>
         <button
           onClick={handleSubmit}
-          className="flex items-center gap-2 px-6 py-3 bg-[#00285E] hover:bg-[#001a3f] text-white rounded-xl text-sm font-bold shadow-md shadow-[#00285E]/15 transition-all transform hover:translate-y-[-1px]"
+          disabled={isSubmitting}
+          className="flex items-center gap-2 px-6 py-3 bg-[#00285E] hover:bg-[#001a3f] text-white rounded-xl text-sm font-bold shadow-md shadow-[#00285E]/15 transition-all transform hover:translate-y-[-1px] disabled:cursor-not-allowed disabled:opacity-60"
         >
           <ClipboardPlus size={16} />
-          Xác nhận tiếp nhận & tạo dịch vụ
+          {isSubmitting ? 'Đang tiếp nhận...' : 'Xác nhận tiếp nhận xe'}
         </button>
+      </div>
       </div>
     </div>
   );

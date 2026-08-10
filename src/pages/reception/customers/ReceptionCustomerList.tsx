@@ -87,7 +87,7 @@ export default function ReceptionCustomerList() {
     const { customer } = assignModalData;
     const customerId = customer.id;
 
-    const activeRescue = customer.rescueRequests?.find((r: any) => ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(r.status));
+    const activeRescue = customer.rescueRequests?.find((r: any) => ['PENDING', 'ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'TOWING'].includes(r.status));
     const customerLat = customer.user?.latitude || activeRescue?.customer_lat;
     const customerLng = customer.user?.longitude || activeRescue?.customer_lng;
 
@@ -184,9 +184,10 @@ export default function ReceptionCustomerList() {
                     ? [...customer.rescueRequests].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
                     : null;
 
-                  const activeRescue = latestRescue && ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(latestRescue.status) ? latestRescue : null;
+                  const activeRescue = latestRescue && ['PENDING', 'ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'TOWING'].includes(latestRescue.status) ? latestRescue : null;
                   const hasLocation = (customer.user?.latitude != null && customer.user?.longitude != null) || (activeRescue?.customer_lat != null && activeRescue?.customer_lng != null);
-                  const completedRescue = latestRescue && latestRescue.status === 'COMPLETED' ? latestRescue : null;
+                  const completedRescue = latestRescue && latestRescue.status === 'COMPLETED' && !latestRescue.appointment_id ? latestRescue : null;
+                  const receivedRescue = latestRescue && latestRescue.status === 'COMPLETED' && latestRescue.appointment_id ? latestRescue : null;
                   const serviceCreatedRescue = latestRescue && latestRescue.status === 'SERVICE_CREATED' ? latestRescue : null;
                   const displayName = customer.name || customer.user?.fullName || "Khách hàng ẩn danh";
 
@@ -217,16 +218,19 @@ export default function ReceptionCustomerList() {
                             <span className="text-[10px] font-bold text-[#00285E] bg-[#EDF3FF] px-2.5 py-1 rounded-md border border-blue-100">
                               ĐÃ CỨU HỘ & TIẾP NHẬN
                             </span>
+                          ) : receivedRescue ? (
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
+                              ĐÃ TIẾP NHẬN · CHỜ KỸ THUẬT TRƯỞNG
+                            </span>
                           ) : hasLocation ? (
                             activeRescue && activeRescue.status !== 'PENDING' ? (
                               <div className="flex flex-col items-end gap-2">
                                 <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-md border border-orange-200">
                                   ĐÃ GÁN: {activeRescue.technician?.fullName?.toUpperCase() || 'KTV'} (
                                   {activeRescue.status === 'ASSIGNED' ? 'Đã gán' :
-                                   activeRescue.status === 'ACCEPTED' ? 'KTV Đã nhận' :
                                    activeRescue.status === 'EN_ROUTE' ? 'Đang di chuyển' :
                                    activeRescue.status === 'ARRIVED' ? 'Đã đến nơi' :
-                                   activeRescue.status === 'IN_PROGRESS' ? 'Đang sửa chữa' : activeRescue.status}
+                                   activeRescue.status === 'TOWING' ? 'Đang chở xe về gara' : activeRescue.status}
                                   )
                                 </span>
                                 {activeRescue.status === 'ASSIGNED' && (
@@ -319,8 +323,8 @@ export default function ReceptionCustomerList() {
         onClose={() => setAssignModalData(null)}
         onAssign={handleAssignTechnician}
         customerName={assignModalData ? (assignModalData.customer.name || assignModalData.customer.user?.fullName || 'Khách hàng') : ''}
-        customerLat={assignModalData ? (assignModalData.customer.user?.latitude || assignModalData.customer.rescueRequests?.find((r: any) => ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(r.status))?.customer_lat || undefined) : undefined}
-        customerLng={assignModalData ? (assignModalData.customer.user?.longitude || assignModalData.customer.rescueRequests?.find((r: any) => ['PENDING', 'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(r.status))?.customer_lng || undefined) : undefined}
+        customerLat={assignModalData ? (assignModalData.customer.user?.latitude || assignModalData.customer.rescueRequests?.find((r: any) => ['PENDING', 'ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'TOWING'].includes(r.status))?.customer_lat || undefined) : undefined}
+        customerLng={assignModalData ? (assignModalData.customer.user?.longitude || assignModalData.customer.rescueRequests?.find((r: any) => ['PENDING', 'ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'TOWING'].includes(r.status))?.customer_lng || undefined) : undefined}
       />
 
       <CreateRescueModal
