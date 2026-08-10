@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowUpFromLine,
@@ -12,15 +12,12 @@ import {
   Eye,
   Loader2,
   FileDown,
-  Camera,
-  PackageCheck,
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { EXPORT_LOG_API_ENDPOINTS } from "../../../constants/inventory/exportManagementApiEndPoint";
-import { EXPORT_REQUEST_API_ENDPOINTS } from "../../../constants/inventory/approvedQuoteApiEndPoint";
 
 const PAGE_SIZE = 6;
 
@@ -28,14 +25,6 @@ const formatPrice = (v: number | string) =>
   Number(v).toLocaleString("vi-VN") + " VND";
 
 const formatDate = (d: string) => new Date(d).toLocaleDateString("vi-VN");
-const formatDateTime = (d: string) =>
-  new Date(d).toLocaleString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 
 const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
   const bytes = new Uint8Array(buffer);
@@ -138,7 +127,7 @@ export default function InventoryExport() {
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
 
-  const { fetchPrivate, fetchPrivateForm } = useFetchClient();
+  const { fetchPrivate } = useFetchClient();
   const navigate = useNavigate();
   const [localSearch, setLocalSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -150,13 +139,6 @@ export default function InventoryExport() {
   const [selected, setSelected] = useState<ExportReceipt | null>(null);
   const [detailLines, setDetailLines] = useState<ExportDetailLine[]>([]);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
-
-  // Xác nhận ký nhận ngay tại modal chi tiết, cho phiếu chưa ai ký (proof_image_url null)
-  const [isSigningMode, setIsSigningMode] = useState(false);
-  const [proofPhotoFile, setProofPhotoFile] = useState<File | null>(null);
-  const [proofPhotoPreview, setProofPhotoPreview] = useState<string | null>(null);
-  const [isSubmittingSignature, setIsSubmittingSignature] = useState(false);
-  const proofPhotoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     handleGetExportHistory();
@@ -194,48 +176,6 @@ export default function InventoryExport() {
   const closeDetail = () => {
     setSelected(null);
     setDetailLines([]);
-    closeSigningMode();
-  };
-
-  const closeSigningMode = () => {
-    setIsSigningMode(false);
-    setProofPhotoFile(null);
-    if (proofPhotoPreview) URL.revokeObjectURL(proofPhotoPreview);
-    setProofPhotoPreview(null);
-    if (proofPhotoInputRef.current) proofPhotoInputRef.current.value = "";
-  };
-
-  const handleProofPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (proofPhotoPreview) URL.revokeObjectURL(proofPhotoPreview);
-    setProofPhotoFile(file);
-    setProofPhotoPreview(URL.createObjectURL(file));
-  };
-
-  const handleSubmitSignature = async () => {
-    if (!selected || !proofPhotoFile) {
-      showToast("Vui lòng chụp ảnh phiếu đã ký trước khi xác nhận", "warning");
-      return;
-    }
-    setIsSubmittingSignature(true);
-    try {
-      const formData = new FormData();
-      formData.append("proofPhoto", proofPhotoFile);
-      await fetchPrivateForm(
-        EXPORT_REQUEST_API_ENDPOINTS.SIGN(selected.receipt_code),
-        "POST",
-        formData,
-      );
-      showToast("Đã xác nhận nhận phụ tùng thành công!", "success");
-      closeSigningMode();
-      await handleGetExportHistory();
-      await openDetail(selected);
-    } catch (error: unknown) {
-      showToast(error instanceof Error ? error.message : "Xác nhận thất bại", "warning");
-    } finally {
-      setIsSubmittingSignature(false);
-    }
   };
 
   const handleDownloadReceiptPdf = async () => {
@@ -496,7 +436,7 @@ export default function InventoryExport() {
                 <th className="py-4 px-4">Ngày xuất</th>
                 <th className="py-4 px-4">Số phụ tùng</th>
                 <th className="py-4 px-4">Tổng giá trị</th>
-                <th className="py-4 px-4">Ký nhận</th>
+                <th className="py-4 px-4">Trạng thái</th>
                 <th className="py-4 px-6">Thao tác</th>
               </tr>
             </thead>
@@ -541,15 +481,9 @@ export default function InventoryExport() {
                       {formatPrice(r.total_amount)}
                     </td>
                     <td className="py-4 px-4">
-                      {r.signature_method ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 whitespace-nowrap">
-                          Đã xác nhận · {r.technician_name || "KTV"}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200 whitespace-nowrap">
-                          Chưa xác nhận
-                        </span>
-                      )}
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 whitespace-nowrap">
+                        Đã xuất kho
+                      </span>
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex justify-start">
@@ -609,7 +543,6 @@ export default function InventoryExport() {
       {/* ── DETAIL MODAL ── */}
       <AnimatePresence>
         {selected && (() => {
-          const isSigned = detailLines.some((line) => line.proof_image_url);
           return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div
@@ -682,105 +615,14 @@ export default function InventoryExport() {
                   </div>
                 </div>
 
-                {/* Xác nhận nhận hàng */}
+                {/* Trạng thái */}
                 <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
-                    Xác nhận nhận hàng
+                    Trạng thái
                   </span>
-                  {(() => {
-                    const signedLine = detailLines.find((line) => line.proof_image_url);
-                    if (!signedLine) {
-                      if (isSigningMode) {
-                        return (
-                          <div className="space-y-3">
-                            <input
-                              ref={proofPhotoInputRef}
-                              type="file"
-                              accept="image/*"
-                              capture="environment"
-                              className="hidden"
-                              onChange={handleProofPhotoChange}
-                            />
-                            {proofPhotoPreview ? (
-                              <div className="flex items-start gap-4">
-                                <img
-                                  src={proofPhotoPreview}
-                                  alt="Xem trước ảnh phiếu đã ký"
-                                  className="w-40 h-24 object-contain border border-slate-200 rounded-lg bg-slate-50"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => proofPhotoInputRef.current?.click()}
-                                  className="text-xs font-bold text-[#00285E] hover:text-[#001E46]"
-                                >
-                                  Chụp lại
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => proofPhotoInputRef.current?.click()}
-                                className="w-full flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 py-8 text-slate-500 hover:border-[#00285E]/40 hover:text-[#00285E] transition-colors"
-                              >
-                                <Camera size={24} />
-                                <span className="text-sm font-bold">Chụp ảnh phiếu đã ký</span>
-                              </button>
-                            )}
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={closeSigningMode}
-                                disabled={isSubmittingSignature}
-                                className="h-10 px-4 rounded-xl text-xs font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-40"
-                              >
-                                Hủy
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => void handleSubmitSignature()}
-                                disabled={isSubmittingSignature || !proofPhotoFile}
-                                className="h-10 flex items-center gap-1.5 px-4 rounded-xl text-xs font-bold text-white bg-[#00285E] hover:bg-[#001E46] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                              >
-                                {isSubmittingSignature ? (
-                                  <Loader2 size={13} className="animate-spin" />
-                                ) : (
-                                  <PackageCheck size={13} />
-                                )}
-                                Xác nhận
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
-                          Chưa xác nhận
-                        </span>
-                      );
-                    }
-                    return (
-                      <div className="flex items-start gap-4">
-                        <img
-                          src={signedLine.proof_image_url ?? undefined}
-                          alt="Ảnh phiếu xuất kho đã ký"
-                          className="w-40 h-24 object-contain border border-slate-200 rounded-lg bg-slate-50"
-                        />
-                        <div className="space-y-1">
-                          <p className="text-sm font-semibold text-slate-800">
-                            {signedLine.receiver?.fullName || selected.technician_name || "—"}
-                          </p>
-                          {signedLine.received_at && (
-                            <p className="text-xs text-slate-400">
-                              Xác nhận lúc {formatDateTime(signedLine.received_at)}
-                            </p>
-                          )}
-                          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
-                            Đã ký nhận
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })()}
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+                    Đã xuất kho
+                  </span>
                 </div>
 
                 {/* Phụ tùng đã xuất */}
@@ -863,16 +705,6 @@ export default function InventoryExport() {
                     {formatPrice(selected.total_amount)}
                   </span>
                 </div>
-                {!isSigned && (
-                  <button
-                    type="button"
-                    onClick={() => setIsSigningMode(true)}
-                    className="h-11 flex items-center gap-1.5 px-5 rounded-xl text-sm font-bold text-white bg-[#00285E] hover:bg-[#001E46] active:scale-[0.98] transition-all"
-                  >
-                    <Camera size={15} />
-                    Xác nhận ký nhận
-                  </button>
-                )}
               </div>
             </motion.div>
           </div>

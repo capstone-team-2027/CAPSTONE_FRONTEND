@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Siren, MapPin, Navigation, Phone, CheckCircle, CarFront, Loader2 } from 'lucide-react';
+import { Siren, MapPin, Navigation, Phone, CheckCircle, CarFront, Loader2, Radio, RadioTower } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { TASK_ASSIGNMENT_ENDPOINTS } from '../../../constants/technician/taskAssignmentEndpoint';
 import { useSocket } from '../../../hook/useSocket';
@@ -90,12 +90,13 @@ export default function TechnicianRescuePage() {
   const [duration, setDuration] = useState<string>('');
   const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
 
-  // Car animation state
   const [carLocation, setCarLocation] = useState<[number, number]>([15.9675, 108.2605]);
-  const animationRef = useRef<number | null>(null);
-
   const [technicianLocation, setTechnicianLocation] = useState<[number, number]>([15.9675, 108.2605]); // Default to Garage Đà Nẵng, update via GPS
   const [hasTechnicianLocation, setHasTechnicianLocation] = useState(false);
+  const [isSharingLocation, setIsSharingLocation] = useState(false);
+  const gpsWatchRef = useRef<number | null>(null);
+  const lastLocationEmitRef = useRef(0);
+  const lastRouteFetchRef = useRef(0);
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' | 'warning') => {
     setToastMessage({ text, type });
@@ -118,57 +119,56 @@ export default function TechnicianRescuePage() {
     }
   };
 
-  useEffect(() => {
-    let watchId: number | null = null;
-    const garageLocation: [number, number] = [15.9675, 108.2605];
-
-    if ("geolocation" in navigator) {
-      // Lấy nhanh vị trí GPS hiện tại lần đầu
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          setTechnicianLocation([lat, lng]);
-          setCarLocation([lat, lng]);
-          setHasTechnicianLocation(true);
-        },
-        (error) => {
-          console.error("Lỗi khi lấy vị trí ban đầu của Kỹ thuật viên:", error);
-          showToast("Không thể định vị GPS. Đang dùng vị trí mặc định (Garage Đà Nẵng).", "warning");
-          setTechnicianLocation(garageLocation);
-          setCarLocation(garageLocation);
-          setHasTechnicianLocation(true);
-        },
-        { enableHighAccuracy: true, timeout: 5000 }
-      );
-
-      // Thiết lập theo dõi vị trí GPS di chuyển liên tục
-      watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          setTechnicianLocation([lat, lng]);
-          setCarLocation([lat, lng]);
-          setHasTechnicianLocation(true);
-        },
-        (error) => {
-          console.error("Lỗi watchPosition của Kỹ thuật viên:", error);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    } else {
-      showToast("Trình duyệt không hỗ trợ GPS. Đang dùng vị trí mặc định (Garage Đà Nẵng).", "warning");
-      setTechnicianLocation(garageLocation);
-      setCarLocation(garageLocation);
-      setHasTechnicianLocation(true);
-    }
-
-    return () => {
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-      }
-    };
+  const stopLocationSharing = useCallback(() => {
+    if (gpsWatchRef.current !== null) navigator.geolocation.clearWatch(gpsWatchRef.current);
+    gpsWatchRef.current = null;
+    setIsSharingLocation(false);
   }, []);
+
+  const getCurrentGps = () => new Promise<[number, number]>((resolve, reject) => {
+    if (!("geolocation" in navigator)) return reject(new Error('Thiết bị không hỗ trợ GPS'));
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve([position.coords.latitude, position.coords.longitude]),
+      reject,
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 3000 }
+    );
+  });
+
+  const startLocationSharing = useCallback((rescueId: number) => {
+    if (!("geolocation" in navigator) || gpsWatchRef.current !== null) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    socket.emit('join-rescue-tracking', { rescueId, token });
+    gpsWatchRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const now = Date.now();
+        const location: [number, number] = [position.coords.latitude, position.coords.longitude];
+        setTechnicianLocation(location);
+        setCarLocation(location);
+        setHasTechnicianLocation(true);
+        if (now - lastLocationEmitRef.current < 3000) return;
+        lastLocationEmitRef.current = now;
+        socket.emit('update-rescue-location', {
+          token,
+          rescueId,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          heading: position.coords.heading,
+          speed: position.coords.speed,
+        });
+      },
+      (error) => {
+        console.error('Lỗi chia sẻ GPS:', error);
+        showToast('Mất tín hiệu GPS. Hãy kiểm tra quyền vị trí trên điện thoại.', 'warning');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 3000 }
+    );
+    setIsSharingLocation(true);
+  }, [socket]);
+
+  useEffect(() => () => stopLocationSharing(), [stopLocationSharing]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -196,6 +196,10 @@ export default function TechnicianRescuePage() {
   // vừa nhận xe), đích là Gara — không dùng GPS realtime nữa vì KTV đang lái, không đứng yên bấm nút.
   useEffect(() => {
     if (!rescueTask?.customer_lat || !rescueTask?.customer_lng) return;
+    const now = Date.now();
+    const isLiveMovement = rescueTask.status === 'EN_ROUTE' || rescueTask.status === 'TOWING';
+    if (isLiveMovement && now - lastRouteFetchRef.current < 20000) return;
+    lastRouteFetchRef.current = now;
 
     const isTowingBack = rescueTask.status === 'TOWING' || rescueTask.status === 'COMPLETED';
     const customerLat = parseFloat(rescueTask.customer_lat);
@@ -220,8 +224,6 @@ export default function TechnicianRescuePage() {
             (c: [number, number]) => [c[1], c[0]]
           );
           setRouteCoords(coordsArray);
-          setCarLocation(coordsArray[0]);
-
           const bounds = L.latLngBounds([from, to]);
           coordsArray.forEach(c => bounds.extend(c));
           setMapBounds(bounds);
@@ -235,7 +237,7 @@ export default function TechnicianRescuePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rescueTask?.customer_lat, rescueTask?.customer_lng, rescueTask?.status, technicianLocation]);
 
-  const updateStatus = async (newStatus: string) => {
+  const updateStatus = async (newStatus: string, gpsLocation?: [number, number]) => {
     if (!rescueTask) return;
     try {
       setActionLoading(true);
@@ -246,23 +248,30 @@ export default function TechnicianRescuePage() {
         // Gara) — BE lưu vào User.latitude/longitude và gửi lại cho khách hàng để cả 2 phía tính
         // CÙNG 1 route xuất phát từ vị trí thật.
         ...(newStatus === 'EN_ROUTE' || newStatus === 'TOWING'
-          ? { technicianLat: technicianLocation[0], technicianLng: technicianLocation[1] }
+          ? { technicianLat: (gpsLocation || technicianLocation)[0], technicianLng: (gpsLocation || technicianLocation)[1] }
           : {}),
       });
+      lastRouteFetchRef.current = 0;
       setRescueTask({ ...rescueTask, status: newStatus });
 
       // Không tự gọi startCarSimulation() ở đây — route cho đoạn mới (EN_ROUTE/TOWING) chưa kịp
       // fetch xong tại thời điểm này. Effect riêng theo dõi routeCoords sẽ tự bắt đầu animation
       // đúng lúc route mới đã sẵn sàng.
-      if (newStatus === 'EN_ROUTE') showToast('Đã bắt đầu di chuyển!', 'success');
-      else if (newStatus === 'ARRIVED') {
-        showToast('Đã đến nơi thành công!', 'success');
-        if (animationRef.current) clearInterval(animationRef.current);
+      if (newStatus === 'EN_ROUTE') {
+        startLocationSharing(rescueTask.id);
+        showToast('Đã bắt đầu di chuyển và chia sẻ GPS thật!', 'success');
       }
-      else if (newStatus === 'TOWING') showToast('Đã bắt đầu chở xe về Gara!', 'success');
+      else if (newStatus === 'ARRIVED') {
+        stopLocationSharing();
+        showToast('Đã đến nơi thành công!', 'success');
+      }
+      else if (newStatus === 'TOWING') {
+        startLocationSharing(rescueTask.id);
+        showToast('Đã bắt đầu chở xe về Gara và chia sẻ GPS thật!', 'success');
+      }
       else if (newStatus === 'COMPLETED') {
+        stopLocationSharing();
         showToast('Đã đưa xe về Gara thành công! Đang chuyển trang...', 'success');
-        if (animationRef.current) clearInterval(animationRef.current);
       }
 
     } catch (error) {
@@ -273,32 +282,18 @@ export default function TechnicianRescuePage() {
     }
   };
 
-  const startCarSimulation = () => {
-    if (routeCoords.length === 0) return;
-    
-    let currentIndex = 0;
-    if (animationRef.current) clearInterval(animationRef.current);
-    
-    animationRef.current = setInterval(() => {
-      if (currentIndex < routeCoords.length - 1) {
-        currentIndex++;
-        setCarLocation(routeCoords[currentIndex]);
-      } else {
-        if (animationRef.current) clearInterval(animationRef.current);
-      }
-    }, 50) as unknown as number;
-  };
-
-  // Tự động chạy animation xe di chuyển bất cứ khi nào có route mới cho đoạn đang active
-  // (EN_ROUTE: tới khách, TOWING: chở về Gara) — kể cả khi vừa F5 lại trang giữa chừng.
-  useEffect(() => {
-    if ((rescueTask?.status === 'EN_ROUTE' || rescueTask?.status === 'TOWING') && routeCoords.length > 0) {
-      startCarSimulation();
+  const beginMovement = async (status: 'EN_ROUTE' | 'TOWING') => {
+    try {
+      const location = await getCurrentGps();
+      setTechnicianLocation(location);
+      setCarLocation(location);
+      setHasTechnicianLocation(true);
+      await updateStatus(status, location);
+    } catch (error) {
+      console.error('Không thể bắt đầu GPS:', error);
+      showToast('Không thể bắt đầu di chuyển vì chưa lấy được GPS. Hãy bật quyền vị trí.', 'error');
     }
-    return () => {
-      if (animationRef.current) clearInterval(animationRef.current);
-    };
-  }, [rescueTask?.status, routeCoords]); // eslint-disable-line react-hooks/exhaustive-deps
+  };
 
   if (loading) {
     return (
@@ -485,9 +480,35 @@ export default function TechnicianRescuePage() {
               animate={{ opacity: 1, y: 0 }}
               className="pointer-events-auto mx-auto w-full max-w-md"
             >
+              {(rescueTask.status === 'EN_ROUTE' || rescueTask.status === 'TOWING') && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (isSharingLocation) {
+                      stopLocationSharing();
+                      showToast('Đã tắt chia sẻ vị trí.', 'info');
+                    } else {
+                      try {
+                        const location = await getCurrentGps();
+                        setTechnicianLocation(location);
+                        setCarLocation(location);
+                        setHasTechnicianLocation(true);
+                        startLocationSharing(rescueTask.id);
+                        showToast('Đã bật chia sẻ GPS thật.', 'success');
+                      } catch {
+                        showToast('Không lấy được GPS. Hãy cấp quyền vị trí cho trình duyệt.', 'error');
+                      }
+                    }
+                  }}
+                  className={`mb-3 w-full rounded-xl border px-4 py-2.5 font-bold shadow-lg flex items-center justify-center gap-2 ${isSharingLocation ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-700'}`}
+                >
+                  {isSharingLocation ? <RadioTower size={18} className="animate-pulse" /> : <Radio size={18} />}
+                  {isSharingLocation ? 'ĐANG CHIA SẺ GPS · BẤM ĐỂ TẮT' : 'BẬT CHIA SẺ GPS'}
+                </button>
+              )}
               {rescueTask.status === 'ASSIGNED' && (
                 <button 
-                  onClick={() => updateStatus('EN_ROUTE')}
+                  onClick={() => beginMovement('EN_ROUTE')}
                   disabled={actionLoading}
                   className="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-full font-black tracking-wide shadow-2xl hover:scale-105 transition-all flex items-center justify-center gap-2 text-lg animate-bounce"
                 >
@@ -496,6 +517,8 @@ export default function TechnicianRescuePage() {
                 </button>
               )}
 
+              {/* TEST: tạm thời chưa kiểm tra khoảng cách <= 100 m.
+                  Khi triển khai thật, bổ sung `&& canConfirmArrival` vào điều kiện bên dưới. */}
               {rescueTask.status === 'EN_ROUTE' && (
                 <button 
                   onClick={() => updateStatus('ARRIVED')}
@@ -509,7 +532,7 @@ export default function TechnicianRescuePage() {
               
               {rescueTask.status === 'ARRIVED' && (
                 <button
-                  onClick={() => updateStatus('TOWING')}
+                  onClick={() => beginMovement('TOWING')}
                   disabled={actionLoading}
                   className="w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl font-black tracking-wide shadow-2xl hover:scale-105 transition-all flex items-center justify-center gap-2 text-center text-sm sm:text-base leading-snug"
                 >

@@ -25,9 +25,6 @@ import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/reception/appointm
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   pending: { label: 'Chờ xác nhận', color: '#D97706', bg: '#FEF3C7', icon: Clock },
   confirmed: { label: 'Chờ tiếp nhận', color: '#2563EB', bg: '#DBEAFE', icon: Clock },
-  technicaian_recieved: { label: 'Đã tiếp nhận', color: '#EA580C', bg: '#FED7AA', icon: CheckCircle2 },
-  technician_received: { label: 'Đã tiếp nhận', color: '#EA580C', bg: '#FED7AA', icon: CheckCircle2 },
-  information_recieved: { label: 'Đã tiếp nhận', color: '#EA580C', bg: '#FED7AA', icon: CheckCircle2 },
   information_received: { label: 'Đã tiếp nhận', color: '#EA580C', bg: '#FED7AA', icon: CheckCircle2 },
   in_progress: { label: 'Đã tiếp nhận ', color: '#EA580C', bg: '#FED7AA', icon: Loader2 },
   completed: { label: 'Đã tiếp nhận', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
@@ -157,21 +154,16 @@ export default function AppointmentList() {
 
           return {
             id: String(appt.id),
-            customerId: appt.customer?.id ? String(appt.customer.id) : '',
             customerName: appt.customer?.user?.fullName || appt.customer?.name || 'Khách vãng lai',
             customerPhone: appt.customer?.user?.phoneNumber || appt.customer?.phone || '',
             customerEmail: appt.customer?.user?.email || undefined,
-            vehicleId: appt.vehicle?.id ? String(appt.vehicle.id) : '',
             vehiclePlate: appt.vehicle?.license_plate || 'Chưa cập nhật',
             vehicleModel: appt.vehicle?.model
               ? `${appt.vehicle.model.make?.make_name || ''} ${appt.vehicle.model.model_name || ''}`.trim()
               : 'Chưa cập nhật',
             vehicleYear: appt.vehicle?.year || undefined,
-            vehicleColor: appt.vehicle?.color || undefined,
-            vinNumber: appt.vehicle?.vin_number || undefined,
             hasServiceOrder: !!appt.serviceOrder,
             serviceOrderId: appt.serviceOrder?.id || null,
-            hasOdo: (appt.serviceOrder?.current_odo || 0) > 0,
             services,
             serviceDetails,
             appointmentDate,
@@ -219,9 +211,7 @@ export default function AppointmentList() {
     const apptId = selectedApptForReceive.id;
     try {
       setIsSubmittingVin(true);
-      const receiveResponse = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.RECEIVE_APPOINTMENT(apptId), 'PUT', {
-        status: 'Technicaian_recieved',
-      });
+      const receiveResponse = await fetchPrivate(APPOINTMENT_API_ENDPOINTS.RECEIVE_APPOINTMENT(apptId), 'PUT', {});
       if (!receiveResponse.success) {
         throw new Error(receiveResponse.message || 'Lỗi tiếp nhận lịch hẹn');
       }
@@ -281,7 +271,7 @@ export default function AppointmentList() {
       } else if (statusFilter === 'unreceived') {
         matchStatus = apt.status === 'pending' || apt.status === 'confirmed';
       } else if (statusFilter === 'received') {
-        matchStatus = apt.status === 'technicaian_recieved' || apt.status === 'in_progress' || apt.status === 'completed';
+        matchStatus = apt.status === 'information_received' || apt.status === 'in_progress' || apt.status === 'completed';
       } else if (statusFilter === 'cancelled') {
         matchStatus = apt.status === 'cancelled' || apt.status === 'no_show' || apt.status === 'expired';
       } else {
@@ -317,7 +307,7 @@ export default function AppointmentList() {
   const tabCounts = useMemo(() => {
     return {
       unreceived: appointments.filter((a) => a.status === 'pending' || a.status === 'confirmed').length,
-      received: appointments.filter((a) => a.status === 'technicaian_recieved' || a.status === 'in_progress' || a.status === 'completed').length,
+      received: appointments.filter((a) => a.status === 'information_received' || a.status === 'in_progress' || a.status === 'completed').length,
       cancelled: appointments.filter((a) => a.status === 'cancelled' || a.status === 'no_show' || a.status === 'expired').length,
       all: appointments.length,
     };

@@ -113,12 +113,14 @@ const ASSIGNMENT_STATUS_DOT: Record<string, string> = {
   IN_PROGRESS: "bg-blue-500",
   ASSIGNED: "bg-amber-500",
   PAUSED: "bg-slate-400",
+  COMPLETED: "bg-emerald-500",
 };
 
 const ASSIGNMENT_STATUS_LABEL: Record<string, string> = {
   IN_PROGRESS: "Đang làm",
   ASSIGNED: "Chờ làm",
   PAUSED: "Tạm dừng",
+  COMPLETED: "Đã xong",
 };
 
 // Nhãn tay nghề kỹ thuật viên
@@ -1388,60 +1390,58 @@ export default function LeaderAssignments() {
 
               <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5 bg-slate-50/50">
                 {/* Thống kê khối lượng */}
-                <div className="grid grid-cols-3 gap-2.5">
-                  <div className="bg-white rounded-xl border border-slate-200/70 p-3 text-center">
-                    <div className="text-xl font-bold text-slate-900">
-                      {techDetail.remaining_count}
+                <div className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden">
+                  <div className="grid grid-cols-2 divide-x divide-slate-100">
+                    <div className="p-4 text-center">
+                      <div className="text-xl font-bold text-emerald-600">
+                        {techDetail.completed_count}
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                        Đã hoàn thành
+                      </p>
                     </div>
-                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                      Việc còn lại
-                    </p>
-                  </div>
-                  <div className="bg-white rounded-xl border border-slate-200/70 p-3 text-center">
-                    <div className="text-xl font-bold text-emerald-600">
-                      {techDetail.completed_count}
+                    <div className="p-4 text-center">
+                      <div className="text-xl font-bold text-slate-900">
+                        {techDetail.total_assigned}
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                        Tổng được giao
+                      </p>
                     </div>
-                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                      Đã hoàn thành
-                    </p>
                   </div>
-                  <div className="bg-white rounded-xl border border-slate-200/70 p-3 text-center">
-                    <div className="text-xl font-bold text-slate-900">
-                      {techDetail.total_assigned}
-                    </div>
-                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                      Tổng được giao
-                    </p>
-                  </div>
-                </div>
 
-                {/* Phân bổ trạng thái */}
-                <div className="bg-white rounded-2xl border border-slate-200/70 p-4 space-y-2.5">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
-                    Việc chưa xong
-                  </span>
-                  {(
-                    [
-                      ["IN_PROGRESS", techDetail.in_progress_count],
-                      ["ASSIGNED", techDetail.pending_count],
-                      ["PAUSED", techDetail.paused_count],
-                    ] as const
-                  ).map(([status, count]) => (
-                    <div
-                      key={status}
-                      className="flex items-center justify-between"
-                    >
-                      <span className="inline-flex items-center gap-2 text-sm text-slate-600">
-                        <span
-                          className={`w-2 h-2 rounded-full ${ASSIGNMENT_STATUS_DOT[status]}`}
-                        />
-                        {ASSIGNMENT_STATUS_LABEL[status]}
+                  <div className="border-t border-slate-100 p-4 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Việc còn lại
                       </span>
                       <span className="text-sm font-bold text-slate-800">
-                        {count}
+                        {techDetail.remaining_count}
                       </span>
                     </div>
-                  ))}
+                    {(
+                      [
+                        ["IN_PROGRESS", techDetail.in_progress_count],
+                        ["ASSIGNED", techDetail.pending_count],
+                        ["PAUSED", techDetail.paused_count],
+                      ] as const
+                    ).map(([status, count]) => (
+                      <div
+                        key={status}
+                        className="flex items-center justify-between"
+                      >
+                        <span className="inline-flex items-center gap-2 text-sm text-slate-600">
+                          <span
+                            className={`w-2 h-2 rounded-full ${ASSIGNMENT_STATUS_DOT[status]}`}
+                          />
+                          {ASSIGNMENT_STATUS_LABEL[status]}
+                        </span>
+                        <span className="text-sm font-bold text-slate-800">
+                          {count}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Danh sách việc đang gánh */}

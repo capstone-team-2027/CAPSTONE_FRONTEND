@@ -115,6 +115,9 @@ export default function ReceptionCreateAppointment() {
   // Walk-in mode manual entry
   const [manualCustName, setManualCustName] = useState('');
   const [manualCustPhone, setManualCustPhone] = useState('');
+  // SĐT khách mới trùng khách đã có trong hệ thống — chặn tạo mới, mời chuyển sang dùng khách cũ.
+  const [duplicateCustomer, setDuplicateCustomer] = useState<any | null>(null);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
 
   // Vehicle Selection States for existing customers
   const [vehicleInputMode, setVehicleInputMode] = useState<'EXISTING' | 'NEW'>('EXISTING');
@@ -527,6 +530,45 @@ export default function ReceptionCreateAppointment() {
     return () => clearTimeout(timer);
   }, [recordSearch, fetchPrivate]);
 
+  // Ở tab "Khách vãng lai lần đầu": SĐT vừa gõ có thể đã thuộc về 1 khách có sẵn trong hệ
+  // thống — cảnh báo ngay để lễ tân chuyển sang dùng khách cũ, tránh BE âm thầm ghi đè/lẫn tên.
+  useEffect(() => {
+    if (mode !== 'first_time') {
+      setDuplicateCustomer(null);
+      return;
+    }
+    const searchTerm = manualCustPhone.replace(/\D/g, '').replace(/^84/, '');
+    if (!searchTerm) {
+      setDuplicateCustomer(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsCheckingDuplicate(true);
+      try {
+        const res = await fetchPrivate(SEARCH_API_ENDPOINTS.CUSTOMER_INFO_BY_PHONE, 'POST', {
+          phone: searchTerm,
+          partial: true,
+        });
+        const customers = Array.isArray(res?.data?.customers) ? res.data.customers : [];
+        const exactMatch = customers.find(
+          (c: any) => String(c.phone).replace(/\D/g, '').replace(/^84/, '') === searchTerm,
+        );
+        setDuplicateCustomer(
+          exactMatch
+            ? { type: 'customer', id: exactMatch.id, name: exactMatch.customer_name, phone: exactMatch.phone, vehicles: exactMatch.vehicles || [] }
+            : null,
+        );
+      } catch (err) {
+        console.error('Không thể kiểm tra số điện thoại:', err);
+        setDuplicateCustomer(null);
+      } finally {
+        setIsCheckingDuplicate(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [mode, manualCustPhone, fetchPrivate]);
+
   // Search algorithm for Tab "Khách hàng cũ"
   const handleSearchRecord = async () => {
     const phoneSearchTerm = recordSearch.replace(/\D/g, '').replace(/^84/, '');
@@ -637,6 +679,10 @@ export default function ReceptionCreateAppointment() {
       } else {
         if (!manualCustName.trim() || !manualCustPhone.trim() || !manualVehiclePlate.trim() || !vehicleBrand.trim() || !vehicleModel.trim()) {
           showToast('Vui lòng điền đầy đủ thông tin Khách hàng và Xe.', 'warning');
+          return;
+        }
+        if (duplicateCustomer) {
+          showToast('Số điện thoại này đã có khách hàng trong hệ thống. Vui lòng chọn khách hàng có sẵn.', 'warning');
           return;
         }
       }
@@ -1036,6 +1082,34 @@ export default function ReceptionCreateAppointment() {
                       inputProps={{ name: 'phone' }}
                     />
                   </div>
+                  {isCheckingDuplicate && (
+                    <p className="mt-2 text-xs font-semibold text-slate-400">Đang kiểm tra số điện thoại...</p>
+                  )}
+                  {duplicateCustomer && (
+                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3.5">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-amber-800">
+                            Số điện thoại này đã thuộc về khách hàng "{duplicateCustomer.name}"
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-amber-700">
+                            Đã có {duplicateCustomer.vehicles?.length || 0} xe trong hệ thống. Vui lòng chọn khách hàng có sẵn để tránh trùng/nhầm hồ sơ.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMode('existing');
+                              handleSelectRecord(duplicateCustomer);
+                            }}
+                            className="mt-2.5 rounded-lg bg-amber-600 px-3 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-amber-700"
+                          >
+                            Chọn khách hàng này
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

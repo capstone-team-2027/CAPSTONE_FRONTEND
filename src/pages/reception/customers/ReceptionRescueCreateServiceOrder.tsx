@@ -198,7 +198,6 @@ export default function ReceptionRescueCreateServiceOrder() {
   const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
   const [selectedCombos, setSelectedCombos] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState(''); // Mô tả tình trạng hỏng hóc
-  const [initialCondition, setInitialCondition] = useState(''); // Trạng thái tiếp nhận xe ban đầu
   const [receptionServiceMode, setReceptionServiceMode] = useState<'SERVICE' | 'REPAIR'>('REPAIR');
   const [serviceSearch, setServiceSearch] = useState('');
   const [comboSearch, setComboSearch] = useState('');
@@ -690,7 +689,6 @@ export default function ReceptionRescueCreateServiceOrder() {
         showToast('Vui lòng điền mô tả tình trạng sửa chữa.', 'warning');
         return;
       }
-
       // Determine explicit booking type
       // Prepare payload
       let finalVehicleId = null;
@@ -717,7 +715,6 @@ export default function ReceptionRescueCreateServiceOrder() {
         service_ids: receptionServiceMode === 'SERVICE' ? selectedServiceIds : undefined,
         combo_ids: receptionServiceMode === 'SERVICE' && selectedComboId ? [selectedComboId] : undefined,
         notes: notes.trim() ? notes.trim() : undefined,
-        reception_condition: initialCondition.trim() ? initialCondition.trim() : undefined,
         rescue_id: rescueId ? Number(rescueId) : undefined
       };
 
@@ -1144,240 +1141,240 @@ export default function ReceptionRescueCreateServiceOrder() {
             Đang tải thông tin khách hàng từ hệ thống...
           </div>
         )}
-      {/* SCHEDULED TIME CARD */}
-      <div className="hidden bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
-        <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
-          <Calendar size={16} className="text-[#00285E]" />
-          Thời gian xếp ca vào sửa <span className="text-slate-400 font-normal">(Chọn khung giờ xếp lớp xe vào sửa)</span>
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-              <Calendar size={14} className="text-slate-400" />
-              Ngày xếp ca
-            </label>
-            <input
-              type="date"
-              value={bookingDate}
-              min={minDateStr}
-              onChange={(e) => setBookingDate(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-700"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-              <Clock size={14} className="text-slate-400" />
-              Khung ca hẹn khả dụng
-            </label>
-            <select
-              value={bookingTime}
-              onChange={(e) => setBookingTime(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-700"
-            >
-              <option value="">-- Chọn ca hẹn hoặc để trống làm ngay --</option>
-              {timeSlots.map((slot) => {
-                const [slotH, slotM] = slot.time.split(':').map(Number);
-                const slotMinutes = slotH * 60 + slotM;
-                const now = new Date();
-                const nowMinutes = now.getHours() * 60 + now.getMinutes();
-                const isPast = bookingDate === minDateStr && slotMinutes < nowMinutes;
-                return (
-                  <option key={slot.time} value={slot.time} disabled={slot.isFull}>
-                    {slot.time} ({slot.label}){slot.isFull ? (isPast ? ' - Đã qua giờ' : ' - Kín lịch') : ''}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-        </div>
-        {timeSlots.length === 0 && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
-            <AlertCircle size={14} />
-            Không có khung giờ khả dụng cho ngày đã chọn.
-          </div>
-        )}
-      </div>
-
-      {/* SERVICES / REPAIR */}
-      <div className="mt-5 space-y-5 border-t border-slate-200 pt-5">
-        <div className="flex w-fit gap-2 rounded-xl border border-slate-200/20 bg-slate-100/60 p-1">
-          <button
-            type="button"
-            onClick={() => setReceptionServiceMode('SERVICE')}
-            className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-xs font-bold transition-all ${receptionServiceMode === 'SERVICE'
-              ? 'bg-[#00285E] text-white shadow-sm'
-              : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Settings size={14} />
-            Dịch vụ
-          </button>
-          <button
-            type="button"
-            onClick={() => setReceptionServiceMode('REPAIR')}
-            className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-xs font-bold transition-all ${receptionServiceMode === 'REPAIR'
-              ? 'bg-rose-500 text-white shadow-sm'
-              : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Wrench size={14} />
-            Kiểm tra và Sửa chữa
-          </button>
-        </div>
-
-        {receptionServiceMode === 'SERVICE' && (
-          <div>
-            <div className="mb-4 flex flex-col gap-2 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-slate-800">
-                <Settings size={16} className="text-[#00285E]" />
-                Chọn dịch vụ <span className="text-rose-500">*</span>
-              </h2>
-              <span className="rounded-lg bg-[#EDF3FF] px-3 py-1 text-xs font-bold text-[#00285E]">
-                Đã chọn: {selectedServiceIds.length + (selectedComboId ? 1 : 0)} — Tổng: {formatPrice(selectedTotal)}
-              </span>
+        {/* SCHEDULED TIME CARD */}
+        <div className="hidden bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
+          <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
+            <Calendar size={16} className="text-[#00285E]" />
+            Thời gian xếp ca vào sửa <span className="text-slate-400 font-normal">(Chọn khung giờ xếp lớp xe vào sửa)</span>
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                <Calendar size={14} className="text-slate-400" />
+                Ngày xếp ca
+              </label>
+              <input
+                type="date"
+                value={bookingDate}
+                min={minDateStr}
+                onChange={(e) => setBookingDate(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-700"
+              />
             </div>
-
-            <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_260px]">
-              <div className="relative">
-                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={activeServiceTab === 'single' ? serviceSearch : comboSearch}
-                  onChange={(event) => activeServiceTab === 'single'
-                    ? setServiceSearch(event.target.value)
-                    : setComboSearch(event.target.value)}
-                  placeholder={activeServiceTab === 'single' ? 'Tìm kiếm dịch vụ...' : 'Tìm kiếm combo...'}
-                  className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-xs font-medium text-[#00285E] shadow-sm outline-none transition-all focus:border-[#00285E] focus:ring-2 focus:ring-[#00285E]/10"
-                />
-              </div>
-              {activeServiceTab === 'single' && (
-                <select
-                  value={selectedCategoryId ?? ''}
-                  onChange={(event) => setSelectedCategoryId(event.target.value ? Number(event.target.value) : null)}
-                  aria-label="Lọc theo danh mục dịch vụ"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-700 shadow-sm outline-none focus:border-[#00285E]"
-                >
-                  <option value="">Tất cả danh mục</option>
-                  {activeCategories.filter((category: any) => (category.service_count ?? 0) > 0).map((category: any) => (
-                    <option key={category.id} value={category.id}>
-                      {category.category_name} ({category.service_count ?? 0})
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                <Clock size={14} className="text-slate-400" />
+                Khung ca hẹn khả dụng
+              </label>
+              <select
+                value={bookingTime}
+                onChange={(e) => setBookingTime(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-700"
+              >
+                <option value="">-- Chọn ca hẹn hoặc để trống làm ngay --</option>
+                {timeSlots.map((slot) => {
+                  const [slotH, slotM] = slot.time.split(':').map(Number);
+                  const slotMinutes = slotH * 60 + slotM;
+                  const now = new Date();
+                  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+                  const isPast = bookingDate === minDateStr && slotMinutes < nowMinutes;
+                  return (
+                    <option key={slot.time} value={slot.time} disabled={slot.isFull}>
+                      {slot.time} ({slot.label}){slot.isFull ? (isPast ? ' - Đã qua giờ' : ' - Kín lịch') : ''}
                     </option>
-                  ))}
-                </select>
+                  );
+                })}
+              </select>
+            </div>
+          </div>
+          {timeSlots.length === 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
+              <AlertCircle size={14} />
+              Không có khung giờ khả dụng cho ngày đã chọn.
+            </div>
+          )}
+        </div>
+
+        {/* SERVICES / REPAIR */}
+        <div className="mt-5 space-y-5 border-t border-slate-200 pt-5">
+          <div className="flex w-fit gap-2 rounded-xl border border-slate-200/20 bg-slate-100/60 p-1">
+            <button
+              type="button"
+              onClick={() => setReceptionServiceMode('SERVICE')}
+              className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-xs font-bold transition-all ${receptionServiceMode === 'SERVICE'
+                ? 'bg-[#00285E] text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-800'
+                }`}
+            >
+              <Settings size={14} />
+              Dịch vụ
+            </button>
+            <button
+              type="button"
+              onClick={() => setReceptionServiceMode('REPAIR')}
+              className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-xs font-bold transition-all ${receptionServiceMode === 'REPAIR'
+                ? 'bg-rose-500 text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-800'
+                }`}
+            >
+              <Wrench size={14} />
+              Kiểm tra và Sửa chữa
+            </button>
+          </div>
+
+          {receptionServiceMode === 'SERVICE' && (
+            <div>
+              <div className="mb-4 flex flex-col gap-2 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-slate-800">
+                  <Settings size={16} className="text-[#00285E]" />
+                  Chọn dịch vụ <span className="text-rose-500">*</span>
+                </h2>
+                <span className="rounded-lg bg-[#EDF3FF] px-3 py-1 text-xs font-bold text-[#00285E]">
+                  Đã chọn: {selectedServiceIds.length + (selectedComboId ? 1 : 0)} — Tổng: {formatPrice(selectedTotal)}
+                </span>
+              </div>
+
+              <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_260px]">
+                <div className="relative">
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={activeServiceTab === 'single' ? serviceSearch : comboSearch}
+                    onChange={(event) => activeServiceTab === 'single'
+                      ? setServiceSearch(event.target.value)
+                      : setComboSearch(event.target.value)}
+                    placeholder={activeServiceTab === 'single' ? 'Tìm kiếm dịch vụ...' : 'Tìm kiếm combo...'}
+                    className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-xs font-medium text-[#00285E] shadow-sm outline-none transition-all focus:border-[#00285E] focus:ring-2 focus:ring-[#00285E]/10"
+                  />
+                </div>
+                {activeServiceTab === 'single' && (
+                  <select
+                    value={selectedCategoryId ?? ''}
+                    onChange={(event) => setSelectedCategoryId(event.target.value ? Number(event.target.value) : null)}
+                    aria-label="Lọc theo danh mục dịch vụ"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-700 shadow-sm outline-none focus:border-[#00285E]"
+                  >
+                    <option value="">Tất cả danh mục</option>
+                    {activeCategories.filter((category: any) => (category.service_count ?? 0) > 0).map((category: any) => (
+                      <option key={category.id} value={category.id}>
+                        {category.category_name} ({category.service_count ?? 0})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="mb-4 flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveServiceTab('single')}
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-5 py-2.5 text-xs font-bold ${activeServiceTab === 'single'
+                    ? 'bg-[#00285E] text-white shadow-sm'
+                    : 'text-slate-500 hover:bg-white hover:text-[#00285E]'
+                    }`}
+                >
+                  <Wrench size={14} /> Dịch vụ lẻ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveServiceTab('combo')}
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-5 py-2.5 text-xs font-bold ${activeServiceTab === 'combo'
+                    ? 'bg-[#00285E] text-white shadow-sm'
+                    : 'text-slate-500 hover:bg-white hover:text-[#00285E]'
+                    }`}
+                >
+                  <Package size={14} /> Combo
+                </button>
+              </div>
+
+              {activeServiceTab === 'single' ? (
+                <SingleServicesSelector
+                  mappedServices={currentPageServices}
+                  activeCategories={activeCategories}
+                  selectedServiceIds={selectedServiceIds}
+                  setSelectedServiceIds={setSelectedServiceIds}
+                  COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
+                  t={(key, fallback) => (t as any)(key, fallback)}
+                  selectedCategoryId={selectedCategoryId}
+                  setSelectedCategoryId={setSelectedCategoryId}
+                  servicePage={servicePage}
+                  setServicePage={setServicePage}
+                  dbCombos={dbCombos}
+                  selectedComboId={selectedComboId}
+                  serviceTotalPages={serviceTotalPages}
+                  searchText={serviceSearch}
+                  setSearchText={setServiceSearch}
+                  elevated
+                  hideFilters
+                />
+              ) : (
+                <ComboServicesSelector
+                  dbCombos={dbCombos}
+                  setDbCombos={setDbCombos}
+                  selectedComboId={selectedComboId}
+                  setSelectedComboId={setSelectedComboId}
+                  mappedServices={mappedServices}
+                  COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
+                  selectedServiceIds={selectedServiceIds}
+                  setSelectedServiceIds={setSelectedServiceIds}
+                  compact
+                  elevated
+                  hideSearch
+                  externalSearchText={comboSearch}
+                />
+              )}
+
+              {selectedServiceIds.length === 0 && !selectedComboId && (
+                <div className="mt-3 flex items-center gap-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-600">
+                  <AlertCircle size={14} /> Cần chọn ít nhất 1 dịch vụ hoặc combo.
+                </div>
               )}
             </div>
+          )}
+        </div>
 
-            <div className="mb-4 flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-1">
-              <button
-                type="button"
-                onClick={() => setActiveServiceTab('single')}
-                className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-5 py-2.5 text-xs font-bold ${activeServiceTab === 'single'
-                  ? 'bg-[#00285E] text-white shadow-sm'
-                  : 'text-slate-500 hover:bg-white hover:text-[#00285E]'
-                }`}
-              >
-                <Wrench size={14} /> Dịch vụ lẻ
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveServiceTab('combo')}
-                className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-5 py-2.5 text-xs font-bold ${activeServiceTab === 'combo'
-                  ? 'bg-[#00285E] text-white shadow-sm'
-                  : 'text-slate-500 hover:bg-white hover:text-[#00285E]'
-                }`}
-              >
-                <Package size={14} /> Combo
-              </button>
+        {/* REPAIR NOTES */}
+        {receptionServiceMode === 'REPAIR' && (
+          <div className="mt-5 space-y-6 border-t border-slate-200 pt-5">
+            <div>
+              <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
+                <StickyNote size={16} className="text-[#00285E]" />
+                Mô tả tình trạng hỏng hóc <span className="text-rose-500">*</span>
+              </h2>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Nhập mô tả các vấn đề của xe (ví dụ: xe kêu lạch cạch ở gầm, điều hòa không mát...)"
+                rows={3}
+                className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-amber-400 focus:bg-white text-brand-blue resize-none"
+              />
             </div>
-
-            {activeServiceTab === 'single' ? (
-              <SingleServicesSelector
-                mappedServices={currentPageServices}
-                activeCategories={activeCategories}
-                selectedServiceIds={selectedServiceIds}
-                setSelectedServiceIds={setSelectedServiceIds}
-                COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
-                t={(key, fallback) => (t as any)(key, fallback)}
-                selectedCategoryId={selectedCategoryId}
-                setSelectedCategoryId={setSelectedCategoryId}
-                servicePage={servicePage}
-                setServicePage={setServicePage}
-                dbCombos={dbCombos}
-                selectedComboId={selectedComboId}
-                serviceTotalPages={serviceTotalPages}
-                searchText={serviceSearch}
-                setSearchText={setServiceSearch}
-                elevated
-                hideFilters
-              />
-            ) : (
-              <ComboServicesSelector
-                dbCombos={dbCombos}
-                setDbCombos={setDbCombos}
-                selectedComboId={selectedComboId}
-                setSelectedComboId={setSelectedComboId}
-                mappedServices={mappedServices}
-                COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
-                selectedServiceIds={selectedServiceIds}
-                setSelectedServiceIds={setSelectedServiceIds}
-                compact
-                elevated
-                hideSearch
-                externalSearchText={comboSearch}
-              />
-            )}
-
-            {selectedServiceIds.length === 0 && !selectedComboId && (
-              <div className="mt-3 flex items-center gap-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-600">
-                <AlertCircle size={14} /> Cần chọn ít nhất 1 dịch vụ hoặc combo.
+            {receptionServiceMode === 'REPAIR' && !notes.trim() && (
+              <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
+                <AlertCircle size={14} />
+                Cần điền mô tả tình trạng sửa chữa.
               </div>
             )}
           </div>
         )}
-      </div>
 
-      {/* REPAIR NOTES */}
-      {receptionServiceMode === 'REPAIR' && (
-      <div className="mt-5 space-y-6 border-t border-slate-200 pt-5">
-        <div>
-          <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
-            <StickyNote size={16} className="text-[#00285E]" />
-            Mô tả tình trạng hỏng hóc <span className="text-rose-500">*</span>
-          </h2>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Nhập mô tả các vấn đề của xe (ví dụ: xe kêu lạch cạch ở gầm, điều hòa không mát...)"
-            rows={3}
-            className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm outline-none transition-all focus:border-amber-400 focus:bg-white text-brand-blue resize-none"
-          />
+        {/* ACTION BUTTONS */}
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <button
+            onClick={() => navigate(-1)}
+            className="px-6 py-3 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+          >
+            Hủy
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="flex items-center gap-2 px-6 py-3 bg-[#00285E] hover:bg-[#001a3f] text-white rounded-xl text-sm font-bold shadow-md shadow-[#00285E]/15 transition-all transform hover:translate-y-[-1px] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <ClipboardPlus size={16} />
+            {isSubmitting ? 'Đang tiếp nhận...' : 'Xác nhận tiếp nhận xe'}
+          </button>
         </div>
-        {receptionServiceMode === 'REPAIR' && !notes.trim() && (
-          <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
-            <AlertCircle size={14} />
-            Cần điền mô tả tình trạng sửa chữa.
-          </div>
-        )}
-      </div>
-      )}
-
-      {/* ACTION BUTTONS */}
-      <div className="flex items-center justify-end gap-3 pt-2">
-        <button
-          onClick={() => navigate(-1)}
-          className="px-6 py-3 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
-        >
-          Hủy
-        </button>
-        <button
-          onClick={handleSubmit}
-          disabled={isSubmitting}
-          className="flex items-center gap-2 px-6 py-3 bg-[#00285E] hover:bg-[#001a3f] text-white rounded-xl text-sm font-bold shadow-md shadow-[#00285E]/15 transition-all transform hover:translate-y-[-1px] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <ClipboardPlus size={16} />
-          {isSubmitting ? 'Đang tiếp nhận...' : 'Xác nhận tiếp nhận xe'}
-        </button>
-      </div>
       </div>
     </div>
   );

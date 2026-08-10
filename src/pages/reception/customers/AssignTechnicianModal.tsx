@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, User, ShieldCheck, Star, MapPin, Navigation, CheckCircle, XCircle, Car, CircleAlert } from 'lucide-react';
+import { X, User, ShieldCheck, Star, MapPin, Navigation, CheckCircle, XCircle, Car, CircleAlert, Eye, EyeOff } from 'lucide-react';
 import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { RECEPTION_API } from '../../../constants/reception/receptionApiEndpoint';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
@@ -30,6 +30,13 @@ const MapFitter = ({ bounds }: { bounds: L.LatLngBounds | null }) => {
   return null;
 };
 
+const assignmentStatusLabel = (status: string) => ({
+  ASSIGNED: 'Chờ thực hiện',
+  IN_PROGRESS: 'Đang thực hiện',
+  PAUSED: 'Đang tạm dừng',
+  WAITING_STOCK: 'Đang chờ phụ tùng',
+}[status] || status);
+
 interface AssignTechnicianModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -53,6 +60,7 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
 
   // New State for Rescue Flow
   const [selectedTechnicianId, setSelectedTechnicianId] = useState<number | null>(null);
+  const [expandedTechnicianId, setExpandedTechnicianId] = useState<number | null>(null);
   const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
   const [distanceInfo, setDistanceInfo] = useState<{ distKm: number, durMin: number } | null>(null);
   const [estimatedPrice, setEstimatedPrice] = useState<number>(0);
@@ -245,9 +253,9 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
                     <div 
                       key={tech.id}
                       onClick={() => {
-                        setSelectedTechnicianId(tech.id);
+                        setSelectedTechnicianId(selectedTechnicianId === tech.id ? null : tech.id);
                       }}
-                      className={`p-4 rounded-xl border transition-all flex items-center gap-3 bg-white cursor-pointer ${
+                      className={`group relative p-4 rounded-xl border transition-all flex items-center gap-3 bg-white cursor-pointer ${
                         selectedTechnicianId === tech.id 
                           ? 'border-[#00285E] ring-2 ring-[#00285E]/20 shadow-md' 
                           : 'border-slate-200 hover:border-[#00285E]/50'
@@ -274,21 +282,43 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
                         </div>
                         <p className="text-xs text-slate-500 mt-1 truncate">{tech.phoneNumber}</p>
                         {tech.isBusy && tech.currentTasks?.length > 0 && (
-                          <div className="mt-1.5 space-y-0.5">
+                          <div className={`${expandedTechnicianId === tech.id ? 'block' : 'hidden'} absolute left-1/2 top-2 z-50 w-80 max-w-[calc(100%-24px)] -translate-x-1/2 rounded-xl border border-slate-200 bg-white p-3 shadow-2xl`} onClick={(event) => event.stopPropagation()}>
+                            <p className="mb-2 text-xs font-bold text-slate-800">Công việc đang phụ trách</p>
+                            <div className="max-h-56 space-y-1.5 overflow-y-auto">
                             {tech.currentTasks.map((task: any) => (
-                              <p key={task.id} className="text-[11px] text-slate-500 flex items-center gap-1 truncate">
-                                <Car size={11} className="shrink-0 text-slate-400" />
-                                {task.vehiclePlate ? `Đang làm xe ${task.vehiclePlate}` : `Công việc #${task.id}`}
-                              </p>
+                              <div key={task.id} className="rounded-lg border border-orange-100 bg-orange-50/70 px-2.5 py-2 text-[11px]">
+                                <p className="flex items-center gap-1.5 font-bold text-slate-700">
+                                  <Car size={12} className="shrink-0 text-orange-500" />
+                                  {task.serviceName || task.taskType || 'Công việc kỹ thuật'}
+                                </p>
+                                <p className="mt-1 text-slate-500">
+                                  {task.serviceOrderId ? `Lệnh dịch vụ #${task.serviceOrderId}` : `Công việc #${task.id}`}
+                                  {task.vehiclePlate ? ` · Xe ${task.vehiclePlate}` : ''}
+                                </p>
+                                <p className="mt-0.5 font-semibold text-orange-700">{assignmentStatusLabel(task.status)}</p>
+                              </div>
                             ))}
+                            </div>
                           </div>
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        <div className="flex items-center text-amber-500">
+                        {tech.isBusy && tech.currentTasks?.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setExpandedTechnicianId(expandedTechnicianId === tech.id ? null : tech.id);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-200"
+                          >
+                            {expandedTechnicianId === tech.id ? <EyeOff size={13} /> : <Eye size={13} />}
+                            {expandedTechnicianId === tech.id ? 'Đóng' : 'Xem việc'}
+                          </button>
+                        ) : <div className="flex items-center text-amber-500">
                           <Star size={14} className="fill-amber-500" />
                           <span className="text-xs font-bold ml-1">{tech.skillLevel}</span>
-                        </div>
+                        </div>}
                         {selectedTechnicianId === tech.id && <span className="text-xs text-white bg-[#00285E] px-2 py-1 rounded-md">Đã chọn</span>}
                       </div>
                     </div>

@@ -35,6 +35,7 @@ interface AppointmentModel {
   vinNumber?: string;
   hasServiceOrder: boolean;
   serviceOrderId: number | null;
+  serviceOrderStatus: string | null;
   bayStatus: string | null;
   services: string[];
   serviceDetails: Array<{
@@ -52,10 +53,18 @@ interface AppointmentModel {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
-  technicaian_recieved: { label: 'Đợi tạo lệnh', color: '#D97706', bg: '#FEF3C7', icon: Clock },
-  information_recieved: { label: 'Đợi tạo lệnh', color: '#D97706', bg: '#FEF3C7', icon: Clock },
+  // Chưa tạo lệnh sửa chữa — trạng thái từ Appointment.status
+  information_received: { label: 'Đợi tạo lệnh', color: '#D97706', bg: '#FEF3C7', icon: Clock },
+  // Đã tạo lệnh sửa chữa — trạng thái từ Service_Order.status
+  inspecting: { label: 'Đã tiếp nhận', color: '#6B7280', bg: '#F3F4F6', icon: Clock },
+  assigned: { label: 'Đã phân công', color: '#6366F1', bg: '#EEF2FF', icon: Users },
   in_progress: { label: 'Đang sửa chữa', color: '#2563EB', bg: '#DBEAFE', icon: Loader2 },
+  pending_quotation: { label: 'Chờ báo giá', color: '#D97706', bg: '#FEF3C7', icon: Clock },
+  waiting_for_parts: { label: 'Chờ phụ tùng', color: '#D97706', bg: '#FEF3C7', icon: Clock },
+  waiting_approval: { label: 'Chờ khách duyệt', color: '#EC4899', bg: '#FDF2F8', icon: Clock },
+  qc_checking: { label: 'Đang QC', color: '#8B5CF6', bg: '#F5F3FF', icon: Clock },
   completed: { label: 'Hoàn thành', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
+  cancelled: { label: 'Đã huỷ lệnh', color: '#EF4444', bg: '#FEF2F2', icon: XCircle },
 };
 
 const TABS = {
@@ -151,13 +160,14 @@ export default function LeaderAppointmentList() {
             vinNumber: appt.vehicle?.vin_number || undefined,
             hasServiceOrder: !!appt.serviceOrder,
             serviceOrderId: appt.serviceOrder?.id || null,
+            serviceOrderStatus: appt.serviceOrder?.status || null,
             bayStatus: appt.serviceOrder?.bay_status || null,
             services,
             serviceDetails,
             appointmentDate,
             appointmentTime,
             notes: appt.notes || '',
-            status: appt.status || 'Technicaian_recieved',
+            status: appt.status || 'INFORMATION_RECEIVED',
             bookingType: appt.booking_type || '',
             priorityType: appt.priority_type || 'NORMAL',
             createdAt: appt.createdAt || appt.created_at || '',
@@ -228,16 +238,17 @@ export default function LeaderAppointmentList() {
 
       let matchStatus = false;
       const statusLower = apt.status.toLowerCase();
+      const orderStatusUpper = apt.serviceOrderStatus?.toUpperCase();
       if (statusFilter === 'all') {
         matchStatus = true;
       } else if (statusFilter === 'uncreated') {
-        matchStatus = statusLower === 'technicaian_recieved' || statusLower === 'information_recieved';
+        matchStatus = statusLower === 'information_received';
       } else if (statusFilter === 'waiting') {
         matchStatus = apt.hasServiceOrder && apt.bayStatus?.toUpperCase() === 'WAITING';
       } else if (statusFilter === 'in_progress') {
-        matchStatus = statusLower === 'in_progress' && apt.bayStatus?.toUpperCase() !== 'WAITING';
+        matchStatus = apt.hasServiceOrder && orderStatusUpper !== 'COMPLETED' && orderStatusUpper !== 'CANCELLED' && apt.bayStatus?.toUpperCase() !== 'WAITING';
       } else if (statusFilter === 'completed') {
-        matchStatus = statusLower === 'completed';
+        matchStatus = orderStatusUpper === 'COMPLETED';
       }
 
       return matchSearch && matchStatus;
@@ -249,11 +260,14 @@ export default function LeaderAppointmentList() {
       all: appointments.length,
       uncreated: appointments.filter((a) => {
         const s = a.status.toLowerCase();
-        return s === 'technicaian_recieved' || s === 'information_recieved';
+        return s === 'information_received';
       }).length,
       waiting: appointments.filter((a) => a.hasServiceOrder && a.bayStatus?.toUpperCase() === 'WAITING').length,
-      in_progress: appointments.filter((a) => a.status.toLowerCase() === 'in_progress' && a.bayStatus?.toUpperCase() !== 'WAITING').length,
-      completed: appointments.filter((a) => a.status.toLowerCase() === 'completed').length,
+      in_progress: appointments.filter((a) => {
+        const orderStatusUpper = a.serviceOrderStatus?.toUpperCase();
+        return a.hasServiceOrder && orderStatusUpper !== 'COMPLETED' && orderStatusUpper !== 'CANCELLED' && a.bayStatus?.toUpperCase() !== 'WAITING';
+      }).length,
+      completed: appointments.filter((a) => a.serviceOrderStatus?.toUpperCase() === 'COMPLETED').length,
     };
   }, [appointments]);
 
@@ -277,16 +291,22 @@ export default function LeaderAppointmentList() {
     return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
+  // Đã tạo lệnh sửa chữa (Service Order) thì phải hiển thị đúng tiến độ sửa chữa thật
+  // (Service_Order.status) — Appointment.status chỉ phản ánh bước tiếp nhận lịch hẹn, không
+  // bao giờ được cập nhật thành IN_PROGRESS trong suốt vòng đời sửa chữa nên không thể dùng
+  // để hiển thị "Đang sửa chữa"/"Hoàn thành".
   const getDisplayStatus = (apt: AppointmentModel) => {
     const isWaitingForBay = apt.hasServiceOrder && apt.bayStatus?.toUpperCase() === 'WAITING';
-    const statusKey = apt.status.toLowerCase();
+    const statusKey = apt.hasServiceOrder
+      ? (apt.serviceOrderStatus || 'INSPECTING').toLowerCase()
+      : apt.status.toLowerCase();
     const config = isWaitingForBay ? {
       label: 'Đang chờ cầu nâng',
       color: '#D97706',
       bg: '#FEF3C7',
       icon: Clock,
     } : STATUS_CONFIG[statusKey] || {
-      label: apt.status,
+      label: apt.hasServiceOrder ? (apt.serviceOrderStatus || apt.status) : apt.status,
       color: '#EA580C',
       bg: '#FED7AA',
       icon: CheckCircle2,

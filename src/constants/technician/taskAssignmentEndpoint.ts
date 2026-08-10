@@ -5,6 +5,7 @@ export const TASK_ASSIGNMENT_ENDPOINTS = {
     GET_COMPLETED_TASKS: `${API_BASE_URL}/api/technician/completed-tasks`,
     GET_SERVICE_ORDER_DETAIL: (id: string | number) => `${API_BASE_URL}/api/technician/service-orders/${id}`,
     START_TASK: `${API_BASE_URL}/api/technician/task-assignments/start`,
+    REQUEST_PARTS_EXPORT: `${API_BASE_URL}/api/technician/task-assignments/request-parts-export`,
     PAUSE_TASK: `${API_BASE_URL}/api/technician/task-assignments/pause`,
     RESUME_TASK: `${API_BASE_URL}/api/technician/task-assignments/resume`,
     COMPLETE_TASK: `${API_BASE_URL}/api/technician/task-assignments/complete`,
@@ -50,6 +51,7 @@ export const TASK_ASSIGNMENT_ENDPOINTS = {
     GET_ALL_REPAIR_HISTORY: `${API_BASE_URL}/api/technician/repair-history`,
     SEARCH_REPAIR_HISTORY: (keyword: string) =>
         `${API_BASE_URL}/api/technician/repair-history/search?keyword=${encodeURIComponent(keyword)}`,
+    SEARCH_REPAIR_HISTORY_SMART: `${API_BASE_URL}/api/technician/repair-history/smart-search`,
     FILTER_REPAIR_HISTORY: (params: { makeId?: number; modelId?: number }) => {
         const q = new URLSearchParams();
         if (params.makeId) q.set("makeId", String(params.makeId));
