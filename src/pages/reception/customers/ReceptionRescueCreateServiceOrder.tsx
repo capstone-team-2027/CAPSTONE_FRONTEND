@@ -141,7 +141,6 @@ export default function ReceptionRescueCreateServiceOrder() {
   const [selectedCustomerVehicleId, setSelectedCustomerVehicleId] = useState<string>('');
 
   const [manualVehiclePlate, setManualVehiclePlate] = useState('');
-  const [manualVehicleVin, setManualVehicleVin] = useState('');
   const [manualVehicleYear, setManualVehicleYear] = useState('');
 
   // Vehicle autocomplete states
@@ -699,10 +698,10 @@ export default function ReceptionRescueCreateServiceOrder() {
       } else {
         // Thêm mới xe cho khách hàng cũ
         walkInPayload = {
+          customer_id: Number(selectedRecord?.id),
           customer_name: selectedRecord?.name || undefined,
           customer_phone: selectedRecord?.phone,
           vehicle_plate: manualVehiclePlate.trim(),
-          vehicle_vin: manualVehicleVin.trim() || undefined,
           vehicle_year: manualVehicleYear || undefined,
           brand_name: vehicleBrand.trim(),
           model_name: vehicleModel.trim()
@@ -1117,12 +1116,6 @@ export default function ReceptionRescueCreateServiceOrder() {
                       </div>
                     )}
                   </div>
-                  <FormInput
-                    label="Số khung (VIN)"
-                    value={manualVehicleVin}
-                    onChange={setManualVehicleVin}
-                    placeholder="VD: 1XYZ234..."
-                  />
                   <FormInput
                     label="Năm sản xuất"
                     value={manualVehicleYear}

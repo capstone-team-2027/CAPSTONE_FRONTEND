@@ -95,6 +95,12 @@ export default function UserProfile() {
     // =====================================================
 
     const [activeTab, setActiveTab] = useState<TabId | string>('dashboard');
+
+    useEffect(() => {
+        const label = MENU_ITEMS.find((item) => item.id === activeTab)?.label || String(activeTab);
+        sessionStorage.setItem('customerActiveScreen', label);
+        return () => sessionStorage.removeItem('customerActiveScreen');
+    }, [activeTab]);
     const [isEditing, setIsEditing] = useState(false);
     const [showToast, setShowToast] = useState(false);
     const [toastMessage, setToastMessage] = useState(t('profile.updateSuccess', 'Cập nhật thông tin thành công!'));

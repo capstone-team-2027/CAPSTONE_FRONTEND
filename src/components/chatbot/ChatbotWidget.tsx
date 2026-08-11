@@ -11,6 +11,45 @@ type Message = {
     content: string;
 };
 
+const getChatErrorMessage = (error: unknown, fallback: string) => {
+    const message = error instanceof Error ? error.message.trim() : '';
+    if (!message || message === 'Failed to fetch' || /networkerror|network request failed/i.test(message)) {
+        return 'Không thể kết nối tới máy chủ chatbot. Vui lòng kiểm tra backend đã chạy hoặc đã được triển khai phiên bản mới rồi thử lại.';
+    }
+    if (/gửi tin nhắn quá nhanh|sau một phút/i.test(message)) {
+        return message;
+    }
+    if (/phiên đăng nhập|đăng nhập lại/i.test(message)) {
+        return message;
+    }
+    if (/tin nhắn.*để trống|vượt quá giới hạn/i.test(message)) {
+        return message;
+    }
+    return fallback;
+};
+
+function ChatMessageContent({ content }: { content: string }) {
+    return (
+        <>
+            {content.split('\n').map((line, index, lines) => {
+                const labelMatch = line.match(/^(\s*-?\s*)((?:Bước\s+\d+|Sau khi hoàn tất)\s*:)(.*)$/i);
+                return (
+                    <React.Fragment key={`${index}-${line.slice(0, 20)}`}>
+                        {labelMatch ? (
+                            <>
+                                {labelMatch[1]}
+                                <strong className="font-bold text-[#001C43]">{labelMatch[2]}</strong>
+                                {labelMatch[3]}
+                            </>
+                        ) : line}
+                        {index < lines.length - 1 && <br />}
+                    </React.Fragment>
+                );
+            })}
+        </>
+    );
+}
+
 export default function ChatbotWidget() {
     const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
@@ -26,7 +65,7 @@ export default function ChatbotWidget() {
     const [chatContext, setChatContext] = useState<any>({}); // Thêm state lưu context
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const { fetchPublic } = useFetchClient_v2();
+    const { fetchPublic, fetchPrivate } = useFetchClient_v2();
 
     // Tự động cuộn xuống tin nhắn mới nhất
     const scrollToBottom = () => {
@@ -59,10 +98,20 @@ export default function ChatbotWidget() {
                     parts: [{ text: m.content }]
                 }));
 
-            const response = await fetchPublic(
-                'http://localhost:3000/api/chatbot/chat', 
+            const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+            const request = localStorage.getItem('token') ? fetchPrivate : fetchPublic;
+            const response = await request(
+                `${apiBaseUrl}/api/chatbot/chat`,
                 'POST', 
-                { message: userMessage, history, context: chatContext } // Gửi kèm context
+                {
+                    message: userMessage,
+                    history,
+                    context: {
+                        ...chatContext,
+                        currentPath: window.location.pathname,
+                        currentScreen: sessionStorage.getItem('customerActiveScreen') || undefined
+                    }
+                }
             );
 
             if (response && response.data) {
@@ -81,7 +130,10 @@ export default function ChatbotWidget() {
             setMessages(prev => [...prev, {
                 id: (Date.now() + 1).toString(),
                 role: 'model',
-                content: t('chatbot.errorReply', 'Xin lỗi, hệ thống đang bận. Bạn vui lòng thử lại sau nhé!')
+                content: getChatErrorMessage(
+                    error,
+                    t('chatbot.errorReply', 'Xin lỗi, hệ thống đang bận. Bạn vui lòng thử lại sau nhé!')
+                )
             }]);
         } finally {
             setIsLoading(false);
@@ -143,7 +195,7 @@ export default function ChatbotWidget() {
                                                 : 'bg-white text-gray-800 border border-gray-100 rounded-tl-sm'
                                         }`}
                                     >
-                                        {msg.content}
+                                        <ChatMessageContent content={msg.content} />
                                     </div>
                                 </motion.div>
                             ))}
