@@ -754,7 +754,7 @@ export default function QuoteTrackingTab() {
                                     >
                                       {item.status === "WAITING_DEPOSIT" ? (
                                         t('quoteTracking.modal.customPartWaiting', 'Phụ tùng đặt riêng · Cần cọc: {{amount}}', {
-                                          amount: formatCurrency(selectedQuote.deposit_amount ?? 0),
+                                          amount: formatCurrency(Math.round(item.quantity * item.unit_price * 0.3)),
                                         })
                                       ) : (
                                         t('quoteTracking.modal.customPartPaid', 'Phụ tùng đặt riêng · Đã cọc')

@@ -1180,7 +1180,7 @@ export default function ReceptionRescueCreateServiceOrder() {
                   const isPast = bookingDate === minDateStr && slotMinutes < nowMinutes;
                   return (
                     <option key={slot.time} value={slot.time} disabled={slot.isFull}>
-                      {slot.time} ({slot.label}){slot.isFull ? (isPast ? ' - Đã qua giờ' : ' - Kín lịch') : ''}
+                      {slot.time} ({slot.label}){slot.isFull ? (isPast ? ' - Đã qua giờ' : ' - Không thể chọn khung giờ này') : ''}
                     </option>
                   );
                 })}

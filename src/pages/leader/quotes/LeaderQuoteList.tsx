@@ -1319,7 +1319,7 @@ export default function LeaderQuoteList() {
                                           </div>
                                           {item.customPartOrder && (
                                             <span
-                                              className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.customPartOrder.status === "WAITING_DEPOSIT"
+                                              className={`mt-1 ml-3 flex w-fit min-w-[190px] rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.customPartOrder.status === "WAITING_DEPOSIT"
                                                 ? "bg-amber-50 text-amber-700"
                                                 : item.customPartOrder.status === "WAITING_ARRIVAL"
                                                   ? "bg-blue-50 text-blue-700"
@@ -1332,8 +1332,11 @@ export default function LeaderQuoteList() {
                                                 <>
                                                   Phụ tùng đặt riêng · Cần cọc:{" "}
                                                   {formatVND(
-                                                    selectedQuotation.deposit_amount ??
-                                                    0,
+                                                    Math.round(
+                                                      item.customPartOrder.quantity *
+                                                      item.customPartOrder.unit_price *
+                                                      0.3,
+                                                    ),
                                                   )}
                                                 </>
                                               ) : item.customPartOrder.status === "WAITING_ARRIVAL" ? (

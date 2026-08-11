@@ -9,6 +9,7 @@ import {
   Filter,
   History,
   Loader2,
+  Package,
   Phone,
   Search,
   Users,
@@ -27,6 +28,7 @@ interface WorkHistoryItem {
   vehiclePlate: string;
   vehicleModel?: string;
   services: string[];
+  usedParts: string[];
   startedAt?: string;
   completedAt?: string;
   status: string;
@@ -52,6 +54,14 @@ interface CompletedTaskResponse {
       unit_price?: string | number | null;
       quantity?: number | null;
       amount?: string | number | null;
+      issue?: {
+        id: number;
+        quotationDetails?: {
+          id: number;
+          sparePart?: { id: number; name?: string | null } | null;
+          customPartOrder?: { id: number; item_name?: string | null } | null;
+        }[] | null;
+      } | null;
     } | null;
     serviceOrder: {
       id: number;
@@ -160,6 +170,9 @@ export default function TechnicianWorkHistory() {
               assignment.task.catalog?.service_name ||
                 `Công việc #${assignment.task.id}`,
             ],
+            usedParts: (assignment.task.quotationItem?.issue?.quotationDetails || [])
+              .map((d) => d.sparePart?.name || d.customPartOrder?.item_name)
+              .filter((name): name is string => !!name),
             startedAt: assignment.actual_start_time || undefined,
             completedAt: assignment.actual_end_time || undefined,
             status: assignment.status,
@@ -187,6 +200,7 @@ export default function TechnicianWorkHistory() {
           vehiclePlate: "—",
           vehicleModel: "",
           services: ["Cứu hộ khẩn cấp"],
+          usedParts: [],
           completedAt: rescue.updatedAt || undefined,
           status: "COMPLETED",
           taskType: "RESCUE",
@@ -595,64 +609,87 @@ export default function TechnicianWorkHistory() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    Dịch vụ
-                  </span>
-                  <span className="inline-flex whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                    {formatStatus(selectedItem.status)}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedItem.services.map((service) => (
-                    <span
-                      key={service}
-                      className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600"
-                    >
-                      {service}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Clock size={13} className="text-slate-400" />
+              <div className="bg-white rounded-2xl border border-slate-200/70 divide-y divide-slate-100">
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-2">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Bắt đầu
+                      Dịch vụ
+                    </span>
+                    <span className="inline-flex whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                      {formatStatus(selectedItem.status)}
                     </span>
                   </div>
-                  <p className="text-sm font-semibold text-slate-800">
-                    {formatDateTime(selectedItem.startedAt)}
-                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedItem.services.map((service) => (
+                      <span
+                        key={service}
+                        className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600"
+                      >
+                        {service}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Clock size={13} className="text-slate-400" />
+
+                {selectedItem.usedParts.length > 0 && (
+                  <div className="p-4">
+                    <div className="flex items-center gap-1.5 mb-2.5">
+                      <Package size={13} className="text-[#00285E]" />
+                      <span className="text-[10px] font-bold text-[#00285E] uppercase tracking-widest">
+                        Phụ tùng đã dùng
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedItem.usedParts.map((part, index) => (
+                        <span
+                          key={`${part}-${index}`}
+                          className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700"
+                        >
+                          {part}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 divide-x divide-slate-100">
+                  <div className="p-4">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Clock size={13} className="text-slate-400" />
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Bắt đầu
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-800">
+                      {formatDateTime(selectedItem.startedAt)}
+                    </p>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Clock size={13} className="text-slate-400" />
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Hoàn thành
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-800">
+                      {formatDateTime(selectedItem.completedAt)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-1.5">
+                    <Coins size={13} className="text-slate-400" />
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Hoàn thành
+                      Giá tiền
                     </span>
                   </div>
-                  <p className="text-sm font-semibold text-slate-800">
-                    {formatDateTime(selectedItem.completedAt)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white p-4">
-                <div className="flex items-center gap-1.5">
-                  <Coins size={13} className="text-slate-400" />
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    Giá tiền
+                  <span className="text-sm font-bold text-[#00285E]">
+                    {selectedItem.amount != null
+                      ? `${selectedItem.amount.toLocaleString("vi-VN")} VND`
+                      : "—"}
                   </span>
                 </div>
-                <span className="text-sm font-bold text-[#00285E]">
-                  {selectedItem.amount != null
-                    ? `${selectedItem.amount.toLocaleString("vi-VN")} VND`
-                    : "—"}
-                </span>
               </div>
             </div>
           </div>

@@ -290,7 +290,7 @@ export default function QuoteReferenceModal({ quotationId, isLoading, error, dat
                                                                     >
                                                                         {item.status === 'WAITING_DEPOSIT' ? (
                                                                             t('chat.quoteModal.customPartWaiting', 'Phụ tùng đặt riêng · Cần cọc: {{amount}}', {
-                                                                                amount: formatCurrency(data.deposit_amount ?? 0),
+                                                                                amount: formatCurrency(Math.round(item.quantity * item.unit_price * 0.3)),
                                                                             })
                                                                         ) : (
                                                                             t('chat.quoteModal.customPartPaid', 'Phụ tùng đặt riêng · Đã cọc')

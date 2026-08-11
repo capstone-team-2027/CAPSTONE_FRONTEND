@@ -697,7 +697,7 @@ export default function ReceptionCreateAppointment() {
         return;
       }
       if (receptionServiceMode === 'REPAIR' && !notes.trim()) {
-        showToast('Vui lòng điền mô tả tình trạng sửa chữa.', 'warning');
+        showToast('Vui lòng điền mô tả khách hàng đang gặp phải.', 'warning');
         return;
       }
 
@@ -1245,7 +1245,7 @@ export default function ReceptionCreateAppointment() {
               <option value="">-- Chọn giờ hẹn --</option>
               {timeSlots.map((slot) => (
                 <option key={slot.time} value={slot.time} disabled={slot.isFull}>
-                  {slot.time} ({slot.label}){slot.isFull ? ' - Kín lịch' : ''}
+                  {slot.time} ({slot.label}){slot.isFull ? ' - Không thể chọn khung giờ này' : ''}
                 </option>
               ))}
             </select>
@@ -1292,7 +1292,7 @@ export default function ReceptionCreateAppointment() {
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
             <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
               <StickyNote size={16} className="text-[#00285E]" />
-              Mô tả tình trạng hỏng hóc <span className="text-rose-500">*</span>
+              Mô tả vấn đề khách hàng đang gặp phải <span className="text-rose-500">*</span>
             </h2>
             <textarea
               value={notes}
@@ -1392,12 +1392,6 @@ export default function ReceptionCreateAppointment() {
           </div>
         )}
 
-        {receptionServiceMode === 'REPAIR' && !notes.trim() && (
-          <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
-            <AlertCircle size={14} />
-            Cần điền mô tả tình trạng sửa chữa.
-          </div>
-        )}
       </div>
 
       {/* ACTION BUTTONS */}

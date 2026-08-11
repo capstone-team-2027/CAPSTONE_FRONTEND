@@ -156,8 +156,7 @@ export default function ReceptionQuoteList() {
           setIsDepositPaid(true);
           await handleGetQuotationHistory();
           setTimeout(() => {
-            setShowDepositQr(false);
-            setIsDepositPaid(false);
+            closeQuotationDetail();
           }, 2000);
         }
       } catch (error) {
@@ -626,24 +625,79 @@ export default function ReceptionQuoteList() {
                         {partItems.length > 0 ? (
                           <div className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden">
                             <div className="overflow-x-auto">
-                              <table className="w-full min-w-[480px] text-left border-collapse text-sm">
+                              <table className="w-full min-w-[560px] text-left border-collapse text-sm">
                                 <thead>
                                   <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
+                                    <th className="py-2.5 px-4 align-middle">Hạng mục lỗi</th>
                                     <th className="py-2.5 px-4 align-middle">Phụ tùng</th>
-                                    <th className="py-2.5 px-2 align-middle text-center w-14">SL</th>
+                                    <th className="py-2.5 px-2 align-middle text-center w-14 whitespace-nowrap">SL</th>
+                                    <th className="py-2.5 px-4 align-middle text-right whitespace-nowrap">Đơn giá</th>
                                     <th className="py-2.5 px-4 align-middle text-right whitespace-nowrap">Thành tiền</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {partItems.map((item) => (
-                                    <tr key={item.id} className="border-b border-slate-100 last:border-0">
+                                    <tr key={item.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors">
                                       <td className="py-3 px-4">
-                                        <span className="text-xs font-semibold text-slate-800 truncate">
-                                          {item.sparePart?.name || item.customPartOrder?.item_name}
-                                        </span>
+                                        <p
+                                          className="text-xs font-semibold text-slate-800 max-w-[130px] truncate"
+                                          title={item.issue?.component?.name ?? ""}
+                                        >
+                                          {item.issue?.component?.name ?? "—"}
+                                        </p>
+                                        {item.issue?.error_description && (
+                                          <p
+                                            className="text-[10px] text-slate-400 max-w-[130px] truncate mt-0.5"
+                                            title={item.issue.error_description}
+                                          >
+                                            {item.issue.error_description}
+                                          </p>
+                                        )}
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        <div className="flex items-center gap-2">
+                                          <Package size={13} className="text-slate-400 shrink-0" />
+                                          <span className="text-xs font-semibold text-slate-800 truncate max-w-[170px]">
+                                            {item.sparePart?.name || item.customPartOrder?.item_name}
+                                          </span>
+                                        </div>
+                                        {item.customPartOrder && (
+                                          <span
+                                            className={`mt-1 ml-3 flex w-fit min-w-[190px] rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.customPartOrder.status === "WAITING_DEPOSIT"
+                                              ? "bg-amber-50 text-amber-700"
+                                              : item.customPartOrder.status === "WAITING_ARRIVAL"
+                                                ? "bg-blue-50 text-blue-700"
+                                                : item.customPartOrder.status === "READY_FOR_USE"
+                                                  ? "bg-violet-50 text-violet-700"
+                                                  : "bg-emerald-50 text-emerald-700"
+                                              }`}
+                                          >
+                                            {item.customPartOrder.status === "WAITING_DEPOSIT" ? (
+                                              <>
+                                                Phụ tùng đặt riêng · Cần cọc:{" "}
+                                                {formatVND(
+                                                  Math.round(
+                                                    item.customPartOrder.quantity *
+                                                    item.customPartOrder.unit_price *
+                                                    0.3,
+                                                  ),
+                                                )}
+                                              </>
+                                            ) : item.customPartOrder.status === "WAITING_ARRIVAL" ? (
+                                              "Phụ tùng đặt riêng · Đã cọc, chờ về hàng"
+                                            ) : item.customPartOrder.status === "READY_FOR_USE" ? (
+                                              "Phụ tùng đặt riêng · Đã về, chờ xuất kho"
+                                            ) : (
+                                              "Phụ tùng đặt riêng · Đã xuất kho"
+                                            )}
+                                          </span>
+                                        )}
                                       </td>
                                       <td className="py-3 px-2 text-center">
                                         <span className="text-xs font-semibold text-slate-700">{item.quantity}</span>
+                                      </td>
+                                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                                        <span className="text-xs text-slate-600 font-medium">{formatVND(item.unit_price)}</span>
                                       </td>
                                       <td className="py-3 px-4 text-right whitespace-nowrap">
                                         <span className="text-xs font-bold text-[#00285E]">{formatVND(item.amount)}</span>
@@ -877,7 +931,7 @@ export default function ReceptionQuoteList() {
 
             <div className="flex justify-end border-t border-slate-100 bg-slate-50 px-6 py-3.5">
               <button
-                onClick={closeDepositQr}
+                onClick={isDepositPaid ? closeQuotationDetail : closeDepositQr}
                 className="rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100"
               >
                 Đóng

@@ -1745,11 +1745,14 @@ export default function TechnicianAssignments() {
 
             </div>
 
-            {/* FOOTER: Yêu cầu xuất kho chung cho cả đơn */}
+            {/* FOOTER: Yêu cầu xuất kho chung cho cả đơn — chỉ hiện sau khi KTV đã bấm "Bắt
+                đầu" ít nhất 1 Task (không còn PENDING), tránh yêu cầu xuất kho cho Task còn
+                chưa ai động vào. */}
             {issueReportAssignment.tasks.some(
               (t) =>
                 t.status !== "COMPLETED" &&
                 t.status !== "PENDING_QC" &&
+                t.status !== "PENDING" &&
                 (t.spareParts?.some((part) => part.status === "PENDING") ?? false),
             ) ? (
               <div className="flex items-center justify-end px-4 sm:px-7 py-3.5 border-t border-slate-100 shrink-0 bg-white">

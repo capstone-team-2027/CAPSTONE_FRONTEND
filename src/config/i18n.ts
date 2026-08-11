@@ -1093,7 +1093,7 @@ const resources = {
           dateLabel: "Chọn ngày hẹn",
           timeLabel: "Chọn khung giờ",
           noTimeSlots: "Chưa có khung giờ khả dụng cho ngày này.",
-          slotFull: "Kín lịch"
+          slotFull: "Không thể chọn khung giờ này"
         },
         step2repair: {
           descLabel: "Mô tả tình trạng lỗi/hỏng hóc của xe để đặt lịch sửa chữa",
@@ -2270,8 +2270,8 @@ const resources = {
           }
         },
         timeSlots: {
-          morning: "Morning",
-          afternoon: "Afternoon"
+          morning: "AM",
+          afternoon: "PM"
         },
         alerts: {
           validationError: "Please fill in all required information for the current step.",
@@ -2384,7 +2384,7 @@ const resources = {
           dateLabel: "Select Appointment Date",
           timeLabel: "Select Time Slot",
           noTimeSlots: "No available time slots for this date.",
-          slotFull: "Fully booked"
+          slotFull: "This time slot is unavailable"
         },
         step2repair: {
           descLabel: "Describe the fault/damage of your vehicle to book a repair",

@@ -108,7 +108,7 @@ const STATUS_CONFIG: Record<
     icon: Truck,
   },
   READY_FOR_USE: {
-    label: "Chờ giao cho KTV",
+    label: "Chờ KTV lấy hàng",
     className: "bg-emerald-50 text-emerald-600 border border-emerald-200",
     icon: CheckCircle2,
   },
@@ -257,7 +257,7 @@ export default function InventoryWaitingStock() {
     setExportingId(item.id);
     try {
       await fetchPrivate(WAITING_STOCK_API_ENDPOINTS.EXPORT_CUSTOM_PART(item.id), "POST");
-      showToast(`Đã xác nhận giao "${item.item_name}" cho kỹ thuật viên.`, "success");
+      showToast(`Đã xác nhận kỹ thuật viên lấy "${item.item_name}".`, "success");
       setSelected(null);
       await handleGetWaitingStockItems();
     } catch (error: any) {
@@ -311,7 +311,7 @@ export default function InventoryWaitingStock() {
             <div className="text-2xl font-bold text-slate-900 tracking-tight">
               {stats.readyForUse}
             </div>
-            <p className="text-xs text-slate-400 font-medium mt-0.5">Chờ giao cho KTV</p>
+            <p className="text-xs text-slate-400 font-medium mt-0.5">Chờ KTV lấy hàng</p>
           </div>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs flex items-center gap-4">
@@ -441,7 +441,7 @@ export default function InventoryWaitingStock() {
                             ) : (
                               <CheckCircle2 size={12} />
                             )}
-                            Xác nhận đã giao
+                            Xác nhận đã lấy hàng
                           </button>
                         ) : null}
                       </td>
@@ -669,7 +669,7 @@ export default function InventoryWaitingStock() {
                       className="h-11 flex items-center gap-2 px-5 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50"
                     >
                       {exportingId === selected.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                      Xác nhận đã giao
+                      Xác nhận đã lấy hàng
                     </button>
                   )}
                 </div>

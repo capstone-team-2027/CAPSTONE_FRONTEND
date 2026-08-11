@@ -1099,7 +1099,10 @@ export default function LeaderCreateQuotation() {
                                         invalid={!item.partId}
                                         onChange={(v) => selectQuotationPart(item.uid, v)}
                                         options={spareParts.map((part) => {
-                                          const available = Number(part.available_quantity);
+                                          const usedElsewhere = quotationItems
+                                            .filter((qi) => qi.uid !== item.uid && qi.partId === part.id)
+                                            .reduce((sum, qi) => sum + qi.quantity, 0);
+                                          const available = Number(part.available_quantity) - usedElsewhere;
                                           const outOfStock = available <= 0;
                                           return {
                                             value: part.id,
@@ -1136,7 +1139,12 @@ export default function LeaderCreateQuotation() {
                                     )}
                                     {!item.isCustom && item.partId && (() => {
                                       const selectedPart = spareParts.find((p) => p.id === item.partId);
-                                      if (!selectedPart || Number(selectedPart.available_quantity) > 0) return null;
+                                      if (!selectedPart) return null;
+                                      const usedElsewhere = quotationItems
+                                        .filter((qi) => qi.uid !== item.uid && qi.partId === item.partId)
+                                        .reduce((sum, qi) => sum + qi.quantity, 0);
+                                      const available = Number(selectedPart.available_quantity) - usedElsewhere;
+                                      if (available >= item.quantity) return null;
                                       return (
                                         <p className="mt-1 text-[10px] font-semibold text-amber-600">
                                           Thiếu tồn kho — sẽ tự động gửi yêu cầu nhập kho khi khách duyệt báo giá.

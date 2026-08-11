@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
   ArrowLeft,
-  ClipboardPlus,
   Search,
   Filter,
   Eye,
@@ -143,13 +142,6 @@ export default function ReceptionServiceOrderList() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => navigate('/reception/service-orders/create')}
-          className="flex items-center gap-2 px-5 py-3 bg-[#00285E] hover:bg-[#001a3f] text-white rounded-xl text-sm font-bold shadow-md transition-all self-start md:self-auto"
-        >
-          <ClipboardPlus size={16} />
-          Tạo hóa đơn dịch vụ mới
-        </button>
       </div>
 
       {/* KPI CARDS */}

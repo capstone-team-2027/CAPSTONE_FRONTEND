@@ -14,6 +14,7 @@ import {
   Loader2,
   CarFront,
   FileText,
+  StickyNote,
 } from 'lucide-react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useFetchClient_v2 } from '../../hook/useFetchClient';
@@ -646,144 +647,153 @@ export default function LeaderAppointmentList() {
 
       {/* DETAIL MODAL */}
       {selectedAppt && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl shadow-[#00285E]/20 border-[3px] border-[#00285E] max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col relative animate-in fade-in-50 zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in-50 zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-[#D2E2FF] flex items-center justify-between bg-[#F6F9FF]">
-              <div className="flex items-center gap-2">
-                <FileText className="text-[#00285E]" size={20} />
-                <h3 className="font-bold text-slate-800 text-base">
-                  Chi tiết Lịch hẹn APT-{selectedAppt.id.padStart(3, '0')}
-                </h3>
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#00285E] to-[#1a4a8a] flex items-center justify-center shadow-md shadow-[#00285E]/20">
+                  <FileText size={20} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800">
+                    Chi tiết lịch hẹn
+                  </h3>
+                  <p className="text-xs text-slate-400">APT-{selectedAppt.id.padStart(3, '0')}</p>
+                </div>
               </div>
               <button
                 onClick={() => setSelectedAppt(null)}
-                className="w-8 h-8 rounded-full flex items-center justify-center border border-[#D2E2FF] bg-[#EDF3FF] text-[#00285E] hover:bg-[#D2E2FF] transition-colors"
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors"
               >
-                <XCircle size={18} />
+                <XCircle size={20} />
               </button>
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 overflow-y-auto space-y-6">
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
               {/* Customer and Vehicle information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Customer Section */}
-                <div className="bg-slate-50 p-4 rounded-xl space-y-3">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <Users size={14} className="text-[#00285E]" />
+                <div className="rounded-xl border border-slate-200 p-4 space-y-2">
+                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <Users size={13} className="text-[#00285E]" />
                     Khách hàng
                   </h4>
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-slate-800">{selectedAppt.customerName}</p>
-                    <p className="text-xs text-slate-500">SĐT: {selectedAppt.customerPhone}</p>
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-bold text-slate-800">{selectedAppt.customerName}</p>
+                    <p className="text-xs text-slate-500">{selectedAppt.customerPhone}</p>
                     {selectedAppt.customerEmail && (
-                      <p className="text-xs text-slate-500 truncate">Email: {selectedAppt.customerEmail}</p>
+                      <p className="text-xs text-slate-500 truncate">{selectedAppt.customerEmail}</p>
                     )}
                   </div>
                 </div>
 
                 {/* Vehicle Section */}
-                <div className="bg-slate-50 p-4 rounded-xl space-y-3">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <CarFront size={14} className="text-[#00285E]" />
+                <div className="rounded-xl border border-slate-200 p-4 space-y-2">
+                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <CarFront size={13} className="text-[#00285E]" />
                     Phương tiện
                   </h4>
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-slate-800">Biển số: {selectedAppt.vehiclePlate}</p>
-                    <p className="text-xs text-slate-500">Mẫu xe: {selectedAppt.vehicleModel}</p>
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-bold text-slate-800">{selectedAppt.vehiclePlate}</p>
+                    <p className="text-xs text-slate-500">{selectedAppt.vehicleModel}</p>
                     {selectedAppt.vehicleColor && (
-                      <p className="text-xs text-slate-500">Màu xe: {selectedAppt.vehicleColor}</p>
-                    )}
-                    {selectedAppt.vinNumber && (
-                      <p className="text-xs text-slate-500">Số khung: {selectedAppt.vinNumber}</p>
+                      <p className="text-xs text-slate-500">Màu: {selectedAppt.vehicleColor}</p>
                     )}
                   </div>
                 </div>
               </div>
 
               {/* Appointment Info */}
-              <div className="bg-slate-50 p-4 rounded-xl space-y-3">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                  <Clock size={14} className="text-[#00285E]" />
-                  Thông tin lịch hẹn
+              <div className="rounded-xl border border-slate-200 p-4 space-y-3">
+                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <Clock size={13} className="text-[#00285E]" />
+                  Thời gian hẹn
                 </h4>
-                <div className="grid grid-cols-2 gap-4 text-xs">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <span className="text-slate-400 font-semibold block">NGÀY HẸN</span>
-                    <span className="text-slate-800 font-bold block mt-0.5">{formatDate(selectedAppt.appointmentDate)}</span>
+                    <span className="text-[10px] text-slate-400 font-semibold block uppercase tracking-wide">Ngày hẹn</span>
+                    <span className="text-sm text-slate-800 font-bold block mt-0.5">{formatDate(selectedAppt.appointmentDate)}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 font-semibold block">GIỜ HẸN</span>
-                    <span className="text-slate-800 font-bold block mt-0.5">{selectedAppt.appointmentTime}</span>
+                    <span className="text-[10px] text-slate-400 font-semibold block uppercase tracking-wide">Giờ hẹn</span>
+                    <span className="text-sm text-slate-800 font-bold block mt-0.5">{selectedAppt.appointmentTime}</span>
                   </div>
                 </div>
-                {selectedAppt.notes && (
-                  <div className="pt-2 border-t border-slate-200/60 text-xs">
-                    <span className="text-slate-400 font-semibold block">GHI CHÚ / YÊU CẦU</span>
-                    <p className="text-slate-700 font-medium mt-1 leading-relaxed bg-white p-2.5 rounded-lg border border-slate-200/50">
-                      {selectedAppt.notes}
-                    </p>
-                  </div>
-                )}
               </div>
 
               {/* Services List */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                  Dịch vụ đã đăng ký
-                </h4>
+              {selectedAppt.serviceDetails.length > 0 && (
                 <div className="space-y-2.5">
-                  {selectedAppt.serviceDetails.map((service, index) => (
-                    <div
-                      key={`${service.type}-${index}`}
-                      className={`rounded-xl border p-3.5 ${service.type === 'combo'
-                        ? 'border-blue-200 bg-blue-50/60'
-                        : 'border-slate-200 bg-slate-50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className={`rounded-md px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${service.type === 'combo'
-                          ? 'bg-[#00285E] text-white'
-                          : 'bg-white text-slate-500 ring-1 ring-slate-200'
-                        }`}>
-                          {service.type === 'combo' ? 'Combo' : 'Dịch vụ lẻ'}
-                        </span>
-                        <p className="text-sm font-bold text-[#00285E]">{service.name}</p>
-                      </div>
-
-                      {service.type === 'combo' && (
-                        <div className="mt-3 border-t border-blue-200/70 pt-2.5">
-                          <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">
-                            Dịch vụ thuộc combo ({service.includedCatalogs.length})
-                          </p>
-                          {service.includedCatalogs.length > 0 ? (
-                            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                              {service.includedCatalogs.map((catalogName, catalogIndex) => (
-                                <div key={`${catalogName}-${catalogIndex}`} className="flex items-start gap-2 rounded-lg bg-white px-2.5 py-2 text-xs font-medium text-slate-700 ring-1 ring-blue-100">
-                                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#00285E] text-[8px] font-bold text-white">
-                                    {catalogIndex + 1}
-                                  </span>
-                                  <span>{catalogName}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-xs italic text-slate-400">Chưa có dữ liệu dịch vụ thành phần.</p>
-                          )}
+                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                    Dịch vụ đã đăng ký
+                  </h4>
+                  <div className="space-y-2">
+                    {selectedAppt.serviceDetails.map((service, index) => (
+                      <div
+                        key={`${service.type}-${index}`}
+                        className={`rounded-xl border p-3.5 ${service.type === 'combo'
+                          ? 'border-blue-200 bg-blue-50/60'
+                          : 'border-slate-200 bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={`rounded-md px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${service.type === 'combo'
+                            ? 'bg-[#00285E] text-white'
+                            : 'bg-white text-slate-500 ring-1 ring-slate-200'
+                          }`}>
+                            {service.type === 'combo' ? 'Combo' : 'Dịch vụ lẻ'}
+                          </span>
+                          <p className="text-sm font-bold text-[#00285E]">{service.name}</p>
                         </div>
-                      )}
-                    </div>
-                  ))}
+
+                        {service.type === 'combo' && (
+                          <div className="mt-3 border-t border-blue-200/70 pt-2.5">
+                            <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">
+                              Dịch vụ thuộc combo ({service.includedCatalogs.length})
+                            </p>
+                            {service.includedCatalogs.length > 0 ? (
+                              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                {service.includedCatalogs.map((catalogName, catalogIndex) => (
+                                  <div key={`${catalogName}-${catalogIndex}`} className="flex items-start gap-2 rounded-lg bg-white px-2.5 py-2 text-xs font-medium text-slate-700 ring-1 ring-blue-100">
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#00285E] text-[8px] font-bold text-white">
+                                      {catalogIndex + 1}
+                                    </span>
+                                    <span>{catalogName}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs italic text-slate-400">Chưa có dữ liệu dịch vụ thành phần.</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Mô tả tình trạng xe */}
+              {selectedAppt.notes && (
+                <div className="space-y-2">
+                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <StickyNote size={13} className="text-[#00285E]" />
+                    Mô tả tình trạng xe
+                  </h4>
+                  <p className="text-sm text-slate-600 leading-relaxed bg-amber-50 border border-amber-100 rounded-xl p-3.5">
+                    {selectedAppt.notes}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-[#D2E2FF] flex justify-end bg-[#F6F9FF]">
+            <div className="flex items-center justify-end px-6 py-4 border-t border-slate-100 shrink-0">
               <button
                 onClick={() => setSelectedAppt(null)}
-                className="px-5 py-2.5 rounded-xl text-sm font-bold border border-[#00285E] bg-[#00285E] text-white hover:bg-[#001a3f] transition-colors shadow-sm"
+                className="px-5 py-2.5 rounded-xl text-sm font-bold bg-[#00285E] text-white hover:bg-[#001a3f] transition-colors shadow-md shadow-[#00285E]/20"
               >
                 Đóng
               </button>

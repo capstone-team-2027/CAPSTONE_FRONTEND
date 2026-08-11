@@ -960,13 +960,13 @@ export default function ImportHistory() {
                                   <input
                                     type="text"
                                     inputMode="numeric"
-                                    value={row.retail_price ? row.retail_price.toLocaleString("vi-VN") : ""}
-                                    placeholder="Giữ nguyên"
+                                    value={row.retail_price != null ? row.retail_price.toLocaleString("vi-VN") : ""}
+                                    placeholder="0"
                                     onChange={(e) => {
                                       const raw = e.target.value.replace(/\./g, "").replace(/[^0-9]/g, "");
                                       updateExcelPreviewRow(row.row_index, "retail_price", raw ? Number(raw) : 0);
                                     }}
-                                    className="w-24 text-center bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] placeholder:text-[10px]"
+                                    className="w-24 text-center bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E]"
                                   />
                                 )}
                               </td>
