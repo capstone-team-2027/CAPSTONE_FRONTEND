@@ -9,7 +9,6 @@ import {
   ChevronRight,
   ClipboardList,
   Loader2,
-  LayoutDashboard,
   Wrench,
 } from "lucide-react";
 import type { RootState } from "../../../store/store";
@@ -234,13 +233,12 @@ export default function TechnicianOverview() {
         <button
           onClick={() => navigate(-1)}
           title="Quay lại"
-          className="mt-0.5 w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+          className="mt-0.5 w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-xl flex items-center justify-center bg-[#00285E] border border-[#00285E] text-white hover:bg-[#003C7D] hover:border-[#003C7D] active:scale-[0.97] transition-all"
         >
           <ArrowLeft size={24} />
         </button>
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-3">
-            <LayoutDashboard className="text-[#00285E] shrink-0" size={28} />
             <span className="truncate">Tổng quan</span>
           </h1>
           <p className="text-slate-500 mt-1 text-sm font-medium">
@@ -348,7 +346,7 @@ export default function TechnicianOverview() {
                         {assignment.customerName} · {assignment.tasks.length} công việc
                       </div>
                     </div>
-                    <span className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#00285E] bg-[#EDF3FF]">
+                    <span className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold text-white bg-[#00285E]">
                       {ASSIGNMENT_STATUS_LABEL[assignment.status] || assignment.status}
                     </span>
                   </button>
@@ -426,7 +424,7 @@ export default function TechnicianOverview() {
                         {task.customerName} · {task.serviceName}
                       </div>
                     </div>
-                    <span className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold text-emerald-700 bg-emerald-50">
+                    <span className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold text-white bg-emerald-600">
                       Hoàn thành
                     </span>
                   </div>

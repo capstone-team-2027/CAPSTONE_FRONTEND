@@ -325,7 +325,7 @@ export default function TechnicianWorkHistory() {
         <button
           onClick={() => navigate(-1)}
           title="Quay lại"
-          className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+          className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-[#00285E] border border-[#00285E] text-white hover:bg-[#003C7D] hover:border-[#003C7D] active:scale-[0.97] transition-all"
         >
           <ArrowLeft size={24} />
         </button>
@@ -424,7 +424,7 @@ export default function TechnicianWorkHistory() {
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-left text-sm">
-            <thead className="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            <thead className="border-b border-slate-100 bg-[#00285E] text-[10px] font-bold uppercase tracking-widest text-blue-100 lg:bg-slate-50/70 lg:text-slate-400">
               <tr>
                 <th className="px-4 py-4">Mã</th>
                 <th className="px-4 py-4">Khách hàng & Xe</th>

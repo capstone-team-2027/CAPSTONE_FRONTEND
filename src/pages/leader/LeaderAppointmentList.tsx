@@ -323,7 +323,7 @@ export default function LeaderAppointmentList() {
           <button
             onClick={() => navigate(-1)}
             title="Quay lại"
-            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-[#00285E] border border-[#00285E] text-white hover:bg-[#003C7D] hover:border-[#003C7D] active:scale-[0.97] transition-all"
           >
             <ArrowLeft size={24} />
           </button>
@@ -507,7 +507,7 @@ export default function LeaderAppointmentList() {
           <div className="hidden overflow-x-auto xl:block">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
-                <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
+                <tr className="border-b border-slate-100 text-[10px] font-bold text-blue-100 uppercase tracking-widest bg-[#00285E] lg:text-slate-400 lg:bg-slate-50/50">
                   <th className="py-3 px-4">Mã</th>
                   <th className="py-3 px-4">Khách hàng</th>
                   <th className="py-3 px-4">Xe</th>
