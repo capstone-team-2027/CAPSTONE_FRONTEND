@@ -10,12 +10,13 @@ import {
   Plus,
   Trash2,
   AlertTriangle,
+  AlertCircle,
   X,
   Package,
   Eye,
-  ScanLine,
+  FileSpreadsheet,
   Upload,
-  Camera,
+  CheckCircle2,
   Loader2,
 } from "lucide-react";
 import { useOutletContext, useNavigate } from "react-router-dom";
@@ -32,6 +33,7 @@ import { SUPPLIER_API_ENDPOINTS } from "../../../constants/inventory/supplierApi
 import { SPARE_PART_API_ENDPOINTS } from "../../../constants/inventory/sparePartApiEnPoint";
 import type { SparePartResponse } from "../../../model/dto/sparePartManagement.dto";
 import { PART_CATEGORY_API_ENDPOINTS } from "../../../constants/inventory/sparePartCategoryApiEndPoint"
+import { RESTOCK_REQUEST_API_ENDPOINTS } from "../../../constants/inventory/restockRequestApiEndpoint";
 const PAGE_SIZE = 6;
 
 const formatPrice = (v: number) => v.toLocaleString("vi-VN") + " VND";
@@ -79,6 +81,23 @@ const emptyLine = (): ImportLineForm => ({
    force: false
 });
 
+// 1 dòng trong bảng preview sau khi đọc file Excel yêu cầu bổ sung phụ tùng (Restock_Requests)
+// — khớp shape trả về của previewImportRestockExcel ở BE.
+interface RestockPreviewRow {
+  row_index: number;
+  isValid: boolean;
+  error?: string;
+  spare_part_id?: number;
+  sku?: string;
+  name?: string;
+  quantity?: number;
+  unit_price?: number;
+  retail_price?: number;
+  category_name?: string | null;
+  warranty_period_months?: number | null;
+  warranty_km_limit?: number | null;
+}
+
 export default function ImportHistory() {
   const { searchQuery, showToast } = useOutletContext<{
     searchQuery: string;
@@ -106,107 +125,107 @@ export default function ImportHistory() {
   const [formError, setFormError] = useState<string | null>(null);
   const formErrorRef = useRef<HTMLDivElement>(null);
 
-  // ── Scan OCR ──
-  const [scanOpen, setScanOpen] = useState(false);
-  const [scanFile, setScanFile] = useState<File | null>(null);
-  const [scanPreview, setScanPreview] = useState<string | null>(null);
-  const [scanFiles, setScanFiles] = useState<{ file: File; preview: string }[]>([]);
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanResult, setScanResult] = useState<{
-    supplier_name: string | null;
-    supplier_id: number | null;
-    supplier_match: 'exact' | 'similar' | 'none';
-    supplier_suggestion: { id: number; name: string } | null;
-    items: {
-      name: string; brand?: string; quantity: number; unit_price: number;
-      retail_price?: number; category_id?: number | null;
-      part_id?: number | null; sku?: string; is_existing: boolean;
-      warranty_period_months?: number | null; warranty_km_limit?: number | null;
-      last_unit_price?: number | null;
-    }[];
-  } | null>(null);
-  const scanInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-
   const resetCreateForm = () => {
     setSupplierId(null);
     setLines([emptyLine()]);
     setFormError(null);
   };
 
-  const handleScanFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (!files.length) return;
-    const newItems = files.map(f => ({ file: f, preview: URL.createObjectURL(f) }));
-    setScanFiles(prev => [...prev, ...newItems]);
-    setScanFile(files[0]);
-    e.target.value = '';
+  // ── Nhập kho từ Excel (yêu cầu bổ sung phụ tùng thiếu tồn — Restock_Requests) ──
+  const [excelImportOpen, setExcelImportOpen] = useState(false);
+  const [excelSupplierId, setExcelSupplierId] = useState<number | null>(null);
+  const [excelPreviewRows, setExcelPreviewRows] = useState<RestockPreviewRow[]>([]);
+  const [isExcelPreviewing, setIsExcelPreviewing] = useState(false);
+  const [isExcelConfirming, setIsExcelConfirming] = useState(false);
+  const excelFileInputRef = useRef<HTMLInputElement>(null);
+
+  const resetExcelImportForm = () => {
+    setExcelSupplierId(null);
+    setExcelPreviewRows([]);
   };
 
-  const removeScanFile = (index: number) => {
-    setScanFiles(prev => prev.filter((_, i) => i !== index));
-  };
+  const handlePickExcelFile = () => excelFileInputRef.current?.click();
 
-  const handleScanInvoice = async () => {
-    if (scanFiles.length === 0) return;
-    setIsScanning(true);
+  const handleExcelFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setIsExcelPreviewing(true);
+    setExcelPreviewRows([]);
     try {
       const formData = new FormData();
-      scanFiles.forEach(({ file }) => formData.append('invoices', file));
-      const res = await fetch(INVENTORY_LOG_API_ENDPOINTS.SCAN_INVOICE, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      formData.append("file", file);
+      const token = localStorage.getItem("token");
+      const res = await fetch(RESTOCK_REQUEST_API_ENDPOINTS.IMPORT_EXCEL_PREVIEW, {
+        method: "POST",
+        headers: { Authorization: token ? `Bearer ${token}` : "" },
         body: formData,
       });
-      if (!res.ok) throw new Error('Scan thất bại');
-      const data = await res.json();
-      // BE trả về { data: { merged: { items: [...] }, invoices: [...] } }
-      const merged = data?.data?.merged;
-      const allItems: any[] = merged?.items ?? [];
-      if (allItems.length === 0) {
-        showToast('Không nhận diện được sản phẩm nào', 'warning');
-        return;
-      }
-
-      const invoices: any[] = data?.data?.invoices ?? [];
-      const firstWithSupplier = invoices.find((r: any) => r.supplier_id || r.supplier_suggestion?.id);
-      if (firstWithSupplier?.supplier_id) setSupplierId(firstWithSupplier.supplier_id);
-      else if (firstWithSupplier?.supplier_match === 'similar' && firstWithSupplier?.supplier_suggestion?.id) {
-        setSupplierId(firstWithSupplier.supplier_suggestion.id);
-      }
-
-      const newLines: ImportLineForm[] = allItems.map((item: any) => ({
-        ...emptyLine(),
-        mode: (item.is_existing && item.is_exact) ? 'existing' as const : 'new' as const,
-        part_id: (item.is_existing && item.is_exact) ? (item.part_id ?? null) : null,
-        name: item.name ?? '',
-        brand: item.brand ?? '',
-        category_id: item.category_id ?? null,
-        warranty_period_months: item.warranty_period_months ?? null,
-        warranty_km_limit: item.warranty_km_limit ?? null,
-        quantity: Number(item.quantity) || 1,
-        unit_price: Number(item.unit_price) || 0,
-        retail_price: Number(item.retail_price) || 0,
-        conflict: (item.is_existing && !item.is_exact) ? {
-          message: `Tìm thấy sản phẩm gần giống: "${item.sku ? item.sku + ' - ' : ''}${item.name}". Chọn để dùng sản phẩm này hoặc bỏ qua để tạo mới.`,
-          candidates: [{ id: item.part_id, sku: item.sku ?? '', name: item.name, brand: item.brand }],
-          isExact: false,
-        } : null,
-      }));
-
-      setLines(newLines);
-      setScanOpen(false);
-      setScanFile(null);
-      setScanPreview(null);
-      setScanFiles([]);
-      setScanResult(null);
-      setCreateOpen(true);
-      showToast(`Đã nhận diện ${newLines.length} sản phẩm từ ${scanFiles.length} ảnh`, 'success');
-    } catch {
-      showToast('Lỗi khi scan hóa đơn', 'warning');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || "Không thể đọc file Excel");
+      setExcelPreviewRows(data?.data ?? []);
+    } catch (error: any) {
+      showToast(error?.message || "Không thể đọc file Excel.", "warning");
     } finally {
-      setIsScanning(false);
+      setIsExcelPreviewing(false);
+    }
+  };
+
+  const updateExcelPreviewRow = (
+    rowIndex: number,
+    field: "quantity" | "unit_price" | "retail_price",
+    value: number,
+  ) => {
+    setExcelPreviewRows((prev) =>
+      prev.map((row) => (row.row_index === rowIndex ? { ...row, [field]: Math.max(0, value) } : row)),
+    );
+  };
+
+  const removeExcelPreviewRow = (rowIndex: number) => {
+    setExcelPreviewRows((prev) => prev.filter((row) => row.row_index !== rowIndex));
+  };
+
+  const validExcelRows = excelPreviewRows.filter((row) => row.isValid);
+
+  const handleConfirmExcelImport = async () => {
+    if (!excelSupplierId) {
+      showToast("Vui lòng chọn nhà cung cấp.", "warning");
+      return;
+    }
+    if (validExcelRows.length === 0) {
+      showToast("Không có dòng hợp lệ nào để nhập kho.", "warning");
+      return;
+    }
+    setIsExcelConfirming(true);
+    try {
+      const result = await fetchPrivate<{
+        receipt_code: string;
+        fulfilled: { spare_part_id: number; name: string; count: number }[];
+        stillPending: { spare_part_id: number; name: string; stillNeeded: number }[];
+      }>(RESTOCK_REQUEST_API_ENDPOINTS.CONFIRM_IMPORT, "POST", {
+        supplier_id: excelSupplierId,
+        items: validExcelRows.map((row) => ({
+          spare_part_id: row.spare_part_id,
+          quantity: row.quantity,
+          unit_price: row.unit_price,
+          retail_price: row.retail_price,
+        })),
+      });
+      const fulfilledCount = result.data?.fulfilled?.length ?? 0;
+      const stillPendingCount = result.data?.stillPending?.length ?? 0;
+      showToast(
+        `Đã nhập kho thành công${fulfilledCount ? ` — ${fulfilledCount} phụ tùng đã đủ tồn` : ""}${
+          stillPendingCount ? `, ${stillPendingCount} phụ tùng vẫn còn thiếu` : ""
+        }.`,
+        "success",
+      );
+      resetExcelImportForm();
+      setExcelImportOpen(false);
+      await handleGetInventoryLog();
+    } catch (error: any) {
+      showToast(error?.message || "Không thể xác nhận nhập kho.", "warning");
+    } finally {
+      setIsExcelConfirming(false);
     }
   };
 
@@ -422,11 +441,11 @@ export default function ImportHistory() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => setScanOpen(true)}
+            onClick={() => setExcelImportOpen(true)}
             className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all transform hover:translate-y-[-1px] active:translate-y-0 self-start"
           >
-            <ScanLine size={16} />
-            <span>Scan hóa đơn</span>
+            <FileSpreadsheet size={16} />
+            <span>Nhập kho từ Excel</span>
           </button>
           <button
             onClick={() => setCreateOpen(true)}
@@ -784,97 +803,230 @@ export default function ImportHistory() {
         )}
       </AnimatePresence>
 
-      {/* ── SCAN INVOICE MODAL ── */}
+      {/* ── EXCEL IMPORT MODAL (yêu cầu bổ sung phụ tùng thiếu tồn) ── */}
       <AnimatePresence>
-        {scanOpen && (
+        {excelImportOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => { setScanOpen(false); setScanFile(null); setScanPreview(null); setScanFiles([]); }}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }}
-              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setExcelImportOpen(false);
+                resetExcelImportForm();
+              }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden"
+            >
               {/* Header */}
-              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#00285E] to-[#1a4a8a] flex items-center justify-center shadow-md shadow-[#00285E]/20">
-                    <ScanLine size={20} className="text-white" />
+                    <FileSpreadsheet size={20} className="text-white" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-slate-800">Scan hóa đơn</h3>
-                    <p className="text-xs text-slate-400">AI nhận diện tự động từ ảnh hóa đơn</p>
+                    <h3 className="text-base font-bold text-slate-800">Nhập kho từ Excel</h3>
+                    <p className="text-xs text-slate-400">
+                      Xuất danh sách cần mua ở trang "Yêu cầu bổ sung phụ tùng", điền số lượng/giá rồi tải lên đây.
+                    </p>
                   </div>
                 </div>
-                <button onClick={() => { setScanOpen(false); setScanFile(null); setScanPreview(null); setScanFiles([]); setScanResult(null); }}
-                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
+                <button
+                  onClick={() => {
+                    setExcelImportOpen(false);
+                    resetExcelImportForm();
+                  }}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors"
+                >
                   <X size={18} />
                 </button>
               </div>
 
-              <div className="p-6 space-y-4">
-                <input ref={scanInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleScanFileChange} />
-                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScanFileChange} />
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <select
+                    value={excelSupplierId ?? ""}
+                    onChange={(e) => setExcelSupplierId(e.target.value ? Number(e.target.value) : null)}
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+                  >
+                    <option value="">-- Chọn nhà cung cấp --</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    ref={excelFileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    className="hidden"
+                    onChange={handleExcelFileChange}
+                  />
+                  <button
+                    onClick={handlePickExcelFile}
+                    disabled={isExcelPreviewing}
+                    className="h-9 flex items-center gap-1.5 px-4 rounded-lg text-xs font-bold text-[#00285E] bg-white border border-[#00285E]/25 hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {isExcelPreviewing ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                    Chọn file Excel
+                  </button>
+                </div>
 
-                {/* Preview grid — hiện phía trên */}
-                {scanFiles.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-500">{scanFiles.length} ảnh đã chọn</span>
-                      <button type="button" onClick={() => setScanFiles([])} className="text-xs text-rose-400 hover:text-rose-600 font-semibold transition-colors">Xóa tất cả</button>
+                {excelPreviewRows.length > 0 && (
+                  <div className="rounded-xl border border-slate-200 overflow-hidden">
+                    <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-600">Kiểm tra trước khi nhập kho</span>
+                      <span className="text-xs font-semibold text-slate-400">
+                        {validExcelRows.length}/{excelPreviewRows.length} dòng hợp lệ
+                      </span>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {scanFiles.map((item, i) => (
-                        <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 shrink-0 group cursor-pointer"
-                          onClick={() => setLightboxIndex(i)}>
-                          <img src={item.preview} alt={`scan-${i}`} className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                            <Eye size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                          <button type="button" onClick={(e) => { e.stopPropagation(); removeScanFile(i); }}
-                            className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-slate-900/60 flex items-center justify-center text-white hover:bg-rose-500 transition-colors">
-                            <X size={8} />
-                          </button>
-                        </div>
-                      ))}
-                      <button type="button" onClick={() => scanInputRef.current?.click()}
-                        className="w-16 h-16 rounded-lg border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-300 hover:border-[#00285E] hover:text-[#00285E] transition-colors shrink-0">
-                        <Plus size={18} />
-                      </button>
+                    <div className="overflow-x-auto max-h-72 overflow-y-auto">
+                      <table className="w-full min-w-[820px] text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
+                            <th className="py-2.5 px-4 w-56">Phụ tùng</th>
+                            <th className="py-2.5 px-3 w-32">Danh mục</th>
+                            <th className="py-2.5 px-3 text-center whitespace-nowrap w-24">BH (tháng/km)</th>
+                            <th className="py-2.5 px-3 text-center whitespace-nowrap w-20">SL mua</th>
+                            <th className="py-2.5 px-3 text-center whitespace-nowrap w-24">Giá nhập</th>
+                            <th className="py-2.5 px-3 text-center whitespace-nowrap w-24">Giá bán</th>
+                            <th className="py-2.5 px-3 text-center whitespace-nowrap w-20">Trạng thái</th>
+                            <th className="py-2.5 px-3 w-8" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {excelPreviewRows.map((row) => (
+                            <tr key={row.row_index} className="border-b border-slate-100">
+                              <td className="py-2 px-4">
+                                {row.isValid ? (
+                                  <>
+                                    <span className="block text-xs font-semibold text-slate-800 truncate max-w-[13rem]" title={row.name}>
+                                      {row.name}
+                                    </span>
+                                    <span className="block text-[10px] text-slate-400">{row.sku}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-slate-400 italic">Dòng {row.row_index}</span>
+                                )}
+                              </td>
+                              <td className="py-2 px-3">
+                                {row.isValid && (
+                                  <span className="text-xs text-slate-600 truncate block max-w-[7rem]" title={row.category_name ?? undefined}>
+                                    {row.category_name ?? "—"}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                {row.isValid && (
+                                  <span className="text-xs text-slate-600 whitespace-nowrap">
+                                    {row.warranty_period_months ?? "—"}T / {row.warranty_km_limit ?? "—"}km
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                {row.isValid && (
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={row.quantity ?? 0}
+                                    onChange={(e) => updateExcelPreviewRow(row.row_index, "quantity", Number(e.target.value))}
+                                    className="w-16 text-center bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E]"
+                                  />
+                                )}
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                {row.isValid && (
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={row.unit_price ? row.unit_price.toLocaleString("vi-VN") : ""}
+                                    onChange={(e) => {
+                                      const raw = e.target.value.replace(/\./g, "").replace(/[^0-9]/g, "");
+                                      updateExcelPreviewRow(row.row_index, "unit_price", raw ? Number(raw) : 0);
+                                    }}
+                                    placeholder="0"
+                                    className="w-24 text-center bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E]"
+                                  />
+                                )}
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                {row.isValid && (
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={row.retail_price != null ? row.retail_price.toLocaleString("vi-VN") : ""}
+                                    placeholder="0"
+                                    onChange={(e) => {
+                                      const raw = e.target.value.replace(/\./g, "").replace(/[^0-9]/g, "");
+                                      updateExcelPreviewRow(row.row_index, "retail_price", raw ? Number(raw) : 0);
+                                    }}
+                                    className="w-24 text-center bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E]"
+                                  />
+                                )}
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                {row.isValid ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 whitespace-nowrap">
+                                    <CheckCircle2 size={11} /> Hợp lệ
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 whitespace-nowrap"
+                                    title={row.error}
+                                  >
+                                    <AlertCircle size={11} /> Lỗi
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                <button
+                                  onClick={() => removeExcelPreviewRow(row.row_index)}
+                                  className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                                  title="Bỏ dòng này"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )}
-
-                {/* Drop zone */}
-                <button type="button" onClick={() => scanInputRef.current?.click()}
-                  className="w-full border-2 border-dashed border-slate-200 rounded-xl py-7 flex flex-col items-center gap-3 text-slate-400 hover:border-[#00285E] hover:text-[#00285E] hover:bg-[#EDF3FF]/30 transition-all group">
-                  <div className="w-10 h-10 rounded-xl bg-slate-100 group-hover:bg-[#EDF3FF] flex items-center justify-center transition-colors">
-                    <Upload size={18} />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-semibold">Kéo thả hoặc click để chọn ảnh</p>
-                    <p className="text-xs mt-0.5">JPG, PNG — tối đa 20MB mỗi file</p>
-                  </div>
-                </button>
-
-                {/* Camera button */}
-                <button type="button" onClick={() => cameraInputRef.current?.click()}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                  <Camera size={16} />
-                  Chụp ảnh bằng camera
-                </button>
               </div>
 
-              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
-                <button onClick={() => { setScanOpen(false); setScanFile(null); setScanPreview(null); setScanFiles([]); setScanResult(null); }}
-                  className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 shrink-0">
+                <button
+                  onClick={() => {
+                    setExcelImportOpen(false);
+                    resetExcelImportForm();
+                  }}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                >
                   Hủy
                 </button>
-                <button onClick={handleScanInvoice} disabled={scanFiles.length === 0 || isScanning}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-[#00285E] text-white hover:bg-[#082245] transition-colors shadow-md shadow-[#00285E]/20 disabled:opacity-40 disabled:cursor-not-allowed">
-                  {isScanning ? (
-                    <><Loader2 size={15} className="animate-spin" />Đang nhận diện...</>
+                <button
+                  onClick={handleConfirmExcelImport}
+                  disabled={isExcelConfirming || validExcelRows.length === 0}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-[#00285E] text-white hover:bg-[#082245] transition-colors shadow-md shadow-[#00285E]/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isExcelConfirming ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" />
+                      Đang xử lý...
+                    </>
                   ) : (
-                    <><ScanLine size={15} />Nhận diện {scanFiles.length > 0 && `(${scanFiles.length} ảnh)`}</>
+                    <>
+                      <CheckCircle2 size={15} />
+                      Xác nhận nhập kho
+                    </>
                   )}
                 </button>
               </div>
@@ -882,49 +1034,6 @@ export default function ImportHistory() {
           </div>
         )}
       </AnimatePresence>
-
-      {/* ── LIGHTBOX ── */}
-      {lightboxIndex !== null && scanFiles[lightboxIndex] && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
-          onClick={() => setLightboxIndex(null)}>
-          {/* Close */}
-          <button className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/40 transition-colors"
-            onClick={() => setLightboxIndex(null)}>
-            <X size={18} />
-          </button>
-          {/* Counter */}
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white text-sm font-medium bg-black/40 px-3 py-1 rounded-full">
-            {lightboxIndex + 1} / {scanFiles.length}
-          </div>
-          {/* Prev */}
-          {lightboxIndex > 0 && (
-            <button className="absolute left-4 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/40 transition-colors"
-              onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex - 1); }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>
-            </button>
-          )}
-          {/* Image */}
-          <img src={scanFiles[lightboxIndex].preview} alt={`preview-${lightboxIndex}`}
-            className="max-w-[80vw] max-h-[85vh] object-contain rounded-xl shadow-2xl"
-            onClick={(e) => e.stopPropagation()} />
-          {/* Next */}
-          {lightboxIndex < scanFiles.length - 1 && (
-            <button className="absolute right-4 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/40 transition-colors"
-              onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex + 1); }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
-            </button>
-          )}
-          {/* Dot indicators */}
-          {scanFiles.length > 1 && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-              {scanFiles.map((_, i) => (
-                <button key={i} onClick={(e) => { e.stopPropagation(); setLightboxIndex(i); }}
-                  className={`w-2 h-2 rounded-full transition-colors ${i === lightboxIndex ? 'bg-white' : 'bg-white/40'}`} />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ── CREATE IMPORT MODAL ── */}
       <AnimatePresence>
@@ -935,7 +1044,7 @@ export default function ImportHistory() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setCreateOpen(false)}
-              className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 10 }}
@@ -944,13 +1053,13 @@ export default function ImportHistory() {
               className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[92rem] max-h-[95vh] overflow-hidden flex flex-col"
             >
               {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-[#EDF3FF] flex items-center justify-center">
-                    <ArrowDownToLine size={16} className="text-[#00285E]" />
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#00285E] to-[#1a4a8a] flex items-center justify-center shadow-md shadow-[#00285E]/20">
+                    <ArrowDownToLine size={20} className="text-white" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-slate-800 leading-tight">Tạo phiếu nhập</h3>
+                    <h3 className="text-base font-bold text-slate-800">Tạo phiếu nhập</h3>
                     <p className="text-xs text-slate-400">{lines.length} sản phẩm · {formatPrice(formTotal)}</p>
                   </div>
                 </div>
@@ -1176,7 +1285,8 @@ export default function ImportHistory() {
                       Hủy
                     </button>
                     <button onClick={handleCreateImport}
-                      className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-[#00285E] text-white hover:bg-[#082245] transition-colors shadow-md shadow-[#00285E]/10">
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-[#00285E] text-white hover:bg-[#082245] transition-colors shadow-md shadow-[#00285E]/20">
+                      <ArrowDownToLine size={15} />
                       Tạo phiếu nhập
                     </button>
                   </div>
@@ -1194,4 +1304,4 @@ const createInputCls =
   "w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all";
 
 const tableCellInput =
-  "w-full bg-transparent border border-transparent rounded-md px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] focus:bg-white transition-all hover:border-slate-200 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed";
+  "w-full bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] focus:bg-white transition-all hover:border-slate-300 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed";

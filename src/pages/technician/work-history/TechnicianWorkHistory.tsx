@@ -3,11 +3,17 @@ import {
   AlertCircle,
   ArrowLeft,
   Car,
+  Clock,
+  Coins,
+  Eye,
   Filter,
   History,
   Loader2,
+  Package,
+  Phone,
   Search,
   Users,
+  X,
 } from "lucide-react";
 import { useFetchClient_v2 as useFetchClient } from "../../../hook/useFetchClient";
 import { useSocket } from "../../../hook/useSocket";
@@ -22,6 +28,7 @@ interface WorkHistoryItem {
   vehiclePlate: string;
   vehicleModel?: string;
   services: string[];
+  usedParts: string[];
   startedAt?: string;
   completedAt?: string;
   status: string;
@@ -40,6 +47,21 @@ interface CompletedTaskResponse {
     type?: string | null;
     catalog?: {
       service_name?: string | null;
+    } | null;
+    quotationItem?: {
+      id: number;
+      repair_price?: string | number | null;
+      unit_price?: string | number | null;
+      quantity?: number | null;
+      amount?: string | number | null;
+      issue?: {
+        id: number;
+        quotationDetails?: {
+          id: number;
+          sparePart?: { id: number; name?: string | null } | null;
+          customPartOrder?: { id: number; item_name?: string | null } | null;
+        }[] | null;
+      } | null;
     } | null;
     serviceOrder: {
       id: number;
@@ -113,6 +135,7 @@ export default function TechnicianWorkHistory() {
   const ITEMS_PER_PAGE = 10;
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
+  const [selectedItem, setSelectedItem] = useState<WorkHistoryItem | null>(null);
 
   const loadCompletedTasks = async () => {
     setIsLoading(true);
@@ -147,10 +170,19 @@ export default function TechnicianWorkHistory() {
               assignment.task.catalog?.service_name ||
                 `Công việc #${assignment.task.id}`,
             ],
+            usedParts: (assignment.task.quotationItem?.issue?.quotationDetails || [])
+              .map((d) => d.sparePart?.name || d.customPartOrder?.item_name)
+              .filter((name): name is string => !!name),
             startedAt: assignment.actual_start_time || undefined,
             completedAt: assignment.actual_end_time || undefined,
             status: assignment.status,
             taskType: assignment.task.type || undefined,
+            amount: (() => {
+              const item = assignment.task.quotationItem;
+              if (!item) return undefined;
+              const raw = item.amount ?? item.repair_price;
+              return raw != null ? Number(raw) : undefined;
+            })(),
           };
         },
       );
@@ -168,6 +200,7 @@ export default function TechnicianWorkHistory() {
           vehiclePlate: "—",
           vehicleModel: "",
           services: ["Cứu hộ khẩn cấp"],
+          usedParts: [],
           completedAt: rescue.updatedAt || undefined,
           status: "COMPLETED",
           taskType: "RESCUE",
@@ -390,17 +423,13 @@ export default function TechnicianWorkHistory() {
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1320px] text-left text-sm">
+          <table className="w-full min-w-[560px] text-left text-sm">
             <thead className="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-400">
               <tr>
                 <th className="px-4 py-4">Mã</th>
-                <th className="px-4 py-4">Khách hàng</th>
-                <th className="px-4 py-4">Xe</th>
-                <th className="px-4 py-4">Dịch vụ</th>
-                <th className="px-4 py-4">Ngày bắt đầu</th>
-                <th className="px-4 py-4">Ngày hoàn thành</th>
-                <th className="px-4 py-4">Giá tiền</th>
+                <th className="px-4 py-4">Khách hàng & Xe</th>
                 <th className="px-4 py-4">Trạng thái</th>
+                <th className="px-4 py-4 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -413,7 +442,7 @@ export default function TechnicianWorkHistory() {
                     {item.code}
                   </td>
                   <td className="px-4 py-4">
-                    <div className="flex min-w-[170px] items-center gap-2">
+                    <div className="flex min-w-[220px] items-center gap-2">
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EDF3FF] text-[#00285E]">
                         <Users size={14} />
                       </span>
@@ -421,50 +450,27 @@ export default function TechnicianWorkHistory() {
                         <span className="block truncate text-xs font-semibold text-slate-700">
                           {item.customerName}
                         </span>
-                        <span className="block truncate text-[10px] text-slate-400">
-                          {item.customerPhone || "—"}
-                        </span>
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex min-w-[140px] items-center gap-2">
-                      <Car size={13} className="shrink-0 text-slate-400" />
-                      <span className="min-w-0">
-                        <span className="block truncate text-xs font-semibold text-slate-700">
+                        <span className="flex items-center gap-1 truncate text-[10px] text-slate-400">
+                          <Car size={11} className="shrink-0" />
                           {item.vehiclePlate}
-                        </span>
-                        <span className="block truncate text-[10px] text-slate-400">
-                          {item.vehicleModel || "—"}
+                          {item.vehicleModel ? ` · ${item.vehicleModel}` : ""}
                         </span>
                       </span>
                     </div>
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex min-w-[150px] flex-wrap gap-1">
-                      {item.services.map((service) => (
-                        <span
-                          key={service}
-                          className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-600"
-                        >
-                          {service}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-4 text-xs text-slate-600">
-                    {formatDateTime(item.startedAt)}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-4 text-xs font-medium text-slate-700">
-                    {formatDateTime(item.completedAt)}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-4 text-xs font-semibold text-slate-700">
-                    {item.amount != null ? `${item.amount.toLocaleString("vi-VN")} VND` : "—"}
                   </td>
                   <td className="px-4 py-4">
                     <span className="inline-flex whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                       {formatStatus(item.status)}
                     </span>
+                  </td>
+                  <td className="px-4 py-4 text-right">
+                    <button
+                      onClick={() => setSelectedItem(item)}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#00285E] px-3 py-1.5 text-xs font-bold text-white transition-all hover:brightness-125"
+                    >
+                      <Eye size={13} />
+                      Chi tiết
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -541,6 +547,154 @@ export default function TechnicianWorkHistory() {
         )}
       </div>
 
+      {/* MODAL CHI TIẾT */}
+      {selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            onClick={() => setSelectedItem(null)}
+          />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5">
+            <div
+              className="relative flex items-start justify-between px-6 pt-6 pb-5 shrink-0 text-white overflow-hidden"
+              style={{ backgroundColor: "#00285E" }}
+            >
+              <div className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-white/10" />
+              <div className="relative">
+                <p className="text-[11px] font-bold text-white/80 uppercase tracking-widest">
+                  {selectedItem.code}
+                </p>
+                <h3 className="text-lg font-bold text-white leading-none mt-1.5">
+                  Chi tiết công việc
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedItem(null)}
+                className="relative p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4 bg-slate-50/50">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <Users size={13} className="text-[#00285E]" />
+                    <span className="text-[10px] font-bold text-[#00285E] uppercase tracking-widest">
+                      Khách hàng
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-800 truncate">
+                    {selectedItem.customerName}
+                  </p>
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                    <Phone size={11} className="shrink-0" />
+                    {selectedItem.customerPhone || "—"}
+                  </p>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <Car size={13} className="text-[#00285E]" />
+                    <span className="text-[10px] font-bold text-[#00285E] uppercase tracking-widest">
+                      Phương tiện
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-800 truncate">
+                    {selectedItem.vehiclePlate}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 truncate">
+                    {selectedItem.vehicleModel || "—"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200/70 divide-y divide-slate-100">
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      Dịch vụ
+                    </span>
+                    <span className="inline-flex whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                      {formatStatus(selectedItem.status)}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedItem.services.map((service) => (
+                      <span
+                        key={service}
+                        className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600"
+                      >
+                        {service}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {selectedItem.usedParts.length > 0 && (
+                  <div className="p-4">
+                    <div className="flex items-center gap-1.5 mb-2.5">
+                      <Package size={13} className="text-[#00285E]" />
+                      <span className="text-[10px] font-bold text-[#00285E] uppercase tracking-widest">
+                        Phụ tùng đã dùng
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedItem.usedParts.map((part, index) => (
+                        <span
+                          key={`${part}-${index}`}
+                          className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700"
+                        >
+                          {part}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 divide-x divide-slate-100">
+                  <div className="p-4">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Clock size={13} className="text-slate-400" />
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Bắt đầu
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-800">
+                      {formatDateTime(selectedItem.startedAt)}
+                    </p>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Clock size={13} className="text-slate-400" />
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Hoàn thành
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-800">
+                      {formatDateTime(selectedItem.completedAt)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-1.5">
+                    <Coins size={13} className="text-slate-400" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      Giá tiền
+                    </span>
+                  </div>
+                  <span className="text-sm font-bold text-[#00285E]">
+                    {selectedItem.amount != null
+                      ? `${selectedItem.amount.toLocaleString("vi-VN")} VND`
+                      : "—"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

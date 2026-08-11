@@ -13,7 +13,6 @@ import {
   CheckCircle,
   Info,
   AlertTriangle,
-  Calendar,
   Siren,
   LayoutDashboard,
 } from "lucide-react";
@@ -195,20 +194,8 @@ export default function TechnicianLayout() {
       label: null,
       items: [
         { name: "Tổng quan", icon: LayoutDashboard, path: "/technician/overview" },
-      ],
-    },
-    {
-      label: 'Công việc',
-      items: [
         { name: 'Cứu hộ khẩn cấp', icon: Siren, path: '/technician/rescue' },
         { name: "Phân công", icon: CheckSquare, path: "/technician/assignments" },
-      ],
-    },
-    {
-      label: 'Lịch sử',
-      items: [
-        { name: "Lịch làm việc", icon: Calendar, path: "/technician/my-shifts" },
-        { name: "Lịch sử báo cáo", icon: CheckSquare, path: "/technician/issues-reports" },
         { name: "Lịch sử công việc", icon: History, path: "/technician/work-history" },
       ],
     },

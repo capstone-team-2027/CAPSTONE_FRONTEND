@@ -7,10 +7,8 @@ export const TECHNICIAN_LEADER_TASK_ENDPOINTS = {
     GET_ASSIGNMENT_HISTORY: `${API_BASE_URL}/api/head-technician/assignments`,
     UPDATE_ASSIGNMENT: (assignmentId: number) =>
         `${API_BASE_URL}/api/head-technician/assignments/${assignmentId}`,
-    GET_FINAL_QC_ORDERS: `${API_BASE_URL}/api/head-technician/quality-inspection`,
-    GET_INSPECTION_STATISTICS: `${API_BASE_URL}/api/head-technician/quality-inspection/statistics`,
-    APPROVE_FINAL_QC: (serviceOrderId: number) =>
-        `${API_BASE_URL}/api/head-technician/final-inspection/${serviceOrderId}/approve`,
-    REJECT_FINAL_QC: (serviceOrderId: number) =>
-        `${API_BASE_URL}/api/head-technician/final-inspection/${serviceOrderId}/reject`,
+    COMPLETE_ASSIGNMENT: (assignmentId: number) =>
+        `${API_BASE_URL}/api/head-technician/assignments/${assignmentId}/complete`,
+    GET_TASK_TRACKING: `${API_BASE_URL}/api/head-technician/task-tracking`,
+    GET_RECEIVED_APPOINTMENTS: `${API_BASE_URL}/api/head-technician/appointments`,
 };

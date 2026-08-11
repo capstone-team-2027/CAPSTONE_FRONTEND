@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { X, User, ShieldCheck, Star, MapPin, CheckCircle, XCircle, Search } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { X, User, ShieldCheck, Star, MapPin, CheckCircle, XCircle, Search, Car, CircleAlert, Eye } from 'lucide-react';
 import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { RECEPTION_API } from '../../../constants/reception/receptionApiEndpoint';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents, Polyline } from 'react-leaflet';
@@ -21,6 +21,13 @@ const userIcon = L.icon({
   iconAnchor: [17, 35],
   popupAnchor: [0, -35],
 });
+
+const assignmentStatusLabel = (status: string) => ({
+  ASSIGNED: 'Chờ thực hiện',
+  IN_PROGRESS: 'Đang thực hiện',
+  PAUSED: 'Đang tạm dừng',
+  WAITING_STOCK: 'Đang chờ phụ tùng',
+}[status] || status);
 
 // resolve default export for PhoneInput
 type Mod = { default?: unknown };
@@ -101,6 +108,19 @@ const MapFitter = ({ bounds }: { bounds: L.LatLngBounds | null }) => {
   return null;
 };
 
+// Leaflet đo kích thước container ngay lúc khởi tạo — nếu modal vừa mở, layout DOM đôi khi
+// chưa "settle" xong ở thời điểm đó, khiến bản đồ render sai kích thước (tràn ra ngoài khung
+// 250px, đè lên phần còn lại của modal). Gọi lại invalidateSize() sau khi mount để Leaflet đo
+// lại đúng kích thước thật của container cha.
+const MapResizeFixer = () => {
+  const map = useMap();
+  useEffect(() => {
+    const timer = setTimeout(() => map.invalidateSize(), 100);
+    return () => clearTimeout(timer);
+  }, [map]);
+  return null;
+};
+
 // Map click handler to select destination coordinates
 const MapClickHandler = ({ onClick }: { onClick: (lat: number, lng: number) => void }) => {
   useMapEvents({
@@ -135,6 +155,7 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
   const [customerLng, setCustomerLng] = useState<number | null>(null);
   const [technicians, setTechnicians] = useState<any[]>([]);
   const [selectedTechnicianId, setSelectedTechnicianId] = useState<number | null>(null);
+  const [expandedTechnicianId, setExpandedTechnicianId] = useState<number | null>(null);
   const [loadingTechs, setLoadingTechs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
@@ -144,6 +165,13 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
   const [searchAddressQuery, setSearchAddressQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchingAddress, setSearchingAddress] = useState(false);
+  const programmaticAddressRef = useRef<string | null>(null);
+
+  const fillAddressInput = (address: string) => {
+    programmaticAddressRef.current = address;
+    setSearchAddressQuery(address);
+    setSearchResults([]);
+  };
 
   const handleSearchAddress = async (query: string) => {
     setSearchingAddress(true);
@@ -166,6 +194,10 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
   // Tự động tìm kiếm khi gõ, không cần bấm nút — debounce 500ms để tránh gọi API dồn dập.
   useEffect(() => {
     const query = searchAddressQuery.trim();
+    if (programmaticAddressRef.current === searchAddressQuery) {
+      programmaticAddressRef.current = null;
+      return;
+    }
     if (!query) {
       setSearchResults([]);
       return;
@@ -181,9 +213,7 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
     const lat = parseFloat(result.lat);
     const lng = parseFloat(result.lon);
     
-    handleMapClick(lat, lng);
-    setSearchResults([]);
-    setSearchAddressQuery(result.display_name);
+    handleMapClick(lat, lng, result.display_name);
   };
 
   const garageLocation: [number, number] = [15.9675, 108.2605]; // 480 Trần Quốc Hoàn, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng
@@ -209,9 +239,27 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
   }, [isOpen, fetchPrivate]);
 
   // Handle map click
-  const handleMapClick = async (lat: number, lng: number) => {
+  const handleMapClick = async (lat: number, lng: number, knownAddress?: string) => {
     setCustomerLat(lat);
     setCustomerLng(lng);
+    fillAddressInput(knownAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+
+    if (!knownAddress) {
+      try {
+        const reverseUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=vi`;
+        const reverseResponse = await fetch(reverseUrl, {
+          headers: { 'Accept-Language': 'vi' }
+        });
+        if (!reverseResponse.ok) throw new Error(`Reverse geocoding HTTP ${reverseResponse.status}`);
+        const location = await reverseResponse.json();
+        if (location?.display_name) {
+          fillAddressInput(location.display_name);
+        }
+      } catch (error) {
+        console.error('Không thể lấy tên địa chỉ từ tọa độ:', error);
+        // Giữ tọa độ đã điền làm giá trị dự phòng khi dịch vụ địa chỉ không phản hồi.
+      }
+    }
 
     try {
       const url = `https://router.project-osrm.org/route/v1/driving/${garageLocation[1]},${garageLocation[0]};${lng},${lat}?overview=full&geometries=geojson`;
@@ -425,9 +473,10 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
                 Bản đồ định vị (Click để chọn vị trí khách hàng)
               </label>
-              <div className="w-full h-[250px] bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
+              <div className="relative w-full h-[250px] bg-slate-100 rounded-xl overflow-hidden border border-slate-200" style={{ isolation: 'isolate' }}>
                 <MapContainer center={garageLocation} zoom={13} style={{ width: '100%', height: '100%' }}>
                   <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  <MapResizeFixer />
                   {mapBounds && <MapFitter bounds={mapBounds} />}
                   <MapClickHandler onClick={handleMapClick} />
                   <Marker position={garageLocation} icon={garageIcon}>
@@ -524,8 +573,8 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
                   return (
                     <div 
                       key={tech.id}
-                      onClick={() => setSelectedTechnicianId(tech.id)}
-                      className={`p-4 rounded-xl border transition-all flex items-center gap-3 bg-white cursor-pointer ${
+                      onClick={() => setSelectedTechnicianId(selectedTechnicianId === tech.id ? null : tech.id)}
+                      className={`group relative p-4 rounded-xl border transition-all flex items-center gap-3 bg-white cursor-pointer ${
                         selectedTechnicianId === tech.id 
                           ? 'border-[#00285E] ring-2 ring-[#00285E]/20 shadow-md' 
                           : 'border-slate-200 hover:border-[#00285E]/50'
@@ -536,20 +585,37 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
                       </div>
                       <div className="flex-1 min-w-0">
                         <h5 className="font-bold text-slate-800 text-sm truncate">{tech.fullName}</h5>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
                           {isLeader && (
                             <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
                               <ShieldCheck size={10} /> Tổ trưởng
                             </span>
                           )}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5 ${
+                            tech.isBusy ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            <CircleAlert size={10} /> {tech.isBusy ? 'Đang bận' : 'Đang rảnh'}
+                          </span>
                         </div>
                         <p className="text-xs text-slate-500 mt-1 truncate">{tech.phoneNumber}</p>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        <div className="flex items-center text-amber-500">
+                        {tech.isBusy && tech.currentTasks?.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setExpandedTechnicianId(tech.id);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-200"
+                          >
+                            <Eye size={13} />
+                            Xem việc
+                          </button>
+                        ) : <div className="flex items-center text-amber-500">
                           <Star size={14} className="fill-amber-500" />
                           <span className="text-xs font-bold ml-1">{tech.skillLevel}</span>
-                        </div>
+                        </div>}
                         {selectedTechnicianId === tech.id && <span className="text-xs text-white bg-[#00285E] px-2 py-1 rounded-md">Đã chọn</span>}
                       </div>
                     </div>
@@ -561,6 +627,53 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
                 Không có kỹ thuật viên nào làm việc hôm nay.
               </div>
             )}
+
+            {/* Modal "Công việc đang phụ trách" — modal riêng thay vì popup định vị theo nút,
+                tránh mọi vấn đề overflow/tràn màn hình của cách định vị theo toạ độ. */}
+            {expandedTechnicianId != null && (() => {
+              const expandedTech = technicians.find((t) => t.id === expandedTechnicianId);
+              if (!expandedTech) return null;
+              return (
+                <div
+                  className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
+                  onClick={() => setExpandedTechnicianId(null)}
+                >
+                  <div
+                    className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">Công việc đang phụ trách</p>
+                        <p className="text-xs text-slate-500">{expandedTech.fullName}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedTechnicianId(null)}
+                        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                    <div className="max-h-[60vh] space-y-2 overflow-y-auto p-4">
+                      {expandedTech.currentTasks.map((task: any) => (
+                        <div key={task.id} className="rounded-lg border border-orange-100 bg-orange-50/70 px-3 py-2.5 text-xs">
+                          <p className="flex items-center gap-1.5 font-bold text-slate-700">
+                            <Car size={13} className="shrink-0 text-orange-500" />
+                            {task.serviceName || task.taskType || 'Công việc kỹ thuật'}
+                          </p>
+                          <p className="mt-1 text-slate-500">
+                            {task.serviceOrderId ? `Lệnh dịch vụ #${task.serviceOrderId}` : `Công việc #${task.id}`}
+                            {task.vehiclePlate ? ` · Xe ${task.vehiclePlate}` : ''}
+                          </p>
+                          <p className="mt-0.5 font-semibold text-orange-700">{assignmentStatusLabel(task.status)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
         </div>

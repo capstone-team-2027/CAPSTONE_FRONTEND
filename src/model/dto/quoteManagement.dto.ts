@@ -94,17 +94,31 @@ export interface QuotationTask {
   id: number;
   serviceOrder?: IssueHistoryServiceOrder | null;
 }
+// Phụ tùng đặt riêng tách khỏi Quotation_Details — sống ở bảng riêng với state machine
+// riêng (WAITING_DEPOSIT -> WAITING_ARRIVAL -> READY_FOR_USE -> EXPORTED).
+export interface CustomPartOrderDto {
+  id: number;
+  item_name: string;
+  quantity: number;
+  unit_price: number;
+  actual_unit_price?: number | null;
+  arrived_at?: string | null;
+  status: "WAITING_DEPOSIT" | "WAITING_ARRIVAL" | "READY_FOR_USE" | "EXPORTED" | "CANCELLED";
+}
 export interface GetQuotationDetailResponse {
   id: number;
   quantity: number;
   unit_price: number;
   repair_price: number;
   amount: number;
+  // custom_item_name không còn được ghi mới — dữ liệu thật của phụ tùng đặt riêng nằm ở
+  // customPartOrder. Giữ field cũ optional để không vỡ code cũ chưa migrate xong.
   custom_item_name?: string | null;
   status?: string | null;
   issue?: QuotationDetailIssue | null;
   sparePart: GetSparePartResponse | null;
   service_catalog: GetServicesResponse | null;
+  customPartOrder?: CustomPartOrderDto | null;
 }
 export interface GetQuotationResponse {
   id: number;

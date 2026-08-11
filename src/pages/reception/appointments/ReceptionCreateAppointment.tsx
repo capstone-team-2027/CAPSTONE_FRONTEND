@@ -30,8 +30,8 @@ import { GARAGE_CONFIG_API_ENDPOINTS } from '../../../constants/customer/garage_
 import type { ServiceCombo, ServiceItem as CustomerServiceItem } from '../../../model/Service';
 import { useTranslation } from 'react-i18next';
 import { VEHICLE_MAKE_MODEL_API_ENDPOINTS } from '../../../constants/customer/vehicelMakeModelEndpoint';
-import SingleServicesSelector from '../../customer/Booking/SingleServicesSelector';
-import ComboServicesSelector from '../../customer/Booking/ComboServicesSelector';
+import SingleServicesSelector from '../../customer/booking/SingleServicesSelector';
+import ComboServicesSelector from '../../customer/booking/ComboServicesSelector';
 
 const DEFAULT_SHIFTS = [
   { start_time: '08:00', end_time: '12:00' },
@@ -55,6 +55,7 @@ type PhoneInputProps = {
   onChange?: (value: string) => void;
   onBlur?: () => void;
   enableSearch?: boolean;
+  countryCodeEditable?: boolean;
   searchPlaceholder?: string;
   inputProps?: { name?: string };
 };
@@ -114,6 +115,9 @@ export default function ReceptionCreateAppointment() {
   // Walk-in mode manual entry
   const [manualCustName, setManualCustName] = useState('');
   const [manualCustPhone, setManualCustPhone] = useState('');
+  // SĐT khách mới trùng khách đã có trong hệ thống — chặn tạo mới, mời chuyển sang dùng khách cũ.
+  const [duplicateCustomer, setDuplicateCustomer] = useState<any | null>(null);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
 
   // Vehicle Selection States for existing customers
   const [vehicleInputMode, setVehicleInputMode] = useState<'EXISTING' | 'NEW'>('EXISTING');
@@ -134,6 +138,7 @@ export default function ReceptionCreateAppointment() {
 
   const brandRef = useRef<HTMLDivElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
+  const isSelectingRef = useRef(false);
 
   // Common fields
   const [notes, setNotes] = useState(''); // Ghi chú / mô tả tình trạng cần sửa chữa
@@ -480,28 +485,112 @@ export default function ReceptionCreateAppointment() {
     }
   }, [bookingDate, timeSlots, bookingTime]);
 
-  // Search algorithm for Tab "Khách hàng cũ"
-  const handleSearchRecord = async () => {
-    if (!recordSearch || !recordSearch.trim()) {
-      setSearchResults([]);
+  // Debounce search customer by phone number
+  useEffect(() => {
+    if (isSelectingRef.current) {
+      isSelectingRef.current = false;
       return;
     }
 
-    try {
-      const res = await fetchPrivate(SEARCH_API_ENDPOINTS.CUSTOMER_INFO_BY_PHONE, 'POST', { phone: recordSearch });
-      if (res && res.success && res.data) {
-        const { customer } = res.data;
-        const results: any[] = [];
+    const phoneSearchTerm = recordSearch.replace(/\D/g, '').replace(/^84/, '');
+    if (!phoneSearchTerm) {
+      setSearchResults([]);
+      setSelectedRecord(null);
+      return;
+    }
 
-        if (customer) {
-          results.push({
+    // Reset selectedRecord when typing a new phone number to start fresh search
+    setSelectedRecord(null);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetchPrivate(SEARCH_API_ENDPOINTS.CUSTOMER_INFO_BY_PHONE, 'POST', {
+          phone: phoneSearchTerm,
+          partial: true,
+        });
+        if (res && res.success && res.data) {
+          const customers = Array.isArray(res.data.customers) ? res.data.customers : [];
+          const results = customers.map((customer: any) => ({
             type: 'customer',
             id: customer.id,
             name: customer.customer_name,
             phone: customer.phone,
             vehicles: customer.vehicles || []
-          });
+          }));
+          setSearchResults(results);
+        } else {
+          setSearchResults([]);
         }
+      } catch (err) {
+        console.error("Lỗi tìm kiếm tự động:", err);
+        setSearchResults([]);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [recordSearch, fetchPrivate]);
+
+  // Ở tab "Khách vãng lai lần đầu": SĐT vừa gõ có thể đã thuộc về 1 khách có sẵn trong hệ
+  // thống — cảnh báo ngay để lễ tân chuyển sang dùng khách cũ, tránh BE âm thầm ghi đè/lẫn tên.
+  useEffect(() => {
+    if (mode !== 'first_time') {
+      setDuplicateCustomer(null);
+      return;
+    }
+    const searchTerm = manualCustPhone.replace(/\D/g, '').replace(/^84/, '');
+    if (!searchTerm) {
+      setDuplicateCustomer(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsCheckingDuplicate(true);
+      try {
+        const res = await fetchPrivate(SEARCH_API_ENDPOINTS.CUSTOMER_INFO_BY_PHONE, 'POST', {
+          phone: searchTerm,
+          partial: true,
+        });
+        const customers = Array.isArray(res?.data?.customers) ? res.data.customers : [];
+        const exactMatch = customers.find(
+          (c: any) => String(c.phone).replace(/\D/g, '').replace(/^84/, '') === searchTerm,
+        );
+        setDuplicateCustomer(
+          exactMatch
+            ? { type: 'customer', id: exactMatch.id, name: exactMatch.customer_name, phone: exactMatch.phone, vehicles: exactMatch.vehicles || [] }
+            : null,
+        );
+      } catch (err) {
+        console.error('Không thể kiểm tra số điện thoại:', err);
+        setDuplicateCustomer(null);
+      } finally {
+        setIsCheckingDuplicate(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [mode, manualCustPhone, fetchPrivate]);
+
+  // Search algorithm for Tab "Khách hàng cũ"
+  const handleSearchRecord = async () => {
+    const phoneSearchTerm = recordSearch.replace(/\D/g, '').replace(/^84/, '');
+    if (!phoneSearchTerm) {
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      const res = await fetchPrivate(SEARCH_API_ENDPOINTS.CUSTOMER_INFO_BY_PHONE, 'POST', {
+        phone: phoneSearchTerm,
+        partial: true,
+      });
+      if (res && res.success && res.data) {
+        const customers = Array.isArray(res.data.customers) ? res.data.customers : [];
+        const results = customers.map((customer: any) => ({
+          type: 'customer',
+          id: customer.id,
+          name: customer.customer_name,
+          phone: customer.phone,
+          vehicles: customer.vehicles || []
+        }));
 
         if (results.length > 0) {
           setSearchResults(results);
@@ -521,18 +610,24 @@ export default function ReceptionCreateAppointment() {
   };
 
   const handleSelectRecord = (record: any) => {
+    isSelectingRef.current = true;
     setSelectedRecord(record);
 
     if (record.vehicles && record.vehicles.length > 0) {
-      setVehicleInputMode('EXISTING');
-      const availableVehicle = record.vehicles.find((v: any) => !v.isInGarage);
-      setSelectedCustomerVehicleId(String(availableVehicle ? availableVehicle.id : record.vehicles[0].id));
+      const availableVehicle = record.vehicles.find((v: any) => !v.isDisabled);
+      if (availableVehicle) {
+        setVehicleInputMode('EXISTING');
+        setSelectedCustomerVehicleId(String(availableVehicle.id));
+      } else {
+        setVehicleInputMode('NEW');
+        setSelectedCustomerVehicleId('');
+      }
     } else {
       setVehicleInputMode('NEW');
       setSelectedCustomerVehicleId('');
     }
 
-    setRecordSearch('');
+    setRecordSearch(record.phone);
     setSearchResults([]);
   };
 
@@ -566,6 +661,15 @@ export default function ReceptionCreateAppointment() {
           showToast('Vui lòng chọn xe.', 'warning');
           return;
         }
+        if (vehicleInputMode === 'EXISTING') {
+          const selectedVehicle = selectedRecord.vehicles?.find(
+            (vehicle: any) => String(vehicle.id) === selectedCustomerVehicleId
+          );
+          if (selectedVehicle?.isDisabled) {
+            showToast(selectedVehicle.disableReason || 'Xe này hiện không thể đặt lịch.', 'warning');
+            return;
+          }
+        }
         if (vehicleInputMode === 'NEW') {
           if (!manualVehiclePlate.trim() || !vehicleBrand.trim() || !vehicleModel.trim()) {
             showToast('Vui lòng điền đầy đủ thông tin Xe (Biển số, Hãng, Dòng xe).', 'warning');
@@ -575,6 +679,10 @@ export default function ReceptionCreateAppointment() {
       } else {
         if (!manualCustName.trim() || !manualCustPhone.trim() || !manualVehiclePlate.trim() || !vehicleBrand.trim() || !vehicleModel.trim()) {
           showToast('Vui lòng điền đầy đủ thông tin Khách hàng và Xe.', 'warning');
+          return;
+        }
+        if (duplicateCustomer) {
+          showToast('Số điện thoại này đã có khách hàng trong hệ thống. Vui lòng chọn khách hàng có sẵn.', 'warning');
           return;
         }
       }
@@ -589,7 +697,7 @@ export default function ReceptionCreateAppointment() {
         return;
       }
       if (receptionServiceMode === 'REPAIR' && !notes.trim()) {
-        showToast('Vui lòng điền mô tả tình trạng sửa chữa.', 'warning');
+        showToast('Vui lòng điền mô tả khách hàng đang gặp phải.', 'warning');
         return;
       }
 
@@ -660,8 +768,7 @@ export default function ReceptionCreateAppointment() {
           <ArrowLeft size={24} />
         </button>
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-1 flex items-center gap-2">
-            <CalendarCheck className="text-amber-500" size={28} />
+          <h1 className="mb-1 text-2xl font-bold leading-none tracking-tight text-[#00285E] md:text-3xl">
             Đặt lịch hẹn cho khách hàng
           </h1>
           <p className="text-slate-500 text-sm">
@@ -670,15 +777,17 @@ export default function ReceptionCreateAppointment() {
         </div>
       </div>
 
+      {/* SINGLE APPOINTMENT FORM */}
+      <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm sm:p-6 md:p-7">
       {/* SEGMENTED TAB CONTROL FOR SECTIONS */}
-      <div className="flex p-1 bg-slate-100 rounded-xl max-w-xl">
+      <div className="flex w-full rounded-xl bg-slate-100 p-1">
         <button
           onClick={() => {
             setMode('existing');
             setSelectedRecord(null);
           }}
           className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-bold transition-all ${mode === 'existing'
-            ? 'bg-white text-[#00285E] shadow-sm'
+            ? 'bg-[#00285E] text-white shadow-sm shadow-[#00285E]/20'
             : 'text-slate-500 hover:text-slate-700'
             }`}
         >
@@ -691,7 +800,7 @@ export default function ReceptionCreateAppointment() {
             setSelectedRecord(null);
           }}
           className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-bold transition-all ${mode === 'first_time'
-            ? 'bg-white text-[#00285E] shadow-sm'
+            ? 'bg-[#00285E] text-white shadow-sm shadow-[#00285E]/20'
             : 'text-slate-500 hover:text-slate-700'
             }`}
         >
@@ -708,10 +817,10 @@ export default function ReceptionCreateAppointment() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="space-y-6"
+            className="mt-5 space-y-5"
           >
             {/* SEARCH INPUT BAR */}
-            <div className="bg-slate-50 rounded-2xl border border-slate-200/60 p-5 space-y-3 relative">
+            <div className="relative space-y-3 rounded-xl border border-slate-200/70 bg-slate-50/70 p-4 sm:p-5">
               <h2 className="text-xs font-bold text-[#00285E] uppercase tracking-widest flex items-center gap-2">
                 <Search size={14} />
                 Tìm kiếm Khách hàng hiện tại bằng SĐT
@@ -720,6 +829,7 @@ export default function ReceptionCreateAppointment() {
                 <div className="login-phone flex-1">
                   <PhoneInput
                     country="vn"
+                    countryCodeEditable={false}
                     value={recordSearch}
                     onChange={(val) => setRecordSearch(val)}
                     enableSearch
@@ -727,13 +837,6 @@ export default function ReceptionCreateAppointment() {
                     inputProps={{ name: 'search_phone' }}
                   />
                 </div>
-                <button
-                  type="button"
-                  onClick={handleSearchRecord}
-                  className="px-6 h-12 bg-[#00285E] text-white rounded-xl text-sm font-bold shadow-sm hover:bg-[#001a3f] transition-colors whitespace-nowrap"
-                >
-                  Tìm kiếm
-                </button>
               </div>
 
               {/* SEARCH RESULTS DROPDOWN */}
@@ -768,9 +871,9 @@ export default function ReceptionCreateAppointment() {
 
             {/* READONLY CUSTOMER & VEHICLE DISPLAY */}
             {selectedRecord ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-4 border-t border-slate-200 pt-5 md:grid-cols-2">
                 {/* READONLY CUSTOMER INFO */}
-                <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
+                <div className="rounded-xl bg-slate-50/70 p-4 sm:p-5">
                   <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
                     <User size={16} className="text-[#00285E]" />
                     Thông tin Khách hàng
@@ -786,7 +889,7 @@ export default function ReceptionCreateAppointment() {
                 </div>
 
                 {/* VEHICLE INFO: EXISTING OR NEW */}
-                <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
+                <div className="space-y-4 rounded-xl bg-slate-50/70 p-4 sm:p-5">
                   <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
                     <Car size={16} className="text-[#00285E]" />
                     Thông tin Xe đặt lịch
@@ -799,8 +902,18 @@ export default function ReceptionCreateAppointment() {
                           type="radio"
                           checked={vehicleInputMode === 'EXISTING'}
                           onChange={() => {
+                            const availableVehicle = selectedRecord.vehicles.find((v: any) => !v.isDisabled);
+                            if (!availableVehicle) {
+                              showToast('Tất cả xe đã lưu đều đang có lịch hoặc đang ở trong gara.', 'warning');
+                              return;
+                            }
                             setVehicleInputMode('EXISTING');
-                            if (!selectedCustomerVehicleId) setSelectedCustomerVehicleId(String(selectedRecord.vehicles[0].id));
+                            const currentVehicle = selectedRecord.vehicles.find(
+                              (v: any) => String(v.id) === selectedCustomerVehicleId
+                            );
+                            if (!currentVehicle || currentVehicle.isDisabled) {
+                              setSelectedCustomerVehicleId(String(availableVehicle.id));
+                            }
                           }}
                           className="accent-[#00285E]"
                         />
@@ -827,8 +940,8 @@ export default function ReceptionCreateAppointment() {
                           className="w-full bg-[#F8FAFC] border border-blue-50/50 rounded-xl p-3 text-sm font-semibold text-slate-700 outline-none transition-all focus:border-[#00285E]"
                         >
                           {selectedRecord.vehicles?.map((v: any) => (
-                            <option key={v.id} value={v.id}>
-                              {v.license_plate} - {v.brand} {v.model}
+                            <option key={v.id} value={v.id} disabled={v.isDisabled}>
+                              {v.license_plate} - {v.brand} {v.model} {v.isDisabled ? `(${v.disableReason})` : ''}
                             </option>
                           ))}
                         </select>
@@ -939,10 +1052,10 @@ export default function ReceptionCreateAppointment() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="grid grid-cols-1 md:grid-cols-2 gap-6"
+            className="mt-5 grid grid-cols-1 gap-4 border-t border-slate-200 pt-5 md:grid-cols-2"
           >
             {/* EDITABLE CUSTOMER INFO */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
+            <div className="space-y-4 rounded-xl bg-slate-50/70 p-4 sm:p-5">
               <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
                 <User size={16} className="text-[#00285E]" />
                 Thông tin Khách hàng mới
@@ -961,6 +1074,7 @@ export default function ReceptionCreateAppointment() {
                   <div className="login-phone">
                     <PhoneInput
                       country="vn"
+                      countryCodeEditable={false}
                       value={manualCustPhone}
                       onChange={(val) => setManualCustPhone(val)}
                       enableSearch
@@ -968,12 +1082,40 @@ export default function ReceptionCreateAppointment() {
                       inputProps={{ name: 'phone' }}
                     />
                   </div>
+                  {isCheckingDuplicate && (
+                    <p className="mt-2 text-xs font-semibold text-slate-400">Đang kiểm tra số điện thoại...</p>
+                  )}
+                  {duplicateCustomer && (
+                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3.5">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-amber-800">
+                            Số điện thoại này đã thuộc về khách hàng "{duplicateCustomer.name}"
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-amber-700">
+                            Đã có {duplicateCustomer.vehicles?.length || 0} xe trong hệ thống. Vui lòng chọn khách hàng có sẵn để tránh trùng/nhầm hồ sơ.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMode('existing');
+                              handleSelectRecord(duplicateCustomer);
+                            }}
+                            className="mt-2.5 rounded-lg bg-amber-600 px-3 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-amber-700"
+                          >
+                            Chọn khách hàng này
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* EDITABLE VEHICLE INFO */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
+            <div className="space-y-4 rounded-xl bg-slate-50/70 p-4 sm:p-5">
               <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
                 <Car size={16} className="text-[#00285E]" />
                 Thông tin Xe đặt lịch
@@ -1071,7 +1213,7 @@ export default function ReceptionCreateAppointment() {
       </AnimatePresence>
 
       {/* SCHEDULED TIME */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-4">
+      <div className="mt-5 space-y-4 border-t border-slate-200 pt-5">
         <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
           <Calendar size={16} className="text-[#00285E]" />
           Thời gian hẹn <span className="text-rose-500">*</span>
@@ -1103,7 +1245,7 @@ export default function ReceptionCreateAppointment() {
               <option value="">-- Chọn giờ hẹn --</option>
               {timeSlots.map((slot) => (
                 <option key={slot.time} value={slot.time} disabled={slot.isFull}>
-                  {slot.time} ({slot.label}){slot.isFull ? ' - Kín lịch' : ''}
+                  {slot.time} ({slot.label}){slot.isFull ? ' - Không thể chọn khung giờ này' : ''}
                 </option>
               ))}
             </select>
@@ -1118,7 +1260,7 @@ export default function ReceptionCreateAppointment() {
       </div>
 
       {/* SERVICE OR REPAIR SELECTION */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-6">
+      <div className="mt-5 space-y-6 border-t border-slate-200 pt-5">
         {/* Toggle Buttons */}
         <div className="flex gap-2 p-1 bg-slate-100/60 rounded-xl w-fit border border-slate-200/20">
           <button
@@ -1150,7 +1292,7 @@ export default function ReceptionCreateAppointment() {
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
             <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 uppercase tracking-widest border-b border-slate-100 pb-3">
               <StickyNote size={16} className="text-[#00285E]" />
-              Mô tả tình trạng hỏng hóc <span className="text-rose-500">*</span>
+              Mô tả vấn đề khách hàng đang gặp phải <span className="text-rose-500">*</span>
             </h2>
             <textarea
               value={notes}
@@ -1220,6 +1362,7 @@ export default function ReceptionCreateAppointment() {
                     serviceTotalPages={serviceTotalPages}
                     searchText={serviceSearch}
                     setSearchText={setServiceSearch}
+                    elevated
                   />
                 )}
 
@@ -1233,6 +1376,8 @@ export default function ReceptionCreateAppointment() {
                     COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
                     selectedServiceIds={selectedServiceIds}
                     setSelectedServiceIds={setSelectedServiceIds}
+                    compact
+                    elevated
                   />
                 )}
               </div>
@@ -1247,30 +1392,7 @@ export default function ReceptionCreateAppointment() {
           </div>
         )}
 
-        {receptionServiceMode === 'REPAIR' && !notes.trim() && (
-          <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-600">
-            <AlertCircle size={14} />
-            Cần điền mô tả tình trạng sửa chữa.
-          </div>
-        )}
       </div>
-
-      {/* NOTES (khi mode SERVICE, ghi chú thêm không bắt buộc) */}
-      {receptionServiceMode === 'SERVICE' && (
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6">
-          <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 uppercase tracking-widest">
-            <StickyNote size={16} className="text-[#00285E]" />
-            Ghi chú
-          </h2>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Ghi chú thêm cho lịch hẹn (nếu có)..."
-            rows={3}
-            className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all resize-none"
-          />
-        </div>
-      )}
 
       {/* ACTION BUTTONS */}
       <div className="flex items-center justify-end gap-3 pt-2">
@@ -1287,6 +1409,7 @@ export default function ReceptionCreateAppointment() {
           <CalendarCheck size={16} />
           Đặt lịch hẹn
         </button>
+      </div>
       </div>
     </div>
   );

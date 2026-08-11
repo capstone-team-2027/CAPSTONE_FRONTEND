@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   CalendarCheck,
   ClipboardPlus,
-  FileText,
   CreditCard,
   MessageSquare,
   History,
@@ -270,24 +269,12 @@ export default function ReceptionLayout() {
 
   const menuGroups = [
     {
-      label: 'Dịch vụ',
+      label: null,
       items: [
         { name: "Lịch hẹn", icon: CalendarCheck, path: "/reception/appointments" },
-        { name: "Quản lý báo giá", icon: FileText, path: "/reception/quotes" },
+        { name: "Danh sách báo giá", icon: History, path: "/reception/quotes" },
         { name: "Quản lý hóa đơn dịch vụ", icon: ClipboardPlus, path: "/reception/service-orders" },
-      ],
-    },
-    {
-      label: 'Khách hàng',
-      items: [
         { name: 'Khách hàng & Cứu hộ', icon: Users, path: '/reception/customers' },
-        { name: 'Kỹ thuật viên hôm nay', icon: Wrench, path: '/reception/technicians' },
-      ],
-    },
-    {
-      label: 'Hỗ trợ',
-      items: [
-        { name: "Báo cáo lỗi", icon: FileText, path: "/reception/issues" },
         { name: "Phản hồi khách hàng", icon: MessageSquare, path: "/reception/feedback" },
       ],
     },
@@ -298,10 +285,11 @@ export default function ReceptionLayout() {
   // Dynamic active menu item based on current URL path
   const activeMenu = useMemo(() => {
     const path = location.pathname;
+    // Trang tiếp nhận khách được mở từ luồng Lịch hẹn, không thuộc danh sách
+    // "Khách hàng & Cứu hộ" dù route hiện nằm dưới /customers.
+    if (path === "/reception/customers/receive") return "Lịch hẹn";
     if (path.includes("/appointments")) return "Lịch hẹn";
-    if (path.includes("/additional-issues")) return "Lỗi phát sinh";
-    if (path.includes("/issues")) return "Báo cáo lỗi";
-    if (path.includes("/quotes")) return "Quản lý báo giá";
+    if (path.includes("/quotes")) return "Danh sách báo giá";
     if (path.includes('/customers')) return 'Khách hàng & Cứu hộ';
     if (path.includes('/technicians')) return 'Kỹ thuật viên hôm nay';
     if (path.includes("/feedback")) return "Phản hồi khách hàng";
@@ -329,7 +317,7 @@ export default function ReceptionLayout() {
         </div>
         <button
           onClick={() => setIsMobileSidebarOpen(false)}
-          className="md:hidden p-1 rounded-lg hover:bg-[#D2E2FF] text-[#00285E] transition-colors"
+          className="lg:hidden p-1 rounded-lg hover:bg-[#D2E2FF] text-[#00285E] transition-colors"
         >
           <X size={20} />
         </button>
@@ -558,7 +546,7 @@ export default function ReceptionLayout() {
       </AnimatePresence>
 
       {/* MOBILE HEADER BAR */}
-      <header className="md:hidden bg-white px-4 py-3 flex items-center justify-between border-b border-slate-100 shadow-sm z-30 sticky top-0">
+      <header className="lg:hidden bg-white px-4 py-3 flex items-center justify-between border-b border-slate-100 shadow-sm z-30 sticky top-0">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsMobileSidebarOpen(true)}
@@ -572,7 +560,21 @@ export default function ReceptionLayout() {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 select-none items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-0.5">
+            <button
+              onClick={() => i18n.changeLanguage('vi')}
+              className={`rounded-full px-2 py-1 text-[10px] font-bold transition-all ${i18n.language === 'vi' ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              VI
+            </button>
+            <button
+              onClick={() => i18n.changeLanguage('en')}
+              className={`rounded-full px-2 py-1 text-[10px] font-bold transition-all ${i18n.language.startsWith('en') ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              EN
+            </button>
+          </div>
           <div className="relative" ref={mobileNotifRef}>
             <button
               onClick={() =>
@@ -604,6 +606,14 @@ export default function ReceptionLayout() {
               </span>
             )}
           </button>
+          <div className="hidden min-w-0 flex-col text-right sm:flex">
+            <span className="max-w-32 truncate text-xs font-bold leading-tight text-slate-800">
+              {displayName}
+            </span>
+            <span className="max-w-32 truncate text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+              {displayRole}
+            </span>
+          </div>
           <img
             src={avatarUrl}
             alt="Reception Profile"
@@ -614,7 +624,7 @@ export default function ReceptionLayout() {
 
       {/* SIDEBAR ON DESKTOP */}
       <aside
-        className="fixed inset-y-0 left-0 bg-[#EDF3FF] border-r border-[#D2E2FF] w-72 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:sticky md:h-screen md:flex md:flex-col shrink-0 hidden md:block"
+        className="fixed inset-y-0 left-0 bg-[#EDF3FF] border-r border-[#D2E2FF] w-72 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out z-40 lg:sticky lg:h-screen lg:flex lg:flex-col shrink-0 hidden lg:block"
         style={{ height: "100vh" }}
       >
         <SidebarContent />
@@ -622,7 +632,7 @@ export default function ReceptionLayout() {
 
       {/* MOBILE DRAWER SIDEBAR */}
       {isMobileSidebarOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
+        <div className="fixed inset-0 z-50 lg:hidden flex">
           <div
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"
             onClick={() => setIsMobileSidebarOpen(false)}
@@ -636,7 +646,7 @@ export default function ReceptionLayout() {
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col min-w-0 pb-16">
         {/* DESKTOP HEADER BAR */}
-        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-30">
+        <header className="hidden lg:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-30">
           {/* Search bar */}
 
 

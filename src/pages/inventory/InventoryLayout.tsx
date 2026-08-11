@@ -18,6 +18,8 @@ import {
   AlertTriangle,
   Warehouse,
   PackageSearch,
+  Sparkles,
+  PackagePlus,
 } from "lucide-react";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -30,7 +32,10 @@ import { useFetchClient_v2 } from "../../hook/useFetchClient";
 import { loginSuccess, logout } from "../../store/slices/userSlice";
 import { PROFILE_API_ENDPOINTS } from "../../constants/common/profileEndpoints";
 import { NOTIFICATION_API_ENDPOINTS } from "../../constants/inventory/notificationEndpoints";
+import { RESTOCK_SUGGESTION_API_ENDPOINTS } from "../../constants/inventory/restockSuggestionApiEndpoint";
 import LogoutConfirmModal from "../../components/share/LogoutConfirmModal";
+import InventoryStockAlertModal from "../../components/share/InventoryStockAlertModal";
+import { playAlertSound } from "../../util/playAlertSound";
 
 export default function InventoryLayout() {
   const navigate = useNavigate();
@@ -54,6 +59,8 @@ export default function InventoryLayout() {
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [showSubtleAlert, setShowSubtleAlert] = useState(false);
+  const [subtleAlertCount, setSubtleAlertCount] = useState(0);
 
   const showToast = useCallback(
     (text: string, type: "success" | "info" | "warning" = "success") => {
@@ -88,6 +95,42 @@ export default function InventoryLayout() {
     const token = localStorage.getItem("token");
     if (token && !user) fetchUserProfile();
   }, [dispatch, fetchPrivate, user]);
+
+  // Vừa đăng nhập xong (Login.tsx truyền state justLoggedIn) -> tự động kiểm tra tồn kho,
+  // nếu có phụ tùng hết hàng/sắp hết thì cảnh báo ngay kèm âm thanh. Xoá state khỏi history
+  // ngay sau đó để F5/quay lại trang không hiện lại cảnh báo.
+  const checkLowStockStatus = useCallback(async () => {
+    try {
+      const response = await fetchPrivate<{
+        data: { suggestions: Array<any> };
+      }>(RESTOCK_SUGGESTION_API_ENDPOINTS.LIST);
+      const suggestions = response?.data?.suggestions ?? [];
+      const count = suggestions.length;
+      if (count > 0) {
+        setSubtleAlertCount(count);
+        setShowSubtleAlert(true);
+      } else {
+        setSubtleAlertCount(0);
+        setShowSubtleAlert(false);
+      }
+    } catch (error) {
+      console.error("Không kiểm tra được cảnh báo tồn kho:", error);
+    }
+  }, [fetchPrivate]);
+
+  useEffect(() => {
+    void checkLowStockStatus();
+    const intervalId = setInterval(() => {
+      void checkLowStockStatus();
+    }, 60000);
+    return () => clearInterval(intervalId);
+  }, [checkLowStockStatus]);
+
+  useEffect(() => {
+    if (showSubtleAlert && subtleAlertCount > 0) {
+      playAlertSound();
+    }
+  }, [showSubtleAlert, subtleAlertCount]);
 
   const fetchNotifications = async () => {
     try {
@@ -190,6 +233,11 @@ export default function InventoryLayout() {
           icon: Tags,
           path: "/inventory/categories",
         },
+        {
+          name: "Đề xuất nhập hàng",
+          icon: Sparkles,
+          path: "/inventory/restock-suggestions",
+        },
       ],
     },
     {
@@ -212,9 +260,14 @@ export default function InventoryLayout() {
           path: "/inventory/approved-quotes",
         },
         {
-          name: "Phụ tùng chờ nhập",
+          name: "Phụ tùng đặt riêng",
           icon: PackageSearch,
           path: "/inventory/waiting-stock",
+        },
+        {
+          name: "Yêu cầu bổ sung",
+          icon: PackagePlus,
+          path: "/inventory/restock-requests",
         },
       ],
     },
@@ -236,7 +289,9 @@ export default function InventoryLayout() {
     if (path === "/inventory" || path === "/inventory/") return "Tổng quan";
     if (path.includes("/parts")) return "Phụ tùng";
     if (path.includes("/categories")) return "Danh mục phụ tùng";
-    if (path.includes("/waiting-stock")) return "Phụ tùng chờ nhập";
+    if (path.includes("/waiting-stock")) return "Phụ tùng đặt riêng";
+    if (path.includes("/restock-requests")) return "Yêu cầu bổ sung";
+    if (path.includes("/restock-suggestions")) return "Đề xuất nhập hàng";
     if (path.includes("/import")) return "Lịch sử nhập kho";
     if (path.includes("/export")) return "Lịch sử xuất kho";
     if (path.includes("/approved-quotes")) return "Yêu cầu xuất kho";
@@ -271,14 +326,16 @@ export default function InventoryLayout() {
                       : "text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E]"
                   }`}
                 >
-                  <Icon
-                    size={18}
-                    className={
-                      isActive
-                        ? "text-[#F9A11B]"
-                        : "text-slate-500 group-hover:text-[#00285E]"
-                    }
-                  />
+                  {Icon && (
+                    <Icon
+                      size={18}
+                      className={
+                        isActive
+                          ? "text-[#F9A11B]"
+                          : "text-slate-500 group-hover:text-[#00285E]"
+                      }
+                    />
+                  )}
                   <span>{item.name}</span>
                 </button>
               );
@@ -668,6 +725,43 @@ export default function InventoryLayout() {
         onCancel={() => setShowLogoutConfirm(false)}
         onConfirm={handleLogoutConfirm}
       />
+
+      {/* Subtle Low Stock Alert Toast */}
+      <AnimatePresence>
+        {showSubtleAlert && subtleAlertCount > 0 && (
+          <motion.div
+            initial={{ opacity: 0, x: 100, y: 0 }}
+            animate={{ opacity: 1, x: 0, y: 0 }}
+            exit={{ opacity: 0, x: 100 }}
+            className="fixed bottom-6 right-6 z-[9999] max-w-sm w-full bg-white/95 backdrop-blur-md border border-amber-200 rounded-2xl p-4 shadow-2xl flex items-start gap-3.5 select-none"
+          >
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+              <AlertTriangle size={20} className="animate-bounce text-[#F9A11B]" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <h4 className="font-bold text-slate-800 text-sm">Cảnh báo tồn kho thấp!</h4>
+              <p className="text-xs text-slate-500 leading-normal">
+                Có <span className="font-bold text-[#F9A11B]">{subtleAlertCount}</span> phụ tùng sắp hết hoặc dưới mức tối thiểu cần nhập thêm.
+              </p>
+              <button
+                onClick={() => {
+                  navigate("/inventory/restock-suggestions");
+                  setShowSubtleAlert(false);
+                }}
+                className="text-xs font-bold text-[#00285E] hover:text-[#F9A11B] transition-colors mt-1 block cursor-pointer bg-transparent border-0 p-0"
+              >
+                Xem chi tiết đề xuất &rarr;
+              </button>
+            </div>
+            <button
+              onClick={() => setShowSubtleAlert(false)}
+              className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors shrink-0 cursor-pointer bg-transparent border-0"
+            >
+              <X size={16} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import type { UserModel } from '../../model/User';
 
 import { useFetchClient } from '../../hook/useFetchClient';
 import { useSocket } from '../../hook/useSocket';
+import { playAlertSound } from '../../util/playAlertSound';
 import { loginSuccess } from '../../store/slices/userSlice';
 import { PROFILE_API_ENDPOINTS } from '../../constants/customer/profileApiEndpoint';
 import { NOTIFICATION_API_ENDPOINTS } from '../../constants/customer/notificationEndpoints';
@@ -202,7 +203,10 @@ export default function Navbar() {
         joinUserRoom();
         socket.on('connect', joinUserRoom);
 
-        const handleNewNotification = () => {
+        const handleNewNotification = (data?: any) => {
+            if (data?.type === 'RESCUE_STATUS_UPDATED' && data?.status === 'EN_ROUTE') {
+                playAlertSound();
+            }
             fetchUnreadCount();
             if (showDropdown) fetchNotifications();
         };

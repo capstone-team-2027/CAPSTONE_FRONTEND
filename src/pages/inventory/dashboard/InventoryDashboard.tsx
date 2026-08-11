@@ -5,14 +5,17 @@ import {
   AlertTriangle,
   Boxes,
   Wallet,
-  TrendingUp,
   ArrowDownToLine,
   ArrowUpFromLine,
   ChevronRight,
+  Sparkles,
+  AlertCircle,
+  Package,
 } from 'lucide-react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { INVENTORY_DASHBOARD_API_ENDPOINTS } from '../../../constants/inventory/dashboardApiEndpoint';
+import { RESTOCK_SUGGESTION_API_ENDPOINTS } from '../../../constants/inventory/restockSuggestionApiEndpoint';
 type OutletCtx = {
   searchQuery: string;
   showToast: (text: string, type?: 'success' | 'info' | 'warning') => void;
@@ -35,22 +38,40 @@ interface InventoryDashboardData {
   };
   lowStock: Array<{ id: number; name: string; stock_quantity: number; min_threshold: number }>;
   recentTransactions: Array<{ receipt_code: string; type: string; quantity: number; unit_price: number; createdAt: string; part?: { name?: string; sku?: string } }>;
-  topConsumed: Array<{ name: string; qty: number }>;
+  topConsumed: Array<{ name: string; sku: string | null; qty: number }>;
+  topAgingStock: Array<{ name: string; sku: string | null; days: number }>;
+}
+
+interface RestockSuggestionItem {
+  part_id: number;
+  sku: string;
+  name: string;
+  suggested_quantity: number;
+}
+
+interface RestockSuggestionResponse {
+  restock_days: number;
+  suggestions: RestockSuggestionItem[];
 }
 
 export default function InventoryDashboard() {
   const { showToast } = useOutletContext<OutletCtx>();
   const { fetchPrivate } = useFetchClient_v2();
-  const [hoveredSlice, setHoveredSlice] = useState<number | null>(null);
+  const navigate = useNavigate();
   const [dashboardData, setDashboardData] = useState<InventoryDashboardData | null>(null);
+  const [restockData, setRestockData] = useState<RestockSuggestionResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadDashboard = async () => {
       try {
         setLoading(true);
-        const response = await fetchPrivate(INVENTORY_DASHBOARD_API_ENDPOINTS.SUMMARY);
-        setDashboardData(response.data);
+        const [summaryResponse, restockResponse] = await Promise.all([
+          fetchPrivate(INVENTORY_DASHBOARD_API_ENDPOINTS.SUMMARY),
+          fetchPrivate<RestockSuggestionResponse>(RESTOCK_SUGGESTION_API_ENDPOINTS.LIST),
+        ]);
+        setDashboardData(summaryResponse.data);
+        setRestockData(restockResponse.data);
       } catch (error) {
         console.error('Failed to load inventory dashboard data', error);
         showToast('Không thể tải dữ liệu kho', 'warning');
@@ -69,50 +90,36 @@ export default function InventoryDashboard() {
     { id: 'util', label: 'Giao dịch hôm nay', value: (dashboardData?.summary?.transactionsToday || 0).toString(), icon: <Warehouse size={18} />, tint: 'text-emerald-600 bg-emerald-50' },
   ];
 
-  const radius = 70;
-  const colors = ['#00285E', '#F9A11B', '#0D9488', '#3B82F6', '#8B5CF6', '#94A3B8'];
-
-  const categoryProgress = (dashboardData?.stockByCategory || []).map((item, index) => {
-    const total = (dashboardData?.stockByCategory || []).reduce((sum, r) => sum + r.value, 0);
-    return {
-      name: item.name,
-      value: item.value,
-      pct: total > 0 ? Math.round((item.value / total) * 100) : 0,
-      color: colors[index % colors.length],
-    };
-  });
-
-  const donutSegments = (() => {
-    const total = categoryProgress.reduce((sum, item) => sum + item.value, 0);
-    const circumference = 2 * Math.PI * radius;
-    return categoryProgress.reduce(
-      (acc, row) => {
-        const length = (row.value / Math.max(total, 1)) * circumference;
-        const segment = { ...row, dash: length, gap: circumference - length, offset: acc.offset };
-        return {
-          offset: acc.offset + length,
-          items: [...acc.items, segment],
-        };
-      },
-      { offset: 0, items: [] as Array<{ name: string; value: number; pct: number; color: string; dash: number; gap: number; offset: number }> }
-    ).items;
-  })();
-
   const topConsumedMaxQty = Math.max(...(dashboardData?.topConsumed || []).map((item) => item.qty), 1);
-  const topConsumed = (dashboardData?.topConsumed || []).map((item) => ({
+  const topConsumedChart = (dashboardData?.topConsumed || []).map((item) => ({
     name: item.name,
+    sku: item.sku || '—',
     qty: item.qty,
-    unit: 'cái',
     pct: Math.round((item.qty / topConsumedMaxQty) * 100),
   }));
 
-  const activity = (dashboardData?.recentTransactions || []).map((item, index) => ({
-    id: `${item.receipt_code}-${index}`,
-    type: item.type === 'IN' ? 'in' : 'out',
-    text: `${item.type === 'IN' ? 'Nhập' : 'Xuất'} ${item.quantity} ${item.part?.name || 'phụ tùng'}`,
-    ref: item.receipt_code,
-    time: new Date(item.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+  const agingStockMaxDays = Math.max(...(dashboardData?.topAgingStock || []).map((item) => item.days), 1);
+  const agingStockChart = (dashboardData?.topAgingStock || []).map((item) => ({
+    name: item.name,
+    sku: item.sku || '—',
+    days: item.days,
+    pct: Math.round((item.days / agingStockMaxDays) * 100),
   }));
+
+  const activity = (dashboardData?.recentTransactions || []).map((item, index) => {
+    const d = new Date(item.createdAt);
+    const today = new Date();
+    const isToday = d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+    const timeStr = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    const dateStr = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+    return {
+      id: `${item.receipt_code}-${index}`,
+      type: item.type === 'IN' ? 'in' : 'out',
+      text: `${item.type === 'IN' ? 'Nhập' : 'Xuất'} ${item.quantity} ${item.part?.name || 'phụ tùng'}`,
+      ref: item.receipt_code,
+      time: isToday ? timeStr : `${timeStr} ${dateStr}`,
+    };
+  });
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
@@ -159,146 +166,162 @@ export default function InventoryDashboard() {
         ))}
       </div>
 
-      {/* ROW: COMPOSITION DONUT + TOP CONSUMED + RECENT ACTIVITY */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Composition donut */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs flex flex-col">
-          <h2 className="text-lg font-bold text-slate-800 tracking-tight mb-0.5">Cơ cấu tồn kho</h2>
-          <p className="text-slate-400 text-xs mb-4">Phân bổ tồn kho theo danh mục</p>
+      {/* ROW: TOP CONSUMED CHART + TOP AGING STOCK CHART (gộp chung 1 card, ngăn cách bằng đường kẻ dọc) */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs">
+        <div className="grid grid-cols-1 md:grid-cols-2 md:divide-x-2 md:divide-slate-200">
+          {/* Top 10 tiêu thụ nhiều nhất */}
+          <div className="md:pr-6">
+            <h2 className="text-lg font-bold text-slate-800 tracking-tight mb-0.5">10 sản phẩm tiêu thụ nhiều nhất</h2>
+            <p className="text-slate-400 text-xs mb-5">Tổng số lượng xuất kho từ trước đến nay</p>
 
-          <div className="relative flex items-center justify-center my-2">
-            <svg viewBox="0 0 200 200" className="w-44 h-44 -rotate-90">
-              {donutSegments.map((seg, i) => (
-                <circle
-                  key={seg.name}
-                  cx="100"
-                  cy="100"
-                  r={radius}
-                  fill="none"
-                  stroke={seg.color}
-                  strokeWidth={hoveredSlice === i ? 26 : 22}
-                  strokeDasharray={`${seg.dash} ${seg.gap}`}
-                  strokeDashoffset={-seg.offset}
-                  className="transition-all duration-200 cursor-pointer"
-                  onMouseEnter={() => setHoveredSlice(i)}
-                  onMouseLeave={() => setHoveredSlice(null)}
-                />
-              ))}
-            </svg>
-            {/* center label */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              {hoveredSlice !== null ? (
-                <>
-                  <span className="text-2xl font-bold text-slate-900">{categoryProgress[hoveredSlice].value}%</span>
-                  <span className="text-xs font-semibold text-slate-400">{categoryProgress[hoveredSlice].name}</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-2xl font-bold text-slate-900">{dashboardData?.summary?.totalSku || 0}</span>
-                  <span className="text-xs font-semibold text-slate-400">Tổng sản phẩm</span>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* legend */}
-          <div className="space-y-3 mt-3">
-            {categoryProgress.map((c, i) => (
-              <div
-                key={c.name}
-                onMouseEnter={() => setHoveredSlice(i)}
-                onMouseLeave={() => setHoveredSlice(null)}
-                className="flex items-center justify-between text-sm cursor-pointer"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: c.color }}></span>
-                  <div>
-                    <p className={`font-semibold ${hoveredSlice === i ? 'text-slate-900' : 'text-slate-500'}`}>{c.name}</p>
-                    <p className="text-[11px] text-slate-400">{c.pct}% tổng tồn kho</p>
-                  </div>
-                </div>
-                <span className="font-bold text-slate-700">{c.value.toLocaleString('vi-VN')}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Top consumed */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="text-lg font-bold text-slate-800 tracking-tight">Tiêu thụ nhiều nhất</h2>
-              <p className="text-slate-400 text-xs mt-0.5">Phụ tùng xuất kho nhiều nhất từ trước đến nay</p>
-            </div>
-            <TrendingUp size={20} className="text-emerald-500" />
-          </div>
-
-          <div className="space-y-4">
-            {topConsumed.map((item, i) => (
-              <div key={`${item.name}-${i}`} className="flex items-center gap-3">
-                <span className="w-6 h-6 rounded-lg bg-slate-100 text-slate-500 text-xs font-bold flex items-center justify-center shrink-0">
-                  {i + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-bold text-slate-700 truncate">{item.name}</span>
-                    <span className="text-xs font-bold text-slate-500 shrink-0 ml-2">{item.qty} {item.unit}</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+            {topConsumedChart.length === 0 ? (
+              <div className="py-10 text-center text-sm text-slate-400">Chưa có dữ liệu xuất kho.</div>
+            ) : (
+              <div className="flex items-end gap-2 h-56">
+                {topConsumedChart.map((item) => (
+                  <div key={item.sku + item.name} className="flex-1 flex flex-col items-center justify-end h-full min-w-0">
+                    <span className="text-[11px] font-bold text-slate-700 mb-1">{item.qty}</span>
                     <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${item.pct}%` }}
-                      transition={{ duration: 0.9, ease: 'easeOut' }}
-                      className="h-full bg-[#B8860B] rounded-full"
+                      initial={{ height: 0 }}
+                      animate={{ height: `${item.pct}%` }}
+                      transition={{ duration: 0.7, ease: 'easeOut' }}
+                      className="w-full rounded-t-md bg-[#00285E]"
                     />
+                    <span
+                      className="text-[10px] text-slate-400 mt-2 w-full text-center truncate"
+                      title={item.name}
+                    >
+                      {item.sku}
+                    </span>
                   </div>
-                </div>
+                ))}
               </div>
-            ))}
+            )}
+          </div>
+
+          {/* Top 10 tồn kho lâu nhất */}
+          <div className="pt-6 md:pt-0 md:pl-6 border-t-2 md:border-t-0 border-slate-200">
+            <h2 className="text-lg font-bold text-slate-800 tracking-tight mb-0.5">10 sản phẩm tồn lâu nhất</h2>
+            <p className="text-slate-400 text-xs mb-5">Số ngày kể từ lần xuất kho gần nhất</p>
+
+            {agingStockChart.length === 0 ? (
+              <div className="py-10 text-center text-sm text-slate-400">Chưa có dữ liệu tồn kho.</div>
+            ) : (
+              <div className="flex items-end gap-2 h-56">
+                {agingStockChart.map((item) => (
+                  <div key={item.sku + item.name} className="flex-1 flex flex-col items-center justify-end h-full min-w-0">
+                    <span className="text-[11px] font-bold text-slate-700 mb-1">{item.days}</span>
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: `${item.pct}%` }}
+                      transition={{ duration: 0.7, ease: 'easeOut' }}
+                      className="w-full rounded-t-md bg-[#F9A11B]"
+                    />
+                    <span
+                      className="text-[10px] text-slate-400 mt-2 w-full text-center truncate"
+                      title={item.name}
+                    >
+                      {item.sku}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* Recent activity */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs flex flex-col">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="text-lg font-bold text-slate-800 tracking-tight">Hoạt động gần đây</h2>
-              <p className="text-slate-400 text-xs mt-0.5">Phiếu nhập / xuất kho mới nhất</p>
+      {/* ROW: RESTOCK SUGGESTIONS + RECENT ACTIVITY (gộp chung 1 card, ngăn cách bằng đường kẻ dọc) */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs">
+        <div className="grid grid-cols-1 md:grid-cols-2 md:divide-x-2 md:divide-slate-200">
+          {/* Restock suggestions */}
+          <div className="md:pr-6 flex flex-col">
+            <div className="flex items-center justify-between mb-0.5">
+              <h2 className="text-lg font-bold text-slate-800 tracking-tight flex items-center gap-1.5">
+                <Sparkles size={17} className="text-[#F9A11B]" />
+                Đề xuất nhập hàng
+              </h2>
             </div>
+            <p className="text-slate-400 text-xs mb-4">
+              Phân tích tồn kho &amp; tốc độ tiêu thụ {restockData?.restock_days ? `(đủ dùng ${restockData.restock_days} ngày)` : ""}
+            </p>
+
+            {(restockData?.suggestions.length ?? 0) === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center py-8 text-center text-slate-400">
+                <Package size={28} className="text-slate-300 mb-2" />
+                <p className="text-sm font-semibold">Chưa có phụ tùng nào cần nhập thêm.</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {(restockData?.suggestions ?? []).slice(0, 5).map((item) => (
+                  <div
+                    key={item.part_id}
+                    className="flex items-center justify-between gap-3 py-1.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-700 truncate">{item.name}</p>
+                      <p className="text-[11px] text-slate-400">{item.sku}</p>
+                    </div>
+                    <span className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold text-white bg-[#00285E]">
+                      <AlertCircle size={11} />
+                      +{item.suggested_quantity.toLocaleString('vi-VN')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => navigate('/inventory/restock-suggestions')}
+              className="w-full mt-4 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold text-[#00285E] hover:bg-slate-50 rounded-xl transition-colors border border-slate-100"
+            >
+              Xem tất cả đề xuất
+              <ChevronRight size={14} />
+            </button>
           </div>
 
-          <div className="space-y-1.5 flex-1">
-            {activity.map((a) => (
-              <button
-                key={a.id}
-                onClick={() => showToast(`Chi tiết phiếu: ${a.ref}`, 'info')}
-                className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-colors text-left group"
-              >
-                <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                    a.type === 'in' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-[#C27803]'
-                  }`}
+          {/* Recent activity */}
+          <div className="pt-6 md:pt-0 md:pl-6 border-t-2 md:border-t-0 border-slate-200 flex flex-col">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800 tracking-tight">Hoạt động gần đây</h2>
+                <p className="text-slate-400 text-xs mt-0.5">Phiếu nhập / xuất kho mới nhất</p>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 flex-1">
+              {activity.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => showToast(`Chi tiết phiếu: ${a.ref}`, 'info')}
+                  className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-colors text-left group"
                 >
-                  {a.type === 'in' ? <ArrowDownToLine size={16} /> : <ArrowUpFromLine size={16} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-bold text-slate-700 block truncate group-hover:text-[#00285E] transition-colors">
-                    {a.text}
-                  </span>
-                  <span className="text-xs font-semibold text-slate-400">{a.ref}</span>
-                </div>
-                <span className="text-xs font-bold text-slate-400 shrink-0">{a.time}</span>
-              </button>
-            ))}
-          </div>
+                  <div
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      a.type === 'in' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-[#C27803]'
+                    }`}
+                  >
+                    {a.type === 'in' ? <ArrowDownToLine size={16} /> : <ArrowUpFromLine size={16} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-bold text-slate-700 block truncate group-hover:text-[#00285E] transition-colors">
+                      {a.text}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-400">{a.ref}</span>
+                  </div>
+                  <span className="text-xs font-bold text-slate-400 shrink-0">{a.time}</span>
+                </button>
+              ))}
+            </div>
 
-          <button
-            onClick={() => showToast('Chuyển tới lịch sử luân chuyển kho...', 'info')}
-            className="w-full mt-4 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold text-[#00285E] hover:bg-slate-50 rounded-xl transition-colors border border-slate-100"
-          >
-            Xem tất cả hoạt động
-            <ChevronRight size={14} />
-          </button>
+            <button
+              onClick={() => showToast('Chuyển tới lịch sử luân chuyển kho...', 'info')}
+              className="w-full mt-4 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold text-[#00285E] hover:bg-slate-50 rounded-xl transition-colors border border-slate-100"
+            >
+              Xem tất cả hoạt động
+              <ChevronRight size={14} />
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   LayoutDashboard,
   ClipboardCheck,
+  ClipboardList,
   ShieldCheck,
   HelpCircle,
   LogOut,
@@ -12,8 +13,10 @@ import {
   CheckCircle,
   Info,
   AlertTriangle,
+  CalendarCheck,
+  Volume2,
+  FileText,
 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '../../store/store';
@@ -24,6 +27,38 @@ import { loginSuccess, logout } from '../../store/slices/userSlice';
 import { PROFILE_API_ENDPOINTS } from '../../constants/common/profileEndpoints';
 import { NOTIFICATION_API_ENDPOINTS } from '../../constants/technicianLeader/notificationEndpoints';
 import LogoutConfirmModal from '../../components/share/LogoutConfirmModal';
+
+let leaderAudioContext: AudioContext | null = null;
+
+const getLeaderAudioContext = () => {
+  if (!leaderAudioContext) leaderAudioContext = new AudioContext();
+  return leaderAudioContext;
+};
+
+const playLeaderNotificationSound = async () => {
+  const audioContext = getLeaderAudioContext();
+  if (audioContext.state === 'suspended') await audioContext.resume();
+
+  const playTone = (frequency: number, startAfter: number) => {
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const startAt = audioContext.currentTime + startAfter;
+    const stopAt = startAt + 0.22;
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(frequency, startAt);
+    gain.gain.setValueAtTime(0.0001, startAt);
+    gain.gain.exponentialRampToValueAtTime(0.38, startAt + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start(startAt);
+    oscillator.stop(stopAt);
+  };
+
+  playTone(880, 0);
+  playTone(1175, 0.2);
+};
 
 export default function LeaderLayout() {
   const navigate = useNavigate();
@@ -42,13 +77,37 @@ export default function LeaderLayout() {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
 
-  const { i18n } = useTranslation();
+  // Mở khóa AudioContext ở tương tác đầu tiên theo chính sách autoplay của trình duyệt.
+  useEffect(() => {
+    let unlocked = false;
+    const unlockNotificationSound = async () => {
+      if (unlocked) return;
+      unlocked = true;
+      const audioContext = getLeaderAudioContext();
+      if (audioContext.state === 'suspended') await audioContext.resume();
+      window.removeEventListener('pointerdown', unlockNotificationSound);
+      window.removeEventListener('keydown', unlockNotificationSound);
+    };
+
+    window.addEventListener('pointerdown', unlockNotificationSound, { once: true });
+    window.addEventListener('keydown', unlockNotificationSound, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlockNotificationSound);
+      window.removeEventListener('keydown', unlockNotificationSound);
+    };
+  }, []);
 
   const showToast = (text: string, type: 'success' | 'info' | 'warning' = 'success') => {
     setToastMessage({ text, type });
     setTimeout(() => {
       setToastMessage(null);
     }, 3000);
+  };
+
+  const testNotificationSound = () => {
+    playLeaderNotificationSound()
+      .then(() => showToast('Đã bật âm thanh thông báo.', 'info'))
+      .catch(() => showToast('Trình duyệt đang chặn âm thanh. Hãy cho phép âm thanh cho trang này.', 'warning'));
   };
 
   useEffect(() => {
@@ -141,11 +200,20 @@ export default function LeaderLayout() {
       fetchUnreadCount();
       if (isNotificationOpen) fetchNotifications();
     };
+    const handleCustomerReceived = (payload?: { message?: string }) => {
+      playLeaderNotificationSound().catch(error => console.error('Không thể phát âm báo:', error));
+      showToast(payload?.message || 'Có khách hàng mới vừa được lễ tân tiếp nhận.', 'info');
+      fetchUnreadCount();
+      fetchNotifications();
+      setIsNotificationOpen(true);
+    };
     socket.on('new_notification', handleNewNotification);
+    socket.on('customer_received', handleCustomerReceived);
 
     return () => {
       socket.off('connect', joinRooms);
       socket.off('new_notification', handleNewNotification);
+      socket.off('customer_received', handleCustomerReceived);
     };
   }, [socket, user?.id, user?.role, isNotificationOpen]);
 
@@ -159,26 +227,28 @@ export default function LeaderLayout() {
   const displayName = user?.fullName || 'Tổ trưởng kỹ thuật';
   const displayRole = 'Phân công kỹ thuật';
 
-  // Sidebar menu items for team leader
   const menuGroups = [
     {
       label: 'Nội dung',
       items: [
         { name: 'Tổng quan', icon: LayoutDashboard, path: '/leader' },
+        { name: 'Lịch hẹn đã nhận', icon: CalendarCheck, path: '/leader/appointments' },
         { name: 'Phân công kỹ thuật', icon: ClipboardCheck, path: '/leader/assignments' },
-        { name: 'Nghiệm thu tổng thể', icon: ShieldCheck, path: '/leader/final-qc' },
+        { name: 'Theo dõi công việc', icon: ClipboardList, path: '/leader/task-tracking' },
+        { name: 'Báo giá', icon: FileText, path: '/leader/quotes' },
       ],
     },
   ];
 
   const menuItems = menuGroups.flatMap((group) => group.items);
 
-  // Dynamic active menu item based on current URL path
   const activeMenu = useMemo(() => {
     const path = location.pathname;
     if (path === '/leader' || path === '/leader/') return 'Tổng quan';
+    if (path.includes('/appointments')) return 'Lịch hẹn đã nhận';
     if (path.includes('/assignments')) return 'Phân công kỹ thuật';
-    if (path.includes('/final-qc')) return 'Nghiệm thu tổng thể';
+    if (path.includes('/task-tracking')) return 'Theo dõi công việc';
+    if (path.includes('/quotes')) return 'Báo giá';
     return 'Tổng quan';
   }, [location.pathname]);
 
@@ -238,7 +308,7 @@ export default function LeaderLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F7FC] font-sans antialiased text-slate-800 flex flex-col md:flex-row relative">
+    <div className="min-h-screen bg-[#F4F7FC] font-sans antialiased text-slate-800 flex flex-col lg:flex-row relative">
 
       {/* Dynamic Toast Notifications */}
       <AnimatePresence>
@@ -258,8 +328,8 @@ export default function LeaderLayout() {
       </AnimatePresence>
 
       {/* MOBILE HEADER BAR */}
-      <header className="md:hidden bg-white px-4 py-3 flex items-center justify-between border-b border-slate-100 shadow-sm z-30 sticky top-0">
-        <div className="flex items-center gap-3">
+      <header className="lg:hidden bg-white px-4 py-3 flex items-center justify-between border-b border-slate-100 shadow-sm z-30 sticky top-0">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => setIsMobileSidebarOpen(true)}
             className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
@@ -290,6 +360,14 @@ export default function LeaderLayout() {
                 <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden flex flex-col max-h-[80vh]">
                   <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                     <h3 className="font-bold text-slate-800">Thông báo</h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={testNotificationSound}
+                        title="Kiểm tra âm thanh"
+                        className="rounded-lg p-1.5 text-[#00285E] hover:bg-blue-100"
+                      >
+                        <Volume2 size={15} />
+                      </button>
                     {unreadCount > 0 && (
                       <button
                         onClick={handleMarkAllAsRead}
@@ -298,6 +376,7 @@ export default function LeaderLayout() {
                         Đánh dấu đã đọc
                       </button>
                     )}
+                    </div>
                   </div>
                   <div className="overflow-y-auto flex-1 p-2">
                     {notifications.length === 0 ? (
@@ -329,6 +408,10 @@ export default function LeaderLayout() {
               </>
             )}
           </div>
+          <div className="hidden min-w-0 flex-col text-right sm:flex">
+            <span className="max-w-32 truncate text-xs font-bold leading-tight text-slate-800">{displayName}</span>
+            <span className="max-w-32 truncate text-[9px] font-semibold uppercase tracking-wide text-slate-400">{displayRole}</span>
+          </div>
           <img
             src={avatarUrl}
             alt="Team Leader Profile"
@@ -339,7 +422,7 @@ export default function LeaderLayout() {
 
       {/* SIDEBAR ON DESKTOP */}
       <aside
-        className="fixed inset-y-0 left-0 bg-[#EDF3FF] border-r border-[#D2E2FF] w-72 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:sticky md:h-screen md:flex md:flex-col shrink-0 hidden md:block"
+        className="fixed inset-y-0 left-0 bg-[#EDF3FF] border-r border-[#D2E2FF] w-72 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out z-40 lg:sticky lg:h-screen lg:flex lg:flex-col shrink-0 hidden lg:block"
         style={{ height: '100vh' }}
       >
         {/* Sidebar Header */}
@@ -383,7 +466,7 @@ export default function LeaderLayout() {
 
       {/* MOBILE DRAWER SIDEBAR */}
       {isMobileSidebarOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
+        <div className="fixed inset-0 z-50 lg:hidden flex">
           <div
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"
             onClick={() => setIsMobileSidebarOpen(false)}
@@ -443,24 +526,10 @@ export default function LeaderLayout() {
       <main className="flex-1 flex flex-col min-w-0 pb-16">
 
         {/* DESKTOP HEADER BAR */}
-        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-30">
+        <header className="hidden lg:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-30">
           {/* User profile & Actions */}
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 border border-slate-200 rounded-full p-0.5 bg-slate-50 select-none">
-                <button
-                  onClick={() => i18n.changeLanguage('vi')}
-                  className={`px-2.5 py-1 text-[10px] font-bold rounded-full transition-all ${i18n.language === 'vi' ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  VI
-                </button>
-                <button
-                  onClick={() => i18n.changeLanguage('en')}
-                  className={`px-2.5 py-1 text-[10px] font-bold rounded-full transition-all ${i18n.language.startsWith('en') ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  EN
-                </button>
-              </div>
               <div className="relative">
                 <button
                   onClick={() => setIsNotificationOpen(!isNotificationOpen)}
@@ -481,6 +550,14 @@ export default function LeaderLayout() {
                     <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden flex flex-col max-h-[80vh]">
                       <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                         <h3 className="font-bold text-slate-800">Thông báo</h3>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={testNotificationSound}
+                            title="Kiểm tra âm thanh"
+                            className="rounded-lg p-1.5 text-[#00285E] hover:bg-blue-100"
+                          >
+                            <Volume2 size={15} />
+                          </button>
                         {unreadCount > 0 && (
                           <button
                             onClick={handleMarkAllAsRead}
@@ -489,6 +566,7 @@ export default function LeaderLayout() {
                             Đánh dấu đã đọc
                           </button>
                         )}
+                        </div>
                       </div>
                       <div className="overflow-y-auto flex-1 p-2">
                         {notifications.length === 0 ? (

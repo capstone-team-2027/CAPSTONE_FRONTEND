@@ -14,6 +14,10 @@ interface ComboServicesSelectorProps {
     COLORS: { orange: string; navy: string;[key: string]: string };
     selectedServiceIds?: number[];
     setSelectedServiceIds?: React.Dispatch<React.SetStateAction<number[]>>;
+    compact?: boolean;
+    elevated?: boolean;
+    hideSearch?: boolean;
+    externalSearchText?: string;
 }
 
 export default function ComboServicesSelector({
@@ -25,13 +29,18 @@ export default function ComboServicesSelector({
     COLORS,
     selectedServiceIds = [],
     setSelectedServiceIds,
+    compact = false,
+    elevated = false,
+    hideSearch = false,
+    externalSearchText,
 }: ComboServicesSelectorProps) {
     const { fetchPublic } = useFetchClient_v2();
     const { t, i18n } = useTranslation();
     const currentLang = i18n.language || 'vi';
 
     const [page, setPage] = useState(1);
-    const [searchText, setSearchText] = useState('');
+    const [internalSearchText, setInternalSearchText] = useState('');
+    const searchText = externalSearchText ?? internalSearchText;
     const [totalPages, setTotalPages] = useState(1);
     const [currentPageCombos, setCurrentPageCombos] = useState<ServiceCombo[]>([]);
 
@@ -86,6 +95,7 @@ export default function ComboServicesSelector({
 
     return (
         <div className="animate-fadeIn">
+            {!hideSearch && <>
             {/* Search Input */}
             <div className="mb-4 relative max-w-md">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -93,12 +103,13 @@ export default function ComboServicesSelector({
                     type="text"
                     placeholder="Tìm kiếm combo..."
                     value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
+                    onChange={(e) => setInternalSearchText(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-xs outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all shadow-sm text-brand-blue"
                 />
             </div>
+            </>}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className={`grid grid-cols-1 md:grid-cols-2 ${compact ? 'gap-3' : 'gap-4'}`}>
             {currentPageCombos.map((combo) => {
                 const isSelected = selectedComboId === combo.id;
                 const serviceIds = combo.service_ids || [];
@@ -128,15 +139,14 @@ export default function ComboServicesSelector({
                                 setSelectedComboId(combo.id);
                             }
                         }}
-                        className="relative p-6 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group text-left"
+                        className={`relative cursor-pointer rounded-2xl border text-left transition-all duration-200 flex flex-col justify-between group ${compact ? 'p-4' : 'p-6'} ${elevated ? 'ring-1 ring-slate-100 hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-300/60' : ''} ${isSelected ? (elevated ? 'shadow-xl shadow-blue-900/15 ring-1 ring-[#00285E]/15' : 'shadow-lg shadow-amber-500/10') : (elevated ? 'shadow-md shadow-slate-200/80' : '')}`}
                         style={{
-                            borderColor: isSelected ? COLORS.orange : '#F1F5F9',
+                            borderColor: isSelected ? COLORS.orange : (elevated ? '#CBD5E1' : '#F1F5F9'),
                             backgroundColor: isSelected ? 'rgba(249,161,27,0.03)' : '#FFFFFF',
-                            boxShadow: isSelected ? '0 10px 20px rgba(249,161,27,0.04)' : 'none'
                         }}
                     >
                         <div>
-                            <div className="absolute top-4 right-4 flex items-center gap-1.5 flex-wrap justify-end">
+                            <div className={`absolute flex items-center gap-1.5 flex-wrap justify-end ${compact ? 'right-3 top-3' : 'right-4 top-4'}`}>
 
                                 {combo.discount_percentage > 0 && (
                                     <div className="text-[9px] font-bold px-2 py-0.5 rounded-lg shrink-0 bg-red-100 text-red-600">
@@ -148,16 +158,16 @@ export default function ComboServicesSelector({
                                 </div>
                             </div>
 
-                            <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform shrink-0 border border-slate-100 shadow-sm">
-                                <Sparkles size={18} className="text-gray-400" />
+                            <div className={`rounded-xl bg-slate-50 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0 border border-slate-100 shadow-sm ${compact ? 'mb-3 h-8 w-8' : 'mb-4 h-10 w-10'}`}>
+                                <Sparkles size={compact ? 15 : 18} className="text-gray-400" />
                             </div>
 
-                            <h3 className="text-base font-bold mb-1 text-brand-blue">{combo.combo_name}</h3>
+                            <h3 className={`font-bold mb-1 text-brand-blue ${compact ? 'pr-20 text-sm' : 'text-base'}`}>{combo.combo_name}</h3>
 
-                            <div className="my-3 space-y-1.5 pl-2 border-l-2 border-amber-400/50">
+                            <div className={`pl-2 border-l-2 border-amber-400/50 ${compact ? 'my-2 space-y-1' : 'my-3 space-y-1.5'}`}>
                                 <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block font-display">{t('booking.includedServices', 'Dịch vụ đi kèm:')}</span>
                                 {comboServiceRows.map((row: { name: string; sparePartName?: string }, idx: number) => (
-                                    <div key={idx} className="text-[11px] text-slate-500 leading-snug flex items-center gap-1 flex-wrap">
+                                    <div key={idx} className={`${compact ? 'text-[10px]' : 'text-[11px]'} text-slate-500 leading-snug flex items-center gap-1 flex-wrap`}>
                                         <span className="text-[#F9A11B] shrink-0">•</span>
                                         <span>{row.name}</span>
                                         {row.sparePartName && (
@@ -171,14 +181,14 @@ export default function ComboServicesSelector({
                             </div>
                         </div>
 
-                        <div className="flex justify-between items-end mt-4 pt-4 border-t border-slate-50">
+                        <div className={`flex justify-between items-end border-t border-slate-100 ${compact ? 'mt-2 pt-3' : 'mt-4 pt-4'}`}>
                             <div>
                                 <div className="text-[9px] font-bold uppercase mb-0.5 text-gray-400">{t('booking.comboPrice', 'Giá combo')}</div>
                                 <div className="flex items-baseline gap-1.5 flex-wrap">
                                     {original > 0 ? (
                                         <>
                                             <span className="text-xs font-semibold text-slate-400 line-through">{original.toLocaleString("vi-VN")} VNĐ</span>
-                                            <span className="text-base font-bold text-brand-orange">{(original * (1 - (combo.discount_percentage || 0)/100)).toLocaleString("vi-VN")} VNĐ</span>
+                                            <span className={`${compact ? 'text-sm' : 'text-base'} font-bold text-brand-orange`}>{(original * (1 - (combo.discount_percentage || 0)/100)).toLocaleString("vi-VN")} VNĐ</span>
                                         </>
                                     ) : (
                                         <span className="text-base font-bold text-brand-orange">Miễn phí</span>

@@ -27,6 +27,7 @@ interface QuoteItem {
     } | null;
     sparePart?: { id: number; name: string } | null;
     service_catalog?: { id: number; service_name: string } | null;
+    customPartOrder?: { id: number; item_name: string; status: string } | null;
 }
 
 export interface QuoteReferenceData {
@@ -95,7 +96,7 @@ const isAwaitingDeposit = (quote: QuoteReferenceData) =>
     !quote.deposit_paid_at;
 
 const getItemName = (item: QuoteItem, t: TFunction) =>
-    item.service_catalog?.service_name || item.sparePart?.name || item.custom_item_name || t('quoteTracking.unnamedItem', 'Hạng mục #{{id}}', { id: item.id });
+    item.service_catalog?.service_name || item.sparePart?.name || item.customPartOrder?.item_name || t('quoteTracking.unnamedItem', 'Hạng mục #{{id}}', { id: item.id });
 
 const getIssueText = (item: QuoteItem) => {
     const component = item.issue?.component;
@@ -117,7 +118,7 @@ export default function QuoteReferenceModal({ quotationId, isLoading, error, dat
     const StatusIcon = statusMeta?.icon ?? AlertCircle;
     const partItems = data?.items.filter((item) => !item.service_catalog) ?? [];
     const serviceItems = data?.items.filter((item) => item.service_catalog) ?? [];
-    const depositItems = partItems.filter((item) => item.custom_item_name);
+    const depositItems = partItems.filter((item) => item.customPartOrder);
 
     return (
         <div
@@ -266,7 +267,7 @@ export default function QuoteReferenceModal({ quotationId, isLoading, error, dat
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
                                                 {partItems.map((item) => {
-                                                    const isCustom = !!item.custom_item_name;
+                                                    const isCustom = !!item.customPartOrder;
                                                     return (
                                                         <tr key={item.id} className="bg-white">
                                                             <td className="px-3 py-3.5">
@@ -289,7 +290,7 @@ export default function QuoteReferenceModal({ quotationId, isLoading, error, dat
                                                                     >
                                                                         {item.status === 'WAITING_DEPOSIT' ? (
                                                                             t('chat.quoteModal.customPartWaiting', 'Phụ tùng đặt riêng · Cần cọc: {{amount}}', {
-                                                                                amount: formatCurrency(data.deposit_amount ?? 0),
+                                                                                amount: formatCurrency(Math.round(item.quantity * item.unit_price * 0.3)),
                                                                             })
                                                                         ) : (
                                                                             t('chat.quoteModal.customPartPaid', 'Phụ tùng đặt riêng · Đã cọc')

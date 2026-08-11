@@ -172,7 +172,9 @@ export const MapTracking: React.FC = () => {
   const [rescueRoute, setRescueRoute] = useState<[number, number][]>([]);
   const [carLocation, setCarLocation] = useState<[number, number] | null>(null);
   const [simulationStatus, setSimulationStatus] = useState<'idle' | 'running' | 'arrived'>('idle');
-  const animationRef = useRef<number | null>(null);
+  const [activeRescueId, setActiveRescueId] = useState<number | null>(null);
+  const [activeRescueStatus, setActiveRescueStatus] = useState<string | null>(null);
+  const lastRouteRefreshRef = useRef(0);
 
   // Thêm state cho Modal xác nhận
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -194,23 +196,33 @@ export const MapTracking: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const startSimulation = (routeCoords: [number, number][]) => {
-    let currentIndex = 0;
-
-    // Tốc độ di chuyển của icon xe phải giống với tốc độ bên Lễ tân (50ms)
-    animationRef.current = setInterval(() => {
-      if (currentIndex < routeCoords.length - 1) {
-        currentIndex++;
-        setCarLocation(routeCoords[currentIndex]);
-      } else {
-        if (animationRef.current) clearInterval(animationRef.current);
+  useEffect(() => {
+    if (!user?.id) return;
+    fetchPrivate(LOCATION_ENDPOINTS.GET_ACTIVE_RESCUE).then((res: any) => {
+      const active = res?.data;
+      if (!active?.rescueId) return;
+      setActiveRescueId(Number(active.rescueId));
+      setActiveRescueStatus(active.status);
+      if (active.customerLat != null && active.customerLng != null) {
+        setUserLocation([Number(active.customerLat), Number(active.customerLng)]);
       }
-    }, 50);
-  };
+      if (active.technician?.latitude != null && active.technician?.longitude != null) {
+        setCarLocation([Number(active.technician.latitude), Number(active.technician.longitude)]);
+      }
+      if (active.status === 'EN_ROUTE' || active.status === 'TOWING') {
+        setSimulationStatus('running');
+        setStatusMessage(active.status === 'EN_ROUTE'
+          ? 'Kỹ thuật viên đang trên đường tới vị trí của bạn.'
+          : 'Kỹ thuật viên đang chở xe của bạn về Gara.');
+      } else if (active.status === 'ARRIVED') {
+        setSimulationStatus('arrived');
+        setStatusMessage('Kỹ thuật viên đã tới nơi.');
+      }
+    }).catch((error) => console.error('Không thể khôi phục theo dõi cứu hộ:', error));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
-  // KTV bấm "Bắt đầu di chuyển" (EN_ROUTE) — BE gửi kèm GPS thật của KTV lúc đó, FE tính route
-  // từ ĐÚNG vị trí xuất phát của KTV (không phải Gara cố định) rồi chạy animation icon xe.
-  const fetchRouteAndSimulate = async (fromLat: number, fromLng: number, destLat: number, destLng: number) => {
+  const fetchLiveRoute = async (fromLat: number, fromLng: number, destLat: number, destLng: number) => {
     try {
       const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${destLng},${destLat}?overview=full&geometries=geojson`;
       const response = await fetch(url);
@@ -220,9 +232,6 @@ export const MapTracking: React.FC = () => {
           (c: [number, number]) => [c[1], c[0]]
         );
         setRescueRoute(coordsArray);
-        setCarLocation(coordsArray[0]);
-        if (animationRef.current) clearInterval(animationRef.current);
-        startSimulation(coordsArray);
       }
     } catch (error) {
       console.error("Lỗi khi tính lại đường đi cứu hộ:", error);
@@ -238,6 +247,8 @@ export const MapTracking: React.FC = () => {
 
     const handleNewNotification = (data: any) => {
       if (!data || !String(data.type || '').startsWith('RESCUE_')) return;
+      if (data.rescueId) setActiveRescueId(Number(data.rescueId));
+      if (data.status) setActiveRescueStatus(data.status);
 
       switch (data.type) {
         case 'RESCUE_REQUESTED':
@@ -253,27 +264,25 @@ export const MapTracking: React.FC = () => {
             setStatusMessage('Kỹ thuật viên đang trên đường tới vị trí của bạn.');
             setSimulationStatus('running');
             if (userLocation && data.technicianLat != null && data.technicianLng != null) {
-              fetchRouteAndSimulate(data.technicianLat, data.technicianLng, userLocation[0], userLocation[1]);
+              setCarLocation([Number(data.technicianLat), Number(data.technicianLng)]);
+              fetchLiveRoute(data.technicianLat, data.technicianLng, userLocation[0], userLocation[1]);
             }
           } else if (data.status === 'ARRIVED') {
             setStatusMessage('Kỹ thuật viên đã tới nơi.');
             setSimulationStatus('arrived');
-            if (animationRef.current) clearInterval(animationRef.current);
           } else if (data.status === 'TOWING') {
             // Đoạn 2: chở xe về Gara — điểm xuất phát là vị trí khách (nơi KTV vừa nhận xe),
             // điểm đến là Gara cố định, KHÔNG dùng toạ độ KTV nữa vì họ đang lái, không đứng yên.
             setStatusMessage('Kỹ thuật viên đang chở xe của bạn về Gara.');
             setSimulationStatus('running');
-            if (userLocation) {
-              fetchRouteAndSimulate(userLocation[0], userLocation[1], garageLocation[0], garageLocation[1]);
-            }
           } else if (data.status === 'COMPLETED') {
             setStatusMessage('Cứu hộ đã hoàn tất, xe đã được đưa về Gara.');
             setSimulationStatus('idle');
             setUserLocation(null);
+            setActiveRescueId(null);
+            setActiveRescueStatus(null);
             setRescueRoute([]);
             setCarLocation(null);
-            if (animationRef.current) clearInterval(animationRef.current);
           } else if (data.status === 'ACCEPTED') {
             setStatusMessage('Kỹ thuật viên đã xác nhận nhận cứu hộ của bạn.');
           }
@@ -287,10 +296,40 @@ export const MapTracking: React.FC = () => {
 
     return () => {
       socket.off('new_notification', handleNewNotification);
-      if (animationRef.current) clearInterval(animationRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, userLocation]);
+
+  useEffect(() => {
+    if (!activeRescueId) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const joinTracking = () => socket.emit('join-rescue-tracking', { rescueId: activeRescueId, token });
+    const handleLocation = (data: any) => {
+      if (Number(data?.rescueId) !== activeRescueId) return;
+      const latitude = Number(data.latitude);
+      const longitude = Number(data.longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+
+      setCarLocation([latitude, longitude]);
+      setSimulationStatus('running');
+      const now = Date.now();
+      if (!userLocation || now - lastRouteRefreshRef.current < 20000) return;
+      lastRouteRefreshRef.current = now;
+      const destination = activeRescueStatus === 'TOWING' ? garageLocation : userLocation;
+      fetchLiveRoute(latitude, longitude, destination[0], destination[1]);
+    };
+
+    joinTracking();
+    socket.on('connect', joinTracking);
+    socket.on('rescue-location-updated', handleLocation);
+    return () => {
+      socket.emit('leave-rescue-tracking', activeRescueId);
+      socket.off('connect', joinTracking);
+      socket.off('rescue-location-updated', handleLocation);
+    };
+  }, [activeRescueId, activeRescueStatus, socket, userLocation]);
 
   const calculatePrice = (distKm: number) => {
     if (distKm <= 15) {
@@ -381,6 +420,7 @@ export const MapTracking: React.FC = () => {
       contactPhone,
     }).then((res: any) => {
       setIsLoading(false);
+      if (res?.rescueId) setActiveRescueId(Number(res.rescueId));
       console.log("Lưu vị trí và tạo yêu cầu cứu hộ thành công!", res);
     }).catch(err => {
       setIsLoading(false);
