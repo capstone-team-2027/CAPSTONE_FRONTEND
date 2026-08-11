@@ -20,9 +20,9 @@ import {
   PackageSearch,
   Sparkles,
   PackagePlus,
+  RefreshCw,
 } from "lucide-react";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "../../store/store";
 import type { UserModel } from "../../model/User";
@@ -43,7 +43,6 @@ export default function InventoryLayout() {
   const dispatch = useDispatch();
   const socket = useSocket();
   const { fetchPrivate } = useFetchClient_v2();
-  const { i18n } = useTranslation();
 
   const user = useSelector(
     (state: RootState) => state.user.user as UserModel | null,
@@ -304,7 +303,7 @@ export default function InventoryLayout() {
       {menuGroups.map((group, groupIndex) => (
         <div key={group.label ?? `group-${groupIndex}`}>
           {group.label && (
-            <span className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+            <span className="px-3 text-[10px] font-bold text-blue-300/60 uppercase tracking-widest block mb-2">
               {group.label}
             </span>
           )}
@@ -322,8 +321,8 @@ export default function InventoryLayout() {
                   }}
                   className={`w-full flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all group ${
                     isActive
-                      ? "bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15"
-                      : "text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E]"
+                      ? "bg-[#F9A11B] text-white shadow-lg shadow-[#F9A11B]/15"
+                      : "text-blue-100/80 hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   {Icon && (
@@ -331,8 +330,8 @@ export default function InventoryLayout() {
                       size={18}
                       className={
                         isActive
-                          ? "text-[#F9A11B]"
-                          : "text-slate-500 group-hover:text-[#00285E]"
+                          ? "text-white"
+                          : "text-blue-200/60 group-hover:text-white"
                       }
                     />
                   )}
@@ -471,20 +470,20 @@ export default function InventoryLayout() {
 
       {/* SIDEBAR ON DESKTOP */}
       <aside
-        className="fixed inset-y-0 left-0 bg-[#EDF3FF] border-r border-[#D2E2FF] w-72 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:sticky md:h-screen md:flex md:flex-col shrink-0 hidden md:block"
+        className="fixed inset-y-0 left-0 bg-[#00285E] border-r border-white/10 w-72 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 md:sticky md:h-screen md:flex md:flex-col shrink-0 hidden md:block"
         style={{ height: "100vh" }}
       >
         {/* Sidebar Header — cùng chiều cao h-20 với header bên phải */}
-        <div className="h-20 shrink-0 px-6 border-b border-[#D2E2FF] flex items-center justify-between">
+        <div className="h-20 shrink-0 px-6 border-b border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#00285E] flex items-center justify-center shadow-md">
+            <div className="w-10 h-10 rounded-xl bg-[#F9A11B] flex items-center justify-center shadow-md">
               <Warehouse size={20} className="text-white" />
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-[#00285E] uppercase tracking-wider text-base">
+              <span className="font-bold text-white uppercase tracking-wider text-base">
                 AGM Intelligent
               </span>
-              <span className="text-[10px] text-slate-500 font-semibold tracking-widest uppercase">
+              <span className="text-[10px] text-blue-200/70 font-semibold tracking-widest uppercase">
                 Quản lý kho
               </span>
             </div>
@@ -497,19 +496,19 @@ export default function InventoryLayout() {
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-4 border-t border-[#D2E2FF] space-y-1">
+        <div className="p-4 border-t border-white/10 space-y-1">
           <button
             onClick={() =>
               showToast("Chức năng hỗ trợ đang được kết nối...", "info")
             }
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E] transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-blue-100/80 hover:bg-white/10 hover:text-white transition-colors"
           >
-            <HelpCircle size={18} className="text-slate-500" />
+            <HelpCircle size={18} className="text-blue-200/60" />
             <span>Hỗ trợ</span>
           </button>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 transition-colors"
           >
             <LogOut size={18} />
             <span>Đăng xuất</span>
@@ -524,24 +523,24 @@ export default function InventoryLayout() {
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"
             onClick={() => setIsMobileSidebarOpen(false)}
           ></div>
-          <aside className="relative flex flex-col w-72 bg-[#EDF3FF] border-r border-[#D2E2FF] h-full p-0">
-            <div className="p-6 border-b border-[#D2E2FF] flex items-center justify-between">
+          <aside className="relative flex flex-col w-72 bg-[#00285E] border-r border-white/10 h-full p-0">
+            <div className="p-6 border-b border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#00285E] flex items-center justify-center shadow-md">
+                <div className="w-10 h-10 rounded-xl bg-[#F9A11B] flex items-center justify-center shadow-md">
                   <Warehouse size={20} className="text-white" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-bold text-[#00285E] uppercase tracking-wider text-sm">
+                  <span className="font-bold text-white uppercase tracking-wider text-sm">
                     AGM Intelligent
                   </span>
-                  <span className="text-[9px] text-slate-500 font-semibold tracking-widest uppercase">
+                  <span className="text-[9px] text-blue-200/70 font-semibold tracking-widest uppercase">
                     Quản lý kho
                   </span>
                 </div>
               </div>
               <button
                 onClick={() => setIsMobileSidebarOpen(false)}
-                className="p-1 rounded-lg hover:bg-[#E0ECFF] text-[#00285E] transition-colors"
+                className="p-1 rounded-lg hover:bg-white/10 text-white transition-colors"
               >
                 <X size={20} />
               </button>
@@ -551,20 +550,20 @@ export default function InventoryLayout() {
               {renderNav()}
             </div>
 
-            <div className="p-4 border-t border-[#D2E2FF] space-y-1">
+            <div className="p-4 border-t border-white/10 space-y-1">
               <button
                 onClick={() => {
                   showToast("Chức năng hỗ trợ đang được kết nối...", "info");
                   setIsMobileSidebarOpen(false);
                 }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E] transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-blue-100/80 hover:bg-white/10 hover:text-white transition-colors"
               >
-                <HelpCircle size={18} className="text-slate-500" />
+                <HelpCircle size={18} className="text-blue-200/60" />
                 <span>Hỗ trợ</span>
               </button>
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 transition-colors"
               >
                 <LogOut size={18} />
                 <span>Đăng xuất</span>
@@ -580,29 +579,14 @@ export default function InventoryLayout() {
         <header className="hidden md:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-30">
           {/* User profile & Actions */}
           <div className="flex items-center gap-6">
-            {/* Language Switcher */}
-            <div className="flex items-center gap-1 border border-slate-200 rounded-full p-0.5 bg-slate-50 select-none shrink-0">
-              <button
-                onClick={() => i18n.changeLanguage("vi")}
-                className={`px-2.5 py-1 text-[10px] font-bold rounded-full transition-all cursor-pointer ${
-                  i18n.language === "vi"
-                    ? "bg-[#00285E] text-white"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                VI
-              </button>
-              <button
-                onClick={() => i18n.changeLanguage("en")}
-                className={`px-2.5 py-1 text-[10px] font-bold rounded-full transition-all cursor-pointer ${
-                  i18n.language.startsWith("en")
-                    ? "bg-[#00285E] text-white"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                EN
-              </button>
-            </div>
+            {/* Refresh Data */}
+            <button
+              onClick={() => window.location.reload()}
+              title="Làm mới dữ liệu"
+              className="w-10 h-10 rounded-xl flex items-center justify-center bg-white text-[#00285E] hover:bg-slate-50 transition-colors shrink-0"
+            >
+              <RefreshCw size={18} strokeWidth={2} />
+            </button>
 
             <div className="flex items-center gap-2">
               <div className="relative">
@@ -698,26 +682,6 @@ export default function InventoryLayout() {
 
         {/* NESTED CONTENT PAGES RENDER HERE */}
         <Outlet context={{ searchQuery, setSearchQuery, showToast }} />
-
-        {/* PAGE FOOTER */}
-        <footer className="mt-auto px-8 py-6 border-t border-slate-200/50 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-semibold text-slate-400">
-          <div>
-            © 2024{" "}
-            <span className="text-slate-500 font-bold">AGM Intelligent</span> -
-            Hệ thống quản lý kho phụ tùng
-          </div>
-          <div className="flex items-center gap-6">
-            <a href="#" className="hover:text-slate-600 transition-colors">
-              Điều khoản
-            </a>
-            <a href="#" className="hover:text-slate-600 transition-colors">
-              Bảo mật
-            </a>
-            <a href="#" className="hover:text-slate-600 transition-colors">
-              Liên hệ
-            </a>
-          </div>
-        </footer>
       </main>
 
       <LogoutConfirmModal

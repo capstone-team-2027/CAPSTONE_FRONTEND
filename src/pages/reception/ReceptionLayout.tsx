@@ -19,8 +19,8 @@ import {
   PhoneCall,
   Users,
   MessageCircle,
+  RefreshCw,
 } from "lucide-react";
-import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "../../store/store";
@@ -90,8 +90,6 @@ export default function ReceptionLayout() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showNotificationDropdown]);
-
-  const { i18n } = useTranslation();
 
   const showToast = (
     text: string,
@@ -301,23 +299,23 @@ export default function ReceptionLayout() {
   const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => (
     <>
       {/* Sidebar Header */}
-      <div className="h-20 px-4 border-b border-[#D2E2FF] flex items-center justify-between">
+      <div className="h-20 px-4 border-b border-white/10 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#00285E] flex items-center justify-center shadow-md">
+          <div className="w-10 h-10 rounded-xl bg-[#F9A11B] flex items-center justify-center shadow-md">
             <Wrench size={20} className="text-white" />
           </div>
           <div className="flex flex-col">
-            <span className="font-bold text-[#00285E] uppercase tracking-wider text-base">
+            <span className="font-bold text-white uppercase tracking-wider text-base">
               AGM Intelligent
             </span>
-            <span className="text-[10px] text-slate-500 font-semibold tracking-widest uppercase">
+            <span className="text-[10px] text-blue-200/70 font-semibold tracking-widest uppercase">
               Nhân viên tiếp nhận
             </span>
           </div>
         </div>
         <button
           onClick={() => setIsMobileSidebarOpen(false)}
-          className="lg:hidden p-1 rounded-lg hover:bg-[#D2E2FF] text-[#00285E] transition-colors"
+          className="lg:hidden p-1 rounded-lg hover:bg-white/10 text-white transition-colors"
         >
           <X size={20} />
         </button>
@@ -329,7 +327,7 @@ export default function ReceptionLayout() {
           {menuGroups.map((group, groupIndex) => (
             <div key={group.label ?? `group-${groupIndex}`}>
               {group.label && (
-                <span className="px-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+                <span className="px-2.5 text-[10px] font-bold text-blue-300/60 uppercase tracking-widest block mb-2">
                   {group.label}
                 </span>
               )}
@@ -345,16 +343,16 @@ export default function ReceptionLayout() {
                         onNavigate?.();
                       }}
                       className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all group ${isActive
-                        ? "bg-[#00285E] text-white shadow-lg shadow-[#00285E]/15"
-                        : "text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E]"
+                        ? "bg-[#F9A11B] text-white shadow-lg shadow-[#F9A11B]/15"
+                        : "text-blue-100/80 hover:bg-white/10 hover:text-white"
                         }`}
                     >
                       <Icon
                         size={18}
                         className={
                           isActive
-                            ? "text-[#F9A11B]"
-                            : "text-slate-500 group-hover:text-[#00285E]"
+                            ? "text-white"
+                            : "text-blue-200/60 group-hover:text-white"
                         }
                       />
                       <span>{item.name}</span>
@@ -368,19 +366,19 @@ export default function ReceptionLayout() {
       </div>
 
       {/* Sidebar Footer */}
-      <div className="p-4 border-t border-[#D2E2FF] space-y-1">
+      <div className="p-4 border-t border-white/10 space-y-1">
         <button
           onClick={() =>
             showToast("Chức năng hỗ trợ đang được kết nối...", "info")
           }
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-[#E0ECFF] hover:text-[#00285E] transition-colors"
+          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-blue-100/80 hover:bg-white/10 hover:text-white transition-colors"
         >
-          <HelpCircle size={18} className="text-slate-500" />
+          <HelpCircle size={18} className="text-blue-200/60" />
           <span>Hỗ trợ</span>
         </button>
         <button
           onClick={() => setShowLogoutConfirm(true)}
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
+          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 transition-colors"
         >
           <LogOut size={18} />
           <span>Đăng xuất</span>
@@ -464,7 +462,7 @@ export default function ReceptionLayout() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F4F7FC] font-sans antialiased text-slate-800 flex flex-col md:flex-row relative">
+    <div className="min-h-screen bg-[#F4F7FC] font-sans antialiased text-slate-800 flex flex-col lg:flex-row relative">
       {/* Dynamic Toast Notifications */}
       <AnimatePresence>
         {toastMessage && (
@@ -561,20 +559,13 @@ export default function ReceptionLayout() {
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex shrink-0 select-none items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-0.5">
-            <button
-              onClick={() => i18n.changeLanguage('vi')}
-              className={`rounded-full px-2 py-1 text-[10px] font-bold transition-all ${i18n.language === 'vi' ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              VI
-            </button>
-            <button
-              onClick={() => i18n.changeLanguage('en')}
-              className={`rounded-full px-2 py-1 text-[10px] font-bold transition-all ${i18n.language.startsWith('en') ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              EN
-            </button>
-          </div>
+          <button
+            onClick={() => window.location.reload()}
+            title="Làm mới dữ liệu"
+            className="p-1.5 rounded-full hover:bg-slate-100 transition-colors text-slate-600 shrink-0"
+          >
+            <RefreshCw size={20} />
+          </button>
           <div className="relative" ref={mobileNotifRef}>
             <button
               onClick={() =>
@@ -624,7 +615,7 @@ export default function ReceptionLayout() {
 
       {/* SIDEBAR ON DESKTOP */}
       <aside
-        className="fixed inset-y-0 left-0 bg-[#EDF3FF] border-r border-[#D2E2FF] w-72 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out z-40 lg:sticky lg:h-screen lg:flex lg:flex-col shrink-0 hidden lg:block"
+        className="fixed inset-y-0 left-0 bg-[#00285E] border-r border-white/10 w-72 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out z-40 lg:sticky lg:h-screen lg:flex lg:flex-col shrink-0 hidden lg:block"
         style={{ height: "100vh" }}
       >
         <SidebarContent />
@@ -637,7 +628,7 @@ export default function ReceptionLayout() {
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"
             onClick={() => setIsMobileSidebarOpen(false)}
           ></div>
-          <aside className="relative flex flex-col w-72 bg-[#EDF3FF] border-r border-[#D2E2FF] h-full p-0">
+          <aside className="relative flex flex-col w-72 bg-[#00285E] border-r border-white/10 h-full p-0">
             <SidebarContent onNavigate={() => setIsMobileSidebarOpen(false)} />
           </aside>
         </div>
@@ -654,20 +645,13 @@ export default function ReceptionLayout() {
           <div className="flex items-center gap-6">
             {/* Quick action buttons */}
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 border border-slate-200 rounded-full p-0.5 bg-slate-50 select-none">
-                <button
-                  onClick={() => i18n.changeLanguage('vi')}
-                  className={`px-2.5 py-1 text-[10px] font-bold rounded-full transition-all ${i18n.language === 'vi' ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  VI
-                </button>
-                <button
-                  onClick={() => i18n.changeLanguage('en')}
-                  className={`px-2.5 py-1 text-[10px] font-bold rounded-full transition-all ${i18n.language.startsWith('en') ? 'bg-[#00285E] text-white' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  EN
-                </button>
-              </div>
+              <button
+                onClick={() => window.location.reload()}
+                title="Làm mới dữ liệu"
+                className="w-10 h-10 rounded-xl flex items-center justify-center bg-white text-[#00285E] hover:bg-slate-50 transition-colors shrink-0"
+              >
+                <RefreshCw size={18} strokeWidth={2} />
+              </button>
               <div className="relative" ref={desktopNotifRef}>
                 <button
                   onClick={() =>
@@ -737,26 +721,6 @@ export default function ReceptionLayout() {
 
         {/* NESTED CONTENT PAGES RENDER HERE */}
         <Outlet context={{ searchQuery, setSearchQuery, showToast }} />
-
-        {/* PAGE FOOTER */}
-        <footer className="mt-auto px-8 py-6 border-t border-slate-200/50 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-semibold text-slate-400">
-          <div>
-            © 2024{" "}
-            <span className="text-slate-500 font-bold">AGM Intelligent</span> -
-            Hệ thống quản lý gara chuyên nghiệp
-          </div>
-          <div className="flex items-center gap-6">
-            <a href="#" className="hover:text-slate-600 transition-colors">
-              Điều khoản
-            </a>
-            <a href="#" className="hover:text-slate-600 transition-colors">
-              Bảo mật
-            </a>
-            <a href="#" className="hover:text-slate-600 transition-colors">
-              Liên hệ
-            </a>
-          </div>
-        </footer>
       </main>
 
       <ReceptionChatPanel

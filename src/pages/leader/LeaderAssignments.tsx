@@ -715,7 +715,7 @@ export default function LeaderAssignments() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[720px]">
               <thead>
-                <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
+                <tr className="border-b border-slate-100 text-[10px] font-bold text-blue-100 uppercase tracking-widest bg-[#00285E] lg:text-slate-400 lg:bg-slate-50/50">
                   <th className="py-4 px-6">Đơn dịch vụ</th>
                   <th className="py-4 px-4">Xe</th>
                   <th className="py-4 px-4">Công việc</th>
@@ -853,7 +853,7 @@ export default function LeaderAssignments() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[720px]">
               <thead>
-                <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
+                <tr className="border-b border-slate-100 text-[10px] font-bold text-blue-100 uppercase tracking-widest bg-[#00285E] lg:text-slate-400 lg:bg-slate-50/50">
                   <th className="py-4 px-6">Đơn dịch vụ</th>
                   <th className="py-4 px-4">Xe</th>
                   <th className="py-4 px-4">Công việc</th>
