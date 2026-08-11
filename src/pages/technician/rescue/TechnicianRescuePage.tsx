@@ -329,7 +329,7 @@ export default function TechnicianRescuePage() {
       </AnimatePresence>
 
       {!rescueTask ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-50/80 backdrop-blur-sm z-50">
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-50/80 backdrop-blur-sm z-10">
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

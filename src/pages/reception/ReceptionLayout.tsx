@@ -269,23 +269,12 @@ export default function ReceptionLayout() {
 
   const menuGroups = [
     {
-      label: 'Dịch vụ',
+      label: null,
       items: [
         { name: "Lịch hẹn", icon: CalendarCheck, path: "/reception/appointments" },
         { name: "Danh sách báo giá", icon: History, path: "/reception/quotes" },
         { name: "Quản lý hóa đơn dịch vụ", icon: ClipboardPlus, path: "/reception/service-orders" },
-      ],
-    },
-    {
-      label: 'Khách hàng',
-      items: [
         { name: 'Khách hàng & Cứu hộ', icon: Users, path: '/reception/customers' },
-        { name: 'Kỹ thuật viên hôm nay', icon: Wrench, path: '/reception/technicians' },
-      ],
-    },
-    {
-      label: 'Hỗ trợ',
-      items: [
         { name: "Phản hồi khách hàng", icon: MessageSquare, path: "/reception/feedback" },
       ],
     },

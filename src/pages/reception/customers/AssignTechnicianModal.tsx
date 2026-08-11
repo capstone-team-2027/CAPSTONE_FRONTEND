@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, User, ShieldCheck, Star, MapPin, Navigation, CheckCircle, XCircle, Car, CircleAlert, Eye, EyeOff } from 'lucide-react';
+import { X, User, ShieldCheck, Star, MapPin, Navigation, CheckCircle, XCircle, Car, CircleAlert, Eye } from 'lucide-react';
 import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { RECEPTION_API } from '../../../constants/reception/receptionApiEndpoint';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
@@ -27,6 +27,19 @@ const MapFitter = ({ bounds }: { bounds: L.LatLngBounds | null }) => {
       map.fitBounds(bounds, { padding: [30, 30] });
     }
   }, [bounds, map]);
+  return null;
+};
+
+// Leaflet đo kích thước container ngay lúc khởi tạo — nếu modal vừa mở (nhất là khi có
+// animation motion.div), layout DOM đôi khi chưa "settle" xong ở thời điểm đó, khiến bản đồ
+// render sai kích thước (tràn ra ngoài khung, đè lên phần còn lại của modal). Gọi lại
+// invalidateSize() sau khi mount để Leaflet đo lại đúng kích thước thật của container cha.
+const MapResizeFixer = () => {
+  const map = useMap();
+  useEffect(() => {
+    const timer = setTimeout(() => map.invalidateSize(), 100);
+    return () => clearTimeout(timer);
+  }, [map]);
   return null;
 };
 
@@ -166,10 +179,11 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
           <div className="w-full lg:w-1/2 flex flex-col bg-white border-r border-slate-200">
             <div className="p-4 flex-1 flex flex-col gap-4">
               {/* Map */}
-              <div className="w-full h-[300px] bg-slate-100 rounded-xl overflow-hidden border border-slate-200 relative shrink-0">
+              <div className="w-full h-[300px] bg-slate-100 rounded-xl overflow-hidden border border-slate-200 relative shrink-0" style={{ isolation: 'isolate' }}>
                 {customerLat && customerLng ? (
                   <MapContainer center={garageLocation} zoom={13} style={{ width: '100%', height: '100%' }}>
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <MapResizeFixer />
                     {mapBounds && <MapFitter bounds={mapBounds} />}
                     <Marker position={garageLocation} icon={garageIcon}>
                       <Popup>Gara Xuất Phát</Popup>
@@ -281,26 +295,6 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
                           </span>
                         </div>
                         <p className="text-xs text-slate-500 mt-1 truncate">{tech.phoneNumber}</p>
-                        {tech.isBusy && tech.currentTasks?.length > 0 && (
-                          <div className={`${expandedTechnicianId === tech.id ? 'block' : 'hidden'} absolute left-1/2 top-2 z-50 w-80 max-w-[calc(100%-24px)] -translate-x-1/2 rounded-xl border border-slate-200 bg-white p-3 shadow-2xl`} onClick={(event) => event.stopPropagation()}>
-                            <p className="mb-2 text-xs font-bold text-slate-800">Công việc đang phụ trách</p>
-                            <div className="max-h-56 space-y-1.5 overflow-y-auto">
-                            {tech.currentTasks.map((task: any) => (
-                              <div key={task.id} className="rounded-lg border border-orange-100 bg-orange-50/70 px-2.5 py-2 text-[11px]">
-                                <p className="flex items-center gap-1.5 font-bold text-slate-700">
-                                  <Car size={12} className="shrink-0 text-orange-500" />
-                                  {task.serviceName || task.taskType || 'Công việc kỹ thuật'}
-                                </p>
-                                <p className="mt-1 text-slate-500">
-                                  {task.serviceOrderId ? `Lệnh dịch vụ #${task.serviceOrderId}` : `Công việc #${task.id}`}
-                                  {task.vehiclePlate ? ` · Xe ${task.vehiclePlate}` : ''}
-                                </p>
-                                <p className="mt-0.5 font-semibold text-orange-700">{assignmentStatusLabel(task.status)}</p>
-                              </div>
-                            ))}
-                            </div>
-                          </div>
-                        )}
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
                         {tech.isBusy && tech.currentTasks?.length > 0 ? (
@@ -308,12 +302,12 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
                             type="button"
                             onClick={(event) => {
                               event.stopPropagation();
-                              setExpandedTechnicianId(expandedTechnicianId === tech.id ? null : tech.id);
+                              setExpandedTechnicianId(tech.id);
                             }}
                             className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-200"
                           >
-                            {expandedTechnicianId === tech.id ? <EyeOff size={13} /> : <Eye size={13} />}
-                            {expandedTechnicianId === tech.id ? 'Đóng' : 'Xem việc'}
+                            <Eye size={13} />
+                            Xem việc
                           </button>
                         ) : <div className="flex items-center text-amber-500">
                           <Star size={14} className="fill-amber-500" />
@@ -328,6 +322,55 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
             ) : (
               <div className="text-center text-slate-500 py-8">Không có kỹ thuật viên nào làm việc hôm nay.</div>
             )}
+
+            {/* Modal "Công việc đang phụ trách" — modal riêng thay vì popup định vị theo nút,
+                tránh mọi vấn đề overflow/tràn màn hình của cách định vị theo toạ độ. */}
+            {expandedTechnicianId != null && (() => {
+              const expandedTech = technicians.find((t) => t.id === expandedTechnicianId);
+              if (!expandedTech) return null;
+              return (
+                <div
+                  className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
+                  onClick={() => {
+                    setExpandedTechnicianId(null);
+                  }}
+                >
+                  <div
+                    className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">Công việc đang phụ trách</p>
+                        <p className="text-xs text-slate-500">{expandedTech.fullName}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedTechnicianId(null)}
+                        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                    <div className="max-h-[60vh] space-y-2 overflow-y-auto p-4">
+                      {expandedTech.currentTasks.map((task: any) => (
+                        <div key={task.id} className="rounded-lg border border-orange-100 bg-orange-50/70 px-3 py-2.5 text-xs">
+                          <p className="flex items-center gap-1.5 font-bold text-slate-700">
+                            <Car size={13} className="shrink-0 text-orange-500" />
+                            {task.serviceName || task.taskType || 'Công việc kỹ thuật'}
+                          </p>
+                          <p className="mt-1 text-slate-500">
+                            {task.serviceOrderId ? `Lệnh dịch vụ #${task.serviceOrderId}` : `Công việc #${task.id}`}
+                            {task.vehiclePlate ? ` · Xe ${task.vehiclePlate}` : ''}
+                          </p>
+                          <p className="mt-0.5 font-semibold text-orange-700">{assignmentStatusLabel(task.status)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
         </div>

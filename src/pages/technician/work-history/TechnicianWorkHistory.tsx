@@ -46,6 +46,13 @@ interface CompletedTaskResponse {
     catalog?: {
       service_name?: string | null;
     } | null;
+    quotationItem?: {
+      id: number;
+      repair_price?: string | number | null;
+      unit_price?: string | number | null;
+      quantity?: number | null;
+      amount?: string | number | null;
+    } | null;
     serviceOrder: {
       id: number;
       status?: string | null;
@@ -157,6 +164,12 @@ export default function TechnicianWorkHistory() {
             completedAt: assignment.actual_end_time || undefined,
             status: assignment.status,
             taskType: assignment.task.type || undefined,
+            amount: (() => {
+              const item = assignment.task.quotationItem;
+              if (!item) return undefined;
+              const raw = item.amount ?? item.repair_price;
+              return raw != null ? Number(raw) : undefined;
+            })(),
           };
         },
       );
