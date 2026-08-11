@@ -30,8 +30,8 @@ import { GARAGE_CONFIG_API_ENDPOINTS } from '../../../constants/customer/garage_
 import type { ServiceCombo, ServiceItem as CustomerServiceItem } from '../../../model/Service';
 import { useTranslation } from 'react-i18next';
 import { VEHICLE_MAKE_MODEL_API_ENDPOINTS } from '../../../constants/customer/vehicelMakeModelEndpoint';
-import SingleServicesSelector from '../../customer/booking/SingleServicesSelector';
-import ComboServicesSelector from '../../customer/booking/ComboServicesSelector';
+import SingleServicesSelector from '../../customer/Booking/SingleServicesSelector';
+import ComboServicesSelector from '../../customer/Booking/ComboServicesSelector';
 
 const DEFAULT_SHIFTS = [
   { start_time: '08:00', end_time: '12:00' },
