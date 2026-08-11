@@ -1242,7 +1242,7 @@ export default function LeaderCreateQuotation() {
                                   type="button"
                                   onClick={submitCustomQuotationItem}
                                   disabled={
-                                    customPartIssueId === "" ||
+                                    (customPartIssueId as number | "") === "" ||
                                     !customPartName.trim() ||
                                     customPartQuantity <= 0 ||
                                     customPartPrice <= 0
