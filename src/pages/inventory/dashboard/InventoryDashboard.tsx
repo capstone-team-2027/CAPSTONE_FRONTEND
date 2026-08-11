@@ -106,13 +106,20 @@ export default function InventoryDashboard() {
     pct: Math.round((item.days / agingStockMaxDays) * 100),
   }));
 
-  const activity = (dashboardData?.recentTransactions || []).map((item, index) => ({
-    id: `${item.receipt_code}-${index}`,
-    type: item.type === 'IN' ? 'in' : 'out',
-    text: `${item.type === 'IN' ? 'Nhập' : 'Xuất'} ${item.quantity} ${item.part?.name || 'phụ tùng'}`,
-    ref: item.receipt_code,
-    time: new Date(item.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-  }));
+  const activity = (dashboardData?.recentTransactions || []).map((item, index) => {
+    const d = new Date(item.createdAt);
+    const today = new Date();
+    const isToday = d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+    const timeStr = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    const dateStr = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+    return {
+      id: `${item.receipt_code}-${index}`,
+      type: item.type === 'IN' ? 'in' : 'out',
+      text: `${item.type === 'IN' ? 'Nhập' : 'Xuất'} ${item.quantity} ${item.part?.name || 'phụ tùng'}`,
+      ref: item.receipt_code,
+      time: isToday ? timeStr : `${timeStr} ${dateStr}`,
+    };
+  });
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
