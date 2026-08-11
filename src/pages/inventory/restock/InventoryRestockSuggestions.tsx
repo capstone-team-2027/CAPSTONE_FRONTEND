@@ -22,8 +22,7 @@ import {
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { useFetchClient_v2 as useFetchClient } from "../../../hook/useFetchClient";
 import { RESTOCK_SUGGESTION_API_ENDPOINTS } from "../../../constants/inventory/restockSuggestionApiEndpoint";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import ExcelJS from "exceljs";
 import { motion, AnimatePresence } from "motion/react";
 
 interface RestockSuggestionItem {
@@ -104,8 +103,6 @@ export default function InventoryRestockSuggestions() {
   const [localSearch, setLocalSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "HET_HANG" | "SAP_HET" | "NEN_NHAP">("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [data, setData] = useState<RestockSuggestionResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
   const effectiveSearch = (searchQuery || localSearch).toLowerCase();
 
@@ -119,28 +116,10 @@ export default function InventoryRestockSuggestions() {
   const [historySearch, setHistorySearch] = useState("");
   const [historyPage, setHistoryPage] = useState(1);
   const [selectedHistory, setSelectedHistory] = useState<any | null>(null);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
-  // Load computed on-the-fly stock suggestions
-  const loadSuggestions = async () => {
-    setIsLoading(true);
-    try {
-      const result = await fetchPrivate<RestockSuggestionResponse>(
-        RESTOCK_SUGGESTION_API_ENDPOINTS.LIST,
-        "GET",
-      );
-      setData(result.data);
-    } catch (error) {
-      console.error("Lỗi khi lấy đề xuất nhập hàng", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  useEffect(() => {
-    if (activeTab === "current") {
-      void loadSuggestions();
-    }
-  }, [fetchPrivate, activeTab]);
 
   // Load historical proposals
   const loadHistory = async () => {
@@ -183,146 +162,201 @@ export default function InventoryRestockSuggestions() {
   };
 
   // PDF Export
-  const handleDownloadProposalPdf = async (proposal: any) => {
+  // Excel Export - Đơn đặt hàng gửi nhà cung cấp
+  const handleDownloadProposalExcel = async (proposal: any) => {
     if (!proposal) return;
     try {
-      showToast("Đang tạo tệp PDF đề xuất nhập hàng...", "info");
-      const [fontResponse, boldFontResponse] = await Promise.all([
-        fetch("/fonts/NotoSans.ttf"),
-        fetch("/fonts/NotoSans-Bold.ttf"),
-      ]);
-      if (!fontResponse.ok || !boldFontResponse.ok) {
-        throw new Error("Không tải được font tiếng Việt.");
-      }
-      const fontBase64 = arrayBufferToBase64(await fontResponse.arrayBuffer());
-      const boldFontBase64 = arrayBufferToBase64(await boldFontResponse.arrayBuffer());
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      doc.addFileToVFS("NotoSans.ttf", fontBase64);
-      doc.addFileToVFS("NotoSans-Bold.ttf", boldFontBase64);
-      doc.addFont("NotoSans.ttf", "NotoSans", "normal");
-      doc.addFont("NotoSans-Bold.ttf", "NotoSans", "bold");
-      doc.setFont("NotoSans", "normal");
+      showToast("Đang tạo đơn đặt hàng Excel...", "info");
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet("Don dat hang");
 
-      const navy: [number, number, number] = [0, 40, 94];
-      const navyDark: [number, number, number] = [0, 26, 61];
-      const amber: [number, number, number] = [249, 161, 27];
-      const black: [number, number, number] = [15, 23, 42];
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const margin = 14;
-      const contentWidth = pageWidth - margin * 2;
+      // Cấu hình cột
+      sheet.columns = [
+        { width: 8 },   // STT
+        { width: 18 },  // SKU
+        { width: 45 },  // Tên phụ tùng
+        { width: 18 },  // Thương hiệu
+        { width: 15 },  // Số lượng
+        { width: 18 },  // Đơn giá nhập
+        { width: 20 },  // Thành tiền
+      ];
 
+      const thinBorder = { style: "thin", color: { argb: "FFD1D5DB" } } as const;
+      const cellBorder = { top: thinBorder, left: thinBorder, bottom: thinBorder, right: thinBorder };
+
+      // ===== Dòng 1: Tiêu đề chính =====
+      sheet.mergeCells("A1:G1");
+      const titleCell = sheet.getCell("A1");
+      titleCell.value = "ĐƠN ĐẶT HÀNG PHỤ TÙNG";
+      titleCell.font = { bold: true, size: 14, color: { argb: "FF00285E" } };
+      titleCell.alignment = { horizontal: "center", vertical: "middle" };
+      sheet.getRow(1).height = 28;
+
+      // ===== Dòng 2: Thông tin chung =====
       const creatorName = proposal.creator?.fullName || "Quản lý kho";
-      const createdDate = new Date(proposal.createdAt);
-      const day = createdDate.getDate();
-      const month = createdDate.getMonth() + 1;
-      const year = createdDate.getFullYear();
+      const createdDate = new Date(proposal.createdAt).toLocaleDateString("vi-VN");
+      
+      sheet.mergeCells("A2:G2");
+      const subCell = sheet.getCell("A2");
+      subCell.value = `Mã đơn hàng: ${proposal.proposal_code.replace("DXAI", "OD")}   |   Ngày lập: ${createdDate}   |   Đơn vị đặt: AGM Intelligent Garage`;
+      subCell.font = { italic: true, size: 10, color: { argb: "FF475569" } };
+      subCell.alignment = { horizontal: "center", vertical: "middle" };
+      sheet.getRow(2).height = 20;
 
-      // ===== HEADER =====
-      const headerHeight = 34;
-      doc.setFillColor(...navy);
-      doc.rect(0, 0, pageWidth, headerHeight, "F");
-      doc.setFillColor(...navyDark);
-      doc.circle(pageWidth - 14, -6, 26, "F");
-      doc.setFillColor(...amber);
-      doc.rect(0, headerHeight, pageWidth, 1.4, "F");
+      // ===== Dòng 3: Dòng trống phân cách =====
+      sheet.getRow(3).height = 8;
 
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("NotoSans", "bold");
-      doc.setFontSize(14);
-      doc.text("AGM INTELLIGENT GARAGE", margin, 14);
-      doc.setFont("NotoSans", "normal");
-      doc.setFontSize(8);
-      doc.text("Trung tâm chăm sóc & sửa chữa ô tô chính hãng", margin, 20);
-      doc.text("Hotline: 1900 0000 · agmgarage.vn", margin, 25.5);
+      let currentY = 4;
 
-      doc.setFont("NotoSans", "normal");
-      doc.setFontSize(9);
-      doc.text(`Số đề xuất: ${proposal.proposal_code}`, pageWidth - margin, 16, { align: "right" });
-      doc.setFontSize(8);
-      doc.text(`Ngày ${day} tháng ${month} năm ${year}`, pageWidth - margin, 22, { align: "right" });
+      // ===== Header của bảng dữ liệu =====
+      const headerRow = sheet.getRow(currentY);
+      headerRow.values = ["STT", "SKU", "Tên phụ tùng", "Thương hiệu", "Số lượng", "Đơn giá nhập", "Thành tiền"];
+      headerRow.height = 24;
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF00285E" } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = cellBorder;
+      });
+      currentY++;
 
-      doc.setTextColor(...navy);
-      doc.setFont("NotoSans", "bold");
-      doc.setFontSize(15);
-      doc.text("ĐỀ XUẤT NHẬP HÀNG PHỤ TÙNG", pageWidth / 2, headerHeight + 10, { align: "center" });
-
-      doc.setTextColor(...black);
-      const infoY = headerHeight + 18;
-      doc.setFont("NotoSans", "normal");
-      doc.setFontSize(9.5);
-      doc.text(`Người lập đề xuất: ${creatorName}`, margin, infoY);
-      doc.text(`Phương thức phân tích: Đánh giá dữ liệu tồn kho & dự báo`, margin, infoY + 5.5);
-
-      let currentY = infoY + 12;
-
-      // summary card in PDF
-      if (proposal.analysis_result) {
-        doc.setFillColor(244, 247, 252);
-        doc.roundedRect(margin, currentY, contentWidth, 24, 2, 2, "F");
-        doc.setDrawColor(220, 232, 255);
-        doc.setLineWidth(0.2);
-        doc.roundedRect(margin, currentY, contentWidth, 24, 2, 2, "S");
-        
-        doc.setFont("NotoSans", "bold");
-        doc.setFontSize(8);
-        doc.setTextColor(...navy);
-        doc.text("TỔNG QUAN PHÂN TÍCH TỒN KHO:", margin + 4, currentY + 5);
-
-        doc.setFont("NotoSans", "normal");
-        doc.setFontSize(7.5);
-        doc.setTextColor(...black);
-        const textLines = doc.splitTextToSize(proposal.analysis_result, contentWidth - 8);
-        doc.text(textLines, margin + 4, currentY + 10);
-        currentY += 28;
-      }
-
-      autoTable(doc, {
-        startY: currentY,
-        head: [["STT", "Mã SKU", "Tên phụ tùng", "Hãng", "Tồn hiện tại", "Đề xuất nhập"]],
-        body: (proposal.items || []).map((item: any, index: number) => [
-          index + 1,
+      // ===== Nội dung bảng =====
+      const items = proposal.items || [];
+      const dataStartRow = currentY;
+      items.forEach((item: any, idx: number) => {
+        const row = sheet.getRow(currentY);
+        row.values = [
+          idx + 1,
           item.sku || "—",
           item.name || "—",
           item.brand || "—",
-          item.stock_quantity ?? item.available_stock ?? 0,
-          item.suggested_quantity || 0
-        ]),
-        styles: { font: "NotoSans", fontSize: 8, cellPadding: 2, textColor: black, lineColor: black, lineWidth: 0.15 },
-        headStyles: { fillColor: navy, textColor: [255, 255, 255], font: "NotoSans", fontStyle: "bold", halign: "center" },
-        theme: "grid",
-        margin: { left: margin, right: margin },
+          item.suggested_quantity || 0,
+          null, // Đơn giá để nhà cung cấp điền
+          { formula: `E${currentY}*F${currentY}` }, // Thành tiền tự động tính
+        ];
+        row.height = 20;
+
+        const isEven = idx % 2 === 1;
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          cell.border = cellBorder;
+          cell.font = { size: 9.5 };
+          if (isEven) {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
+          }
+          // Căn lề
+          if (colNumber === 3) {
+            cell.alignment = { horizontal: "left", vertical: "middle" };
+            cell.font = { bold: true, size: 9.5 };
+          } else {
+            cell.alignment = { horizontal: "center", vertical: "middle" };
+          }
+          
+          if (colNumber === 5) {
+            cell.font = { bold: true, color: { argb: "FF0F172A" }, size: 9.5 };
+          }
+          if (colNumber === 6) {
+            cell.numFmt = '#,##0" VND"';
+          }
+          if (colNumber === 7) {
+            cell.font = { bold: true, color: { argb: "FF00285E" }, size: 9.5 };
+            cell.numFmt = '#,##0" VND"';
+          }
+        });
+        currentY++;
       });
+      const dataEndRow = currentY - 1;
 
-      const finalY = (doc as any).lastAutoTable.finalY;
-      const signBlockY = finalY + 12;
-      const col1 = margin + contentWidth * (1 / 4);
-      const col2 = margin + contentWidth * (3 / 4);
+      // ===== Dòng Tổng cộng =====
+      sheet.mergeCells(`A${currentY}:D${currentY}`);
+      const totalLabel = sheet.getCell(`A${currentY}`);
+      totalLabel.value = "TỔNG CỘNG";
+      totalLabel.font = { bold: true, size: 10, color: { argb: "FF00285E" } };
+      totalLabel.alignment = { horizontal: "right", vertical: "middle" };
 
-      doc.setFont("NotoSans", "normal");
-      doc.setFontSize(8.5);
-      doc.text(`Ngày ${day} tháng ${month} năm ${year}`, col2, signBlockY, { align: "center" });
+      // Sum of quantity
+      const qtyCell = sheet.getCell(`E${currentY}`);
+      qtyCell.value = { formula: `SUM(E${dataStartRow}:E${dataEndRow})` };
+      qtyCell.font = { bold: true, size: 10 };
+      qtyCell.alignment = { horizontal: "center", vertical: "middle" };
 
-      const titleY = signBlockY + 6;
-      doc.setFont("NotoSans", "bold");
-      doc.setFontSize(9);
-      doc.text("Người phê duyệt", col1, titleY, { align: "center" });
-      doc.text("Người lập đề xuất", col2, titleY, { align: "center" });
+      // Empty price cell
+      sheet.getCell(`F${currentY}`).value = "";
 
-      doc.setFont("NotoSans", "normal");
-      doc.setFontSize(7.5);
-      doc.text("(Ký, ghi rõ họ tên)", col1, titleY + 4, { align: "center" });
-      doc.text("(Ký, ghi rõ họ tên)", col2, titleY + 4, { align: "center" });
+      // Sum of total amount
+      const amountCell = sheet.getCell(`G${currentY}`);
+      amountCell.value = { formula: `SUM(G${dataStartRow}:G${dataEndRow})` };
+      amountCell.font = { bold: true, size: 10, color: { argb: "FF00285E" } };
+      amountCell.alignment = { horizontal: "center", vertical: "middle" };
+      amountCell.numFmt = '#,##0" VND"';
 
-      const nameY = titleY + 24;
-      doc.setFontSize(8.5);
-      doc.text("............................", col1, nameY, { align: "center" });
-      doc.text(creatorName, col2, nameY, { align: "center" });
+      const totalRow = sheet.getRow(currentY);
+      totalRow.eachCell({ includeEmpty: true }, (cell) => {
+        cell.border = cellBorder;
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
+      });
+      currentY++;
 
-      doc.save(`${proposal.proposal_code}.pdf`);
-      showToast("Tải tệp PDF thành công!", "success");
+      // ===== Dòng trống phân cách trước chữ ký =====
+      sheet.getRow(currentY).height = 14;
+      currentY++;
+
+      // ===== Khối chữ ký =====
+      sheet.mergeCells(`A${currentY}:C${currentY}`);
+      sheet.mergeCells(`D${currentY}:G${currentY}`);
+      const dateCell = sheet.getCell(`D${currentY}`);
+      dateCell.value = `Ngày ${new Date().getDate()} tháng ${new Date().getMonth() + 1} năm ${new Date().getFullYear()}`;
+      dateCell.font = { italic: true, size: 9.5, color: { argb: "FF475569" } };
+      dateCell.alignment = { horizontal: "center", vertical: "middle" };
+      sheet.getRow(currentY).height = 18;
+      currentY++;
+
+      sheet.mergeCells(`A${currentY}:C${currentY}`);
+      sheet.mergeCells(`D${currentY}:G${currentY}`);
+      const sig1 = sheet.getCell(`A${currentY}`);
+      sig1.value = "ĐẠI DIỆN BÊN NHẬN (NHÀ CUNG CẤP)";
+      sig1.font = { bold: true, size: 9.5, color: { argb: "FF1E293B" } };
+      sig1.alignment = { horizontal: "center", vertical: "middle" };
+
+      const sig2 = sheet.getCell(`D${currentY}`);
+      sig2.value = "ĐẠI DIỆN BÊN ĐẶT (AGM GARAGE)";
+      sig2.font = { bold: true, size: 9.5, color: { argb: "FF1E293B" } };
+      sig2.alignment = { horizontal: "center", vertical: "middle" };
+      sheet.getRow(currentY).height = 18;
+      currentY++;
+
+      // Chữ ký trống ký tên
+      sheet.getRow(currentY).height = 24;
+      currentY++;
+
+      // Điền tên người ký
+      sheet.mergeCells(`A${currentY}:C${currentY}`);
+      sheet.mergeCells(`D${currentY}:G${currentY}`);
+      const nameSign1 = sheet.getCell(`A${currentY}`);
+      nameSign1.value = "............................";
+      nameSign1.font = { size: 9.5, color: { argb: "FF64748B" } };
+      nameSign1.alignment = { horizontal: "center", vertical: "middle" };
+
+      const nameSign2 = sheet.getCell(`D${currentY}`);
+      nameSign2.value = creatorName;
+      nameSign2.font = { bold: true, size: 9.5, color: { argb: "FF1E293B" } };
+      nameSign2.alignment = { horizontal: "center", vertical: "middle" };
+      sheet.getRow(currentY).height = 18;
+
+      // Xuất file
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      const finalFileName = proposal.proposal_code.replace("DXAI", "OD");
+      anchor.download = `${finalFileName}.xlsx`;
+      anchor.click();
+      window.URL.revokeObjectURL(url);
+
+      showToast("Tải đơn đặt hàng Excel thành công!", "success");
     } catch (error) {
-      console.error("PDF generation failed:", error);
-      showToast("Tạo PDF thất bại.", "warning");
+      console.error("Excel generation failed:", error);
+      showToast("Tạo file Excel thất bại.", "warning");
     }
   };
 
@@ -331,8 +365,8 @@ export default function InventoryRestockSuggestions() {
     if (aiProposal) {
       return (aiProposal.items || []) as RestockSuggestionItem[];
     }
-    return (data?.suggestions ?? []) as RestockSuggestionItem[];
-  }, [aiProposal, data]);
+    return [] as RestockSuggestionItem[];
+  }, [aiProposal]);
 
   const sorted = useMemo(() => {
     return [...currentList].sort((a, b) => {
@@ -362,9 +396,23 @@ export default function InventoryRestockSuggestions() {
         !historySearch ||
         p.proposal_code.toLowerCase().includes(historySearch.toLowerCase()) ||
         (p.creator?.fullName ?? "").toLowerCase().includes(historySearch.toLowerCase());
-      return matchText;
+      
+      let matchDate = true;
+      if (startDate) {
+        const sDate = new Date(startDate);
+        sDate.setHours(0, 0, 0, 0);
+        const pDate = new Date(p.createdAt);
+        if (pDate < sDate) matchDate = false;
+      }
+      if (endDate) {
+        const eDate = new Date(endDate);
+        eDate.setHours(23, 59, 59, 999);
+        const pDate = new Date(p.createdAt);
+        if (pDate > eDate) matchDate = false;
+      }
+      return matchText && matchDate;
     });
-  }, [historyProposals, historySearch]);
+  }, [historyProposals, historySearch, startDate, endDate]);
 
   useEffect(() => {
     setPage(1);
@@ -372,7 +420,7 @@ export default function InventoryRestockSuggestions() {
 
   useEffect(() => {
     setHistoryPage(1);
-  }, [historySearch]);
+  }, [historySearch, startDate, endDate]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -455,6 +503,32 @@ export default function InventoryRestockSuggestions() {
             </div>
           )}
 
+          {/* Empty state invitation to analyze */}
+          {!aiProposal && !isAiLoading && (
+            <div className="bg-white border border-slate-200/60 rounded-2xl p-12 text-center flex flex-col items-center justify-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
+                <Package size={32} />
+              </div>
+              <div className="max-w-md">
+                <h4 className="font-bold text-slate-800 text-base">Chưa chạy phân tích kho</h4>
+                <p className="text-xs text-slate-500 mt-1">
+                  Hãy nhấn nút <strong>"Tự động phân tích tồn kho"</strong> ở trên để hệ thống tiến hành kiểm tra kho, đối chiếu tốc độ bán và lập đơn đặt hàng đề xuất.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Loading state */}
+          {isAiLoading && (
+            <div className="bg-white border border-slate-200/60 rounded-2xl p-16 flex flex-col items-center justify-center space-y-4">
+              <div className="w-12 h-12 rounded-full border-4 border-slate-200 border-t-[#00285E] animate-spin" />
+              <div className="text-center">
+                <h4 className="font-bold text-slate-800 text-sm">Đang phân tích tồn kho...</h4>
+                <p className="text-xs text-slate-400 mt-1">Hệ thống đang đối chiếu dữ liệu xuất nhập kho 3 tháng qua và tính toán số lượng đặt hàng tối ưu...</p>
+              </div>
+            </div>
+          )}
+
           {/* AI Result Card */}
           {aiProposal && (
             <div className="bg-gradient-to-r from-blue-900 to-[#00285E] text-white rounded-2xl p-6 shadow-xl border border-blue-950 space-y-4">
@@ -472,11 +546,11 @@ export default function InventoryRestockSuggestions() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handleDownloadProposalPdf(aiProposal)}
+                    onClick={() => handleDownloadProposalExcel(aiProposal)}
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-[#00285E] bg-white hover:bg-slate-50 active:scale-[0.97] transition-all cursor-pointer"
                   >
                     <FileDown size={14} />
-                    Xem & Tải đề xuất PDF
+                    Tải đơn đặt hàng Excel
                   </button>
                   <button
                     onClick={() => setAiProposal(null)}
@@ -493,29 +567,29 @@ export default function InventoryRestockSuggestions() {
           )}
 
           {/* Main Suggestions Table container */}
-          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-              <div className="flex items-center gap-2.5">
-                <h2 className="text-lg font-bold text-slate-800 tracking-tight">
-                  {aiProposal ? "Chi tiết đề xuất nhập kho" : "Danh mục phụ tùng cần nhập"}
-                </h2>
-                <span className="bg-[#EDF3FF] text-[#00285E] px-2.5 py-0.5 rounded-full text-xs font-bold">
-                  {filtered.length} phụ tùng
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative flex-1 sm:max-w-xs">
-                  <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Tìm tên, mã, hãng..."
-                    value={localSearch}
-                    onChange={(e) => setLocalSearch(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-                  />
+          {aiProposal && (
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
+              <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-lg font-bold text-slate-800 tracking-tight">
+                    Chi tiết đơn đặt hàng đề xuất
+                  </h2>
+                  <span className="bg-[#EDF3FF] text-[#00285E] px-2.5 py-0.5 rounded-full text-xs font-bold">
+                    {filtered.length} phụ tùng
+                  </span>
                 </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="relative flex-1 sm:max-w-xs">
+                    <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Tìm tên, mã, hãng..."
+                      value={localSearch}
+                      onChange={(e) => setLocalSearch(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+                    />
+                  </div>
 
-                {!aiProposal && (
                   <div className="relative">
                     <button
                       type="button"
@@ -545,13 +619,11 @@ export default function InventoryRestockSuggestions() {
                               key={option.value}
                               type="button"
                               onClick={() => {
-                                setStatusFilter(option.value as typeof statusFilter);
+                                setStatusFilter(option.value as any);
                                 setIsFilterOpen(false);
                               }}
-                              className={`w-full text-left px-3.5 py-2.5 text-xs font-semibold transition-colors cursor-pointer ${
-                                statusFilter === option.value
-                                  ? "bg-[#EDF3FF] text-[#00285E]"
-                                  : "text-slate-600 hover:bg-slate-50"
+                              className={`w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-slate-50 transition-colors ${
+                                statusFilter === option.value ? "text-[#00285E] bg-[#EDF3FF]/40 font-bold" : "text-slate-600"
                               }`}
                             >
                               {option.label}
@@ -561,60 +633,46 @@ export default function InventoryRestockSuggestions() {
                       </>
                     )}
                   </div>
-                )}
+                </div>
               </div>
-            </div>
 
-            {/* AI Loading state */}
-            {isAiLoading ? (
-              <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-400">
-                <Loader2 size={36} className="animate-spin text-[#00285E]" />
-                <p className="text-sm font-bold text-slate-500 animate-pulse">
-                  Đang chạy phân tích trên toàn bộ dữ liệu kho và nhu cầu...
-                </p>
-              </div>
-            ) : isLoading ? (
-              <div className="py-16 flex items-center justify-center gap-2 text-slate-400 text-sm">
-                <Loader2 size={18} className="animate-spin" />
-                Đang phân tích dữ liệu tồn kho...
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="py-16 flex flex-col items-center justify-center gap-2 text-slate-400">
-                <Package size={32} className="text-slate-300" />
-                <p className="text-sm font-semibold">Không có phụ tùng nào cần nhập thêm lúc này.</p>
-              </div>
-            ) : (
-              <>
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[780px] text-left border-collapse text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
-                        <th className="py-4 px-6">Mã</th>
-                        <th className="py-4 px-4">Phụ tùng</th>
-                        <th className="py-4 px-4">Trạng thái</th>
-                        <th className="py-4 px-4 text-center">Số lượng tồn kho</th>
-                        <th className="py-4 px-4 text-center">Đề xuất nhập</th>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
+                      <th className="py-4 px-6">Mã sản phẩm</th>
+                      <th className="py-4 px-4">Tên sản phẩm</th>
+                      <th className="py-4 px-4">Trạng thái</th>
+                      <th className="py-4 px-4 text-center">Số lượng tồn kho</th>
+                      <th className="py-4 px-4 text-center">Đề xuất nhập</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-14 text-center text-slate-400 text-xs">
+                          Không tìm thấy phụ tùng đề xuất phù hợp...
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {pageItems.map((item) => {
+                    ) : (
+                      pageItems.map((item) => {
                         const urgency = getUrgency(item);
                         const UrgencyIcon = urgency.icon;
-                        const currentStock = item.available_stock !== undefined ? item.available_stock : item.stock_quantity;
+                        const currentStock = item.stock_quantity ?? item.available_stock ?? 0;
                         return (
                           <tr
                             key={item.part_id}
                             className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70 transition-colors"
                           >
                             <td className="py-4 px-6">
-                              <p className="text-sm text-slate-600 font-medium">{item.sku ? item.sku : "Chưa có mã"}</p>
-                              {item.brand && <p className="text-xs text-slate-400">{item.brand}</p>}
+                              <p className="text-xs font-bold text-slate-800">{item.sku || "Chưa có mã"}</p>
+                              {item.brand && <p className="text-[10px] text-slate-400 mt-0.5">{item.brand}</p>}
                             </td>
                             <td className="py-4 px-4">
-                              <p className="font-semibold text-slate-800 text-sm">{item.name}</p>
+                              <p className="font-semibold text-slate-800 text-xs">{item.name}</p>
                               {item.trend_percent !== null && item.trend_percent >= 20 && (
-                                <span className="inline-flex items-center gap-0.5 text-xs text-rose-500 font-semibold mt-0.5">
-                                  <TrendingUp size={11} />
+                                <span className="inline-flex items-center gap-0.5 text-[10px] text-rose-500 font-semibold mt-0.5">
+                                  <TrendingUp size={10} />
                                   Nhu cầu tăng {item.trend_percent}%
                                 </span>
                               )}
@@ -637,51 +695,50 @@ export default function InventoryRestockSuggestions() {
                                 Số lượng: {item.suggested_quantity.toLocaleString("vi-VN")}
                               </span>
                             </td>
-                            {/* Ly do column removed */}
                           </tr>
                         );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-                {totalPages > 1 && (
-                  <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between flex-wrap gap-3">
-                    <span className="text-xs font-medium text-slate-400">
-                      Hiển thị {pageItems.length} / {filtered.length} phụ tùng
-                    </span>
-                    <div className="flex items-center gap-1.5">
+              {totalPages > 1 && (
+                <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between flex-wrap gap-3">
+                  <span className="text-xs font-medium text-slate-400">
+                    Hiển thị {pageItems.length} / {filtered.length} phụ tùng
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={safePage === 1}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
                       <button
-                        onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        disabled={safePage === 1}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        key={n}
+                        onClick={() => setPage(n)}
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-colors cursor-pointer ${
+                          n === safePage ? "bg-[#00285E] text-white shadow-sm" : "border border-slate-200 text-slate-600 hover:bg-white"
+                        }`}
                       >
-                        <ChevronLeft size={16} />
+                        {n}
                       </button>
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                        <button
-                          key={n}
-                          onClick={() => setPage(n)}
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-colors cursor-pointer ${
-                            n === safePage ? "bg-[#00285E] text-white shadow-sm" : "border border-slate-200 text-slate-600 hover:bg-white"
-                          }`}
-                        >
-                          {n}
-                        </button>
-                      ))}
-                      <button
-                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={safePage === totalPages}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <ChevronRight size={16} />
-                      </button>
-                    </div>
+                    ))}
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={safePage === totalPages}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
                   </div>
-                )}
-              </>
-            )}
-          </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -695,15 +752,47 @@ export default function InventoryRestockSuggestions() {
                 {filteredHistory.length} đề xuất
               </span>
             </div>
-            <div className="relative flex-1 sm:max-w-xs">
-              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Tìm mã đề xuất, người tạo..."
-                value={historySearch}
-                onChange={(e) => setHistorySearch(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-              />
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative w-full sm:w-56">
+                <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm mã đề xuất, người tạo..."
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200/80 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-slate-500">Từ:</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all text-slate-600"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-slate-500">Đến:</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all text-slate-600"
+                />
+              </div>
+              {(startDate || endDate) && (
+                <button
+                  onClick={() => {
+                    setStartDate("");
+                    setEndDate("");
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors cursor-pointer"
+                  title="Xoá bộ lọc ngày"
+                >
+                  Xoá lọc
+                </button>
+              )}
             </div>
           </div>
 
@@ -761,11 +850,11 @@ export default function InventoryRestockSuggestions() {
                                 Chi tiết
                               </button>
                               <button
-                                onClick={() => handleDownloadProposalPdf(p)}
+                                onClick={() => handleDownloadProposalExcel(p)}
                                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 cursor-pointer"
                               >
                                 <FileDown size={12} />
-                                Tải PDF
+                                Tải Excel
                               </button>
                             </div>
                           </td>
@@ -845,11 +934,11 @@ export default function InventoryRestockSuggestions() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handleDownloadProposalPdf(selectedHistory)}
+                    onClick={() => handleDownloadProposalExcel(selectedHistory)}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-[#00285E] bg-white hover:bg-slate-50 transition-colors"
                   >
                     <FileDown size={14} />
-                    Tải PDF
+                    Tải Excel
                   </button>
                   <button
                     onClick={() => setSelectedHistory(null)}

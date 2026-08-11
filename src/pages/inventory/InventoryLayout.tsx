@@ -126,6 +126,12 @@ export default function InventoryLayout() {
     return () => clearInterval(intervalId);
   }, [checkLowStockStatus]);
 
+  useEffect(() => {
+    if (showSubtleAlert && subtleAlertCount > 0) {
+      playAlertSound();
+    }
+  }, [showSubtleAlert, subtleAlertCount]);
+
   const fetchNotifications = async () => {
     try {
       const response = await fetchPrivate(NOTIFICATION_API_ENDPOINTS.GET_NOTIFICATIONS);
