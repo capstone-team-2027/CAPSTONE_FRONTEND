@@ -93,6 +93,7 @@ export default function ChatbotWidget() {
             // Chuyển đổi định dạng history để gửi lên API (API cần mảng { role, parts: [{ text }] })
             const history = messages
                 .filter(m => m.id !== '1') // Bỏ câu chào mặc định ban đầu ra khỏi lịch sử nếu muốn
+                .slice(-20) // Chỉ gửi các lượt gần nhất, tránh vượt giới hạn API khi hội thoại dài
                 .map(m => ({
                     role: m.role,
                     parts: [{ text: m.content }]

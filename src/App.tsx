@@ -28,6 +28,7 @@ const AdminStaffManagement = lazy(() => import("./pages/admin/staff/AdminStaffMa
 const AdminShiftManagement = lazy(() => import("./pages/admin/staff/AdminShiftManagement"));
 const AdminWarrantyPolicies = lazy(() => import("./pages/admin/warranty/AdminWarrantyPolicies"));
 const AdminStatistics = lazy(() => import("./pages/admin/dashboard/AdminStatistics"));
+const AdminAiAnalysis = lazy(() => import("./pages/admin/dashboard/AdminAiAnalysis"));
 const AdminCustomerManagement = lazy(() => import("./pages/admin/customer/AdminCustomerManagement"));
 const AdminCustomerDetailPage = lazy(() => import("./pages/admin/customer/AdminCustomerDetailPage"));
 const InventoryLayout = lazy(() => import("./pages/inventory/InventoryLayout"));
@@ -139,6 +140,7 @@ function App() {
             <Route path="shifts" element={<AdminShiftManagement />} />
             <Route path="warranty" element={<AdminWarrantyPolicies />} />
             <Route path="statistics" element={<AdminStatistics />} />
+            <Route path="ai-analysis" element={<AdminAiAnalysis />} />
             <Route path="customers" element={<AdminCustomerManagement />} />
             <Route path="customers/:id" element={<AdminCustomerDetailPage />} />
           </Route>
