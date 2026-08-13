@@ -21,8 +21,11 @@ import {
   Eye,
   Sparkles,
   ShieldCheck,
-  Wrench
+  Wrench,
+  MapPin
 } from "lucide-react";
+import RescueTrackingModal from "../../../components/share/RescueTrackingModal";
+import { useSocket } from "../../../hook/useSocket";
 
 const PAGE_SIZE = 6;
 import { useOutletContext, useNavigate } from "react-router-dom";
@@ -46,9 +49,11 @@ export default function AdminCustomerManagement() {
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
   const { fetchPrivate } = useFetchClient_v2();
+  const socket = useSocket();
 
   // Primary State
-  const [customers, setCustomers] = useState<CustomerData[]>([]);
+  const [customers, setCustomers] = useState<(CustomerData & { rescueRequests?: any[] })[]>([]);
+  const [trackingData, setTrackingData] = useState<{ rescue: any; customerName: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [tierFilter, setTierFilter] = useState<string>("ALL");
@@ -75,7 +80,8 @@ export default function AdminCustomerManagement() {
             appointments: [],
             prediction: { frequentViews: [], lastViewedDate: "", conversionProbability: 0, recommendedService: "", salesTip: "" },
             chatHistory: [],
-            usedParts: []
+            usedParts: [],
+            rescueRequests: c.rescueRequests || []
           }));
           const mappedGuest = response.data.guestCustomers.map((c: any) => ({
             id: c.id,
@@ -92,7 +98,8 @@ export default function AdminCustomerManagement() {
             appointments: [],
             prediction: { frequentViews: [], lastViewedDate: "", conversionProbability: 0, recommendedService: "", salesTip: "" },
             chatHistory: [],
-            usedParts: []
+            usedParts: [],
+            rescueRequests: c.rescueRequests || []
           }));
           setCustomers([...mappedRegistered, ...mappedGuest]);
         }
@@ -102,6 +109,17 @@ export default function AdminCustomerManagement() {
     };
     fetchCustomers();
   }, [fetchPrivate, showToast]);
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    const roleCode = user?.role || 'ADMIN';
+    const refresh = (data: any) => {
+      if (data?.type === 'RESCUE_STATUS_UPDATED') window.location.reload();
+    };
+    socket.emit('join-role', roleCode);
+    socket.on('new_notification', refresh);
+    return () => { socket.off('new_notification', refresh); };
+  }, [socket]);
 
   // Selection & Modal State
   const navigate = useNavigate();
@@ -456,6 +474,7 @@ export default function AdminCustomerManagement() {
                 pageItems.map(customer => {
                   const tier = TIER_CONFIG[customer.membership_tier];
                   const statusInfo = STATUS_CONFIG[customer.status];
+                  const activeRescue = customer.rescueRequests?.find((rescue: any) => ['EN_ROUTE', 'TOWING'].includes(rescue.status));
                   return (
                     <tr
                       key={customer.id}
@@ -503,6 +522,15 @@ export default function AdminCustomerManagement() {
                         </span>
                       </td>
                       <td className="py-4 px-6 text-right" onClick={(e) => e.stopPropagation()}>
+                        {activeRescue && (
+                          <button
+                            onClick={() => setTrackingData({ rescue: activeRescue, customerName: customer.fullName })}
+                            className="mr-2 px-3 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-colors inline-flex items-center gap-1.5 text-xs font-bold"
+                            title="Theo dõi cứu hộ realtime"
+                          >
+                            <MapPin size={14} className="animate-pulse" /> Theo dõi
+                          </button>
+                        )}
                         <button
                           onClick={() => handleOpenEdit(customer)}
                           className="p-2 rounded-xl hover:bg-blue-50 text-slate-500 hover:text-blue-600 transition-colors inline-flex items-center justify-center border border-transparent hover:border-blue-100"
@@ -547,6 +575,13 @@ export default function AdminCustomerManagement() {
           </div>
         </div>
       </div>
+
+      <RescueTrackingModal
+        key={trackingData?.rescue?.id || 'closed'}
+        rescue={trackingData?.rescue || null}
+        customerName={trackingData?.customerName || ''}
+        onClose={() => setTrackingData(null)}
+      />
 
       {/* EDIT CUSTOMER MODAL */}
       <AnimatePresence>

@@ -440,18 +440,11 @@ export default function TechnicianRescuePage() {
                   </div>
                 </div>
 
-                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 mb-4">
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                   <p className="text-xs text-slate-600 font-medium line-clamp-2">
                     <span className="text-slate-400 font-bold">MÔ TẢ:</span> {rescueTask.issue_description || "Không có ghi chú"}
                   </p>
                 </div>
-                
-                <a 
-                  href={`tel:${rescueTask.customer?.phone || rescueTask.customer?.user?.phoneNumber}`}
-                  className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-2"
-                >
-                  <Phone size={16} /> GỌI CHO KHÁCH
-                </a>
               </motion.div>
 
               {/* Right Route Info */}

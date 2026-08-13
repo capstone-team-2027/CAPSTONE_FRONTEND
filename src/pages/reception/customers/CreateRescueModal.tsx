@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, User, ShieldCheck, Star, MapPin, CheckCircle, XCircle, Search, Car, CircleAlert, Eye, EyeOff } from 'lucide-react';
+import { X, User, ShieldCheck, MapPin, CheckCircle, XCircle, Search, Car, CircleAlert, Eye, EyeOff } from 'lucide-react';
 import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { RECEPTION_API } from '../../../constants/reception/receptionApiEndpoint';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents, Polyline } from 'react-leaflet';
@@ -15,8 +15,18 @@ const garageIcon = L.icon({
   popupAnchor: [0, -35],
 });
 
-const userIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/3204/3204936.png',
+// Đồng nhất marker khách hàng với MapTracking, TechnicianRescuePage và bản đồ admin:
+// ghim đỏ SVG nhúng trực tiếp, không phụ thuộc ảnh CDN bên ngoài.
+const userIcon = L.divIcon({
+  className: 'custom-user-marker',
+  html: `
+    <div style="display:flex;align-items:center;justify-content:center;width:35px;height:35px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 24 24" fill="#DC2626" stroke="white" stroke-width="1.5">
+        <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
+        <circle cx="12" cy="10" r="3" fill="white" stroke="none" />
+      </svg>
+    </div>
+  `,
   iconSize: [35, 35],
   iconAnchor: [17, 35],
   popupAnchor: [0, -35],
@@ -32,24 +42,24 @@ const assignmentStatusLabel = (status: string) => ({
 // resolve default export for PhoneInput
 type Mod = { default?: unknown };
 function resolveDefault<T>(mod: unknown): T {
-    const m = mod as Mod;
-    if (m && typeof m === 'object' && 'default' in m) {
-        const d = m.default as unknown;
-        if (d && typeof d === 'object' && 'default' in (d as Mod)) return (d as Mod).default as T;
-        return d as T;
-    }
-    return mod as T;
+  const m = mod as Mod;
+  if (m && typeof m === 'object' && 'default' in m) {
+    const d = m.default as unknown;
+    if (d && typeof d === 'object' && 'default' in (d as Mod)) return (d as Mod).default as T;
+    return d as T;
+  }
+  return mod as T;
 }
 type PhoneInputProps = {
-    country?: string;
-    value?: string;
-    onChange?: (value: string) => void;
-    onBlur?: () => void;
-    enableSearch?: boolean;
-    searchPlaceholder?: string;
-    inputProps?: { name?: string };
-    countryCodeEditable?: boolean;
-    disabled?: boolean;
+  country?: string;
+  value?: string;
+  onChange?: (value: string) => void;
+  onBlur?: () => void;
+  enableSearch?: boolean;
+  searchPlaceholder?: string;
+  inputProps?: { name?: string };
+  countryCodeEditable?: boolean;
+  disabled?: boolean;
 };
 const PhoneInput = resolveDefault<React.ComponentType<PhoneInputProps>>(PhoneInputLib);
 
@@ -132,7 +142,7 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
   showToast,
 }) => {
   const { fetchPrivate } = useFetchClient_v2();
-  
+
   const [customerName, setCustomerName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [issueDescription, setIssueDescription] = useState('');
@@ -145,7 +155,7 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
   const [expandedTechnicianId, setExpandedTechnicianId] = useState<number | null>(null);
   const [loadingTechs, setLoadingTechs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  
+
   const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
   const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
 
@@ -199,7 +209,7 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
   const handleSelectSearchResult = (result: any) => {
     const lat = parseFloat(result.lat);
     const lng = parseFloat(result.lon);
-    
+
     handleMapClick(lat, lng, result.display_name);
   };
 
@@ -252,7 +262,7 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
       const url = `https://router.project-osrm.org/route/v1/driving/${garageLocation[1]},${garageLocation[0]};${lng},${lat}?overview=full&geometries=geojson`;
       const response = await fetch(url);
       const data = await response.json();
-      
+
       if (data.routes && data.routes.length > 0) {
         const route = data.routes[0];
         const distKm = parseFloat((route.distance / 1000).toFixed(1));
@@ -272,7 +282,7 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
           (c: [number, number]) => [c[1], c[0]]
         );
         setRouteCoords(coordsArray);
-        
+
         const bounds = L.latLngBounds([garageLocation, [lat, lng]]);
         coordsArray.forEach(c => bounds.extend(c));
         setMapBounds(bounds);
@@ -355,28 +365,27 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
       <style>{phoneStyles}</style>
-      <div className="bg-slate-100 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
-        
+      <div className="bg-slate-100 rounded-2xl shadow-2xl w-full max-w-7xl max-h-[90vh] flex flex-col overflow-hidden">
+
         {/* HEADER */}
-        <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
+        <div className="p-5 border-b border-[#001f49] flex items-center justify-between bg-[#00285E] shrink-0">
           <div>
-            <h3 className="font-bold text-slate-800 text-xl flex items-center gap-2">
-              <span className="text-rose-600 animate-pulse">🚨</span> Tạo dịch vụ Cứu hộ mới
+            <h3 className="font-bold text-white text-xl flex items-center gap-2">
+              Tạo dịch vụ Cứu hộ mới
             </h3>
-            <p className="text-sm text-slate-500 mt-1">Lập cuốc cứu hộ mới cho khách hàng/khách vãng lai và phân công kỹ thuật viên</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-500">
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors text-blue-100 hover:text-white">
             <X size={24} />
           </button>
         </div>
-        
+
         {/* BODY */}
         <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
-          
+
           {/* LEFT COLUMN: Map & Fields */}
-          <div className="w-full lg:w-7/12 flex flex-col bg-white border-r border-slate-200 overflow-y-auto p-5 space-y-4">
-            
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="w-full lg:w-[70%] flex flex-col bg-white border-r border-slate-200 overflow-y-auto px-5 pb-5 pt-7 lg:pl-8 lg:pr-6 space-y-4">
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Customer Name */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Tên khách hàng</label>
@@ -405,79 +414,6 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
                 </div>
               </div>
 
-              {/* Location Lat/Lng Display */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Vị trí (Click trên bản đồ)</label>
-                <input
-                  type="text"
-                  readOnly
-                  value={customerLat && customerLng ? `${customerLat.toFixed(6)}, ${customerLng.toFixed(6)}` : ''}
-                  placeholder="Click bản đồ để lấy tọa độ"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Address Search */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                Tìm kiếm vị trí (Địa điểm / Địa chỉ)
-              </label>
-              <div className="relative">
-                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchAddressQuery}
-                  onChange={(e) => setSearchAddressQuery(e.target.value)}
-                  placeholder="Vd: Đại học Bách Khoa Đà Nẵng..."
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-                />
-                {searchingAddress && (
-                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">Đang tìm...</span>
-                )}
-              </div>
-
-              {/* Search Results — chiếm chỗ thật trong layout (không dùng absolute) để không bị
-                  cắt bởi overflow-y-auto của container cha, tránh bị đẩy lệch xuống dưới bản đồ. */}
-              {searchResults.length > 0 && (
-                <div className="mt-1 bg-white border border-slate-200 rounded-lg shadow-sm max-h-60 overflow-y-auto">
-                  {searchResults.map((result, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => handleSelectSearchResult(result)}
-                      className="px-4 py-2.5 hover:bg-slate-50 text-sm text-slate-700 cursor-pointer border-b border-slate-100 last:border-0 flex items-start gap-2"
-                    >
-                      <MapPin size={16} className="text-slate-400 mt-0.5 shrink-0" />
-                      <span>{result.display_name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Map to Select Location */}
-            <div className="relative">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                Bản đồ định vị (Click để chọn vị trí khách hàng)
-              </label>
-              <div className="w-full h-[250px] bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
-                <MapContainer center={garageLocation} zoom={13} style={{ width: '100%', height: '100%' }}>
-                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                  {mapBounds && <MapFitter bounds={mapBounds} />}
-                  <MapClickHandler onClick={handleMapClick} />
-                  <Marker position={garageLocation} icon={garageIcon}>
-                    <Popup>Gara AGM</Popup>
-                  </Marker>
-                  {customerLat && customerLng && (
-                    <Marker position={[customerLat, customerLng]} icon={userIcon}>
-                      <Popup>Vị trí Khách hàng</Popup>
-                    </Marker>
-                  )}
-                  {routeCoords.length > 0 && (
-                    <Polyline positions={routeCoords} color="#3b82f6" weight={6} opacity={0.8} />
-                  )}
-                </MapContainer>
-              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -496,7 +432,7 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
 
               {/* Calculated price */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Số tiền cứu hộ (đ)</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Số tiền cứu hộ (VND)</label>
                 <input
                   type="number"
                   value={rescuePrice || ''}
@@ -519,6 +455,64 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
               />
             </div>
 
+            {/* Location search and map are placed after all rescue information. */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                Tìm kiếm vị trí (Địa điểm / Địa chỉ)
+              </label>
+              <div className="relative">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchAddressQuery}
+                  onChange={(e) => setSearchAddressQuery(e.target.value)}
+                  placeholder="Vd: Đại học Bách Khoa Đà Nẵng..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+                />
+                {searchingAddress && (
+                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">Đang tìm...</span>
+                )}
+              </div>
+              {searchResults.length > 0 && (
+                <div className="mt-1 bg-white border border-slate-200 rounded-lg shadow-sm max-h-60 overflow-y-auto">
+                  {searchResults.map((result, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => handleSelectSearchResult(result)}
+                      className="px-4 py-2.5 hover:bg-slate-50 text-sm text-slate-700 cursor-pointer border-b border-slate-100 last:border-0 flex items-start gap-2"
+                    >
+                      <MapPin size={16} className="text-slate-400 mt-0.5 shrink-0" />
+                      <span>{result.display_name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="relative">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                Bản đồ định vị (Click để chọn vị trí khách hàng)
+              </label>
+              <div className="w-full h-[390px] xl:h-[430px] bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
+                <MapContainer center={garageLocation} zoom={13} style={{ width: '100%', height: '100%' }}>
+                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  {mapBounds && <MapFitter bounds={mapBounds} />}
+                  <MapClickHandler onClick={handleMapClick} />
+                  <Marker position={garageLocation} icon={garageIcon}>
+                    <Popup>Gara AGM</Popup>
+                  </Marker>
+                  {customerLat && customerLng && (
+                    <Marker position={[customerLat, customerLng]} icon={userIcon}>
+                      <Popup>Vị trí Khách hàng</Popup>
+                    </Marker>
+                  )}
+                  {routeCoords.length > 0 && (
+                    <Polyline positions={routeCoords} color="#3b82f6" weight={6} opacity={0.8} />
+                  )}
+                </MapContainer>
+              </div>
+            </div>
+
             {/* Action buttons */}
             <div className="flex gap-3 pt-2">
               <button
@@ -532,11 +526,10 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
                 type="button"
                 onClick={handleCreate}
                 disabled={submitting || !selectedTechnicianId || !phoneNumber || !customerLat}
-                className={`flex-1 py-3 px-4 text-white font-bold rounded-xl transition-colors flex justify-center items-center gap-2 shadow-lg ${
-                  submitting || !selectedTechnicianId || !phoneNumber || !customerLat
-                    ? 'bg-slate-300 cursor-not-allowed shadow-none'
-                    : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
-                }`}
+                className={`flex-1 py-3 px-4 text-white font-bold rounded-xl transition-colors flex justify-center items-center gap-2 shadow-lg ${submitting || !selectedTechnicianId || !phoneNumber || !customerLat
+                  ? 'bg-slate-300 cursor-not-allowed shadow-none'
+                  : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                  }`}
               >
                 {submitting ? "Đang xử lý..." : "Tạo & Phân công"}
               </button>
@@ -545,11 +538,11 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
           </div>
 
           {/* RIGHT COLUMN: Technicians List */}
-          <div className="w-full lg:w-5/12 p-5 overflow-y-auto bg-slate-50 flex flex-col">
+          <div className="w-full lg:w-[30%] px-5 pb-5 pt-7 lg:px-5 overflow-y-auto bg-slate-50 flex flex-col">
             <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2 shrink-0">
               <User size={18} className="text-[#00285E]" /> Phân công Kỹ thuật viên đang trực
             </h4>
-            
+
             {loadingTechs ? (
               <div className="text-center text-slate-500 py-8 flex-1 flex items-center justify-center">Đang tải danh sách...</div>
             ) : technicians.length > 0 ? (
@@ -557,14 +550,13 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
                 {technicians.map(tech => {
                   const isLeader = tech.role?.roleCode === 'TECHNICIAN_LEADER';
                   return (
-                    <div 
+                    <div
                       key={tech.id}
                       onClick={() => setSelectedTechnicianId(selectedTechnicianId === tech.id ? null : tech.id)}
-                      className={`group relative p-4 rounded-xl border transition-all flex items-center gap-3 bg-white cursor-pointer ${
-                        selectedTechnicianId === tech.id 
-                          ? 'border-[#00285E] ring-2 ring-[#00285E]/20 shadow-md' 
-                          : 'border-slate-200 hover:border-[#00285E]/50'
-                      }`}
+                      className={`group relative p-4 rounded-xl border transition-all flex items-center gap-3 bg-white cursor-pointer ${selectedTechnicianId === tech.id
+                        ? 'border-[#00285E] ring-2 ring-[#00285E]/20 shadow-md'
+                        : 'border-slate-200 hover:border-[#00285E]/50'
+                        }`}
                     >
                       <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-white shrink-0 ${isLeader ? 'bg-amber-500' : 'bg-slate-400'}`}>
                         {tech.fullName ? tech.fullName.charAt(0).toUpperCase() : 'T'}
@@ -577,9 +569,8 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
                               <ShieldCheck size={10} /> Tổ trưởng
                             </span>
                           )}
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5 ${
-                            tech.isBusy ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
-                          }`}>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5 ${tech.isBusy ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                            }`}>
                             <CircleAlert size={10} /> {tech.isBusy ? 'Đang bận' : 'Đang rảnh'}
                           </span>
                         </div>
@@ -588,19 +579,19 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
                           <div className={`${expandedTechnicianId === tech.id ? 'block' : 'hidden'} absolute left-1/2 top-2 z-50 w-80 max-w-[calc(100%-24px)] -translate-x-1/2 rounded-xl border border-slate-200 bg-white p-3 shadow-2xl`} onClick={(event) => event.stopPropagation()}>
                             <p className="mb-2 text-xs font-bold text-slate-800">Công việc đang phụ trách</p>
                             <div className="max-h-56 space-y-1.5 overflow-y-auto">
-                            {tech.currentTasks.map((task: any) => (
-                              <div key={task.id} className="rounded-lg border border-orange-100 bg-orange-50/70 px-2.5 py-2 text-[11px]">
-                                <p className="flex items-center gap-1.5 font-bold text-slate-700">
-                                  <Car size={12} className="shrink-0 text-orange-500" />
-                                  {task.serviceName || task.taskType || 'Công việc kỹ thuật'}
-                                </p>
-                                <p className="mt-1 text-slate-500">
-                                  {task.serviceOrderId ? `Lệnh dịch vụ #${task.serviceOrderId}` : `Công việc #${task.id}`}
-                                  {task.vehiclePlate ? ` · Xe ${task.vehiclePlate}` : ''}
-                                </p>
-                                <p className="mt-0.5 font-semibold text-orange-700">{assignmentStatusLabel(task.status)}</p>
-                              </div>
-                            ))}
+                              {tech.currentTasks.map((task: any) => (
+                                <div key={task.id} className="rounded-lg border border-orange-100 bg-orange-50/70 px-2.5 py-2 text-[11px]">
+                                  <p className="flex items-center gap-1.5 font-bold text-slate-700">
+                                    <Car size={12} className="shrink-0 text-orange-500" />
+                                    {task.serviceName || task.taskType || 'Công việc kỹ thuật'}
+                                  </p>
+                                  <p className="mt-1 text-slate-500">
+                                    {task.serviceOrderId ? `Lệnh dịch vụ #${task.serviceOrderId}` : `Công việc #${task.id}`}
+                                    {task.vehiclePlate ? ` · Xe ${task.vehiclePlate}` : ''}
+                                  </p>
+                                  <p className="mt-0.5 font-semibold text-orange-700">{assignmentStatusLabel(task.status)}</p>
+                                </div>
+                              ))}
                             </div>
                           </div>
                         )}
@@ -618,10 +609,7 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
                             {expandedTechnicianId === tech.id ? <EyeOff size={13} /> : <Eye size={13} />}
                             {expandedTechnicianId === tech.id ? 'Đóng' : 'Xem việc'}
                           </button>
-                        ) : <div className="flex items-center text-amber-500">
-                          <Star size={14} className="fill-amber-500" />
-                          <span className="text-xs font-bold ml-1">{tech.skillLevel}</span>
-                        </div>}
+                        ) : null}
                         {selectedTechnicianId === tech.id && <span className="text-xs text-white bg-[#00285E] px-2 py-1 rounded-md">Đã chọn</span>}
                       </div>
                     </div>

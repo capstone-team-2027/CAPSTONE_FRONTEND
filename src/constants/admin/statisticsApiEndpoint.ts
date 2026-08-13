@@ -9,4 +9,7 @@ export const STATISTICS_API_ENDPOINTS = {
     return url;
   },
   GET_ADVANCED: `${API_BASE_URL}/api/admin/statistics/advanced`,
+  GET_AI_HISTORY: `${API_BASE_URL}/api/admin/ai-analysis/history`,
+  GET_AI_HISTORY_DETAIL: (id: number | string) => `${API_BASE_URL}/api/admin/ai-analysis/history/${id}`,
+  DELETE_AI_HISTORY: (id: number | string) => `${API_BASE_URL}/api/admin/ai-analysis/history/${id}`,
 };

@@ -6,6 +6,7 @@ import { AssignTechnicianModal } from './AssignTechnicianModal';
 import { CreateRescueModal } from './CreateRescueModal';
 import { ArrowLeft, MapPin, ClipboardPlus } from 'lucide-react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
+import RescueTrackingModal from '../../../components/share/RescueTrackingModal';
 
 interface User {
   id: number;
@@ -26,6 +27,19 @@ interface Customer {
   rescueRequests?: any[];
 }
 
+const formatVietnamPhone = (value?: string | null) => {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '—';
+
+  const nationalNumber = digits.startsWith('84')
+    ? digits.slice(2)
+    : digits.startsWith('0')
+      ? digits.slice(1)
+      : digits;
+  const groupedNumber = nationalNumber.replace(/(\d{3})(?=\d)/g, '$1 ').trim();
+  return `+84 ${groupedNumber}`;
+};
+
 export default function ReceptionCustomerList() {
   const { fetchPrivate } = useFetchClient_v2();
   const socket = useSocket();
@@ -34,6 +48,7 @@ export default function ReceptionCustomerList() {
 
   const [assignModalData, setAssignModalData] = useState<{ customer: Customer } | null>(null);
   const [isCreateRescueModalOpen, setIsCreateRescueModalOpen] = useState(false);
+  const [trackingData, setTrackingData] = useState<{ rescue: any; customerName: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
@@ -48,6 +63,16 @@ export default function ReceptionCustomerList() {
       if (res && res.data) {
         const all = [...(res.data.registeredCustomers || []), ...(res.data.guestCustomers || [])];
         setCustomers(all);
+        // Modal ưu tiên socket realtime; dữ liệu polling 10 giây là phương án dự phòng khi
+        // ngrok/websocket tạm mất kết nối. Luôn đồng bộ lại đúng rescue đang được mở.
+        setTrackingData((current) => {
+          if (!current?.rescue?.id) return current;
+          for (const customer of all) {
+            const refreshedRescue = customer.rescueRequests?.find((item: any) => Number(item.id) === Number(current.rescue.id));
+            if (refreshedRescue) return { ...current, rescue: refreshedRescue };
+          }
+          return current;
+        });
       }
     } catch (error) {
       console.error("Lỗi khi tải danh sách khách hàng", error);
@@ -141,16 +166,13 @@ export default function ReceptionCustomerList() {
             <ArrowLeft size={24} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Cứu hộ</h1>
+            <h1 className="text-2xl font-bold text-slate-800">Dịch vụ cứu hộ</h1>
             <p className="text-slate-500 text-sm mt-1">Quản lý khách hàng và theo dõi yêu cầu cứu hộ khẩn cấp.</p>
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={loadCustomers} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg transition-colors">
-            Làm mới
-          </button>
-          <button 
-            onClick={() => setIsCreateRescueModalOpen(true)} 
+          <button
+            onClick={() => setIsCreateRescueModalOpen(true)}
             className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-lg shadow-md shadow-rose-200 transition-colors"
           >
             Tạo dịch vụ cứu hộ
@@ -166,17 +188,18 @@ export default function ReceptionCustomerList() {
                 <th className="px-6 py-4">Khách hàng</th>
                 <th className="px-6 py-4">Số điện thoại</th>
                 <th className="px-6 py-4">Loại khách</th>
-                <th className="px-6 py-4 text-right">Trạng thái định vị</th>
+                <th className="px-6 py-4 text-center">Trạng thái</th>
+                <th className="px-6 py-4 text-center">Theo dõi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading && customers.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-slate-400">Đang tải dữ liệu...</td>
+                  <td colSpan={5} className="px-6 py-8 text-center text-slate-400">Đang tải dữ liệu...</td>
                 </tr>
               ) : paginatedCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-slate-400">Không tìm thấy khách hàng nào.</td>
+                  <td colSpan={5} className="px-6 py-8 text-center text-slate-400">Không tìm thấy khách hàng nào.</td>
                 </tr>
               ) : (
                 paginatedCustomers.map((customer) => {
@@ -194,16 +217,9 @@ export default function ReceptionCustomerList() {
                   return (
                     <tr key={customer.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={customer.user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=150&auto=format&fit=crop'}
-                            alt={displayName}
-                            className="w-10 h-10 rounded-full object-cover border border-slate-200"
-                          />
-                          <span className="font-semibold text-slate-800">{displayName}</span>
-                        </div>
+                        <span className="font-semibold text-slate-800">{displayName}</span>
                       </td>
-                      <td className="px-6 py-4 font-medium">{customer.phone}</td>
+                      <td className="px-6 py-4 font-medium tabular-nums">{formatVietnamPhone(customer.phone)}</td>
                       <td className="px-6 py-4">
                         {customer.user ? (
                           <span className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-md text-xs font-semibold">Thành viên</span>
@@ -211,8 +227,8 @@ export default function ReceptionCustomerList() {
                           <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md text-xs font-semibold">Vãng lai</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-3">
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-3">
                           {/* Khối 1: Hiển thị trạng thái định vị / Nút gọi cứu hộ */}
                           {serviceCreatedRescue ? (
                             <span className="text-[10px] font-bold text-[#00285E] bg-[#EDF3FF] px-2.5 py-1 rounded-md border border-blue-100">
@@ -224,15 +240,15 @@ export default function ReceptionCustomerList() {
                             </span>
                           ) : hasLocation ? (
                             activeRescue && activeRescue.status !== 'PENDING' ? (
-                              <div className="flex flex-col items-end gap-2">
-                                <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-md border border-orange-200">
-                                  ĐÃ GÁN: {activeRescue.technician?.fullName?.toUpperCase() || 'KTV'} (
-                                  {activeRescue.status === 'ASSIGNED' ? 'Đã gán' :
-                                   activeRescue.status === 'EN_ROUTE' ? 'Đang di chuyển' :
-                                   activeRescue.status === 'ARRIVED' ? 'Đã đến nơi' :
-                                   activeRescue.status === 'TOWING' ? 'Đang chở xe về gara' : activeRescue.status}
-                                  )
-                                </span>
+                              <div className="flex flex-col items-center gap-2">
+                                <div className="min-w-[170px] rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-center">
+                                  <p className="text-[11px] font-bold uppercase text-orange-700">
+                                    Đã gán kỹ thuật viên
+                                  </p>
+                                  <p className="mt-0.5 truncate text-[11px] font-medium text-slate-600">
+                                    {activeRescue.technician?.fullName || 'Chưa có thông tin'}
+                                  </p>
+                                </div>
                                 {activeRescue.status === 'ASSIGNED' && (
                                   <button
                                     onClick={() => handleRescueClick(customer)}
@@ -244,26 +260,33 @@ export default function ReceptionCustomerList() {
                                 )}
                               </div>
                             ) : (
-                              <button
-                                onClick={() => handleRescueClick(customer)}
-                                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-xs font-bold ${activeRescue?.status === 'PENDING'
-                                  ? 'bg-rose-600 text-white border border-rose-600 hover:bg-rose-700 animate-pulse shadow-md shadow-rose-200'
-                                  : 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'
-                                  }`}
-                              >
-                                <MapPin size={14} />
-                                TIẾP NHẬN CỨU HỘ
-                              </button>
+                              <div className="flex flex-col items-center gap-2">
+                                <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                                  CHƯA GÁN
+                                </span>
+                                <button
+                                  onClick={() => handleRescueClick(customer)}
+                                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-xs font-bold ${activeRescue?.status === 'PENDING'
+                                    ? 'bg-rose-600 text-white border border-rose-600 hover:bg-rose-700 animate-pulse shadow-md shadow-rose-200'
+                                    : 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'
+                                    }`}
+                                >
+                                  <MapPin size={14} />
+                                  TIẾP NHẬN CỨU HỘ
+                                </button>
+                              </div>
                             )
                           ) : (
-                            <span className="text-xs font-medium text-slate-400 italic">Đang tắt vị trí</span>
+                            <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                              CHƯA GÁN
+                            </span>
                           )}
 
                           {/* Khối 2: Nếu có cứu hộ vừa hoàn thành, hiện Status và nút Tạo Dịch Vụ */}
                           {completedRescue && (
                             <>
                               <div className="w-px h-10 bg-slate-200 mx-2"></div>
-                              <div className="flex flex-col items-end gap-2">
+                              <div className="flex flex-col items-center gap-2">
                                 <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
                                   KTV ĐÃ CỨU HỘ THÀNH CÔNG
                                 </span>
@@ -279,6 +302,19 @@ export default function ReceptionCustomerList() {
                             </>
                           )}
                         </div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {activeRescue && ['EN_ROUTE', 'TOWING'].includes(activeRescue.status) ? (
+                          <button
+                            onClick={() => setTrackingData({ rescue: activeRescue, customerName: displayName })}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white border border-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors text-xs font-bold shadow-sm"
+                          >
+                            <MapPin size={14} className="animate-pulse" />
+                            THEO DÕI
+                          </button>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
                       </td>
                     </tr>
                   )
@@ -332,6 +368,12 @@ export default function ReceptionCustomerList() {
         onClose={() => setIsCreateRescueModalOpen(false)}
         onSuccess={loadCustomers}
         showToast={showToast}
+      />
+      <RescueTrackingModal
+        key={trackingData?.rescue?.id || 'closed'}
+        rescue={trackingData?.rescue || null}
+        customerName={trackingData?.customerName || ''}
+        onClose={() => setTrackingData(null)}
       />
     </div>
   );
