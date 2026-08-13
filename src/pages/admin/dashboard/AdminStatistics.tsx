@@ -321,7 +321,7 @@ const YearRevenueComparisonChart = ({ rows, currentYear, lastYear }: {
 };
 
 export default function AdminStatistics() {
-  let viewMode: 'statistics' | 'ai' = 'statistics';
+  const viewMode: string = 'statistics';
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: 'success' | 'info' | 'warning') => void;
   }>();
