@@ -500,7 +500,11 @@ export default function ReceptionServiceOrderDetail() {
                   <Clock size={12} /> Đang chờ cầu nâng
                 </span>
               )}
-              {isPaid ? (
+              {order.status === 'CANCELLED' ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap bg-rose-100 text-rose-700 max-w-xs truncate">
+                  Lý do: {order.early_closure_reason || 'Không có ghi chú'}
+                </span>
+              ) : isPaid ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap bg-emerald-100 text-emerald-700">
                   <CheckCircle2 size={12} /> Đã thanh toán
                 </span>
@@ -518,7 +522,7 @@ export default function ReceptionServiceOrderDetail() {
         </div>
 
         <div className="flex items-center gap-3">
-          {!isPaid && order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && order.quotation && (
+          {!isPaid && order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && order.status !== 'CLOSED_PARTIAL' && order.quotation && (
             <button
               onClick={handleOpenCloseEarlyModal}
               title="Đóng sớm lệnh sửa chữa khi khách hàng muốn dừng giữa chừng"
@@ -562,40 +566,6 @@ export default function ReceptionServiceOrderDetail() {
             <p className="text-xs font-semibold text-amber-800 whitespace-pre-line leading-relaxed">
               {order.early_closure_reason}
             </p>
-          </div>
-        </div>
-      )}
-
-      {/* CANCELLED INFO CARD */}
-      {order.status === 'CANCELLED' && (
-        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 space-y-3 print:hidden">
-          <h2 className="text-sm font-bold text-rose-800 flex items-center gap-2 uppercase tracking-widest">
-            <XCircle size={16} />
-            Thông tin hủy hóa đơn dịch vụ (Audit Log)
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-semibold text-rose-700">
-            <div>
-              <span className="text-[10px] text-rose-400 uppercase block">Người thực hiện hủy</span>
-              <span className="text-sm font-bold">{order.cancelledBy || 'Lễ tân hệ thống'}</span>
-            </div>
-            <div>
-              <span className="text-[10px] text-rose-400 uppercase block">Thời gian hủy</span>
-              <span className="text-sm font-bold">
-                {new Date(order.cancelledAt || order.createdAt).toLocaleString('vi-VN')}
-              </span>
-            </div>
-            <div className="md:col-span-2">
-              <span className="text-[10px] text-rose-400 uppercase block">Lý do hủy</span>
-              <p className="text-sm font-bold bg-white/70 border border-rose-100 rounded-lg p-2.5 mt-1 font-medium leading-relaxed">
-                {order.cancelReason}
-              </p>
-            </div>
-            <div>
-              <span className="text-[10px] text-rose-400 uppercase block">Chi phí phát sinh đã thu hồi</span>
-              <span className="text-base font-extrabold text-rose-600 block mt-0.5">
-                {formatPrice(order.incurredCost || 0)}
-              </span>
-            </div>
           </div>
         </div>
       )}

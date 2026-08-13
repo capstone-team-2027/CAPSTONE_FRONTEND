@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 import { logout, loginSuccess } from '../../../store/slices/userSlice';
 
 import DashboardTab from './DashboardTab';
@@ -90,11 +91,15 @@ export default function UserProfile() {
     const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('token');
     const isProfileLoading = hasToken && (isFetchingFullProfile || !user);
 
-    // =====================================================
-    // TAB STATE
-    // =====================================================
+    const location = useLocation();
+    const initialTab = (location.state as { activeTab?: string } | null)?.activeTab;
+    const [activeTab, setActiveTab] = useState<TabId | string>(initialTab || 'dashboard');
 
-    const [activeTab, setActiveTab] = useState<TabId | string>('dashboard');
+    useEffect(() => {
+        const label = MENU_ITEMS.find((item) => item.id === activeTab)?.label || String(activeTab);
+        sessionStorage.setItem('customerActiveScreen', label);
+        return () => sessionStorage.removeItem('customerActiveScreen');
+    }, [activeTab]);
     const [isEditing, setIsEditing] = useState(false);
     const [showToast, setShowToast] = useState(false);
     const [toastMessage, setToastMessage] = useState(t('profile.updateSuccess', 'Cập nhật thông tin thành công!'));

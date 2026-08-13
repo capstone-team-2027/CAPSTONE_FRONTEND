@@ -23,10 +23,12 @@ import {
   Wallet,
   Copy,
   CreditCard,
+  Printer,
 } from "lucide-react";
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { useSocket } from "../../../hook/useSocket";
 import { QUOTE_MANAGEMENT_ENDPOINTS } from "../../../constants/reception/quoteManagementEndpoints";
+import { buildQuotationPdfDocument } from "../../../services/quotationPdf.service";
 
 interface QuotationRow extends GetQuotationResponse {
   code: string;
@@ -85,6 +87,12 @@ const isAwaitingDeposit = (quotation: GetQuotationResponse) =>
 
 const formatVND = (value: number | string) =>
   `${new Intl.NumberFormat("vi-VN").format(Number(value) || 0)} VND`;
+
+const sanitizeFileNamePart = (value: string, fallback: string) =>
+  (value.trim() || fallback)
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
 
 const formatDateTime = (dateStr: string) =>
   new Date(dateStr).toLocaleDateString("vi-VN", {
@@ -232,6 +240,27 @@ export default function ReceptionQuoteList() {
   const closeDepositQr = () => {
     setShowDepositQr(false);
     setIsDepositPaid(false);
+  };
+
+  const downloadQuotationPdf = async (quotation: QuotationRow) => {
+    try {
+      const document = await buildQuotationPdfDocument(
+        quotation,
+        quotation.creator?.fullName || "Lễ tân",
+        getStatusConfig(quotation.status).label,
+      );
+
+      const customerName = sanitizeFileNamePart(quotation.customerName, "Khach-hang");
+      const vehicleName = sanitizeFileNamePart(quotation.vehicleName, "Xe");
+      const vehiclePlate = sanitizeFileNamePart(quotation.vehiclePlate, "Khong-bien-so");
+      document.save(`BG-${customerName}-${vehicleName}-${vehiclePlate}.pdf`);
+    } catch (error) {
+      console.error("Lỗi khi tạo PDF:", error);
+      showToast(
+        error instanceof Error ? error.message : "Không thể tạo file PDF.",
+        "warning",
+      );
+    }
   };
 
   const handleApproveQuotation = async () => {
@@ -498,9 +527,19 @@ export default function ReceptionQuoteList() {
                   <h3 className="text-xl font-bold text-white leading-none">Chi tiết báo giá</h3>
                 </div>
               </div>
-              <button onClick={closeQuotationDetail} className="relative p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors">
-                <X size={18} />
-              </button>
+              <div className="relative flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void downloadQuotationPdf(selectedQuotation)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/20"
+                >
+                  <Printer size={14} />
+                  Tải về PDF
+                </button>
+                <button onClick={closeQuotationDetail} className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             <div className="overflow-y-auto flex-1 px-7 py-6 space-y-5 bg-slate-50/50">

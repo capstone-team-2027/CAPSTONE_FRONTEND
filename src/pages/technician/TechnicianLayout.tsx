@@ -195,6 +195,7 @@ export default function TechnicianLayout() {
         { name: 'Cứu hộ khẩn cấp', icon: Siren, path: '/technician/rescue' },
         { name: "Phân công", icon: CheckSquare, path: "/technician/assignments" },
         { name: "Lịch sử công việc", icon: History, path: "/technician/work-history" },
+        { name: "Kinh nghiệm sửa chữa", icon: Wrench, path: "/technician/repair-notes" },
       ],
     },
   ];
@@ -209,6 +210,7 @@ export default function TechnicianLayout() {
     if (path.includes("/my-shifts")) return "Lịch làm việc";
     if (path.includes("/issues-reports")) return "Lịch sử báo cáo";
     if (path.includes("/work-history")) return "Lịch sử công việc";
+    if (path.includes("/repair-notes")) return "Kinh nghiệm sửa chữa";
     if (path.includes("/progress")) return "Cập nhật tiến độ";
     return "Tổng quan";
   }, [location.pathname]);

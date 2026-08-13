@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Loader2,
   AlertCircle,
-  ClipboardList,
   Clock,
   CalendarClock,
   Sparkles,
@@ -302,8 +301,7 @@ export default function LeaderTaskTracking() {
           <ArrowLeft size={24} />
         </button>
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
-            <ClipboardList className="text-[#F9A11B]" size={28} />
+          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
             Theo dõi công việc theo đơn
           </h1>
           <p className="text-slate-500 text-sm">

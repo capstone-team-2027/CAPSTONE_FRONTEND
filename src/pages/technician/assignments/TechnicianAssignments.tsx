@@ -23,7 +23,7 @@ import {
   Sparkles,
   Send,
 } from "lucide-react";
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import { useFetchClient_v2 as useFetchClient } from "../../../hook/useFetchClient";
 import { useSocket } from "../../../hook/useSocket";
 import { TASK_ASSIGNMENT_ENDPOINTS } from "../../../constants/technician/taskAssignmentEndpoint";
@@ -205,6 +205,18 @@ interface InspectionHistoryItem {
   task?: {
     serviceOrder?: {
       symptoms?: string | null;
+      vehicle?: {
+        license_plate?: string | null;
+        model?: {
+          model_name?: string | null;
+        } | null;
+        customer?: {
+          name?: string | null;
+          user?: {
+            fullName?: string | null;
+          } | null;
+        } | null;
+      } | null;
     } | null;
   } | null;
 }
@@ -339,6 +351,7 @@ const ITEMS_PER_PAGE = 5;
 
 export default function TechnicianAssignments() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
@@ -433,11 +446,25 @@ export default function TechnicianAssignments() {
         id: `common-${item.id}`,
         issue: item.symptom || "—",
         cause: item.possible_causes || "—",
+        vehicleLabel: null as string | null,
+        customerName: null as string | null,
       }));
     }
     return inspectionDiagnostics.map((item) => {
       const componentName = item.component?.name?.trim() ?? "";
       const errorDescription = item.error_description?.trim() ?? "";
+      const vehicle = item.task?.serviceOrder?.vehicle;
+      const plate = vehicle?.license_plate?.trim();
+      const modelName = vehicle?.model?.model_name?.trim();
+      const vehicleLabel = plate
+        ? modelName
+          ? `${plate} · ${modelName}`
+          : plate
+        : null;
+      const customerName =
+        vehicle?.customer?.name?.trim() ||
+        vehicle?.customer?.user?.fullName?.trim() ||
+        null;
       return {
         id: `garage-${item.id}`,
         issue: item.task?.serviceOrder?.symptoms?.trim() || "—",
@@ -445,6 +472,8 @@ export default function TechnicianAssignments() {
           componentName && errorDescription
             ? `${componentName} - ${errorDescription}`
             : componentName || errorDescription || "—",
+        vehicleLabel,
+        customerName,
       };
     });
   }, [diagnostics, inspectionDiagnostics, lookupView]);
@@ -629,6 +658,18 @@ export default function TechnicianAssignments() {
       setIssueReportAssignment(refreshed);
     }
   }, [assignments, issueReportAssignment]);
+
+  useEffect(() => {
+    const openServiceOrderId = (location.state as { openServiceOrderId?: string } | null)
+      ?.openServiceOrderId;
+    if (!openServiceOrderId || assignments.length === 0) return;
+    const target = assignments.find((a) => a.serviceOrderId === openServiceOrderId);
+    if (target) {
+      openIssueReportModal(target);
+    }
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignments]);
 
   // Bắt đầu ĐÚNG 1 Task trong modal (không còn hiệu ứng dây chuyền bắt cả đơn — khớp với BE
   // startTask đã sửa chỉ xử lý đúng assignment được bấm). Áp dụng khi 1 đơn có nhiều Task,
@@ -849,23 +890,16 @@ export default function TechnicianAssignments() {
     }
   };
 
-  // Mở khung chat AI — AI tự lấy triệu chứng từ công việc đang xem, KTV không cần gõ tay.
-  // Hiện luôn triệu chứng đã lấy được (như tin nhắn hỏi) trước khi chờ AI trả lời, để KTV
-  // biết rõ AI đang phân tích dựa trên nội dung gì.
-  const openAiChat = async () => {
+  // Mở khung chat AI — chỉ điền sẵn triệu chứng vào ô nhập, KTV xem/sửa lại rồi tự bấm gửi.
+  // Không tự động gọi AI khi mở modal để tránh tốn quota mỗi lần lỡ tay mở.
+  const openAiChat = () => {
     const assignment = issueReportAssignment;
-    const symptom = assignment?.symptom?.trim();
     setAiChatOpen(true);
-    setAiInput("");
+    setAiMessages([]);
     setAiTaskAssignmentId(null);
     if (!assignment) {
-      setAiMessages([]);
+      setAiInput("");
       return;
-    }
-    if (symptom) {
-      setAiMessages([{ role: "user", text: symptom }]);
-    } else {
-      setAiMessages([]);
     }
     const targetTask =
       assignment.taskType === "REPAIR"
@@ -874,55 +908,41 @@ export default function TechnicianAssignments() {
           ) ?? assignment.tasks.find((t) => t.taskType === "REPAIR"))
         : (assignment.tasks.find((t) => t.taskType === "INSPECTION") ??
           assignment.tasks[0]);
+    let prefill: string | undefined;
+    if (targetTask?.taskType === "REPAIR") {
+      const issueText = targetTask.repairIssue?.trim() || targetTask.serviceName;
+      const partNames = targetTask.spareParts?.map((p) => p.name).filter(Boolean) ?? [];
+      const lines = [
+        "Tham khảo tra cứu cách sửa lỗi / cách thực hiện về:",
+        issueText ? `Vấn đề: ${issueText}.` : null,
+        partNames.length ? `Phụ tùng đang dùng: ${partNames.join(", ")}.` : null,
+        targetTask.serviceName ? `Dịch vụ: ${targetTask.serviceName}.` : null,
+      ].filter(Boolean);
+      prefill = lines.join("\n");
+    } else {
+      prefill = assignment.symptom?.trim();
+    }
+    setAiInput(prefill || "");
     if (!targetTask?.taskAssignmentId) {
-      setAiMessages((prev) => [
-        ...prev,
+      setAiMessages([
         { role: "ai", text: "Không tìm thấy thông tin phân công của công việc này." },
       ]);
       return;
     }
     setAiTaskAssignmentId(targetTask.taskAssignmentId);
-    setIsAiLoading(true);
-    try {
-      const payload: AiSuggestCausesRequest = {
-        taskAssignmentId: targetTask.taskAssignmentId,
-      };
-      const result = await fetchPrivate<AiSuggestCausesResponse>(
-        TASK_ASSIGNMENT_ENDPOINTS.AI_SUGGEST_CAUSES,
-        "POST",
-        payload,
-      );
-      const data = result.data;
-      setAiMessages((prev) => [
-        ...prev,
-        {
-          role: "ai",
-          text: data?.ai_suggestion ?? "Không có phản hồi từ AI.",
-          disclaimer: data?.disclaimer,
-        },
-      ]);
-    } catch (error: unknown) {
-      setAiMessages((prev) => [
-        ...prev,
-        { role: "ai", text: getErrorMessage(error, "Không lấy được gợi ý từ AI.") },
-      ]);
-    } finally {
-      setIsAiLoading(false);
-    }
   };
 
-  // KTV hỏi thêm sau câu trả lời đầu tiên (vd làm rõ, hỏi cách kiểm tra) — không cần gõ lại
-  // triệu chứng, BE vẫn dùng đúng symptom gốc + ghép thêm câu hỏi này vào prompt.
   const sendAiFollowUp = async () => {
     const question = aiInput.trim();
     if (!question || isAiLoading || !aiTaskAssignmentId) return;
+    const isFirstMessage = aiMessages.length === 0;
     setAiMessages((prev) => [...prev, { role: "user", text: question }]);
     setAiInput("");
     setIsAiLoading(true);
     try {
       const payload: AiSuggestCausesRequest = {
         taskAssignmentId: aiTaskAssignmentId,
-        followUpQuestion: question,
+        ...(isFirstMessage ? {} : { followUpQuestion: question }),
       };
       const result = await fetchPrivate<AiSuggestCausesResponse>(
         TASK_ASSIGNMENT_ENDPOINTS.AI_SUGGEST_CAUSES,
@@ -1941,18 +1961,21 @@ export default function TechnicianAssignments() {
               </div>
             <div className="overflow-y-auto flex-1 px-4 sm:px-6 py-5 space-y-4 bg-slate-50/50">
              <div className="overflow-x-auto overflow-hidden rounded-2xl border border-slate-200 bg-white">
-  <div className="grid grid-cols-[36px_1fr_1fr] sm:grid-cols-[56px_1.4fr_1.6fr] border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+  <div className={`grid ${lookupView === "garage" ? "grid-cols-[36px_1fr_1fr_1fr] sm:grid-cols-[56px_1.2fr_1.3fr_1fr]" : "grid-cols-[36px_1fr_1fr] sm:grid-cols-[56px_1.4fr_1.6fr]"} border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-widest text-slate-400`}>
     <div className="px-2 sm:px-3 py-2.5">STT</div>
     <div className="px-2 sm:px-3 py-2.5">
       {lookupView === "common" ? "Các lỗi thường gặp" : "Lỗi đã gặp"}
     </div>
     <div className="px-2 sm:px-3 py-2.5">Nguyên nhân</div>
+    {lookupView === "garage" && (
+      <div className="px-2 sm:px-3 py-2.5">Thuộc đơn</div>
+    )}
   </div>
 
   {lookupRows.map((row, index) => (
     <div
       key={row.id}
-      className="grid grid-cols-[36px_1fr_1fr] sm:grid-cols-[56px_1.4fr_1.6fr] border-b border-slate-100 last:border-b-0"
+      className={`grid ${lookupView === "garage" ? "grid-cols-[36px_1fr_1fr_1fr] sm:grid-cols-[56px_1.2fr_1.3fr_1fr]" : "grid-cols-[36px_1fr_1fr] sm:grid-cols-[56px_1.4fr_1.6fr]"} border-b border-slate-100 last:border-b-0`}
     >
       <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm font-semibold text-slate-500">
         {index + 1}
@@ -1963,6 +1986,14 @@ export default function TechnicianAssignments() {
       <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm text-slate-600 whitespace-pre-line leading-relaxed">
         {row.cause}
       </div>
+      {lookupView === "garage" && (
+        <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm text-slate-600">
+          <p className="font-semibold text-slate-700">
+            {row.customerName || "Khách vãng lai"}
+          </p>
+          <p className="text-slate-400">{row.vehicleLabel || "—"}</p>
+        </div>
+      )}
     </div>
   ))}
 </div>

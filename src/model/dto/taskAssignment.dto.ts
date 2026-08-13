@@ -50,18 +50,34 @@ export interface IssueHistoryServiceOrder{
     id: number;
     vehicle?: IssueHistoryVehicles | null;
 }
+export interface IssueHistoryTaskAssignmentTechnician {
+    id: number;
+    fullName: string | null;
+}
+export interface IssueHistoryTaskAssignment {
+    id: number;
+    role_in_task: string | null;
+    technician?: IssueHistoryTaskAssignmentTechnician | null;
+}
 export interface IssueHistoryTask{
     id: number;
     status: string;
-    serviceOrder?: IssueHistoryServiceOrder | null
+    serviceOrder?: IssueHistoryServiceOrder | null;
+    assignments?: IssueHistoryTaskAssignment[];
 }
 export interface GetIssuesReportItemResponse {
     id: number;
     error_description: string;
     note: string | null;
     createdAt: string;
+    service_order_id?: number | null;
     task?: IssueHistoryTask;
+    // Lỗi phát sinh không gắn Task (createStandaloneIssueReport) trả serviceOrder trực tiếp
+    // ở đây thay vì qua task.serviceOrder.
+    serviceOrder?: IssueHistoryServiceOrder | null;
     component?: IssueHistoryComponent | null;
+    // KTV Leader chọn trong dropdown lúc tạo báo cáo lỗi phát sinh (chỉ có ở luồng không gắn Task)
+    reportedByTechnician?: IssueHistoryTaskAssignmentTechnician | null;
 }
 
 // ===== Tra cứu chẩn đoán (Diagnostic Knowledge) =====

@@ -330,8 +330,7 @@ export default function TechnicianWorkHistory() {
           <ArrowLeft size={24} />
         </button>
         <div>
-          <h1 className="flex items-center gap-2 text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight">
-            <History size={28} className="text-[#F9A11B]" />
+          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight">
             Lịch sử công việc
           </h1>
           <p className="mt-2 text-sm text-slate-500">

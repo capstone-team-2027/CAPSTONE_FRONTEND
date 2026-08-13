@@ -275,7 +275,9 @@ export default function LeaderCreateServiceOrder() {
   }, [dbCategories]);
 
   const activeDbServices = useMemo(() => {
-    return dbServices.filter((s: any) => s.is_active !== false);
+    // Dịch vụ "Kiểm tra hoặc sửa chữa" (is_default_inspection_service) chỉ dùng cho tab
+    // "Kiểm tra và Sửa chữa" — không cho chọn lẫn trong danh sách dịch vụ lẻ ở tab "Dịch vụ".
+    return dbServices.filter((s: any) => s.is_active !== false && !s.is_default_inspection_service);
   }, [dbServices]);
 
   const mappedServices: CustomerServiceItem[] = useMemo(() => {
@@ -358,7 +360,9 @@ export default function LeaderCreateServiceOrder() {
             const servicesDetails: any[] = [];
             if (Array.isArray(data.appointmentDetails)) {
               data.appointmentDetails.forEach((detail: any) => {
-                if (detail.catalog) {
+                // Dịch vụ "Kiểm tra hoặc sửa chữa" chỉ là điểm neo mặc định cho lịch hẹn REPAIR,
+                // không phải dịch vụ lẻ thật -> không hiển thị trong danh sách "Dịch vụ trong lịch hẹn".
+                if (detail.catalog && !detail.catalog.is_default_inspection_service) {
                   servicesDetails.push({
                     id: detail.catalog.id,
                     name: detail.catalog.service_name,
@@ -400,7 +404,9 @@ export default function LeaderCreateServiceOrder() {
             let initialComboId: number | null = null;
             if (Array.isArray(data.appointmentDetails)) {
               data.appointmentDetails.forEach((detail: any) => {
-                if (detail.catalog) {
+                // Dịch vụ "Kiểm tra hoặc sửa chữa" chỉ là điểm neo mặc định cho lịch hẹn REPAIR,
+                // không phải dịch vụ lẻ thật -> không đưa vào danh sách chọn ở tab "Dịch vụ".
+                if (detail.catalog && !detail.catalog.is_default_inspection_service) {
                   initialServiceIds.push(detail.catalog.id);
                 }
                 if (detail.combo) {
@@ -640,17 +646,11 @@ export default function LeaderCreateServiceOrder() {
     return servicesPrice + combosPrice;
   }, [selectedServiceIds, selectedComboId, mappedServices, dbCombos]);
 
-  const lockedAppointmentMode = useMemo<'SERVICE' | 'REPAIR' | null>(() => {
-    if (selectedRecord?.type !== 'appointment') return null;
-    const bookingType = String(selectedRecord.bookingType || '').toUpperCase();
-    if (bookingType.includes('REPAIR')) return 'REPAIR';
-    if (bookingType.includes('SPECIFIC')) return 'SERVICE';
-    return null;
-  }, [selectedRecord]);
-
   const handleSubmit = async () => {
     try {
-      const effectiveServiceMode = lockedAppointmentMode || receptionServiceMode;
+      // Leader được tự do đổi tab Dịch vụ/Kiểm tra-Sửa chữa bất kể booking_type gốc của lịch
+      // hẹn — tình trạng xe thật lúc tiếp nhận có thể khác dự định lúc đặt lịch.
+      const effectiveServiceMode = receptionServiceMode;
       if (mode === 'approved_record') {
         if (!selectedRecord) {
           showToast('Vui lòng tìm kiếm và chọn lịch hẹn hoặc hồ sơ khách hàng.', 'warning');
@@ -762,7 +762,7 @@ export default function LeaderCreateServiceOrder() {
           isWaitingForBay ? 'info' : 'success'
         );
         setTimeout(() => {
-          navigate('/leader/appointments');
+          navigate('/leader/appointments', { state: { activeTab: isWaitingForBay ? 'waiting' : 'received' } });
         }, 1000);
       } else {
         throw new Error(res.message || 'Lỗi khi tạo hóa đơn dịch vụ');
@@ -1242,42 +1242,27 @@ export default function LeaderCreateServiceOrder() {
         <div className="flex gap-2 p-1 bg-slate-100/60 rounded-xl w-fit border border-slate-200/20">
           <button
             type="button"
-            onClick={() => {
-              if (lockedAppointmentMode !== 'REPAIR') setReceptionServiceMode('SERVICE');
-            }}
-            disabled={lockedAppointmentMode === 'REPAIR'}
+            onClick={() => setReceptionServiceMode('SERVICE')}
             className={`py-2.5 px-5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${receptionServiceMode === 'SERVICE'
               ? 'bg-[#00285E] text-white shadow-sm'
               : 'text-slate-500 hover:text-slate-800'
-              } disabled:cursor-not-allowed disabled:opacity-40`}
+              }`}
           >
             <Settings size={14} />
             Dịch vụ
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (lockedAppointmentMode !== 'SERVICE') setReceptionServiceMode('REPAIR');
-            }}
-            disabled={lockedAppointmentMode === 'SERVICE'}
+            onClick={() => setReceptionServiceMode('REPAIR')}
             className={`py-2.5 px-5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${receptionServiceMode === 'REPAIR'
               ? 'bg-rose-500 text-white shadow-sm'
               : 'text-slate-500 hover:text-slate-800'
-              } disabled:cursor-not-allowed disabled:opacity-40`}
+              }`}
           >
             <Wrench size={14} />
             Kiểm tra và Sửa chữa
           </button>
         </div>
-
-        {lockedAppointmentMode && (
-          <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold text-[#00285E]">
-            <AlertCircle size={14} />
-            {lockedAppointmentMode === 'SERVICE'
-              ? 'Lịch hẹn loại SPECIFIC: chỉ được chọn lại hoặc bổ sung dịch vụ/combo.'
-              : 'Lịch hẹn loại REPAIR: chỉ được cập nhật nội dung mô tả sửa chữa.'}
-          </div>
-        )}
 
         {/* REPAIR NOTES */}
         {receptionServiceMode === 'REPAIR' && (
@@ -1510,7 +1495,7 @@ export default function LeaderCreateServiceOrder() {
         {receptionServiceMode === 'REPAIR' && (
           <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-500">
             <AlertCircle size={14} className="text-slate-400" />
-            Lịch hẹn khám/sửa chữa (REPAIR) không cho phép chọn thêm dịch vụ tại bước tiếp nhận.
+            Xe sẽ được kiểm tra trước, chưa chọn sẵn dịch vụ cụ thể tại bước tiếp nhận này.
           </div>
         )}
       </div>

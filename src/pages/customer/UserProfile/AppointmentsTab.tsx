@@ -38,7 +38,7 @@ export interface AppointmentItem {
   comboItems?: { name: string; price: number; services: { name: string; price: number; laborPrice: number; partPrice: number }[] }[];
   catalogItems?: { name: string; price: number; laborPrice: number; partPrice: number }[];
   price: number;
-  status: 'PENDING' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  status: 'PENDING' | 'CONFIRMED' | 'INFORMATION_RECEIVED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   notes?: string;
   bay: string;
   advisor: string;
@@ -265,6 +265,12 @@ export default function AppointmentsTab() {
           bg: 'bg-blue-50 text-blue-600 border border-blue-100',
           dot: 'bg-blue-500',
         };
+      case 'INFORMATION_RECEIVED':
+        return {
+          label: t('appointments.status.informationReceived', 'Đã tiếp nhận'),
+          bg: 'bg-slate-100 text-slate-600 border border-slate-200',
+          dot: 'bg-slate-500',
+        };
       case 'IN_PROGRESS':
         return {
           label: t('appointments.status.inProgress', 'Đang làm'),
@@ -338,6 +344,7 @@ export default function AppointmentsTab() {
       ALL: currentAppointments.length,
       PENDING: currentAppointments.filter((a) => a.status === 'PENDING').length,
       CONFIRMED: currentAppointments.filter((a) => a.status === 'CONFIRMED').length,
+      INFORMATION_RECEIVED: currentAppointments.filter((a) => a.status === 'INFORMATION_RECEIVED').length,
       IN_PROGRESS: currentAppointments.filter((a) => a.status === 'IN_PROGRESS').length,
       COMPLETED: currentAppointments.filter((a) => a.status === 'COMPLETED').length,
       CANCELLED: currentAppointments.filter((a) => a.status === 'CANCELLED').length,
@@ -427,6 +434,7 @@ export default function AppointmentsTab() {
           {[
             { id: 'ALL', label: t('appointments.filter.all', 'Tất cả'), count: counts.ALL },
             { id: 'CONFIRMED', label: t('appointments.filter.confirmed', 'Chờ tiếp nhận'), count: counts.CONFIRMED },
+            { id: 'INFORMATION_RECEIVED', label: t('appointments.filter.informationReceived', 'Đã tiếp nhận'), count: counts.INFORMATION_RECEIVED },
             { id: 'IN_PROGRESS', label: t('appointments.filter.inProgress', 'Đang làm'), count: counts.IN_PROGRESS },
             { id: 'COMPLETED', label: t('appointments.filter.completed', 'Đã hoàn thành'), count: counts.COMPLETED },
             { id: 'CANCELLED', label: t('appointments.filter.cancelled', 'Đã hủy'), count: counts.CANCELLED },

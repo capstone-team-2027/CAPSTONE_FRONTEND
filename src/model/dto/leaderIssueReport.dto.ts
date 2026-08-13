@@ -8,12 +8,22 @@ export interface ActiveTaskCatalogRef {
   id: number;
   service_name: string;
 }
+export interface ActiveTaskAssignmentTechnician {
+  id: number;
+  fullName: string | null;
+}
+export interface ActiveTaskAssignment {
+  id: number;
+  role_in_task: string | null;
+  technician?: ActiveTaskAssignmentTechnician | null;
+}
 export interface ActiveTaskItem {
   id: number;
   type: "INSPECTION" | "REPAIR";
   status: string;
   createdAt: string;
   catalog?: ActiveTaskCatalogRef | null;
+  assignments?: ActiveTaskAssignment[];
 }
 export interface ActiveServiceOrderCustomerUser {
   id: number;
@@ -54,6 +64,12 @@ export interface CreateLeaderIssueReportRequest {
   note?: string;
 }
 
+// KTV cho dropdown "KTV báo lỗi" khi tạo báo cáo lỗi phát sinh không gắn Task
+export interface TechnicianOption {
+  id: number;
+  fullName: string | null;
+}
+
 // Báo cáo lỗi đã tạo (từ trang Theo dõi công việc) nhưng chưa được đưa vào báo giá nào
 export interface UnquotedIssueComponentRef {
   id: number;
@@ -78,6 +94,10 @@ export interface UnquotedIssueReport {
   error_description: string;
   note: string | null;
   createdAt: string;
+  service_order_id?: number | null;
   task?: UnquotedIssueTask | null;
+  // Lỗi phát sinh không gắn Task (createStandaloneIssueReport) trả serviceOrder trực tiếp
+  // ở đây thay vì qua task.serviceOrder.
+  serviceOrder?: UnquotedIssueServiceOrder | null;
   component?: UnquotedIssueComponent | null;
 }

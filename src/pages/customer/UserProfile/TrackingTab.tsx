@@ -114,6 +114,10 @@ export default function TrackingTab() {
         return { label: t('tracking.orderStatus.pendingQc', 'Chờ kiểm định'), color: 'text-violet-600 bg-violet-50 border-violet-200' };
       case 'COMPLETED':
         return { label: t('tracking.orderStatus.completed', 'Đã hoàn thành'), color: 'text-emerald-600 bg-emerald-50 border-emerald-200' };
+      case 'CLOSED_PARTIAL':
+        return { label: t('tracking.orderStatus.closedPartial', 'Đã đóng một phần'), color: 'text-amber-600 bg-amber-50 border-amber-200' };
+      case 'CANCELLED':
+        return { label: t('tracking.orderStatus.cancelled', 'Đã hủy'), color: 'text-rose-600 bg-rose-50 border-rose-200' };
       default:
         return { label: status || t('tracking.orderStatus.unknown', 'Không rõ'), color: 'text-gray-600 bg-gray-50 border-gray-200' };
     }

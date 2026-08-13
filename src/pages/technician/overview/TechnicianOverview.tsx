@@ -61,12 +61,18 @@ interface CompletedTaskLite {
 const todayStr = () => new Date().toISOString().split("T")[0];
 
 const ASSIGNMENT_STATUS_LABEL: Record<string, string> = {
-  ASSIGNED: "Chưa bắt đầu",
+  INSPECTING: "Đã tiếp nhận",
+  ASSIGNED: "Đã phân công",
   IN_PROGRESS: "Đang thực hiện",
   PAUSED: "Tạm dừng",
   WAITING_STOCK: "Chờ phụ tùng",
+  WAITING_FOR_PARTS: "Chờ phụ tùng",
+  WAITING_APPROVAL: "Chờ khách duyệt",
+  QC_CHECKING: "Đang QC",
   PENDING_QC: "Chờ nghiệm thu",
   COMPLETED: "Hoàn thành",
+  CANCELLED: "Đã huỷ lệnh",
+  CLOSED_PARTIAL: "Đã đóng một phần",
 };
 
 const PAGE_SIZE = 6;
@@ -334,7 +340,9 @@ export default function TechnicianOverview() {
                   <button
                     key={assignment.id}
                     onClick={() =>
-                      navigate(`/technician/assignments/${assignment.id}`)
+                      navigate("/technician/assignments", {
+                        state: { openServiceOrderId: assignment.serviceOrderId },
+                      })
                     }
                     className="w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/60 transition-colors text-left"
                   >

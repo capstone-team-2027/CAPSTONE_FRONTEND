@@ -28,6 +28,7 @@ const AdminStaffManagement = lazy(() => import("./pages/admin/staff/AdminStaffMa
 const AdminShiftManagement = lazy(() => import("./pages/admin/staff/AdminShiftManagement"));
 const AdminWarrantyPolicies = lazy(() => import("./pages/admin/warranty/AdminWarrantyPolicies"));
 const AdminStatistics = lazy(() => import("./pages/admin/dashboard/AdminStatistics"));
+const AdminAiAnalysis = lazy(() => import("./pages/admin/dashboard/AdminAiAnalysis"));
 const AdminCustomerManagement = lazy(() => import("./pages/admin/customer/AdminCustomerManagement"));
 const AdminCustomerDetailPage = lazy(() => import("./pages/admin/customer/AdminCustomerDetailPage"));
 const InventoryLayout = lazy(() => import("./pages/inventory/InventoryLayout"));
@@ -66,6 +67,7 @@ const TechnicianOverview = lazy(() => import("./pages/technician/overview/Techni
 const TechnicianAssignments = lazy(() => import("./pages/technician/assignments/TechnicianAssignments"));
 const TechnicianAssignmentsDetail = lazy(() => import("./pages/technician/assignments/TechnicianAssignmentsDetail"));
 const TechnicianWorkHistory = lazy(() => import("./pages/technician/work-history/TechnicianWorkHistory"));
+const TechnicianAddRepairNote = lazy(() => import("./pages/technician/repair-notes/TechnicianAddRepairNote"));
 const TechnicianUpdateProgress = lazy(() => import("./pages/technician/progress/TechnicianUpdateProgress"));
 const TechnicianMyShifts = lazy(() => import("./pages/technician/my-shifts/TechnicianMyShifts"));
 const TechnicianIssuesReportHistory = lazy(() => import("./pages/technician/assignments/IssuesReportHistory"));
@@ -81,6 +83,7 @@ const LeaderCreateServiceOrder = lazy(() => import("./pages/leader/LeaderCreateS
 const LeaderServiceOrderDetail = lazy(() => import("./pages/leader/LeaderServiceOrderDetail"));
 const LeaderQuoteList = lazy(() => import("./pages/leader/quotes/LeaderQuoteList"));
 const LeaderCreateQuotation = lazy(() => import("./pages/leader/quotes/LeaderCreateQuotation"));
+const LeaderIssuesReportHistory = lazy(() => import("./pages/leader/LeaderIssuesReportHistory"));
 
 const LoadingScreen = () => (
   <div className="fixed inset-0 bg-slate-50/50 backdrop-blur-xs flex flex-col items-center justify-center z-50">
@@ -139,6 +142,7 @@ function App() {
             <Route path="shifts" element={<AdminShiftManagement />} />
             <Route path="warranty" element={<AdminWarrantyPolicies />} />
             <Route path="statistics" element={<AdminStatistics />} />
+            <Route path="ai-analysis" element={<AdminAiAnalysis />} />
             <Route path="customers" element={<AdminCustomerManagement />} />
             <Route path="customers/:id" element={<AdminCustomerDetailPage />} />
           </Route>
@@ -172,6 +176,7 @@ function App() {
             <Route path="my-shifts" element={<TechnicianMyShifts />} />
             <Route path="issues-reports" element={<TechnicianIssuesReportHistory />} />
             <Route path="rescue" element={<TechnicianRescuePage />} />
+            <Route path="repair-notes" element={<TechnicianAddRepairNote />} />
           </Route>
         </Route>
 
@@ -205,6 +210,7 @@ function App() {
             <Route path="task-tracking" element={<LeaderTaskTracking />} />
             <Route path="quotes" element={<LeaderQuoteList />} />
             <Route path="quotes/create" element={<LeaderCreateQuotation />} />
+            <Route path="issues-report" element={<LeaderIssuesReportHistory />} />
           </Route>
         </Route>
       </Routes>

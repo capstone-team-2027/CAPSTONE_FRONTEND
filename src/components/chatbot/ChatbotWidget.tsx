@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MessageCircle, X, Send, Bot, User, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { useFetchClient_v2 } from '../../hook/useFetchClient';
 import { COLORS } from '../share/Color';
 
@@ -11,8 +12,87 @@ type Message = {
     content: string;
 };
 
+const getChatErrorMessage = (error: unknown, fallback: string) => {
+    const message = error instanceof Error ? error.message.trim() : '';
+    if (!message || message === 'Failed to fetch' || /networkerror|network request failed/i.test(message)) {
+        return 'Không thể kết nối tới máy chủ chatbot. Vui lòng kiểm tra backend đã chạy hoặc đã được triển khai phiên bản mới rồi thử lại.';
+    }
+    if (/gửi tin nhắn quá nhanh|sau một phút/i.test(message)) {
+        return message;
+    }
+    if (/phiên đăng nhập|đăng nhập lại/i.test(message)) {
+        return message;
+    }
+    if (/tin nhắn.*để trống|vượt quá giới hạn/i.test(message)) {
+        return message;
+    }
+    return fallback;
+};
+
+function BookingRouteButton({ navigate }: { navigate: (path: string) => void }) {
+    return (
+        <button
+            type="button"
+            onClick={() => navigate('/phone-service')}
+            className="inline-block px-3 py-1 mx-0.5 rounded-full font-bold text-[13px] align-middle"
+            style={{ backgroundColor: '#F9A11B', color: '#001C43' }}
+        >
+            Đặt lịch ngay
+        </button>
+    );
+}
+
+function AppointmentsRedirectButton({ navigate }: { navigate: (path: string, options?: { state?: unknown }) => void }) {
+    return (
+        <button
+            type="button"
+            onClick={() => navigate('/user-profile', { state: { activeTab: 'appointments' } })}
+            className="mt-2 px-3 py-1.5 rounded-full font-bold text-[13px]"
+            style={{ backgroundColor: '#F9A11B', color: '#001C43' }}
+        >
+            Xem lịch hẹn của tôi
+        </button>
+    );
+}
+
+function ChatMessageContent({ content, navigate }: { content: string; navigate: ReturnType<typeof useNavigate> }) {
+    const isBookingSuccess = content.startsWith('Đặt lịch thành công');
+    return (
+        <>
+            {content.split('\n').map((line, index, lines) => {
+                const labelMatch = line.match(/^(\s*-?\s*)((?:Bước\s+\d+|Sau khi hoàn tất)\s*:)(.*)$/i);
+                const bodyText = labelMatch ? labelMatch[3] : line;
+                const segments = bodyText.split('/phone-service');
+                return (
+                    <React.Fragment key={`${index}-${line.slice(0, 20)}`}>
+                        {labelMatch && (
+                            <>
+                                {labelMatch[1]}
+                                <strong className="font-bold text-[#001C43]">{labelMatch[2]}</strong>
+                            </>
+                        )}
+                        {segments.map((segment, segIndex) => (
+                            <React.Fragment key={segIndex}>
+                                {segment}
+                                {segIndex < segments.length - 1 && <BookingRouteButton navigate={navigate} />}
+                            </React.Fragment>
+                        ))}
+                        {index < lines.length - 1 && <br />}
+                    </React.Fragment>
+                );
+            })}
+            {isBookingSuccess && (
+                <div>
+                    <AppointmentsRedirectButton navigate={navigate} />
+                </div>
+            )}
+        </>
+    );
+}
+
 export default function ChatbotWidget() {
     const { t } = useTranslation();
+    const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([
         {
@@ -26,7 +106,7 @@ export default function ChatbotWidget() {
     const [chatContext, setChatContext] = useState<any>({}); // Thêm state lưu context
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const { fetchPublic } = useFetchClient_v2();
+    const { fetchPublic, fetchPrivate } = useFetchClient_v2();
 
     // Tự động cuộn xuống tin nhắn mới nhất
     const scrollToBottom = () => {
@@ -54,15 +134,26 @@ export default function ChatbotWidget() {
             // Chuyển đổi định dạng history để gửi lên API (API cần mảng { role, parts: [{ text }] })
             const history = messages
                 .filter(m => m.id !== '1') // Bỏ câu chào mặc định ban đầu ra khỏi lịch sử nếu muốn
+                .slice(-20) // Chỉ gửi các lượt gần nhất, tránh vượt giới hạn API khi hội thoại dài
                 .map(m => ({
                     role: m.role,
                     parts: [{ text: m.content }]
                 }));
 
-            const response = await fetchPublic(
-                'http://localhost:3000/api/chatbot/chat', 
+            const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+            const request = localStorage.getItem('token') ? fetchPrivate : fetchPublic;
+            const response = await request(
+                `${apiBaseUrl}/api/chatbot/chat`,
                 'POST', 
-                { message: userMessage, history, context: chatContext } // Gửi kèm context
+                {
+                    message: userMessage,
+                    history,
+                    context: {
+                        ...chatContext,
+                        currentPath: window.location.pathname,
+                        currentScreen: sessionStorage.getItem('customerActiveScreen') || undefined
+                    }
+                }
             );
 
             if (response && response.data) {
@@ -81,7 +172,10 @@ export default function ChatbotWidget() {
             setMessages(prev => [...prev, {
                 id: (Date.now() + 1).toString(),
                 role: 'model',
-                content: t('chatbot.errorReply', 'Xin lỗi, hệ thống đang bận. Bạn vui lòng thử lại sau nhé!')
+                content: getChatErrorMessage(
+                    error,
+                    t('chatbot.errorReply', 'Xin lỗi, hệ thống đang bận. Bạn vui lòng thử lại sau nhé!')
+                )
             }]);
         } finally {
             setIsLoading(false);
@@ -143,7 +237,7 @@ export default function ChatbotWidget() {
                                                 : 'bg-white text-gray-800 border border-gray-100 rounded-tl-sm'
                                         }`}
                                     >
-                                        {msg.content}
+                                        <ChatMessageContent content={msg.content} navigate={navigate} />
                                     </div>
                                 </motion.div>
                             ))}

@@ -220,7 +220,7 @@ export default function BookingPage() {
         const fetchServices = async () => {
             const currentLang = i18n.language || 'vi';
             try {
-                const query = `lang=${currentLang}&page=${servicePage}&limit=30&search=${encodeURIComponent(serviceSearch)}&category_id=${selectedCategoryId || ''}`;
+                const query = `lang=${currentLang}&page=${servicePage}&limit=8&search=${encodeURIComponent(serviceSearch)}&category_id=${selectedCategoryId || ''}`;
                 const svcRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.SEARCH_SERVICES}?${query}`);
                 if (svcRes && svcRes.data) {
                     const newItems = svcRes.data.items || [];
@@ -563,7 +563,7 @@ export default function BookingPage() {
     }, [dbCategories]);
 
     const activeDbServices = useMemo(() => {
-        return dbServices.filter((s: any) => s.is_active !== false);
+        return dbServices.filter((s: any) => s.is_active !== false && !s.is_default_inspection_service);
     }, [dbServices]);
 
     // Map dbServices to ServiceItem list
@@ -606,7 +606,7 @@ export default function BookingPage() {
 
     // Map current page services to ServiceItem list for rendering
     const mappedCurrentPageServices: ServiceItem[] = useMemo(() => {
-        return currentPageServices.filter((s: any) => s.is_active !== false).map((s: any) => {
+        return currentPageServices.filter((s: any) => s.is_active !== false && !s.is_default_inspection_service).map((s: any) => {
             const priceValue = s.total_price || s.labor_price || s.price || s.base_price || 0;
             const discountPercent = s.discount_percentage || 0;
             const originalPriceValue = discountPercent > 0 && priceValue > 0 ? Math.round(priceValue / (1 - discountPercent / 100)) : 0;
@@ -690,8 +690,9 @@ export default function BookingPage() {
             };
         }
         if (serviceCategoryMode === 'REPAIR') {
+            const defaultInspectionService = dbServices.find((s: any) => s.is_default_inspection_service);
             return {
-                title: t('booking.selection.repairTitle', 'Sửa chữa lỗi xe'),
+                title: defaultInspectionService?.service_name || t('booking.selection.repairTitle', 'Sửa chữa lỗi xe'),
                 price: t('booking.selection.contactPrice', 'Liên hệ'),
                 numericPrice: 0,
                 originalPrice: undefined,
@@ -738,7 +739,7 @@ export default function BookingPage() {
             };
         }
         return null;
-    }, [bookingFlow, serviceCategoryMode, serviceSubtype, selectedServiceIds, selectedComboId, mappedServices, dbCombos, selectedSubItems, issueDescription, consultationType, aiIssueResult, t]);
+    }, [bookingFlow, serviceCategoryMode, serviceSubtype, selectedServiceIds, selectedComboId, mappedServices, dbCombos, dbServices, selectedSubItems, issueDescription, consultationType, aiIssueResult, t]);
 
     // Handle subitems customize default fill — merge details of all selected services
     useEffect(() => {
@@ -1299,30 +1300,40 @@ export default function BookingPage() {
                         {/* Right Body: Booking Details */}
                         <div className="p-8 md:w-2/3 bg-white flex flex-col justify-between relative z-10">
                             <div>
-                                <div className="flex justify-between items-start mb-6">
-                                    <h3 className="text-xl font-bold text-brand-blue font-display">{t('booking.success.detailTitle', 'Chi tiết Đặt Lịch')}</h3>
-                                    <span className="px-3 py-1 bg-blue-50 text-brand-blue text-[11px] uppercase tracking-wider font-bold rounded-lg border border-blue-100">
-                                        {bookingFlow === 'CONSULTATION' ? t('booking.success.typeBadgeConsultation', 'Tư vấn trực tiếp') : (serviceCategoryMode === 'REPAIR' ? t('booking.success.typeBadgeRepair', 'Sửa chữa') : t('booking.success.typeBadgeService', 'Bảo dưỡng'))}
+                                <div className="flex justify-between items-start mb-6 gap-3">
+                                    <h3 className="text-xl font-bold text-brand-blue font-display shrink-0">{t('booking.success.detailTitle', 'Chi tiết Đặt Lịch')}</h3>
+                                    <span className="px-3 py-1 bg-emerald-50 text-emerald-600 text-[11px] uppercase tracking-wider font-bold rounded-lg border border-emerald-100 whitespace-nowrap shrink-0">
+                                        {t('booking.success.statusBadgeConfirmed', 'Đã xác nhận')}
                                     </span>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {/* Dịch vụ / Vấn đề */}
+                                    {/* Nội dung lịch đặt: Dịch vụ + Mô tả (hoặc chi tiết dịch vụ đã chọn) */}
                                     <div className="flex flex-col gap-1.5 md:col-span-2">
                                         <span className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">
-                                            {serviceCategoryMode === 'REPAIR' ? t('booking.success.contentLabelRepair', 'Nội dung kiểm tra / sửa chữa') : t('booking.success.contentLabelService', 'Dịch vụ yêu cầu')}
+                                            {t('booking.success.contentLabel', 'Nội dung lịch đặt')}
                                         </span>
-                                        <span className="font-bold text-brand-blue text-base leading-snug">
-                                            {activeSelection?.title}
-                                        </span>
-                                        {activeSelection?.subItems && activeSelection.subItems.length > 0 && (
-                                            <div className="mt-1.5 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                                {activeSelection.subItems.map((item, idx) => (
-                                                    <div key={idx} className="text-sm text-slate-600 leading-relaxed mb-1 last:mb-0">
-                                                        • {item}
-                                                    </div>
-                                                ))}
+                                        <div className="text-sm leading-relaxed">
+                                            <span className="text-slate-500">{t('booking.success.serviceLabel', 'Dịch vụ')}: </span>
+                                            <span className="font-bold text-brand-blue break-words">{activeSelection?.title}</span>
+                                        </div>
+                                        {bookingFlow === 'CONSULTATION' || serviceCategoryMode === 'REPAIR' ? (
+                                            <div className="text-sm leading-relaxed">
+                                                <span className="text-slate-500">{t('booking.success.descriptionLabel', 'Mô tả')}: </span>
+                                                <span className="text-slate-700 break-words">
+                                                    {issueDescription?.trim() || t('booking.success.noDescription', 'Chưa có mô tả')}
+                                                </span>
                                             </div>
+                                        ) : (
+                                            activeSelection?.subItems && activeSelection.subItems.length > 0 && (
+                                                <div className="mt-1 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                                    {activeSelection.subItems.map((item, idx) => (
+                                                        <div key={idx} className="text-sm text-slate-600 leading-relaxed mb-1 last:mb-0">
+                                                            • {item}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )
                                         )}
                                     </div>
 

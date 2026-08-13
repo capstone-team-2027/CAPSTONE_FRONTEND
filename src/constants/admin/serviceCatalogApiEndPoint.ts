@@ -7,4 +7,5 @@ export const SERVICE_CATALOG_API_ENDPOINTS = {
     SERVICE_CATALOG_SEARCH: `${API_BASE_URL}/api/admin/service-catalog/search`,
     SERVICE_CATEGORY: `${API_BASE_URL}/api/admin/service-categories`,
     SPARE_PARTS: `${API_BASE_URL}/api/admin/spare-parts`,
+    SET_DEFAULT_INSPECTION: (id: number) => `${API_BASE_URL}/api/admin/service-catalog/${id}/set-default-inspection`,
 };

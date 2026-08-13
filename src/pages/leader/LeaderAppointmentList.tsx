@@ -16,7 +16,7 @@ import {
   FileText,
   StickyNote,
 } from 'lucide-react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import { useFetchClient_v2 } from '../../hook/useFetchClient';
 import { useSocket } from '../../hook/useSocket';
 import { TECHNICIAN_LEADER_TASK_ENDPOINTS } from '../../constants/technicianLeader/taskManagementEndpoint';
@@ -72,14 +72,17 @@ const TABS = {
   all: 'Tất cả',
   uncreated: 'Đợi tạo lệnh',
   waiting: 'Chờ cầu nâng',
+  received: 'Đã tiếp nhận',
   in_progress: 'Đang sửa chữa',
   completed: 'Hoàn thành',
+  cancelled: 'Đã huỷ',
 };
 
 const ITEMS_PER_PAGE = 6;
 
 export default function LeaderAppointmentList() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: 'success' | 'info' | 'warning') => void;
   }>();
@@ -91,7 +94,10 @@ export default function LeaderAppointmentList() {
   const [error, setError] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'uncreated' | 'waiting' | 'in_progress' | 'completed'>('all');
+  const initialTab = (location.state as { activeTab?: string } | null)?.activeTab;
+  const [statusFilter, setStatusFilter] = useState<'all' | 'uncreated' | 'waiting' | 'received' | 'in_progress' | 'completed' | 'cancelled'>(
+    (initialTab as any) || 'uncreated'
+  );
   const [currentPage, setCurrentPage] = useState(1);
   // Modal State
   const [selectedAppt, setSelectedAppt] = useState<AppointmentModel | null>(null);
@@ -240,16 +246,21 @@ export default function LeaderAppointmentList() {
       let matchStatus = false;
       const statusLower = apt.status.toLowerCase();
       const orderStatusUpper = apt.serviceOrderStatus?.toUpperCase();
+      const isWaitingForBay = apt.hasServiceOrder && apt.bayStatus?.toUpperCase() === 'WAITING';
       if (statusFilter === 'all') {
         matchStatus = true;
       } else if (statusFilter === 'uncreated') {
         matchStatus = statusLower === 'information_received';
       } else if (statusFilter === 'waiting') {
-        matchStatus = apt.hasServiceOrder && apt.bayStatus?.toUpperCase() === 'WAITING';
+        matchStatus = isWaitingForBay;
+      } else if (statusFilter === 'received') {
+        matchStatus = apt.hasServiceOrder && orderStatusUpper === 'INSPECTING' && !isWaitingForBay;
       } else if (statusFilter === 'in_progress') {
-        matchStatus = apt.hasServiceOrder && orderStatusUpper !== 'COMPLETED' && orderStatusUpper !== 'CANCELLED' && apt.bayStatus?.toUpperCase() !== 'WAITING';
+        matchStatus = apt.hasServiceOrder && orderStatusUpper !== 'COMPLETED' && orderStatusUpper !== 'CANCELLED' && orderStatusUpper !== 'INSPECTING' && !isWaitingForBay;
       } else if (statusFilter === 'completed') {
         matchStatus = orderStatusUpper === 'COMPLETED';
+      } else if (statusFilter === 'cancelled') {
+        matchStatus = orderStatusUpper === 'CANCELLED';
       }
 
       return matchSearch && matchStatus;
@@ -264,11 +275,16 @@ export default function LeaderAppointmentList() {
         return s === 'information_received';
       }).length,
       waiting: appointments.filter((a) => a.hasServiceOrder && a.bayStatus?.toUpperCase() === 'WAITING').length,
+      received: appointments.filter((a) => {
+        const orderStatusUpper = a.serviceOrderStatus?.toUpperCase();
+        return a.hasServiceOrder && orderStatusUpper === 'INSPECTING' && a.bayStatus?.toUpperCase() !== 'WAITING';
+      }).length,
       in_progress: appointments.filter((a) => {
         const orderStatusUpper = a.serviceOrderStatus?.toUpperCase();
-        return a.hasServiceOrder && orderStatusUpper !== 'COMPLETED' && orderStatusUpper !== 'CANCELLED' && a.bayStatus?.toUpperCase() !== 'WAITING';
+        return a.hasServiceOrder && orderStatusUpper !== 'COMPLETED' && orderStatusUpper !== 'CANCELLED' && orderStatusUpper !== 'INSPECTING' && a.bayStatus?.toUpperCase() !== 'WAITING';
       }).length,
       completed: appointments.filter((a) => a.serviceOrderStatus?.toUpperCase() === 'COMPLETED').length,
+      cancelled: appointments.filter((a) => a.serviceOrderStatus?.toUpperCase() === 'CANCELLED').length,
     };
   }, [appointments]);
 
@@ -328,8 +344,7 @@ export default function LeaderAppointmentList() {
             <ArrowLeft size={24} />
           </button>
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
-              <CalendarCheck className="text-amber-500" size={28} />
+            <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
               Lịch hẹn đã tiếp nhận
             </h1>
             <p className="text-slate-500 text-sm">

@@ -29,6 +29,7 @@ export const SO_STATUS_CONFIG: Record<string, { label: string; color: string; bg
   QC_CHECKING: { label: 'Đang QC', color: '#8B5CF6', bg: '#F5F3FF', icon: Clock },
   COMPLETED: { label: 'Hoàn thành', color: '#10B981', bg: '#ECFDF5', icon: CheckCircle2 },
   CANCELLED: { label: 'Đã huỷ lệnh', color: '#EF4444', bg: '#FEF2F2', icon: XCircle },
+  CLOSED_PARTIAL: { label: 'Đã đóng một phần', color: '#D97706', bg: '#FEF3C7', icon: AlertCircle },
 };
 
 const ITEMS_PER_PAGE = 5;
@@ -310,7 +311,7 @@ export default function ReceptionServiceOrderList() {
                               Chờ cầu nâng
                             </span>
                           )}
-                          {so.early_closure_reason && (
+                          {so.early_closure_reason && so.status !== 'CANCELLED' && so.status !== 'CLOSED_PARTIAL' && (
                             <span
                               title={so.early_closure_reason}
                               className="flex h-6 min-w-[104px] items-center justify-center gap-1.5 px-2.5 rounded-lg text-xs font-bold leading-none whitespace-nowrap bg-amber-50 text-amber-600"

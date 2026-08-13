@@ -17,6 +17,7 @@ import {
   Volume2,
   FileText,
   RefreshCw,
+  History,
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -233,10 +234,11 @@ export default function LeaderLayout() {
       label: 'Nội dung',
       items: [
         { name: 'Tổng quan', icon: LayoutDashboard, path: '/leader' },
-        { name: 'Lịch hẹn đã nhận', icon: CalendarCheck, path: '/leader/appointments' },
+        { name: 'Lịch hẹn đã tiếp nhận', icon: CalendarCheck, path: '/leader/appointments' },
         { name: 'Phân công kỹ thuật', icon: ClipboardCheck, path: '/leader/assignments' },
         { name: 'Theo dõi công việc', icon: ClipboardList, path: '/leader/task-tracking' },
-        { name: 'Báo giá', icon: FileText, path: '/leader/quotes' },
+        { name: 'Lịch sử báo giá', icon: FileText, path: '/leader/quotes' },
+        { name: 'Lịch sử báo cáo lỗi', icon: History, path: '/leader/issues-report' },
       ],
     },
   ];
@@ -246,10 +248,11 @@ export default function LeaderLayout() {
   const activeMenu = useMemo(() => {
     const path = location.pathname;
     if (path === '/leader' || path === '/leader/') return 'Tổng quan';
-    if (path.includes('/appointments')) return 'Lịch hẹn đã nhận';
+    if (path.includes('/appointments')) return 'Lịch hẹn đã tiếp nhận';
     if (path.includes('/assignments')) return 'Phân công kỹ thuật';
     if (path.includes('/task-tracking')) return 'Theo dõi công việc';
-    if (path.includes('/quotes')) return 'Báo giá';
+    if (path.includes('/issues-report')) return 'Lịch sử báo cáo lỗi';
+    if (path.includes('/quotes')) return 'Lịch sử báo giá';
     return 'Tổng quan';
   }, [location.pathname]);
 
