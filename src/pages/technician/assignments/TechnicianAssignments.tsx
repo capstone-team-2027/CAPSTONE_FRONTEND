@@ -23,7 +23,7 @@ import {
   Sparkles,
   Send,
 } from "lucide-react";
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import { useFetchClient_v2 as useFetchClient } from "../../../hook/useFetchClient";
 import { useSocket } from "../../../hook/useSocket";
 import { TASK_ASSIGNMENT_ENDPOINTS } from "../../../constants/technician/taskAssignmentEndpoint";
@@ -351,6 +351,7 @@ const ITEMS_PER_PAGE = 5;
 
 export default function TechnicianAssignments() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
@@ -658,6 +659,18 @@ export default function TechnicianAssignments() {
     }
   }, [assignments, issueReportAssignment]);
 
+  useEffect(() => {
+    const openServiceOrderId = (location.state as { openServiceOrderId?: string } | null)
+      ?.openServiceOrderId;
+    if (!openServiceOrderId || assignments.length === 0) return;
+    const target = assignments.find((a) => a.serviceOrderId === openServiceOrderId);
+    if (target) {
+      openIssueReportModal(target);
+    }
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignments]);
+
   // Bắt đầu ĐÚNG 1 Task trong modal (không còn hiệu ứng dây chuyền bắt cả đơn — khớp với BE
   // startTask đã sửa chỉ xử lý đúng assignment được bấm). Áp dụng khi 1 đơn có nhiều Task,
   // Task nào có phụ tùng sẵn thì bắt đầu trước, Task khác đang chờ phụ tùng không bị đụng tới.
@@ -877,23 +890,16 @@ export default function TechnicianAssignments() {
     }
   };
 
-  // Mở khung chat AI — AI tự lấy triệu chứng từ công việc đang xem, KTV không cần gõ tay.
-  // Hiện luôn triệu chứng đã lấy được (như tin nhắn hỏi) trước khi chờ AI trả lời, để KTV
-  // biết rõ AI đang phân tích dựa trên nội dung gì.
-  const openAiChat = async () => {
+  // Mở khung chat AI — chỉ điền sẵn triệu chứng vào ô nhập, KTV xem/sửa lại rồi tự bấm gửi.
+  // Không tự động gọi AI khi mở modal để tránh tốn quota mỗi lần lỡ tay mở.
+  const openAiChat = () => {
     const assignment = issueReportAssignment;
-    const symptom = assignment?.symptom?.trim();
     setAiChatOpen(true);
-    setAiInput("");
+    setAiMessages([]);
     setAiTaskAssignmentId(null);
     if (!assignment) {
-      setAiMessages([]);
+      setAiInput("");
       return;
-    }
-    if (symptom) {
-      setAiMessages([{ role: "user", text: symptom }]);
-    } else {
-      setAiMessages([]);
     }
     const targetTask =
       assignment.taskType === "REPAIR"
@@ -902,55 +908,41 @@ export default function TechnicianAssignments() {
           ) ?? assignment.tasks.find((t) => t.taskType === "REPAIR"))
         : (assignment.tasks.find((t) => t.taskType === "INSPECTION") ??
           assignment.tasks[0]);
+    let prefill: string | undefined;
+    if (targetTask?.taskType === "REPAIR") {
+      const issueText = targetTask.repairIssue?.trim() || targetTask.serviceName;
+      const partNames = targetTask.spareParts?.map((p) => p.name).filter(Boolean) ?? [];
+      const lines = [
+        "Tham khảo tra cứu cách sửa lỗi / cách thực hiện về:",
+        issueText ? `Vấn đề: ${issueText}.` : null,
+        partNames.length ? `Phụ tùng đang dùng: ${partNames.join(", ")}.` : null,
+        targetTask.serviceName ? `Dịch vụ: ${targetTask.serviceName}.` : null,
+      ].filter(Boolean);
+      prefill = lines.join("\n");
+    } else {
+      prefill = assignment.symptom?.trim();
+    }
+    setAiInput(prefill || "");
     if (!targetTask?.taskAssignmentId) {
-      setAiMessages((prev) => [
-        ...prev,
+      setAiMessages([
         { role: "ai", text: "Không tìm thấy thông tin phân công của công việc này." },
       ]);
       return;
     }
     setAiTaskAssignmentId(targetTask.taskAssignmentId);
-    setIsAiLoading(true);
-    try {
-      const payload: AiSuggestCausesRequest = {
-        taskAssignmentId: targetTask.taskAssignmentId,
-      };
-      const result = await fetchPrivate<AiSuggestCausesResponse>(
-        TASK_ASSIGNMENT_ENDPOINTS.AI_SUGGEST_CAUSES,
-        "POST",
-        payload,
-      );
-      const data = result.data;
-      setAiMessages((prev) => [
-        ...prev,
-        {
-          role: "ai",
-          text: data?.ai_suggestion ?? "Không có phản hồi từ AI.",
-          disclaimer: data?.disclaimer,
-        },
-      ]);
-    } catch (error: unknown) {
-      setAiMessages((prev) => [
-        ...prev,
-        { role: "ai", text: getErrorMessage(error, "Không lấy được gợi ý từ AI.") },
-      ]);
-    } finally {
-      setIsAiLoading(false);
-    }
   };
 
-  // KTV hỏi thêm sau câu trả lời đầu tiên (vd làm rõ, hỏi cách kiểm tra) — không cần gõ lại
-  // triệu chứng, BE vẫn dùng đúng symptom gốc + ghép thêm câu hỏi này vào prompt.
   const sendAiFollowUp = async () => {
     const question = aiInput.trim();
     if (!question || isAiLoading || !aiTaskAssignmentId) return;
+    const isFirstMessage = aiMessages.length === 0;
     setAiMessages((prev) => [...prev, { role: "user", text: question }]);
     setAiInput("");
     setIsAiLoading(true);
     try {
       const payload: AiSuggestCausesRequest = {
         taskAssignmentId: aiTaskAssignmentId,
-        followUpQuestion: question,
+        ...(isFirstMessage ? {} : { followUpQuestion: question }),
       };
       const result = await fetchPrivate<AiSuggestCausesResponse>(
         TASK_ASSIGNMENT_ENDPOINTS.AI_SUGGEST_CAUSES,
