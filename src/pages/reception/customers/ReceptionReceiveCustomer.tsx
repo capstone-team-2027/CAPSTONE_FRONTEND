@@ -334,7 +334,7 @@ export default function ReceptionReceiveCustomer() {
   }, [dbCategories]);
 
   const activeDbServices = useMemo(() => {
-    return services.filter((s: any) => s.is_active !== false);
+    return services.filter((s: any) => s.is_active !== false && !s.is_default_inspection_service);
   }, [services]);
 
   const mappedServices: CustomerServiceItem[] = useMemo(() => {

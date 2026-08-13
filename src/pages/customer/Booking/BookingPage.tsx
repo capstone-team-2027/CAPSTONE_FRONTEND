@@ -220,7 +220,7 @@ export default function BookingPage() {
         const fetchServices = async () => {
             const currentLang = i18n.language || 'vi';
             try {
-                const query = `lang=${currentLang}&page=${servicePage}&limit=30&search=${encodeURIComponent(serviceSearch)}&category_id=${selectedCategoryId || ''}`;
+                const query = `lang=${currentLang}&page=${servicePage}&limit=8&search=${encodeURIComponent(serviceSearch)}&category_id=${selectedCategoryId || ''}`;
                 const svcRes = await fetchPublic(`${SERVICE_API_ENDPOINTS.SEARCH_SERVICES}?${query}`);
                 if (svcRes && svcRes.data) {
                     const newItems = svcRes.data.items || [];
@@ -563,7 +563,7 @@ export default function BookingPage() {
     }, [dbCategories]);
 
     const activeDbServices = useMemo(() => {
-        return dbServices.filter((s: any) => s.is_active !== false);
+        return dbServices.filter((s: any) => s.is_active !== false && !s.is_default_inspection_service);
     }, [dbServices]);
 
     // Map dbServices to ServiceItem list
@@ -606,7 +606,7 @@ export default function BookingPage() {
 
     // Map current page services to ServiceItem list for rendering
     const mappedCurrentPageServices: ServiceItem[] = useMemo(() => {
-        return currentPageServices.filter((s: any) => s.is_active !== false).map((s: any) => {
+        return currentPageServices.filter((s: any) => s.is_active !== false && !s.is_default_inspection_service).map((s: any) => {
             const priceValue = s.total_price || s.labor_price || s.price || s.base_price || 0;
             const discountPercent = s.discount_percentage || 0;
             const originalPriceValue = discountPercent > 0 && priceValue > 0 ? Math.round(priceValue / (1 - discountPercent / 100)) : 0;

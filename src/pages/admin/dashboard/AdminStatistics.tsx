@@ -20,6 +20,7 @@ import {
   Lightbulb,
   Sparkles,
   X,
+  ChevronRight,
 } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 import { useFetchClient_v2 as useFetchClient } from '../../../hook/useFetchClient';
@@ -34,14 +35,25 @@ interface ServiceStat {
 }
 
 const C = {
-  navy: '#00285E',
-  orange: '#F9A11B',
-  green: '#10B981',
-  red: '#EF4444',
+  ink: '#12161C',
+  navy: '#10305A',
+  orange: '#E2932E',
+  green: '#3F7A5A',
+  red: '#B8453B',
+  paper: '#F6F4EF',
   purple: '#8B5CF6',
   blue: '#3B82F6',
   teal: '#0D9488',
 };
+
+const AiStamp = ({ label = 'AI · PHÂN TÍCH' }: { label?: string }) => (
+  <span
+    className="inline-flex items-center gap-1.5 border border-current px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.18em]"
+    style={{ fontFamily: "'IBM Plex Mono', monospace", color: C.orange, transform: 'rotate(-1.5deg)' }}
+  >
+    {label}
+  </span>
+);
 
 const SHOW_LEGACY_ADVANCED_ANALYSIS = false;
 
@@ -58,31 +70,88 @@ const parseBoldText = (text: string) => {
 
 const renderMarkdown = (text: string) => {
   if (!text) return null;
-  const lines = text.split('\n');
-  return lines.map((line, idx) => {
-    if (line.trim().startsWith('###')) {
-      return <h4 key={idx} className="text-sm font-bold text-slate-800 mt-5 mb-2.5 flex items-center gap-1.5">{line.replace('###', '').trim()}</h4>;
+  const sections: Array<{ title: string; items: string[] }> = [];
+  let currentSection: { title: string; items: string[] } | null = null;
+
+  text.split('\n').forEach((rawLine) => {
+    const line = rawLine.trim();
+    if (!line) return;
+    if (/^#{1,3}\s*/.test(line)) {
+      currentSection = { title: line.replace(/^#{1,3}\s*/, ''), items: [] };
+      sections.push(currentSection);
+      return;
     }
-    if (line.trim().startsWith('##') || line.trim().startsWith('#')) {
-      return <h3 key={idx} className="text-base font-extrabold text-[#00285E] mt-6 mb-3 border-b border-indigo-100 pb-2 flex items-center gap-2">{line.replace(/##|#/g, '').trim()}</h3>;
+    const content = line.replace(/^(?:-|\*)\s+/, '').trim();
+    if (!currentSection) {
+      currentSection = { title: 'Kết quả phân tích', items: [] };
+      sections.push(currentSection);
     }
-    if (line.trim().startsWith('-') || line.trim().startsWith('*')) {
-      const content = line.replace(/^[\s-*]+/, '').trim();
-      return (
-        <div key={idx} className="text-[13px] text-slate-700 leading-relaxed my-2 pl-3.5 border-l-2 border-indigo-400 bg-indigo-50/15 py-2 rounded-r-xl shadow-3xs">
-          {parseBoldText(content)}
-        </div>
-      );
-    }
-    if (line.trim() === '') {
-      return <div key={idx} className="h-1.5" />;
-    }
-    return (
-      <p key={idx} className="text-[13px] text-slate-600 leading-relaxed my-2 font-medium">
-        {parseBoldText(line)}
-      </p>
-    );
+    currentSection.items.push(content);
   });
+
+  const sectionTheme = (index: number) => [
+    { border: 'border-blue-100', bg: 'bg-blue-50/40', iconBg: 'bg-blue-600', label: 'Tóm tắt', icon: <BarChart3 size={17} /> },
+    { border: 'border-indigo-100', bg: 'bg-indigo-50/30', iconBg: 'bg-indigo-600', label: 'Ưu tiên', icon: <Target size={17} /> },
+    { border: 'border-amber-100', bg: 'bg-amber-50/40', iconBg: 'bg-amber-500', label: 'Rủi ro', icon: <Lightbulb size={17} /> },
+    { border: 'border-slate-200', bg: 'bg-slate-50', iconBg: 'bg-slate-600', label: 'Phân tích', icon: <Sparkles size={17} /> },
+  ][Math.min(index, 3)];
+
+  return (
+    <div className="space-y-5">
+      {sections.map((section, sectionIndex) => {
+        const theme = sectionTheme(sectionIndex);
+        const isActionSection = /hành động|ưu tiên|lộ trình/i.test(section.title);
+        const actionGroups: Array<{ title: string; details: string[] }> = [];
+        if (isActionSection) {
+          section.items.forEach((item) => {
+            if (/^\*\*\[?ưu tiên/i.test(item) || /^\[?ưu tiên\s*\d+/i.test(item)) {
+              actionGroups.push({ title: item, details: [] });
+            } else if (actionGroups.length > 0) {
+              actionGroups[actionGroups.length - 1].details.push(item);
+            } else {
+              actionGroups.push({ title: item, details: [] });
+            }
+          });
+        }
+        return (
+          <section key={`${section.title}-${sectionIndex}`} className={`overflow-hidden rounded-2xl border ${theme.border} bg-white`}>
+            <div className={`flex items-center gap-3 border-b ${theme.border} ${theme.bg} px-5 py-4`}>
+              <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-white ${theme.iconBg}`}>{theme.icon}</span>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">{theme.label}</p>
+                <h3 className="mt-0.5 text-sm font-black text-slate-900">{section.title.replace(/^\d+\.\s*/, '')}</h3>
+              </div>
+            </div>
+
+            <div className={`p-5 ${isActionSection ? 'space-y-4' : 'space-y-3'}`}>
+              {isActionSection && actionGroups.map((action, actionIndex) => (
+                <article key={`${action.title}-${actionIndex}`} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                  <div className="flex items-start gap-3 border-b border-slate-100 bg-slate-50 px-5 py-4"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#00285E] text-xs font-black text-white">{actionIndex + 1}</span><h4 className="pt-1 text-sm font-black leading-snug text-slate-900">{parseBoldText(action.title.replace(/^\*\*|\*\*$/g, ''))}</h4></div>
+                  <div className="grid gap-3 p-5 md:grid-cols-2">
+                    {action.details.filter((detail) => !/^\*{0,2}(hạn hoàn thành|thời hạn)\*{0,2}\s*:/i.test(detail)).map((detail, detailIndex) => {
+                      const separator = detail.indexOf(':');
+                      const label = separator >= 0 ? detail.slice(0, separator).replace(/\*\*/g, '') : 'Chi tiết';
+                      const value = separator >= 0 ? detail.slice(separator + 1).trim() : detail;
+                      const isKpi = /KPI/i.test(label);
+                      return <div key={detailIndex} className={`rounded-xl border p-3 ${isKpi ? 'border-emerald-100 bg-emerald-50/60' : 'border-slate-100 bg-slate-50/60'}`}><p className="text-[9px] font-black uppercase tracking-wider text-slate-500">{label}</p><p className="mt-1.5 text-[11px] font-medium leading-relaxed text-slate-700">{parseBoldText(value)}</p></div>;
+                    })}
+                  </div>
+                </article>
+              ))}
+              {!isActionSection && section.items.map((item, itemIndex) => {
+                return (
+                  <div key={itemIndex} className="flex items-start gap-3 rounded-xl bg-slate-50/70 px-4 py-3">
+                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${sectionIndex === 2 ? 'bg-amber-500' : sectionIndex === 0 ? 'bg-blue-500' : 'bg-indigo-500'}`} />
+                    <p className="text-xs font-medium leading-relaxed text-slate-700">{parseBoldText(item)}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
 };
 
 const YearRevenueComparisonChart = ({ rows, currentYear, lastYear }: {
@@ -90,7 +159,9 @@ const YearRevenueComparisonChart = ({ rows, currentYear, lastYear }: {
   currentYear: number;
   lastYear: number;
 }) => {
-  const currentMonth = new Date().getMonth() + 1;
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentDay = now.getDate();
   const points = (rows || [])
     .filter((row) => Number(row.month) <= currentMonth)
     .sort((a, b) => Number(a.month) - Number(b.month));
@@ -99,60 +170,158 @@ const YearRevenueComparisonChart = ({ rows, currentYear, lastYear }: {
     return <p className="py-10 text-center text-xs font-semibold text-slate-400">Chưa có dữ liệu doanh thu theo tháng</p>;
   }
 
-  const width = 900;
-  const height = 280;
-  const padding = { left: 58, right: 24, top: 26, bottom: 42 };
+  const currentTotal = points.reduce((sum, row) => sum + Number(row.this_year_revenue || 0), 0);
+  const lastTotal = points.reduce((sum, row) => sum + Number(row.last_year_revenue || 0), 0);
+  const difference = currentTotal - lastTotal;
+  const growthPct = lastTotal > 0 ? (difference / lastTotal) * 100 : null;
+  const isPositive = difference >= 0;
+
+  const formatMillion = (value: number, digits = 1) => `${(value / 1_000_000).toLocaleString('vi-VN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: digits,
+  })} triệu VND`;
+
+  const width = Math.max(900, points.length * 112);
+  const height = 330;
+  const padding = { left: 68, right: 24, top: 38, bottom: 76 };
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
   const maxRevenue = Math.max(
     ...points.flatMap((row) => [Number(row.this_year_revenue || 0), Number(row.last_year_revenue || 0)]),
     1
   );
-  const x = (index: number) => padding.left + (points.length === 1 ? plotWidth / 2 : (index * plotWidth) / (points.length - 1));
-  const y = (value: number) => padding.top + plotHeight - (value / maxRevenue) * plotHeight;
-  const thisYearLine = points.map((row, index) => `${x(index)},${y(Number(row.this_year_revenue || 0))}`).join(' ');
-  const lastYearLine = points.map((row, index) => `${x(index)},${y(Number(row.last_year_revenue || 0))}`).join(' ');
+  const roundedMax = Math.ceil(maxRevenue / 5_000_000) * 5_000_000 || 5_000_000;
+  const groupWidth = plotWidth / points.length;
+  const barWidth = Math.min(30, groupWidth * 0.28);
+  const x = (index: number) => padding.left + groupWidth * index + groupWidth / 2;
+  const barY = (value: number) => padding.top + plotHeight - (value / roundedMax) * plotHeight;
+  const barHeight = (value: number) => (value / roundedMax) * plotHeight;
 
   return (
-    <div>
-      <div className="mb-3 flex flex-wrap justify-end gap-4 text-[11px] font-semibold text-slate-500">
-        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-[#00285E]" />Năm {currentYear}</span>
-        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-[#8B5CF6]" />Năm {lastYear}</span>
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Doanh thu {currentYear}</p>
+          <p className="mt-1 text-xl font-black text-[#00285E]">{formatMillion(currentTotal)}</p>
+          <p className="mt-1 text-[11px] text-slate-500">Từ tháng 1 đến {currentDay}/{currentMonth}/{currentYear}</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Cùng khoảng thời gian năm {lastYear}</p>
+          <p className="mt-1 text-xl font-black text-slate-800">{formatMillion(lastTotal)}</p>
+          <p className="mt-1 text-[11px] text-slate-500">Cùng phạm vi tháng để đối chiếu</p>
+        </div>
+        <div className={`rounded-xl border p-4 ${isPositive ? 'border-emerald-200 bg-emerald-50/70' : 'border-rose-200 bg-rose-50/70'}`}>
+          <p className={`text-[10px] font-bold uppercase tracking-wider ${isPositive ? 'text-emerald-700' : 'text-rose-700'}`}>Chênh lệch doanh thu</p>
+          <p className={`mt-1 text-xl font-black ${isPositive ? 'text-emerald-700' : 'text-rose-700'}`}>
+            {isPositive ? '+' : '−'}{formatMillion(Math.abs(difference))}
+          </p>
+          <p className="mt-1 text-[11px] text-slate-600">
+            {growthPct === null
+              ? 'Khoảng thời gian năm trước chưa có doanh thu để tính tỷ lệ'
+              : `${isPositive ? 'Tăng' : 'Giảm'} ${Math.abs(growthPct).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}% so với cùng khoảng thời gian năm trước`}
+          </p>
+        </div>
       </div>
+
+      <div className={`rounded-xl border px-4 py-3 text-xs font-semibold ${isPositive ? 'border-emerald-100 bg-emerald-50/50 text-emerald-900' : 'border-rose-100 bg-rose-50/50 text-rose-900'}`}>
+        {isPositive ? '↗' : '↘'} Doanh thu từ tháng 1 đến {currentDay}/{currentMonth}/{currentYear} {isPositive ? 'cao hơn' : 'thấp hơn'} cùng khoảng thời gian năm {lastYear}{' '}
+        <strong>{formatMillion(Math.abs(difference))}</strong>
+        {growthPct !== null && <> ({isPositive ? '+' : '−'}{Math.abs(growthPct).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%)</>}.
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-bold text-slate-700">Doanh thu từng tháng</p>
+          <p className="text-[11px] text-slate-400">Mỗi tháng có hai cột để so sánh trực tiếp · Đơn vị: triệu đồng</p>
+        </div>
+        <div className="flex flex-wrap gap-4 text-[11px] font-semibold text-slate-600" aria-label="Chú thích biểu đồ">
+          <span className="flex items-center gap-1.5"><i className="h-3 w-3 rounded-sm bg-[#00285E]" />Năm {currentYear}</span>
+          <span className="flex items-center gap-1.5"><i className="h-3 w-3 rounded-sm border border-violet-300 bg-violet-200" />Năm {lastYear}</span>
+        </div>
+      </div>
+
       <div className="overflow-x-auto">
-        <svg viewBox={`0 0 ${width} ${height}`} className="min-w-[680px] w-full" role="img" aria-label={`Biểu đồ doanh thu năm ${currentYear} và ${lastYear} theo tháng`}>
+        <svg viewBox={`0 0 ${width} ${height}`} className="min-w-[760px] w-full" role="img" aria-label={`Biểu đồ cột so sánh doanh thu từng tháng năm ${currentYear} với năm ${lastYear}`}>
           {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
             const gridY = padding.top + plotHeight * ratio;
-            const value = maxRevenue * (1 - ratio) / 1_000_000;
+            const value = roundedMax * (1 - ratio) / 1_000_000;
             return (
               <g key={ratio}>
                 <line x1={padding.left} y1={gridY} x2={width - padding.right} y2={gridY} stroke="#E2E8F0" strokeWidth="1" />
-                <text x={padding.left - 9} y={gridY + 4} textAnchor="end" fontSize="10" fill="#94A3B8">{value.toFixed(value >= 10 ? 0 : 1)}</text>
+                <text x={padding.left - 10} y={gridY + 4} textAnchor="end" fontSize="10" fill="#64748B">{value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}</text>
               </g>
             );
           })}
-          <polyline points={lastYearLine} fill="none" stroke="#8B5CF6" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
-          <polyline points={thisYearLine} fill="none" stroke="#00285E" strokeWidth="3.5" strokeLinejoin="round" strokeLinecap="round" />
           {points.map((row, index) => (
-            <g key={row.month}>
-              <line x1={x(index)} y1={padding.top} x2={x(index)} y2={padding.top + plotHeight} stroke="#CBD5E1" strokeDasharray="3 5" opacity="0.55" />
-              <circle cx={x(index)} cy={y(Number(row.last_year_revenue || 0))} r="5" fill="#8B5CF6" stroke="white" strokeWidth="2">
-                <title>{`Tháng ${row.month} - Năm ${lastYear}: ${Number(row.last_year_revenue || 0).toLocaleString('vi-VN')} đ`}</title>
-              </circle>
-              <circle cx={x(index)} cy={y(Number(row.this_year_revenue || 0))} r="5" fill="#00285E" stroke="white" strokeWidth="2">
-                <title>{`Tháng ${row.month} - Năm ${currentYear}: ${Number(row.this_year_revenue || 0).toLocaleString('vi-VN')} đ`}</title>
-              </circle>
-              <text x={x(index)} y={height - 15} textAnchor="middle" fontSize="11" fontWeight="600" fill="#64748B">T{row.month}</text>
-            </g>
+            (() => {
+              const thisValue = Number(row.this_year_revenue || 0);
+              const lastValue = Number(row.last_year_revenue || 0);
+              const monthDifference = thisValue - lastValue;
+              const isCurrentIncompleteMonth = Number(row.month) === currentMonth;
+              return (
+                <g key={row.month}>
+                  <rect
+                    x={x(index) - barWidth - 3}
+                    y={barY(thisValue)}
+                    width={barWidth}
+                    height={barHeight(thisValue)}
+                    rx="4"
+                    fill="#00285E"
+                  >
+                    <title>{`Tháng ${row.month}/${currentYear}: ${thisValue.toLocaleString('vi-VN')} VND`}</title>
+                  </rect>
+                  <rect
+                    x={x(index) + 3}
+                    y={barY(lastValue)}
+                    width={barWidth}
+                    height={barHeight(lastValue)}
+                    rx="4"
+                    fill="#DDD6FE"
+                    stroke="#8B5CF6"
+                    strokeWidth="1.5"
+                  >
+                    <title>{`Tháng ${row.month}/${lastYear}: ${lastValue.toLocaleString('vi-VN')} VND`}</title>
+                  </rect>
+                  {thisValue > 0 && (
+                    <text x={x(index) - barWidth / 2 - 3} y={barY(thisValue) - 7} textAnchor="middle" fontSize="9" fontWeight="700" fill="#00285E">
+                      {(thisValue / 1_000_000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
+                    </text>
+                  )}
+                  {lastValue > 0 && (
+                    <text x={x(index) + barWidth / 2 + 3} y={barY(lastValue) - 7} textAnchor="middle" fontSize="9" fontWeight="700" fill="#7C3AED">
+                      {(lastValue / 1_000_000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
+                    </text>
+                  )}
+                  <text x={x(index)} y={height - 47} textAnchor="middle" fontSize="11" fontWeight="700" fill="#475569">Tháng {row.month}</text>
+                  <text
+                    x={x(index)}
+                    y={height - 28}
+                    textAnchor="middle"
+                    fontSize="9"
+                    fontWeight="700"
+                    fill={monthDifference >= 0 ? '#047857' : '#BE123C'}
+                  >
+                    {monthDifference >= 0 ? '+' : '−'}{(Math.abs(monthDifference) / 1_000_000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} triệu VND
+                  </text>
+                  {isCurrentIncompleteMonth && (
+                    <text x={x(index)} y={height - 10} textAnchor="middle" fontSize="8" fontWeight="700" fill="#D97706">TÍNH ĐẾN {currentDay}/{currentMonth}</text>
+                  )}
+                </g>
+              );
+            })()
           ))}
         </svg>
       </div>
-      <p className="mt-1 text-[10px] text-slate-400">Trục dọc: triệu đồng · Di chuột vào từng điểm để xem doanh thu chính xác</p>
+      <div className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
+        <span aria-hidden="true">ⓘ</span>
+        <p><strong>Tháng {currentMonth} chưa kết thúc:</strong> số liệu năm {currentYear} chỉ tính đến ngày {currentDay}/{currentMonth}. Không dùng tháng này để kết luận xu hướng cả tháng.</p>
+      </div>
     </div>
   );
 };
 
 export default function AdminStatistics() {
+  const viewMode = 'statistics' as const;
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: 'success' | 'info' | 'warning') => void;
   }>();
@@ -161,6 +330,7 @@ export default function AdminStatistics() {
   const [isLoading, setIsLoading] = useState(true);
   const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
   const [isChartDragging, setIsChartDragging] = useState(false);
+  const [isRevenueDetailOpen, setIsRevenueDetailOpen] = useState(false);
   const chartScrollRef = useRef<HTMLDivElement>(null);
   const chartDragRef = useRef({ startX: 0, scrollLeft: 0 });
 
@@ -171,46 +341,91 @@ export default function AdminStatistics() {
     return `${year}-${month}-${day}`;
   };
   const today = new Date();
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(today.getDate() - 6);
   const thirtyDaysAgo = new Date(today);
   thirtyDaysAgo.setDate(today.getDate() - 29);
-  const [startDate, setStartDate] = useState(() => formatLocalDate(thirtyDaysAgo));
+  const [startDate, setStartDate] = useState(() => formatLocalDate(sevenDaysAgo));
   const [endDate, setEndDate] = useState(() => formatLocalDate(today));
+  const [basicDateRange, setBasicDateRange] = useState<'7_days' | '14_days' | '1_month' | 'custom'>('7_days');
+  const [isCustomDateOpen, setIsCustomDateOpen] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState(() => formatLocalDate(sevenDaysAgo));
+  const [customEndDate, setCustomEndDate] = useState(() => formatLocalDate(today));
+  const [advancedStartDate, setAdvancedStartDate] = useState(() => formatLocalDate(thirtyDaysAgo));
+  const [advancedEndDate, setAdvancedEndDate] = useState(() => formatLocalDate(today));
 
   // Tabs for basic vs advanced pandas analysis
-  const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
+  const [activeTab] = useState<'basic' | 'advanced'>(viewMode === 'ai' ? 'advanced' : 'basic');
   const [advancedView, setAdvancedView] = useState<'analysis' | 'plan'>('analysis');
   const [comparisonMode, setComparisonMode] = useState<'month_previous' | 'month_last_year' | 'year_last_year'>('month_previous');
   const [advancedData, setAdvancedData] = useState<any>(null);
   const [isAdvancedLoading, setIsAdvancedLoading] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [planHorizon, setPlanHorizon] = useState<'1_month' | '3_months'>('1_month');
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [seasonMonth, setSeasonMonth] = useState<string>('7');
 
+  useEffect(() => {
+    const fontId = 'admin-statistics-industrial-fonts';
+    if (document.getElementById(fontId)) return;
+    const link = document.createElement('link');
+    link.id = fontId;
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap';
+    document.head.appendChild(link);
+  }, []);
+
   const analysisRange = useMemo(() => {
-    const now = new Date();
-    if (comparisonMode === 'month_previous' || comparisonMode === 'month_last_year') {
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      return { startDate: formatLocalDate(monthStart), endDate: formatLocalDate(now) };
-    }
-    if (comparisonMode === 'year_last_year') {
-      return {
-        startDate: `${now.getFullYear()}-01-01`,
-        endDate: formatLocalDate(now),
-      };
-    }
-    return { startDate: `${now.getFullYear()}-01-01`, endDate: `${now.getFullYear()}-12-31` };
-  }, [comparisonMode, startDate, endDate]);
+    return { startDate: advancedStartDate, endDate: advancedEndDate };
+  }, [advancedStartDate, advancedEndDate]);
 
   const compareWithLastYear = comparisonMode === 'month_last_year'
     || comparisonMode === 'year_last_year';
-  const currentPeriodLabel = comparisonMode.startsWith('month_')
-    ? 'Tháng này'
-    : 'Năm nay';
+  const currentPeriodLabel = 'Khoảng đang xem';
   const comparisonPeriodLabel = comparisonMode === 'month_previous'
-    ? 'Tháng trước'
-    : comparisonMode === 'month_last_year'
-      ? 'Cùng tháng năm trước'
-      : 'Năm trước';
+    ? 'Khoảng trước đó'
+    : 'Cùng khoảng thời gian năm trước';
+
+  const aiSnapshot = useMemo(() => {
+    const currentKpis = advancedData?.dashboard_stats?.kpis || {};
+    const comparisonKpis = compareWithLastYear
+      ? advancedData?.comparison_stats?.samePeriodLastYear?.kpis || {}
+      : advancedData?.comparison_stats?.previousPeriod?.kpis || {};
+    const currentRevenue = Number(currentKpis.totalRevenue ?? advancedData?.summary?.total_this_year ?? 0);
+    const comparisonRevenue = Number(comparisonKpis.totalRevenue ?? (compareWithLastYear
+      ? advancedData?.summary?.total_last_year
+      : advancedData?.summary?.total_previous_period) ?? 0);
+    const revenueDifference = currentRevenue - comparisonRevenue;
+    const growthPct = comparisonRevenue > 0 ? (revenueDifference / comparisonRevenue) * 100 : null;
+    const currentOrders = Number(currentKpis.totalOrders ?? advancedData?.summary?.this_year_orders ?? 0);
+    const comparisonOrders = Number(comparisonKpis.totalOrders ?? (compareWithLastYear
+      ? advancedData?.summary?.last_year_orders
+      : advancedData?.summary?.previous_period_orders) ?? 0);
+    const orderDifference = currentOrders - comparisonOrders;
+    const orderGrowthPct = comparisonOrders > 0 ? (orderDifference / comparisonOrders) * 100 : null;
+    const currentTicket = Number(currentKpis.avgRevenuePerOrder ?? advancedData?.summary?.this_year_avg_ticket ?? 0);
+    const comparisonTicket = Number(comparisonKpis.avgRevenuePerOrder || 0);
+    const ticketDifference = currentTicket - comparisonTicket;
+    const ticketGrowthPct = comparisonTicket > 0 ? (ticketDifference / comparisonTicket) * 100 : null;
+    const primaryDriver = Math.abs(orderGrowthPct || 0) >= Math.abs(ticketGrowthPct || 0) ? 'orders' : 'ticket';
+
+    return {
+      currentRevenue,
+      comparisonRevenue,
+      revenueDifference,
+      growthPct,
+      currentOrders,
+      comparisonOrders,
+      orderDifference,
+      orderGrowthPct,
+      currentTicket,
+      comparisonTicket,
+      ticketDifference,
+      ticketGrowthPct,
+      primaryDriver,
+      activeCustomers: Number(currentKpis.activeCustomers || 0),
+    };
+  }, [advancedData, compareWithLastYear]);
 
   // Fetch stats from API
   const fetchData = useCallback(async () => {
@@ -234,7 +449,8 @@ export default function AdminStatistics() {
   const fetchAdvancedData = useCallback(async () => {
     try {
       setIsAdvancedLoading(true);
-      const advancedUrl = `${STATISTICS_API_ENDPOINTS.GET_ADVANCED}?timeframe=custom&startDate=${analysisRange.startDate}&endDate=${analysisRange.endDate}`;
+      const aiQuery = viewMode === 'ai' ? `&generateAi=true&planHorizon=${planHorizon}` : '';
+      const advancedUrl = `${STATISTICS_API_ENDPOINTS.GET_ADVANCED}?timeframe=custom&startDate=${analysisRange.startDate}&endDate=${analysisRange.endDate}${aiQuery}`;
       const res = await fetchPrivate(advancedUrl);
       if (res.success && res.data) {
         setAdvancedData(res.data);
@@ -246,13 +462,13 @@ export default function AdminStatistics() {
     } finally {
       setIsAdvancedLoading(false);
     }
-  }, [fetchPrivate, showToast, analysisRange.startDate, analysisRange.endDate]);
+  }, [fetchPrivate, showToast, analysisRange.startDate, analysisRange.endDate, viewMode, planHorizon]);
 
   const fetchAiStrategy = useCallback(async () => {
     try {
       setIsAiLoading(true);
       const res = await fetchPrivate(
-        `${STATISTICS_API_ENDPOINTS.GET_ADVANCED}?generateAi=true&timeframe=custom&startDate=${analysisRange.startDate}&endDate=${analysisRange.endDate}`
+        `${STATISTICS_API_ENDPOINTS.GET_ADVANCED}?generateAi=true&timeframe=custom&startDate=${analysisRange.startDate}&endDate=${analysisRange.endDate}&planHorizon=${planHorizon}`
       );
       if (res.success && res.data) {
         setAdvancedData(res.data);
@@ -264,12 +480,24 @@ export default function AdminStatistics() {
     } finally {
       setIsAiLoading(false);
     }
-  }, [fetchPrivate, showToast, analysisRange.startDate, analysisRange.endDate]);
+  }, [fetchPrivate, showToast, analysisRange.startDate, analysisRange.endDate, planHorizon]);
+
+  const handleAdvancedRefresh = () => {
+    if (!advancedStartDate || !advancedEndDate) {
+      showToast('Vui lòng chọn đầy đủ ngày bắt đầu và ngày kết thúc.', 'warning');
+      return;
+    }
+    if (advancedStartDate > advancedEndDate) {
+      showToast('Ngày bắt đầu không được lớn hơn ngày kết thúc.', 'warning');
+      return;
+    }
+    fetchAdvancedData();
+  };
 
   useEffect(() => {
     // A report is tied to its selected period; never reuse it for another range.
     setAdvancedData(null);
-  }, [startDate, endDate, comparisonMode]);
+  }, [comparisonMode]);
 
   useEffect(() => {
     if (activeTab === 'basic') {
@@ -289,6 +517,26 @@ export default function AdminStatistics() {
     return data.revenueChart;
   }, [data]);
 
+  useEffect(() => {
+    const container = chartScrollRef.current;
+    if (!container || currentData.days.length <= 14) return;
+    const firstActiveIndex = currentData.days.findIndex((_: string, index: number) =>
+      Number(currentData.revenue[index] || 0) > 0 || Number(currentData.orders[index] || 0) > 0
+    );
+    if (firstActiveIndex < 0) {
+      container.scrollLeft = 0;
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+      const pointRatio = currentData.days.length > 1 ? firstActiveIndex / (currentData.days.length - 1) : 0;
+      const pointPosition = pointRatio * container.scrollWidth;
+      container.scrollLeft = Math.min(maxScroll, Math.max(0, pointPosition - container.clientWidth * 0.15));
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [currentData]);
+
   const statsSummary = useMemo(() => {
     if (!data?.kpis) {
       return { totalRev: 0, totalOrd: 0, avgRevPerOrder: 0, activeCustomers: 0, completedAppointments: 0 };
@@ -302,26 +550,62 @@ export default function AdminStatistics() {
     };
   }, [data]);
 
+  const businessOverview = data?.businessOverview;
+  const formatBusinessMoney = (value: unknown) => `${Math.round(Number(value || 0)).toLocaleString('vi-VN')} VND`;
+  const formatBusinessChange = (changePct: number | null | undefined) => {
+    if (changePct === null || changePct === undefined) return 'Khoảng trước đó chưa có dữ liệu để tính tỷ lệ';
+    if (changePct === 0) return 'Không thay đổi so với khoảng trước đó';
+    return `${changePct > 0 ? 'Tăng' : 'Giảm'} ${Math.abs(changePct).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}% so với khoảng trước đó`;
+  };
+
   const handleFilterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!startDate || !endDate) {
+    if (!customStartDate || !customEndDate) {
       showToast('Vui lòng chọn đầy đủ ngày bắt đầu và ngày kết thúc.', 'warning');
       return;
     }
-    if (startDate > endDate) {
+    if (customStartDate > customEndDate) {
       showToast('Ngày bắt đầu không được lớn hơn ngày kết thúc.', 'warning');
       return;
     }
-    fetchData();
+    setStartDate(customStartDate);
+    setEndDate(customEndDate);
+    setIsCustomDateOpen(false);
   };
+
+  const handleBasicDateRangeChange = (value: '7_days' | '14_days' | '1_month' | 'custom') => {
+    setBasicDateRange(value);
+    if (value === 'custom') {
+      setCustomStartDate(startDate);
+      setCustomEndDate(endDate);
+      setIsCustomDateOpen(true);
+      return;
+    }
+    setIsCustomDateOpen(false);
+    const rangeEnd = new Date();
+    const rangeStart = new Date(rangeEnd);
+    const days = value === '7_days' ? 7 : value === '14_days' ? 14 : 30;
+    rangeStart.setDate(rangeEnd.getDate() - (days - 1));
+    setStartDate(formatLocalDate(rangeStart));
+    setEndDate(formatLocalDate(rangeEnd));
+  };
+  const formatDisplayDate = (value: string) => value
+    ? new Date(`${value}T00:00:00`).toLocaleDateString('vi-VN')
+    : '--';
   const handleExport = () => {
     const headers = ['Mục tiêu thống kê', 'Giá trị'];
     const rows = [
-      ['Tổng Doanh thu', `${statsSummary.totalRev.toLocaleString('vi-VN')} đ`],
-      ['Tổng số Đơn hàng', statsSummary.totalOrd.toString()],
-      ['Giá trị Đơn hàng Trung bình', `${statsSummary.avgRevPerOrder.toLocaleString('vi-VN')} đ`],
-      ['Tổng khách hàng hoạt động', statsSummary.activeCustomers.toLocaleString('vi-VN')],
-      ['Tổng lịch hẹn hoàn thành', statsSummary.completedAppointments.toLocaleString('vi-VN')],
+      ['Khoảng ngày', `${businessOverview?.period?.startDate || startDate} đến ${businessOverview?.period?.endDate || endDate}`],
+      ['Tiền khách đã thanh toán', formatBusinessMoney(statsSummary.totalRev)],
+      ['Số đơn đã thanh toán', statsSummary.totalOrd.toString()],
+      ['Tiền thu trung bình mỗi đơn', formatBusinessMoney(statsSummary.avgRevPerOrder)],
+      ['Khách đã hoàn thành dịch vụ', statsSummary.activeCustomers.toLocaleString('vi-VN')],
+      ['Tiền phân bổ cho dịch vụ', formatBusinessMoney(businessOverview?.revenueSources?.serviceRevenue)],
+      ['Tiền phân bổ cho phụ tùng', formatBusinessMoney(businessOverview?.revenueSources?.partsRevenue)],
+      ['Tiền chưa phân loại', formatBusinessMoney(businessOverview?.revenueSources?.unallocatedRevenue)],
+      ['Giá trị phụ tùng nhập kho', formatBusinessMoney(businessOverview?.inventory?.importValue)],
+      ['Lợi nhuận gộp', businessOverview?.profitability?.grossProfit == null ? 'Chưa đủ dữ liệu giá vốn để tính' : formatBusinessMoney(businessOverview.profitability.grossProfit)],
+      ['Lợi nhuận ròng', businessOverview?.profitability?.netProfit == null ? 'Chưa đủ dữ liệu chi phí vận hành để tính' : formatBusinessMoney(businessOverview.profitability.netProfit)],
     ];
 
     const csvContent =
@@ -406,7 +690,10 @@ export default function AdminStatistics() {
     return `${linePath} L ${lastX} ${bottomY} L ${firstX} ${bottomY} Z`;
   };
 
-  if (isLoading && !data) {
+  // The AI route does not load the basic dashboard endpoint. Do not block it
+  // behind the basic page's loading state; its own section uses
+  // isAdvancedLoading and displays the correct analysis loader/error state.
+  if (viewMode === 'statistics' && isLoading && !data) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#00285E]"></div>
@@ -415,109 +702,162 @@ export default function AdminStatistics() {
     );
   }
 
+  if (viewMode === 'ai') {
+    const growingServices = (advancedData?.yoy_service_drivers?.growing || []).slice(0, 3);
+    const decliningServices = (advancedData?.yoy_service_drivers?.declining || []).slice(0, 3);
+    const importSuggestions = (advancedData?.ai_planner?.import_suggestions || []).slice(0, 3);
+    const currentWorkflow = advancedData?.dashboard_stats?.businessOverview?.workflow || {};
+    const operationalRisks = advancedData?.dashboard_stats?.businessOverview?.operationalRisks || {};
+    const currentRevenue = Number(advancedData?.dashboard_stats?.kpis?.totalRevenue || advancedData?.summary?.total_this_year || 0);
+    const currentOrders = Number(advancedData?.dashboard_stats?.kpis?.totalOrders || advancedData?.summary?.this_year_orders || 0);
+    const averageTicket = Number(advancedData?.dashboard_stats?.kpis?.avgRevenuePerOrder || advancedData?.summary?.this_year_avg_ticket || 0);
+    const growth = aiSnapshot.growthPct;
+    const analysisText = currentOrders === 0
+      ? 'Khoảng đang xem chưa có hóa đơn đã thanh toán nên chưa đủ cơ sở kết luận xu hướng doanh thu.'
+      : `${growth === null ? 'Chưa có dữ liệu ở khoảng đối chiếu.' : `Doanh thu ${growth >= 0 ? 'tăng' : 'giảm'} ${Math.abs(growth).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}% so với khoảng trước.`} Gara ghi nhận ${currentOrders} hóa đơn, trung bình ${formatBusinessMoney(averageTicket)} mỗi hóa đơn.`;
+    return (
+      <div className="mx-auto w-full max-w-5xl flex-1 space-y-5 p-4 md:p-8">
+        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 bg-gradient-to-r from-[#00285E] to-[#06478f] p-6 text-white">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div><p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-200">✨ AI phân tích hoạt động gara</p><h1 className="mt-2 text-2xl font-black">AI phân tích hệ thống</h1><p className="mt-1 text-xs text-blue-100">Dữ liệu {analysisRange.startDate} → {analysisRange.endDate}</p></div>
+              <div className="flex flex-wrap gap-2">
+                <select
+                  value={Math.round((new Date(advancedEndDate).getTime() - new Date(advancedStartDate).getTime()) / 86400000) + 1 <= 7 ? '7' : Math.round((new Date(advancedEndDate).getTime() - new Date(advancedStartDate).getTime()) / 86400000) + 1 <= 30 ? '30' : '90'}
+                  onChange={(event) => { const rangeEnd = new Date(); const rangeStart = new Date(rangeEnd); rangeStart.setDate(rangeEnd.getDate() - (Number(event.target.value) - 1)); setAdvancedStartDate(formatLocalDate(rangeStart)); setAdvancedEndDate(formatLocalDate(rangeEnd)); }}
+                  className="rounded-xl border border-white/20 bg-white px-4 py-2.5 text-xs font-black text-[#00285E] outline-none"
+                ><option value="7">7 ngày gần nhất</option><option value="30">30 ngày gần nhất</option><option value="90">90 ngày gần nhất</option></select>
+                <button onClick={handleAdvancedRefresh} disabled={isAdvancedLoading} className="inline-flex items-center gap-2 rounded-xl bg-amber-400 px-5 py-2.5 text-xs font-black text-[#00285E] disabled:opacity-60"><Sparkles size={15} />{isAdvancedLoading ? 'Đang phân tích...' : 'Phân tích'}</button>
+              </div>
+            </div>
+          </div>
+
+          {isAdvancedLoading ? <div className="flex min-h-[420px] flex-col items-center justify-center"><RefreshCw className="animate-spin text-blue-700" size={30} /><p className="mt-3 text-sm font-bold text-slate-600">Đang đọc dữ liệu hoạt động...</p></div> : advancedData ? (
+            <div className="divide-y divide-slate-200">
+              <section className="p-6">
+                <div><h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-slate-800">📈 Xu hướng nổi bật</h2><p className="mt-1 text-[10px] text-slate-500">So sánh tiền dịch vụ giữa khoảng đang xem và khoảng đối chiếu.</p></div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {[...growingServices.map((item: any) => ({ ...item, direction: 'up' })), ...decliningServices.map((item: any) => ({ ...item, direction: 'down' }))].map((item: any) => {
+                    const currentValue = Number(item.this_year_rev || 0);
+                    const difference = Number(item.growth_amount || 0);
+                    const previousValue = currentValue - difference;
+                    const percent = previousValue > 0 ? (difference / previousValue) * 100 : null;
+                    const isIncrease = difference >= 0;
+                    return (
+                      <div key={`${item.direction}-${item.service_name}`} className={`rounded-2xl border p-4 ${isIncrease ? 'border-emerald-100 bg-emerald-50/40' : 'border-rose-100 bg-rose-50/40'}`}>
+                        <div className="flex items-start justify-between gap-3"><p className="text-xs font-black text-slate-800">{item.service_name}</p><span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${isIncrease ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{isIncrease ? '↑ Tăng' : '↓ Giảm'} {percent === null ? 'phát sinh mới' : `${Math.abs(percent).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`}</span></div>
+                        <div className="mt-4 grid grid-cols-2 gap-3 text-[10px]"><div><p className="text-slate-400">Doanh thu khoản thời gian trước đó</p><p className="mt-1 font-bold text-slate-700">{formatBusinessMoney(Math.max(0, previousValue))}</p></div><div><p className="text-slate-400">Doanh thu khoản thời gian hiện tại</p><p className="mt-1 font-black text-slate-900">{formatBusinessMoney(currentValue)}</p></div></div>
+                        <p className={`mt-3 border-t pt-3 text-[10px] font-bold ${isIncrease ? 'border-emerald-100 text-emerald-700' : 'border-rose-100 text-rose-700'}`}>{isIncrease ? 'Tăng thêm' : 'Giảm đi'} {formatBusinessMoney(Math.abs(difference))}</p>
+                      </div>
+                    );
+                  })}
+                  {growingServices.length + decliningServices.length === 0 && <p className="text-xs text-slate-500">Chưa có dịch vụ đủ dữ liệu để so sánh xu hướng.</p>}
+                </div>
+              </section>
+
+              <section className="p-6">
+                <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-slate-800">⚠️ Vấn đề phát hiện</h2>
+                <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                  <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-4"><p className="text-[10px] font-black uppercase text-amber-700">Công việc đang tồn</p><div className="mt-3 space-y-2 text-xs text-slate-700"><p>• {Number(operationalRisks?.tasks?.pending || 0)} task đang chờ thực hiện</p><p>• {Number(operationalRisks?.tasks?.inProgress || 0)} task đang thực hiện</p><p>• {Number(operationalRisks?.tasks?.waitingParts || 0)} task đang chờ linh kiện</p><p className={Number(operationalRisks?.tasks?.unassigned || 0) > 0 ? 'font-bold text-rose-700' : ''}>• {Number(operationalRisks?.tasks?.unassigned || 0)} task chưa phân công</p></div></div>
+                  <div className="rounded-2xl border border-violet-100 bg-violet-50/50 p-4"><p className="text-[10px] font-black uppercase text-violet-700">Khối lượng kỹ thuật viên</p><p className="mt-1 text-[10px] text-slate-500">Trung bình đội: {Number(operationalRisks?.workload?.teamAverage || 0).toLocaleString('vi-VN')} task đang hoạt động/người</p><div className="mt-3 space-y-2">{(operationalRisks?.workload?.technicians || []).map((tech: any) => <div key={tech.technicianId} className="flex items-center justify-between gap-2 text-xs"><span className="truncate text-slate-700">{tech.name}</span><span className={`whitespace-nowrap font-black ${tech.aboveTeamAverage ? 'text-rose-600' : 'text-violet-700'}`}>{tech.activeTasks} task{tech.aboveTeamAverage ? ' · Cao hơn TB' : ''}</span></div>)}{(operationalRisks?.workload?.technicians || []).length === 0 && <p className="text-xs text-slate-500">Chưa có dữ liệu phân công.</p>}</div></div>
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4"><p className="text-[10px] font-black uppercase text-blue-700">Sức đủ của tồn kho</p><p className="mt-1 text-[9px] leading-relaxed text-slate-500">Dự báo theo tốc độ xuất kho: nhu cầu 30 ngày + tồn tối thiểu − tồn hiện tại.</p><div className="mt-3 space-y-3">{(operationalRisks?.inventoryForecast || []).slice(0, 4).map((part: any) => <div key={part.partId} className="border-b border-blue-100 pb-2 last:border-0"><div className="flex justify-between gap-2 text-xs"><span className="font-bold text-slate-700">{part.name}</span><span className={part.projectedShortage > 0 ? 'font-black text-rose-600' : 'font-black text-emerald-600'}>{part.projectedShortage > 0 ? `Thiếu dự kiến ${part.projectedShortage}` : 'Đủ theo đà dùng'}</span></div><p className="mt-1 text-[10px] text-slate-500">Đã xuất {part.consumedQuantity} trong {part.analysisDays} ngày ({Number(part.dailyUsage || 0).toLocaleString('vi-VN')} sp/ngày) · Tồn {part.stock} · Tồn tối thiểu {part.minimumStock}</p><p className="mt-1 text-[10px] font-semibold text-slate-600">30 ngày cần {part.projected30Days} + giữ tối thiểu {part.minimumStock} = cần có {part.requiredWithSafetyStock}; hiện có {part.stock}{part.coverageDays !== null ? ` · đủ khoảng ${part.coverageDays} ngày` : ''}</p></div>)}{(operationalRisks?.inventoryForecast || []).length === 0 && <p className="text-xs text-slate-500">Chưa có lượt xuất kho để dự báo.</p>}</div></div>
+                </div>
+              </section>
+
+              <section className="bg-blue-50/50 p-6"><h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-blue-900">🔍 AI phân tích</h2><p className="mt-4 text-sm leading-7 text-slate-700">{analysisText}</p><div className="mt-4 flex flex-wrap gap-2"><span className="rounded-lg bg-white px-3 py-2 text-[10px] font-bold text-blue-700">Doanh thu: {formatBusinessMoney(currentRevenue)}</span><span className="rounded-lg bg-white px-3 py-2 text-[10px] font-bold text-blue-700">Hóa đơn: {currentOrders}</span><span className="rounded-lg bg-white px-3 py-2 text-[10px] font-bold text-blue-700">Trung bình: {formatBusinessMoney(averageTicket)}</span></div></section>
+
+              <section className="p-6"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white"><Sparkles size={18} /></span><div><h2 className="text-sm font-black uppercase tracking-wider text-slate-800">Kế hoạch hành động do AI đánh giá</h2><p className="mt-1 text-[10px] text-slate-500">Python tổng hợp dữ liệu hệ thống; Gemini đánh giá và lập kế hoạch chỉ từ các số liệu đã cung cấp.</p></div></div>{advancedData?.gemini_insights ? <div className="mt-5">{renderMarkdown(advancedData.gemini_insights)}</div> : <p className="mt-5 text-xs text-slate-500">Chưa nhận được kế hoạch AI cho khoảng đang xem.</p>}</section>
+            </div>
+          ) : <div className="flex min-h-[360px] flex-col items-center justify-center p-8"><p className="text-sm font-bold text-slate-700">Không tải được dữ liệu phân tích</p><button onClick={handleAdvancedRefresh} className="mt-4 rounded-xl bg-[#00285E] px-4 py-2 text-xs font-bold text-white">Thử lại</button></div>}
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
             <BarChart3 className="text-amber-500" size={28} />
-            Báo cáo & Thống kê Hoạt động
+            {viewMode === 'ai' ? 'AI phân tích hệ thống' : 'Báo cáo & Thống kê Hoạt động'}
           </h1>
           <p className="text-slate-500 text-sm">
-            Xem báo cáo thống kê doanh thu, khách hàng, hiệu suất dịch vụ và năng suất nhân viên.
+            {viewMode === 'ai'
+              ? 'Phân tích biến động doanh thu, phát hiện điểm cần chú ý và xây dựng kế hoạch vận hành.'
+              : 'Xem báo cáo thống kê doanh thu, khách hàng, hiệu suất dịch vụ và năng suất nhân viên.'}
           </p>
         </div>
-
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[#00285E] hover:bg-[#062047] text-white rounded-xl text-sm font-bold shadow-md shadow-[#00285E]/15 transition-all transform hover:translate-y-[-1px]"
-        >
-          <Download size={16} />
-          <span>Xuất báo cáo</span>
-        </button>
+        {activeTab === 'basic' && (
+          <div className="relative z-30 shrink-0">
+            <div className="flex items-center gap-3">
+              <label htmlFor="basic-date-range" className="text-xs font-bold text-slate-500">Khoảng thời gian:</label>
+              <select
+                id="basic-date-range"
+                value={basicDateRange}
+                onChange={(event) => handleBasicDateRangeChange(event.target.value as '7_days' | '14_days' | '1_month' | 'custom')}
+                className="min-w-[160px] rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="7_days">7 ngày gần nhất</option>
+                <option value="14_days">14 ngày gần nhất</option>
+                <option value="1_month">1 tháng gần nhất</option>
+                <option value="custom">Tùy chọn ngày</option>
+              </select>
+            </div>
+            {basicDateRange === 'custom' && !isCustomDateOpen && (
+              <button type="button" onClick={() => setIsCustomDateOpen(true)} className="ml-auto mt-1 block text-[10px] font-bold text-blue-700 hover:text-blue-900">
+                {formatDisplayDate(startDate)} → {formatDisplayDate(endDate)} · Chỉnh sửa
+              </button>
+            )}
+            {basicDateRange === 'custom' && isCustomDateOpen && (
+              <form onSubmit={handleFilterSubmit} className="absolute right-0 top-full mt-2 w-[290px] rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-[10px] font-bold text-slate-500">Từ ngày<input type="date" value={customStartDate} onChange={(event) => setCustomStartDate(event.target.value)} max={customEndDate} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-[10px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-100" /></label>
+                  <label className="text-[10px] font-bold text-slate-500">Đến ngày<input type="date" value={customEndDate} onChange={(event) => setCustomEndDate(event.target.value)} min={customStartDate} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-[10px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-100" /></label>
+                </div>
+                <button type="submit" className="mt-3 w-full rounded-lg bg-[#F9A11B] px-3 py-2 text-[10px] font-black text-[#00285E] transition-colors hover:bg-[#E08F12]">Áp dụng khoảng ngày</button>
+              </form>
+            )}
+          </div>
+        )}
       </div>
-
-
-      {/* TABS */}
-      <div className="flex border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab('basic')}
-          className={`py-3 px-6 text-sm font-bold border-b-2 transition-all ${activeTab === 'basic'
-            ? 'border-[#00285E] text-[#00285E]'
-            : 'border-transparent text-slate-400 hover:text-slate-600'
-            }`}
-        >
-          Thống kê cơ bản
-        </button>
-        <button
-          onClick={() => {
-            setActiveTab('advanced');
-            setAdvancedView('analysis');
-          }}
-          className={`py-3 px-6 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${activeTab === 'advanced'
-            ? 'border-amber-500 text-amber-500'
-            : 'border-transparent text-slate-400 hover:text-slate-600'
-            }`}
-        >
-          <span>📊 Phân tích chuyên sâu & Kế hoạch AI</span>
-          <span className="bg-amber-100 text-amber-600 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Mới</span>
-        </button>
-      </div>
-
       {activeTab === 'basic' && (
         <>
-          {/* FILTER CONTROLS */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-widest">
-                  <Calendar size={15} /> Lọc theo ngày
-                </div>
-              </div>
-            </div>
-
-            <form onSubmit={handleFilterSubmit} className="flex flex-wrap items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-              <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold text-slate-500">Từ ngày:</span>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    max={endDate}
-                    className="border border-slate-200 rounded-xl text-xs px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                  />
-                  <span className="text-slate-400 text-xs font-semibold">→</span>
-                  <span className="text-xs font-bold text-slate-500">Đến ngày:</span>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    min={startDate}
-                    className="border border-slate-200 rounded-xl text-xs px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                  />
-              </div>
-
-              <button
-                type="submit"
-                className="px-4 py-2 bg-[#F9A11B] text-[#00285E] text-xs font-bold rounded-xl hover:bg-[#E08F12] transition-colors shadow-sm ml-auto"
-              >
-                Lọc dữ liệu
-              </button>
-            </form>
-          </div>
-
-          {/* KPI OVERVIEW CARDS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { label: 'Tổng doanh thu', value: `${statsSummary.totalRev.toLocaleString('vi-VN')} đ`, icon: <TrendingUp size={22} />, color: C.green, bg: '#D1FAE5', change: '+14.2% so với kỳ trước' },
-              { label: 'Tổng lượt dịch vụ', value: statsSummary.totalOrd.toLocaleString('vi-VN'), icon: <Wrench size={22} />, color: C.navy, bg: '#EFF6FF', change: '+8.6% so với kỳ trước' },
-              { label: 'Giá trị đơn TB', value: `${statsSummary.avgRevPerOrder.toLocaleString('vi-VN')} đ`, icon: <Target size={22} />, color: C.purple, bg: '#EDE9FE', change: '+5.1% so với kỳ trước' },
-              { label: 'Khách hàng hoạt động', value: statsSummary.activeCustomers.toLocaleString('vi-VN'), icon: <Users size={22} />, color: C.orange, bg: '#FEF3C7', change: '+12.4% so với kỳ trước' },
+              {
+                label: 'Tiền khách đã thanh toán',
+                value: formatBusinessMoney(statsSummary.totalRev),
+                icon: <TrendingUp size={22} />, color: C.green, bg: '#D1FAE5',
+                change: formatBusinessChange(businessOverview?.comparisons?.revenue?.changePct),
+                purpose: 'Tổng tiền khách đã thanh toán cho các phiếu dịch vụ trong khoảng ngày đã chọn.'
+              },
+              {
+                label: 'Đã tiếp nhận',
+                value: Number(businessOverview?.workflow?.received || 0).toLocaleString('vi-VN'),
+                icon: <Wrench size={22} />, color: C.navy, bg: '#EFF6FF',
+                change: 'Chờ kiểm tra hoặc lập báo giá',
+                purpose: 'Số phiếu đã tiếp nhận nhưng chưa bắt đầu sửa chữa.'
+              },
+              {
+                label: 'Đang sửa chữa ',
+                value: Number(businessOverview?.workflow?.repairing || 0).toLocaleString('vi-VN'),
+                icon: <Target size={22} />, color: C.purple, bg: '#EDE9FE',
+                change: 'Đang thực hiện hoặc chờ linh kiện',
+                purpose: 'Số phiếu đang trong quá trình sửa chữa tại gara.'
+              },
+              {
+                label: 'Đã hoàn thành',
+                value: Number(businessOverview?.workflow?.completed || 0).toLocaleString('vi-VN'),
+                icon: <Users size={22} />, color: C.orange, bg: '#FEF3C7',
+                change: 'Đã sửa xong hoặc đã giao xe',
+                purpose: 'Tổng số phiếu đã hoàn tất trong hệ thống ở trạng thái hiện tại.'
+              },
             ].map((card, i) => (
-              <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs flex flex-col justify-between">
+              <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs">
                 <div className="flex items-start justify-between">
-                  <div className="space-y-1">
+                  <div className="min-w-0 flex-1 space-y-1">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">{card.label}</span>
                     <span className="text-xl font-bold text-slate-900 tracking-tight block">{card.value}</span>
                   </div>
@@ -525,12 +865,10 @@ export default function AdminStatistics() {
                     {card.icon}
                   </div>
                 </div>
-                <div className="text-[10px] text-slate-400 font-semibold mt-4">
-                  {card.change}
-                </div>
               </div>
             ))}
           </div>
+
 
           {/* CHARTS ROW */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -539,7 +877,7 @@ export default function AdminStatistics() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-lg font-bold text-slate-800 tracking-tight">Xu hướng doanh thu & Lượt dịch vụ</h2>
-                  <p className="text-slate-400 text-xs">Biểu diễn tổng doanh thu (Triệu đ) và số đơn hàng theo mốc thời gian</p>
+                  <p className="text-slate-400 text-xs">Biểu diễn tổng doanh thu (triệu VND) và số đơn hàng theo mốc thời gian</p>
                 </div>
                 <div className="flex items-center gap-3 text-[10px] font-semibold text-slate-500">
                   <span className="flex items-center gap-1">
@@ -570,141 +908,141 @@ export default function AdminStatistics() {
                   className="flex items-center justify-center py-4 relative min-h-[220px]"
                   style={{ width: isScrollableChart ? `${chartWidth}px` : '100%' }}
                 >
-                {/* Gridlines */}
-                <div className="absolute inset-0 flex flex-col justify-between py-10 pointer-events-none opacity-20">
-                  <div className="w-full h-[1px] bg-slate-400" />
-                  <div className="w-full h-[1px] bg-slate-400" />
-                  <div className="w-full h-[1px] bg-slate-400" />
-                  <div className="w-full h-[1px] bg-slate-400" />
-                </div>
-
-                {hoveredPointIndex !== null && points[hoveredPointIndex] && (
-                  <div
-                    className="absolute z-20 pointer-events-none min-w-[170px] rounded-xl border border-slate-200 bg-white/95 px-3 py-2.5 shadow-lg backdrop-blur-sm"
-                    style={{
-                      left: `${(points[hoveredPointIndex].x / chartWidth) * 100}%`,
-                      top: '8px',
-                      transform: hoveredPointIndex === 0
-                        ? 'translateX(0)'
-                        : hoveredPointIndex === points.length - 1
-                          ? 'translateX(-100%)'
-                          : 'translateX(-50%)',
-                    }}
-                  >
-                    <div className="mb-2 text-xs font-bold text-slate-800">
-                      {points[hoveredPointIndex].day}
-                    </div>
-                    <div className="space-y-1.5 text-[11px] font-semibold">
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="flex items-center gap-1.5 text-slate-500">
-                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: C.navy }} />
-                          Doanh thu
-                        </span>
-                        <span className="font-bold text-[#00285E]">
-                          {(points[hoveredPointIndex].revenue * 1_000_000).toLocaleString('vi-VN')} đ
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="flex items-center gap-1.5 text-slate-500">
-                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: C.orange }} />
-                          Lượt dịch vụ
-                        </span>
-                        <span className="font-bold text-amber-600">
-                          {points[hoveredPointIndex].order.toLocaleString('vi-VN')}
-                        </span>
-                      </div>
-                    </div>
+                  {/* Gridlines */}
+                  <div className="absolute inset-0 flex flex-col justify-between py-10 pointer-events-none opacity-20">
+                    <div className="w-full h-[1px] bg-slate-400" />
+                    <div className="w-full h-[1px] bg-slate-400" />
+                    <div className="w-full h-[1px] bg-slate-400" />
+                    <div className="w-full h-[1px] bg-slate-400" />
                   </div>
-                )}
 
-                <svg
-                  viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-                  className="w-full h-full max-h-[240px] select-none"
-                  onMouseLeave={() => setHoveredPointIndex(null)}
-                >
-                  <defs>
-                    <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={C.navy} stopOpacity={0.2} />
-                      <stop offset="95%" stopColor={C.navy} stopOpacity={0.0} />
-                    </linearGradient>
-                    <linearGradient id="colorOrd" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={C.orange} stopOpacity={0.2} />
-                      <stop offset="95%" stopColor={C.orange} stopOpacity={0.0} />
-                    </linearGradient>
-                  </defs>
-
-                  {/* Area fills */}
-                  {points.length > 0 && (
-                    <>
-                      <path d={getAreaPath(points, 'revenue')} fill="url(#colorRev)" />
-                      <path d={getAreaPath(points, 'orders')} fill="url(#colorOrd)" />
-                    </>
+                  {hoveredPointIndex !== null && points[hoveredPointIndex] && (
+                    <div
+                      className="absolute z-20 pointer-events-none min-w-[170px] rounded-xl border border-slate-200 bg-white/95 px-3 py-2.5 shadow-lg backdrop-blur-sm"
+                      style={{
+                        left: `${(points[hoveredPointIndex].x / chartWidth) * 100}%`,
+                        top: '8px',
+                        transform: hoveredPointIndex === 0
+                          ? 'translateX(0)'
+                          : hoveredPointIndex === points.length - 1
+                            ? 'translateX(-100%)'
+                            : 'translateX(-50%)',
+                      }}
+                    >
+                      <div className="mb-2 text-xs font-bold text-slate-800">
+                        {points[hoveredPointIndex].day}
+                      </div>
+                      <div className="space-y-1.5 text-[11px] font-semibold">
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="flex items-center gap-1.5 text-slate-500">
+                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: C.navy }} />
+                            Doanh thu
+                          </span>
+                          <span className="font-bold text-[#00285E]">
+                            {(points[hoveredPointIndex].revenue * 1_000_000).toLocaleString('vi-VN')} VND
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="flex items-center gap-1.5 text-slate-500">
+                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: C.orange }} />
+                            Lượt dịch vụ
+                          </span>
+                          <span className="font-bold text-amber-600">
+                            {points[hoveredPointIndex].order.toLocaleString('vi-VN')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   )}
 
-                  {/* Grid Lines */}
-                  {points.map((pt: (typeof points)[number], i: number) => shouldShowChartTick(i) && (
-                    <line
-                      key={`grid-${i}`}
-                      x1={pt.x}
-                      y1={padding}
-                      x2={pt.x}
-                      y2={chartHeight - padding}
-                      stroke={hoveredPointIndex === i ? C.blue : '#E2E8F0'}
-                      strokeWidth={hoveredPointIndex === i ? 1.5 : 1}
-                      strokeDasharray="4 4"
-                    />
-                  ))}
+                  <svg
+                    viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                    className="w-full h-full max-h-[240px] select-none"
+                    onMouseLeave={() => setHoveredPointIndex(null)}
+                  >
+                    <defs>
+                      <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={C.navy} stopOpacity={0.2} />
+                        <stop offset="95%" stopColor={C.navy} stopOpacity={0.0} />
+                      </linearGradient>
+                      <linearGradient id="colorOrd" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={C.orange} stopOpacity={0.2} />
+                        <stop offset="95%" stopColor={C.orange} stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
 
-                  {/* Line paths */}
-                  {points.length > 0 && (
-                    <>
-                      <path d={getLinePath(points, 'revenue')} fill="none" stroke={C.navy} strokeWidth={3.5} strokeLinecap="round" />
-                      <path d={getLinePath(points, 'orders')} fill="none" stroke={C.orange} strokeWidth={2.5} strokeLinecap="round" />
-                    </>
-                  )}
+                    {/* Area fills */}
+                    {points.length > 0 && (
+                      <>
+                        <path d={getAreaPath(points, 'revenue')} fill="url(#colorRev)" />
+                        <path d={getAreaPath(points, 'orders')} fill="url(#colorOrd)" />
+                      </>
+                    )}
 
-                  {/* Data circles */}
-                  {points.map((pt: (typeof points)[number], index: number) => (
-                    <g key={index}>
-                      {(pt.revenue > 0 || hoveredPointIndex === index) && (
-                        <circle cx={pt.x} cy={pt.yRevenue} r={hoveredPointIndex === index ? 6 : 4} fill={C.navy} stroke="#FFFFFF" strokeWidth={2} />
-                      )}
-                      {(pt.order > 0 || hoveredPointIndex === index) && (
-                        <circle cx={pt.x} cy={pt.yOrders} r={hoveredPointIndex === index ? 6 : 4} fill={C.orange} stroke="#FFFFFF" strokeWidth={2} />
-                      )}
-                    </g>
-                  ))}
-
-                  {/* Wide invisible hover zones make every data point easy to target. */}
-                  {points.map((pt: (typeof points)[number], index: number) => {
-                    const previousX = points[index - 1]?.x ?? padding;
-                    const nextX = points[index + 1]?.x ?? chartWidth - padding;
-                    const left = index === 0 ? padding : (previousX + pt.x) / 2;
-                    const right = index === points.length - 1 ? chartWidth - padding : (pt.x + nextX) / 2;
-                    return (
-                      <rect
-                        key={`hover-${index}`}
-                        x={left}
-                        y={padding}
-                        width={Math.max(right - left, 1)}
-                        height={usableHeight}
-                        fill="transparent"
-                        className={isScrollableChart
-                          ? isChartDragging ? 'cursor-grabbing' : 'cursor-grab'
-                          : 'cursor-crosshair'}
-                        onMouseEnter={() => setHoveredPointIndex(index)}
-                        onMouseMove={() => setHoveredPointIndex(index)}
+                    {/* Grid Lines */}
+                    {points.map((pt: (typeof points)[number], i: number) => shouldShowChartTick(i) && (
+                      <line
+                        key={`grid-${i}`}
+                        x1={pt.x}
+                        y1={padding}
+                        x2={pt.x}
+                        y2={chartHeight - padding}
+                        stroke={hoveredPointIndex === i ? C.blue : '#E2E8F0'}
+                        strokeWidth={hoveredPointIndex === i ? 1.5 : 1}
+                        strokeDasharray="4 4"
                       />
-                    );
-                  })}
+                    ))}
 
-                  {/* X-axis labels */}
-                  {points.map((pt: (typeof points)[number], i: number) => shouldShowChartTick(i) && (
-                    <text key={i} x={pt.x} y={chartHeight - 12} textAnchor="middle" fill="#94A3B8" fontSize={11} fontWeight="600">
-                      {pt.day}
-                    </text>
-                  ))}
-                </svg>
+                    {/* Line paths */}
+                    {points.length > 0 && (
+                      <>
+                        <path d={getLinePath(points, 'revenue')} fill="none" stroke={C.navy} strokeWidth={3.5} strokeLinecap="round" />
+                        <path d={getLinePath(points, 'orders')} fill="none" stroke={C.orange} strokeWidth={2.5} strokeLinecap="round" />
+                      </>
+                    )}
+
+                    {/* Data circles */}
+                    {points.map((pt: (typeof points)[number], index: number) => (
+                      <g key={index}>
+                        {(pt.revenue > 0 || hoveredPointIndex === index) && (
+                          <circle cx={pt.x} cy={pt.yRevenue} r={hoveredPointIndex === index ? 6 : 4} fill={C.navy} stroke="#FFFFFF" strokeWidth={2} />
+                        )}
+                        {(pt.order > 0 || hoveredPointIndex === index) && (
+                          <circle cx={pt.x} cy={pt.yOrders} r={hoveredPointIndex === index ? 6 : 4} fill={C.orange} stroke="#FFFFFF" strokeWidth={2} />
+                        )}
+                      </g>
+                    ))}
+
+                    {/* Wide invisible hover zones make every data point easy to target. */}
+                    {points.map((pt: (typeof points)[number], index: number) => {
+                      const previousX = points[index - 1]?.x ?? padding;
+                      const nextX = points[index + 1]?.x ?? chartWidth - padding;
+                      const left = index === 0 ? padding : (previousX + pt.x) / 2;
+                      const right = index === points.length - 1 ? chartWidth - padding : (pt.x + nextX) / 2;
+                      return (
+                        <rect
+                          key={`hover-${index}`}
+                          x={left}
+                          y={padding}
+                          width={Math.max(right - left, 1)}
+                          height={usableHeight}
+                          fill="transparent"
+                          className={isScrollableChart
+                            ? isChartDragging ? 'cursor-grabbing' : 'cursor-grab'
+                            : 'cursor-crosshair'}
+                          onMouseEnter={() => setHoveredPointIndex(index)}
+                          onMouseMove={() => setHoveredPointIndex(index)}
+                        />
+                      );
+                    })}
+
+                    {/* X-axis labels */}
+                    {points.map((pt: (typeof points)[number], i: number) => shouldShowChartTick(i) && (
+                      <text key={i} x={pt.x} y={chartHeight - 12} textAnchor="middle" fill="#94A3B8" fontSize={11} fontWeight="600">
+                        {pt.day}
+                      </text>
+                    ))}
+                  </svg>
                 </div>
               </div>
             </div>
@@ -712,72 +1050,102 @@ export default function AdminStatistics() {
             {/* Breakdown Donut stats */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs flex flex-col justify-between">
               <div>
-                <h2 className="text-lg font-bold text-slate-800 tracking-tight mb-4">Thống kê loại xe & Khách hàng</h2>
-                <div className="space-y-6">
-                  {/* Customers breakdown */}
-                  <div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Tỷ lệ khách hàng</span>
-                    <div className="space-y-2">
-                      {[
-                        { label: 'Khách hàng mới', value: data?.customersBreakdown?.newCustomers || 0, color: C.blue },
-                        { label: 'Khách hàng quay lại', value: data?.customersBreakdown?.returningCustomers || 0, color: C.green },
-                      ].map((c, idx, arr) => {
-                        const total = arr.reduce((s, x) => s + x.value, 0);
-                        const pct = total > 0 ? Math.round((c.value / total) * 100) : 0;
-                        return (
-                          <div key={idx}>
-                            <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
-                              <span>{c.label}</span>
-                              <span>{c.value} ({pct}%)</span>
-                            </div>
-                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: c.color }} />
-                            </div>
+                <h2 className="text-lg font-bold text-slate-800 tracking-tight mb-4">Thanh toán & Trạng thái dịch vụ</h2>
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                  {([
+                    {
+                      title: 'Trạng thái thanh toán',
+                      centerLabel: 'hóa đơn',
+                      items: [
+                        { label: 'Đã thanh toán', value: Number((businessOverview?.paymentStatuses || []).find((item: any) => item.status === 'PAID')?.count || 0), color: C.green },
+                        { label: 'Chưa thanh toán', value: Number((businessOverview?.paymentStatuses || []).find((item: any) => item.status === 'PENDING')?.count || 0), color: C.red },
+                        { label: 'Đã cọc, chờ trả đủ', value: Number((businessOverview?.paymentStatuses || []).find((item: any) => item.status === 'DEPOSITED')?.count || 0), color: C.orange },
+                      ],
+                    },
+                    {
+                      title: 'Trạng thái dịch vụ',
+                      centerLabel: 'lịch hẹn',
+                      items: [
+                        { label: 'Hoàn thành', value: Number(data?.appointmentsBreakdown?.completed || 0), color: C.green },
+                        { label: 'Đang xử lý', value: Number(data?.appointmentsBreakdown?.pending || 0), color: C.orange },
+                        { label: 'Đã hủy', value: Number(data?.appointmentsBreakdown?.cancelled || 0), color: C.red },
+                      ],
+                    },
+                  ]).map((chart) => {
+                    const total = chart.items.reduce((sum, item) => sum + item.value, 0);
+                    let accumulated = 0;
+                    const segments = chart.items.map((item) => {
+                      const start = total > 0 ? (accumulated / total) * 360 : 0;
+                      accumulated += item.value;
+                      const end = total > 0 ? (accumulated / total) * 360 : 0;
+                      return `${item.color} ${start}deg ${end}deg`;
+                    });
+                    const background = total > 0 ? `conic-gradient(${segments.join(', ')})` : '#E2E8F0';
+                    return (
+                      <div key={chart.title} className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+                        <p className="text-center text-[10px] font-black uppercase tracking-wider text-slate-500">{chart.title}</p>
+                        <div className="relative mx-auto mt-4 h-32 w-32 rounded-full" style={{ background }}>
+                          <div className="absolute inset-[18px] flex flex-col items-center justify-center rounded-full bg-white shadow-inner">
+                            <strong className="text-2xl font-black text-slate-900">{total}</strong>
+                            <span className="text-[9px] font-bold text-slate-400">{chart.centerLabel}</span>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Appointment status breakdown */}
-                  <div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Lịch hẹn dịch vụ</span>
-                    <div className="space-y-2">
-                      {[
-                        { label: 'Hoàn thành', value: data?.appointmentsBreakdown?.completed || 0, color: C.green },
-                        { label: 'Đang chờ/Đang xử lý', value: data?.appointmentsBreakdown?.pending || 0, color: C.orange },
-                        { label: 'Đã hủy', value: data?.appointmentsBreakdown?.cancelled || 0, color: C.red },
-                      ].map((a, idx, arr) => {
-                        const total = arr.reduce((s, x) => s + x.value, 0);
-                        const pct = total > 0 ? Math.round((a.value / total) * 100) : 0;
-                        return (
-                          <div key={idx}>
-                            <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
-                              <span>{a.label}</span>
-                              <span>{a.value} ({pct}%)</span>
-                            </div>
-                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: a.color }} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                        </div>
+                        <div className="mt-4 space-y-2">
+                          {chart.items.map((item) => {
+                            const percentage = total > 0 ? Math.round((item.value / total) * 100) : 0;
+                            return (
+                              <div key={item.label} className="flex items-center justify-between gap-2 text-[10px]">
+                                <span className="flex min-w-0 items-center gap-2 font-semibold text-slate-600"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />{item.label}</span>
+                                <strong className="whitespace-nowrap text-slate-800">{item.value} ({percentage}%)</strong>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* DETAILED STATS SECTIONS (SERVICES & TECHNICIANS) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2 xl:items-stretch">
+            <div className="min-w-0 rounded-2xl border border-slate-200/70 bg-white p-6 shadow-xs">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-600">Phụ tùng tạo doanh thu</p>
+                  <h2 className="mt-1 text-lg font-black text-slate-900">Phụ tùng nào được tiêu thụ nhiều?</h2>
+                  <p className="mt-1 text-[11px] text-slate-500">Dùng để quyết định nhập hàng và xác định phụ tùng mang về nhiều tiền; chưa thể hiện lãi vì thiếu giá vốn lô đã xuất.</p>
+                </div>
+                <span className="text-[10px] font-semibold text-slate-400">Sắp xếp theo tiền thu được phân bổ</span>
+              </div>
+              <div className="mt-5 w-full overflow-hidden">
+                <table className="w-full table-fixed text-left text-xs">
+                  <thead><tr className="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    <th className="w-[38%] px-3 py-3">Phụ tùng</th><th className="w-[16%] px-2 py-3 text-center">Số lượng</th><th className="w-[18%] px-2 py-3 text-center">Số đơn</th><th className="w-[28%] px-3 py-3 text-right">Tiền thu</th>
+                  </tr></thead>
+                  <tbody>
+                    {(businessOverview?.topPaidParts || []).map((part: any) => (
+                      <tr key={part.name} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
+                        <td className="break-words px-3 py-3 font-bold text-slate-800">{part.name}</td>
+                        <td className="px-2 py-3 text-center font-bold text-amber-700">{Number(part.quantity || 0).toLocaleString('vi-VN')}</td>
+                        <td className="px-2 py-3 text-center text-slate-600">{Number(part.orderCount || 0).toLocaleString('vi-VN')}</td>
+                        <td className="break-words px-3 py-3 text-right font-black text-[#00285E]">{formatBusinessMoney(part.revenue)}</td>
+                      </tr>
+                    ))}
+                    {(businessOverview?.topPaidParts || []).length === 0 && <tr><td colSpan={4} className="py-8 text-center text-slate-400">Không có phụ tùng thuộc các đơn đã thanh toán trong khoảng này</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
             {/* Service stats Table */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 overflow-hidden">
+            <div className="min-w-0 bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 overflow-hidden">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-slate-800 tracking-tight flex items-center gap-1.5">
-                  <PieChart size={18} className="text-[#00285E]" /> Hiệu suất dịch vụ chuẩn
+                  <PieChart size={18} className="text-[#00285E]" /> Dịch vụ tạo doanh thu
                 </h2>
-                <span className="text-xs text-slate-400 font-semibold">Theo lượt đặt nhiều</span>
+                <span className="text-xs text-slate-400 font-semibold">Theo tiền thực thu được phân bổ</span>
               </div>
 
               <div className="overflow-x-auto">
@@ -786,22 +1154,22 @@ export default function AdminStatistics() {
                     <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
                       <th className="py-2.5 px-3">Tên dịch vụ</th>
                       <th className="py-2.5 px-3">Danh mục</th>
-                      <th className="py-2.5 px-3 text-center">Số lượt đặt</th>
-                      <th className="py-2.5 px-3 text-right">Doanh thu</th>
+                      <th className="py-2.5 px-3 text-center">Số đơn</th>
+                      <th className="py-2.5 px-3 text-right">Tiền thu phân bổ</th>
                       <th className="py-2.5 px-3 text-center">Thời gian TB</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(data?.topServices || []).map((s: any, idx: number) => (
+                    {(businessOverview?.topPaidServices || []).map((s: any, idx: number) => (
                       <tr key={idx} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
                         <td className="py-3 px-3 font-semibold text-slate-800">{s.name}</td>
                         <td className="py-3 px-3 text-slate-400 font-semibold">{s.category}</td>
-                        <td className="py-3 px-3 text-center font-bold text-slate-700">{s.bookingCount} lượt</td>
-                        <td className="py-3 px-3 text-right font-bold text-[#00285E]">{s.revenue.toLocaleString('vi-VN')} đ</td>
+                        <td className="py-3 px-3 text-center font-bold text-slate-700">{s.orderCount} đơn</td>
+                        <td className="py-3 px-3 text-right font-bold text-[#00285E]">{formatBusinessMoney(s.revenue)}</td>
                         <td className="py-3 px-3 text-center font-semibold text-slate-600">{s.durationAvg} phút</td>
                       </tr>
                     ))}
-                    {(data?.topServices || []).length === 0 && (
+                    {(businessOverview?.topPaidServices || []).length === 0 && (
                       <tr>
                         <td colSpan={5} className="text-center py-4 text-slate-400 font-medium">Không có dữ liệu dịch vụ</td>
                       </tr>
@@ -812,59 +1180,47 @@ export default function AdminStatistics() {
             </div>
 
             {/* Top customers by paid service orders */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 overflow-hidden">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-slate-800 tracking-tight flex items-center gap-1.5">
-                  <UserCheck size={18} className="text-[#00285E]" /> Khách hàng sử dụng dịch vụ nhiều nhất
-                </h2>
-                <span className="text-xs text-slate-400 font-semibold">Theo khoảng ngày đã lọc</span>
-              </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
-                      <th className="py-2.5 px-3">Khách hàng</th>
-                      <th className="py-2.5 px-3">Số điện thoại</th>
-                      <th className="py-2.5 px-3 text-center">Lượt sử dụng dịch vụ</th>
-                      <th className="py-2.5 px-3 text-right">Tổng tiền đã trả</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(data?.topCustomers || []).map((customer: any, idx: number) => (
-                      <tr key={idx} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                        <td className="py-3 px-3 font-semibold text-slate-800">{customer.name}</td>
-                        <td className="py-3 px-3 font-semibold text-slate-500">{customer.phone || '—'}</td>
-                        <td className="py-3 px-3 text-center font-bold text-slate-700">{customer.serviceCount} lượt</td>
-                        <td className="py-3 px-3 text-right font-bold text-emerald-600">{customer.totalPaid.toLocaleString('vi-VN')} đ</td>
-                      </tr>
-                    ))}
-                    {(data?.topCustomers || []).length === 0 && (
-                      <tr>
-                        <td colSpan={4} className="text-center py-4 text-slate-400 font-medium">Không có khách hàng sử dụng dịch vụ trong khoảng này</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
           </div>
         </>
       )}
 
       {activeTab === 'advanced' && advancedView === 'plan' && (
         <div className="space-y-5">
-          <div className="bg-gradient-to-r from-indigo-700 to-[#00285E] p-5 rounded-2xl text-white flex items-center justify-between gap-4">
+          <div className="bg-gradient-to-r from-indigo-700 to-[#00285E] p-5 rounded-2xl text-white flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="text-lg font-bold flex items-center gap-2"><Sparkles size={19} /> Kế hoạch phát triển AI</h2>
-              <p className="text-xs text-indigo-100 mt-1">Bản kế hoạch hành động được chọn lọc từ kết quả phân tích.</p>
+              <h2 className="text-lg font-bold flex items-center gap-2"><Sparkles size={19} /> Kế hoạch vận hành {planHorizon === '1_month' ? '1 tháng' : '3 tháng'}</h2>
+              <p className="text-xs text-indigo-100 mt-1">Lộ trình cụ thể theo thời gian, có căn cứ, KPI, người phụ trách đề xuất và điều kiện điều chỉnh.</p>
             </div>
-            <button
-              onClick={() => setAdvancedView('analysis')}
-              className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold"
-            >
-              ← Quay lại phân tích
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <div className="flex rounded-xl border border-white/20 bg-white/10 p-1">
+                {([
+                  { value: '1_month', label: '1 tháng' },
+                  { value: '3_months', label: '3 tháng' },
+                ] as const).map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setPlanHorizon(option.value)}
+                    className={`rounded-lg px-3.5 py-2 text-xs font-bold transition ${planHorizon === option.value ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:bg-white/10'}`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={fetchAiStrategy}
+                disabled={isAiLoading}
+                className="flex items-center gap-2 rounded-xl bg-amber-400 px-4 py-2.5 text-xs font-black text-[#00285E] hover:bg-amber-300 disabled:opacity-60"
+              >
+                <RefreshCw size={14} className={isAiLoading ? 'animate-spin' : ''} /> Tạo lại kế hoạch
+              </button>
+              <button
+                onClick={() => setAdvancedView('analysis')}
+                className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold"
+              >
+                ← Quay lại phân tích
+              </button>
+            </div>
           </div>
 
           <div className="bg-white rounded-2xl border border-indigo-100 p-6 min-h-[320px]">
@@ -872,10 +1228,29 @@ export default function AdminStatistics() {
               <div className="min-h-[270px] flex flex-col items-center justify-center">
                 <Sparkles size={30} className="text-indigo-600 animate-pulse" />
                 <p className="text-sm font-bold text-slate-700 mt-3">Đang xây dựng kế hoạch...</p>
-                <p className="text-xs text-slate-400 mt-1">AI đang chọn tối đa 3 hành động ưu tiên.</p>
+                <p className="text-xs text-slate-400 mt-1">AI đang xây mục tiêu, lộ trình, KPI và điều kiện điều chỉnh cho {planHorizon === '1_month' ? '4 tuần' : '3 tháng'}.</p>
               </div>
             ) : advancedData?.gemini_insights ? (
-              <div className="max-w-none">{renderMarkdown(advancedData.gemini_insights)}</div>
+              <div className="space-y-5">
+                {advancedData.weather_context && (
+                  <div className="flex flex-col gap-4 rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 to-blue-50/50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500 text-xl text-white">☔</span>
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-[0.16em] text-sky-700">Ngữ cảnh kế hoạch · Đà Nẵng</p>
+                        <p className="mt-1 text-xs font-bold text-slate-800">Dự báo {advancedData.weather_context.startDate} → {advancedData.weather_context.endDate}</p>
+                        <p className="mt-1 text-[10px] text-slate-500">Nguồn: {advancedData.weather_context.source} · Dự báo chỉ hỗ trợ lập kế hoạch, không chứng minh nguyên nhân doanh thu.</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-xl bg-white px-3 py-2 text-[10px] font-bold text-sky-700 shadow-xs">Mưa: {advancedData.weather_context.rainyDays}/{advancedData.weather_context.totalDays} ngày</span>
+                      <span className="rounded-xl bg-white px-3 py-2 text-[10px] font-bold text-blue-700 shadow-xs">Lượng mưa: {advancedData.weather_context.totalRainMm} mm</span>
+                      <span className="rounded-xl bg-white px-3 py-2 text-[10px] font-bold text-amber-700 shadow-xs">Cao nhất: {Number(advancedData.weather_context.maxTemperatureC || 0).toFixed(1)}°C</span>
+                    </div>
+                  </div>
+                )}
+                <div className="max-w-none">{renderMarkdown(advancedData.gemini_insights)}</div>
+              </div>
             ) : (
               <div className="min-h-[270px] flex flex-col items-center justify-center text-center">
                 <Lightbulb size={30} className="text-slate-300" />
@@ -888,83 +1263,165 @@ export default function AdminStatistics() {
       )}
 
       {activeTab === 'advanced' && advancedView === 'analysis' && (
-        <div className="space-y-5">
-          <div className="bg-gradient-to-r from-[#00285E] to-[#06478f] p-5 rounded-2xl text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-bold flex items-center gap-2"><BarChart3 size={19} /> Phân tích chuyên sâu</h2>
-              <p className="text-xs text-blue-100 mt-1">Số liệu so sánh, điểm đáng chú ý và hành động đề xuất từ hệ thống.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <select
-                value={comparisonMode}
-                onChange={(event) => setComparisonMode(event.target.value as typeof comparisonMode)}
-                className="px-3 py-2.5 rounded-xl bg-white text-[#00285E] text-xs font-bold outline-none"
-              >
-                <option value="month_previous">Tháng này với tháng trước</option>
-                <option value="month_last_year">Tháng này với cùng tháng năm trước</option>
-                <option value="year_last_year">Năm nay với năm trước</option>
-              </select>
-              <button
-                onClick={() => fetchAdvancedData()}
-                disabled={isAdvancedLoading}
-                className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold flex items-center gap-2 disabled:opacity-60"
-              >
-                <RefreshCw size={14} className={isAdvancedLoading ? 'animate-spin' : ''} /> Làm mới số liệu
-              </button>
-              <button
-                onClick={() => {
-                  setAdvancedView('plan');
-                  if (!advancedData?.gemini_insights) fetchAiStrategy();
-                }}
-                disabled={isAiLoading || isAdvancedLoading || !advancedData}
-                className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-[#00285E] text-xs font-bold flex items-center gap-2 disabled:opacity-60"
-              >
-                <Sparkles size={14} className={isAiLoading ? 'animate-spin' : ''} />
-                {isAiLoading ? 'Đang lập kế hoạch...' : 'Tạo kế hoạch AI'}
-              </button>
+        <div className="space-y-6">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#001c43] via-[#003574] to-indigo-700 p-6 text-white shadow-lg shadow-blue-950/10">
+            <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-400/15 blur-2xl" />
+            <div className="absolute bottom-0 right-1/3 h-24 w-40 rounded-full bg-violet-400/10 blur-2xl" />
+            <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-start gap-4">
+                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 shadow-inner">
+                  <Sparkles size={23} className="text-amber-300" />
+                  <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-[#003574] bg-emerald-400" />
+                </div>
+                <div>
+                  <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                    <h2 className="text-xl font-black">Trợ lý phân tích doanh thu</h2>
+                    <span className="rounded-full border border-emerald-300/30 bg-emerald-400/15 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-emerald-200">Đã phân tích</span>
+                  </div>
+                  <p className="max-w-2xl text-xs leading-relaxed text-blue-100">Hệ thống đối chiếu doanh thu, số đơn và giá trị hóa đơn để chỉ ra nguyên nhân biến động và gợi ý việc cần ưu tiên.</p>
+                  <p className="mt-2 text-[10px] font-semibold text-blue-200">
+                    Dữ liệu: {advancedData?.summary?.selected_period?.startDate || analysisRange.startDate} → {advancedData?.summary?.selected_period?.endDate || analysisRange.endDate} · Đối chiếu với {comparisonPeriodLabel.toLowerCase()}
+                  </p>
+                </div>
+              </div>
+              <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto lg:min-w-[540px]">
+                <label className="rounded-xl border border-white/20 bg-white/10 px-3 py-2">
+                  <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-blue-100">Từ ngày</span>
+                  <input
+                    type="date"
+                    value={advancedStartDate}
+                    max={advancedEndDate || undefined}
+                    onChange={(event) => setAdvancedStartDate(event.target.value)}
+                    className="w-full bg-transparent text-xs font-bold text-white outline-none [color-scheme:dark]"
+                  />
+                </label>
+                <label className="rounded-xl border border-white/20 bg-white/10 px-3 py-2">
+                  <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-blue-100">Đến ngày</span>
+                  <input
+                    type="date"
+                    value={advancedEndDate}
+                    min={advancedStartDate || undefined}
+                    max={formatLocalDate(new Date())}
+                    onChange={(event) => setAdvancedEndDate(event.target.value)}
+                    className="w-full bg-transparent text-xs font-bold text-white outline-none [color-scheme:dark]"
+                  />
+                </label>
+                <select
+                  value={comparisonMode}
+                  onChange={(event) => setComparisonMode(event.target.value as typeof comparisonMode)}
+                  aria-label="Chọn khoảng thời gian để so sánh"
+                  className="rounded-xl border border-white/20 bg-white px-3 py-2.5 text-xs font-bold text-[#00285E] outline-none"
+                >
+                  <option value="month_previous">So với khoảng trước đó</option>
+                  <option value="month_last_year">So với cùng ngày năm trước</option>
+                  <option value="year_last_year">Xem theo tháng với năm trước</option>
+                </select>
+                <button
+                  onClick={handleAdvancedRefresh}
+                  disabled={isAdvancedLoading}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-bold hover:bg-white/20 disabled:opacity-60"
+                >
+                  <RefreshCw size={14} className={isAdvancedLoading ? 'animate-spin' : ''} /> Phân tích lại
+                </button>
+                <label className="rounded-xl border border-white/20 bg-white/10 px-3 py-2">
+                  <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-blue-100">Lập kế hoạch cho</span>
+                  <select
+                    value={planHorizon}
+                    onChange={(event) => setPlanHorizon(event.target.value as typeof planHorizon)}
+                    className="w-full bg-transparent text-xs font-bold text-white outline-none [color-scheme:dark]"
+                  >
+                    <option className="text-slate-900" value="1_month">1 tháng tới</option>
+                    <option className="text-slate-900" value="3_months">3 tháng tới</option>
+                  </select>
+                </label>
+                <button
+                  onClick={() => {
+                    setAdvancedView('plan');
+                    if (!advancedData?.gemini_insights || advancedData?.plan_horizon !== planHorizon) fetchAiStrategy();
+                  }}
+                  disabled={isAiLoading || isAdvancedLoading || !advancedData}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 py-2.5 text-xs font-black text-[#00285E] shadow-sm hover:bg-amber-300 disabled:opacity-60"
+                >
+                  <Sparkles size={14} className={isAiLoading ? 'animate-spin' : ''} />
+                  {isAiLoading ? 'Đang lập kế hoạch...' : 'Tạo kế hoạch AI chi tiết'}
+                </button>
+              </div>
             </div>
           </div>
 
           {isAdvancedLoading ? (
-            <div className="min-h-[300px] bg-white rounded-2xl border border-slate-200 flex flex-col items-center justify-center">
-              <RefreshCw size={28} className="animate-spin text-amber-500" />
-              <p className="text-sm font-bold text-slate-700 mt-3">Đang phân tích ba kỳ dữ liệu...</p>
+            <div className="min-h-[360px] rounded-3xl border border-indigo-100 bg-white flex flex-col items-center justify-center">
+              <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50">
+                <Sparkles size={28} className="animate-pulse text-indigo-600" />
+                <RefreshCw size={18} className="absolute -bottom-1 -right-1 animate-spin rounded-full bg-white p-1 text-amber-500 shadow" />
+              </div>
+              <p className="mt-4 text-sm font-black text-slate-800">AI đang đọc dữ liệu doanh thu...</p>
+              <p className="mt-1 text-xs text-slate-400">So sánh các khoảng ngày · tìm nguyên nhân · xếp hạng mức độ ưu tiên</p>
+              <div className="mt-5 h-1.5 w-52 overflow-hidden rounded-full bg-slate-100"><div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-blue-600 to-violet-500" /></div>
             </div>
           ) : advancedData ? (
             <>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="rounded-3xl border border-indigo-100 bg-gradient-to-r from-indigo-50/80 via-white to-blue-50/70 p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white"><Sparkles size={17} /></div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-600">AI tóm tắt kết quả</p>
+                    <h3 className="mt-1 text-base font-black leading-snug text-slate-900">
+                      Doanh thu {aiSnapshot.revenueDifference >= 0 ? 'tăng' : 'giảm'} {Math.abs(aiSnapshot.revenueDifference).toLocaleString('vi-VN')} đ
+                      {aiSnapshot.growthPct !== null && <> ({aiSnapshot.revenueDifference >= 0 ? '+' : '−'}{Math.abs(aiSnapshot.growthPct).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%)</>} so với {comparisonPeriodLabel.toLowerCase()}.
+                    </h3>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                      Biến động lớn hơn đến từ <strong className="text-slate-800">{aiSnapshot.primaryDriver === 'orders' ? 'số lượng đơn hoàn thành' : 'giá trị trung bình mỗi đơn'}</strong>.
+                      {' '}Khoảng đang xem ghi nhận <strong className="text-slate-800">{aiSnapshot.currentOrders} đơn</strong>, trung bình <strong className="text-slate-800">{Math.round(aiSnapshot.currentTicket).toLocaleString('vi-VN')} đ/đơn</strong>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 {[
                   {
                     label: `Doanh thu ${currentPeriodLabel.toLowerCase()}`,
-                    value: `${((advancedData.summary?.total_this_year || 0) / 1_000_000).toFixed(1)} Tr.đ`,
-                    sub: `${advancedData.summary?.this_year_orders || 0} lượt dịch vụ`,
-                    color: 'text-emerald-600',
+                    value: `${(aiSnapshot.currentRevenue / 1_000_000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} Tr.đ`,
+                    sub: `${aiSnapshot.currentOrders} đơn đã thanh toán`,
+                    color: 'text-[#00285E]',
+                    icon: <ShoppingCart size={17} />,
+                    iconStyle: 'bg-blue-50 text-blue-700',
                   },
                   {
-                    label: `Doanh thu ${comparisonPeriodLabel.toLowerCase()}`,
-                    value: `${(((compareWithLastYear ? advancedData.summary?.total_last_year : advancedData.summary?.total_previous_period) || 0) / 1_000_000).toFixed(1)} Tr.đ`,
-                    sub: compareWithLastYear
-                      ? `${advancedData.summary?.last_year_orders || 0} lượt dịch vụ`
-                      : `${advancedData.summary?.previous_period_orders || 0} lượt dịch vụ`,
-                    color: 'text-blue-600',
+                    label: 'Biến động doanh thu',
+                    value: `${aiSnapshot.revenueDifference >= 0 ? '+' : '−'}${(Math.abs(aiSnapshot.revenueDifference) / 1_000_000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} Tr.đ`,
+                    sub: aiSnapshot.growthPct === null ? 'Chưa đủ dữ liệu tính tỷ lệ' : `${aiSnapshot.revenueDifference >= 0 ? 'Tăng' : 'Giảm'} ${Math.abs(aiSnapshot.growthPct).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`,
+                    color: aiSnapshot.revenueDifference >= 0 ? 'text-emerald-600' : 'text-rose-600',
+                    icon: aiSnapshot.revenueDifference >= 0 ? <ArrowUpRight size={17} /> : <ArrowDownRight size={17} />,
+                    iconStyle: aiSnapshot.revenueDifference >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700',
                   },
                   {
-                    label: `Tăng trưởng so với ${comparisonPeriodLabel.toLowerCase()}`,
-                    value: `${(compareWithLastYear ? advancedData.summary?.yoy_growth_pct : advancedData.summary?.previous_period_growth_pct) >= 0 ? '+' : ''}${(compareWithLastYear ? advancedData.summary?.yoy_growth_pct : advancedData.summary?.previous_period_growth_pct) || 0}%`,
-                    sub: `${currentPeriodLabel} so với ${comparisonPeriodLabel}`,
-                    color: (compareWithLastYear ? advancedData.summary?.yoy_growth_pct : advancedData.summary?.previous_period_growth_pct) >= 0 ? 'text-emerald-600' : 'text-rose-500',
+                    label: 'Số đơn hoàn thành',
+                    value: `${aiSnapshot.currentOrders} đơn`,
+                    sub: `${aiSnapshot.orderDifference >= 0 ? 'Tăng' : 'Giảm'} ${Math.abs(aiSnapshot.orderDifference)} đơn${aiSnapshot.orderGrowthPct !== null ? ` (${Math.abs(aiSnapshot.orderGrowthPct).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%)` : ''}`,
+                    color: aiSnapshot.orderDifference >= 0 ? 'text-emerald-600' : 'text-rose-600',
+                    icon: <Wrench size={17} />,
+                    iconStyle: 'bg-violet-50 text-violet-700',
                   },
                   {
                     label: 'Hóa đơn trung bình',
-                    value: `${Math.round(advancedData.summary?.this_year_avg_ticket || 0).toLocaleString('vi-VN')} đ`,
-                    sub: `${advancedData.dashboard_stats?.kpis?.activeCustomers || 0} khách hoạt động`,
-                    color: 'text-[#00285E]',
+                    value: `${Math.round(aiSnapshot.currentTicket).toLocaleString('vi-VN')} đ`,
+                    sub: aiSnapshot.comparisonTicket > 0
+                      ? `${aiSnapshot.ticketDifference >= 0 ? 'Tăng' : 'Giảm'} ${Math.abs(Math.round(aiSnapshot.ticketDifference)).toLocaleString('vi-VN')} đ`
+                      : `${aiSnapshot.activeCustomers} khách hoạt động`,
+                    color: aiSnapshot.ticketDifference >= 0 ? 'text-emerald-600' : 'text-rose-600',
+                    icon: <Users size={17} />,
+                    iconStyle: 'bg-amber-50 text-amber-700',
                   },
                 ].map((item) => (
-                  <div key={item.label} className="bg-white rounded-2xl border border-slate-200/70 p-5">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{item.label}</p>
-                    <p className={`text-xl font-black mt-2 ${item.color}`}>{item.value}</p>
-                    <p className="text-[10px] font-semibold text-slate-400 mt-1">{item.sub}</p>
+                  <div key={item.label} className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-xs transition-shadow hover:shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{item.label}</p>
+                      <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${item.iconStyle}`}>{item.icon}</span>
+                    </div>
+                    <p className={`mt-3 text-xl font-black ${item.color}`}>{item.value}</p>
+                    <p className="mt-1 text-[10px] font-semibold text-slate-500">{item.sub} · so với {comparisonPeriodLabel.toLowerCase()}</p>
                   </div>
                 ))}
               </div>
@@ -973,7 +1430,7 @@ export default function AdminStatistics() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
                   <div>
                     <h3 className="font-bold text-slate-800 flex items-center gap-2"><BarChart3 size={17} className="text-[#00285E]" /> {currentPeriodLabel} so với {comparisonPeriodLabel}</h3>
-                    <p className="text-[10px] text-slate-400 mt-1">Đơn vị: triệu đồng · Chỉ hiển thị hai kỳ đang chọn</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Đơn vị: triệu đồng · So sánh hai khoảng thời gian</p>
                   </div>
                   <span className="text-[10px] font-semibold text-slate-400">
                     {advancedData.summary?.selected_period?.startDate} → {advancedData.summary?.selected_period?.endDate}
@@ -1015,37 +1472,147 @@ export default function AdminStatistics() {
                 </div>}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <div className="bg-white rounded-2xl border border-slate-200/70 p-5">
-                  <h3 className="font-bold text-slate-800 flex items-center gap-2"><Target size={17} className="text-blue-600" /> Điểm cần chú ý</h3>
-                  <div className="mt-4 space-y-3">
-                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
-                      <p className="text-[10px] font-bold uppercase text-emerald-700">Dịch vụ nổi bật</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1">{advancedData.top_services?.[0]?.service_name || 'Chưa đủ dữ liệu'}</p>
-                      <p className="text-xs text-slate-500">{advancedData.top_services?.[0]?.total_qty || 0} lượt · {Number(advancedData.top_services?.[0]?.total_revenue || 0).toLocaleString('vi-VN')} đ</p>
+              <div className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-5">
+                <div className="rounded-3xl border border-slate-200/70 bg-white p-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-600">AI giải thích nguyên nhân</p>
+                      <h3 className="mt-1 font-black text-slate-900">Điều gì đang kéo doanh thu lên hoặc xuống?</h3>
                     </div>
-                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-100">
-                      <p className="text-[10px] font-bold uppercase text-rose-700">Dịch vụ cần cải thiện</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1">{advancedData.ai_planner?.low_demand_plans?.[0]?.service_name || 'Chưa phát hiện'}</p>
-                      <p className="text-xs text-slate-500">{advancedData.ai_planner?.low_demand_plans?.[0]?.annual_count || 0} lượt trong kỳ đã chọn</p>
+                    <span className="rounded-full bg-indigo-50 px-3 py-1 text-[9px] font-bold text-indigo-700">2 yếu tố chính</span>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                    <div className={`rounded-2xl border p-4 ${aiSnapshot.orderDifference >= 0 ? 'border-emerald-100 bg-emerald-50/50' : 'border-rose-100 bg-rose-50/50'}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Số đơn hoàn thành</span>
+                        {aiSnapshot.orderDifference >= 0 ? <ArrowUpRight size={18} className="text-emerald-600" /> : <ArrowDownRight size={18} className="text-rose-600" />}
+                      </div>
+                      <p className="mt-2 text-2xl font-black text-slate-900">{aiSnapshot.currentOrders} <span className="text-sm text-slate-500">đơn</span></p>
+                      <p className={`mt-1 text-xs font-bold ${aiSnapshot.orderDifference >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                        {aiSnapshot.orderDifference >= 0 ? '+' : '−'}{Math.abs(aiSnapshot.orderDifference)} đơn
+                        {aiSnapshot.orderGrowthPct !== null && <> · {aiSnapshot.orderDifference >= 0 ? '+' : '−'}{Math.abs(aiSnapshot.orderGrowthPct).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%</>}
+                      </p>
+                      <p className="mt-3 text-[11px] leading-relaxed text-slate-600">{aiSnapshot.orderDifference >= 0 ? 'Gara phục vụ nhiều đơn hơn, tạo lực đẩy cho doanh thu.' : 'Số đơn giảm đang trực tiếp thu hẹp nguồn doanh thu.'}</p>
                     </div>
-                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-100">
-                      <p className="text-[10px] font-bold uppercase text-amber-700">Phụ tùng cần chuẩn bị</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1">{advancedData.ai_planner?.import_suggestions?.[0]?.part_name || 'Chưa có cảnh báo nhập kho'}</p>
-                      {advancedData.ai_planner?.import_suggestions?.[0] && (
-                        <p className="text-xs text-slate-500">Đề xuất chuẩn bị {advancedData.ai_planner.import_suggestions[0].suggested_import} sản phẩm</p>
-                      )}
+
+                    <div className={`rounded-2xl border p-4 ${aiSnapshot.ticketDifference >= 0 ? 'border-emerald-100 bg-emerald-50/50' : 'border-rose-100 bg-rose-50/50'}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Giá trị mỗi đơn</span>
+                        {aiSnapshot.ticketDifference >= 0 ? <ArrowUpRight size={18} className="text-emerald-600" /> : <ArrowDownRight size={18} className="text-rose-600" />}
+                      </div>
+                      <p className="mt-2 text-2xl font-black text-slate-900">{Math.round(aiSnapshot.currentTicket).toLocaleString('vi-VN')} <span className="text-sm text-slate-500">đ</span></p>
+                      <p className={`mt-1 text-xs font-bold ${aiSnapshot.ticketDifference >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                        {aiSnapshot.comparisonTicket > 0 ? <>{aiSnapshot.ticketDifference >= 0 ? '+' : '−'}{Math.abs(Math.round(aiSnapshot.ticketDifference)).toLocaleString('vi-VN')} đ{aiSnapshot.ticketGrowthPct !== null && <> · {aiSnapshot.ticketDifference >= 0 ? '+' : '−'}{Math.abs(aiSnapshot.ticketGrowthPct).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%</>}</> : 'Khoảng so sánh chưa có dữ liệu'}
+                      </p>
+                      <p className="mt-3 text-[11px] leading-relaxed text-slate-600">{aiSnapshot.ticketDifference >= 0 ? 'Khách chi tiêu nhiều hơn trên mỗi lần sử dụng dịch vụ.' : 'Mức chi tiêu mỗi đơn giảm và đang làm yếu chất lượng tăng trưởng.'}</p>
                     </div>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border-l-4 border-indigo-500 bg-slate-50 p-4">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-indigo-600">Kết luận của hệ thống</p>
+                    <p className="mt-1.5 text-xs font-semibold leading-relaxed text-slate-700">
+                      {aiSnapshot.revenueDifference >= 0 ? 'Doanh thu đang tăng.' : 'Doanh thu đang giảm.'}{' '}
+                      Yếu tố cần chú ý nhất là <strong>{aiSnapshot.primaryDriver === 'orders' ? `số đơn ${aiSnapshot.orderDifference >= 0 ? 'tăng' : 'giảm'} ${Math.abs(aiSnapshot.orderDifference)}` : `giá trị đơn ${aiSnapshot.ticketDifference >= 0 ? 'tăng' : 'giảm'} ${Math.abs(Math.round(aiSnapshot.ticketDifference)).toLocaleString('vi-VN')} đ`}</strong> so với {comparisonPeriodLabel.toLowerCase()}.
+                    </p>
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-slate-200/70 p-5">
-                  <h3 className="font-bold text-slate-800 flex items-center gap-2"><Lightbulb size={17} className="text-amber-500" /> 3 hành động ưu tiên</h3>
-                  <div className="mt-4 space-y-3">
-                    <div className="flex gap-3"><span className="w-7 h-7 rounded-full bg-[#00285E] text-white text-xs font-bold flex items-center justify-center shrink-0">1</span><p className="text-xs text-slate-600 leading-relaxed"><strong className="text-slate-800">Tập trung dịch vụ chủ lực:</strong> duy trì chất lượng và bán kèm cho “{advancedData.top_services?.[0]?.service_name || 'dịch vụ đang dẫn đầu'}”.</p></div>
-                    <div className="flex gap-3"><span className="w-7 h-7 rounded-full bg-[#00285E] text-white text-xs font-bold flex items-center justify-center shrink-0">2</span><p className="text-xs text-slate-600 leading-relaxed"><strong className="text-slate-800">Kích cầu có chọn lọc:</strong> thử ưu đãi ngắn hạn cho “{advancedData.ai_planner?.low_demand_plans?.[0]?.service_name || 'dịch vụ ít khách'}” và đo số lượt phát sinh.</p></div>
-                    <div className="flex gap-3"><span className="w-7 h-7 rounded-full bg-[#00285E] text-white text-xs font-bold flex items-center justify-center shrink-0">3</span><p className="text-xs text-slate-600 leading-relaxed"><strong className="text-slate-800">Chuẩn bị vận hành:</strong> ưu tiên tồn kho “{advancedData.ai_planner?.import_suggestions?.[0]?.part_name || advancedData.top_parts?.[0]?.name || 'phụ tùng bán chạy'}” và bố trí nhân lực theo nhu cầu.</p></div>
+                <div className="rounded-3xl border border-slate-200/70 bg-white p-6">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-600">AI phát hiện từ dữ liệu</p>
+                  <h3 className="mt-1 font-black text-slate-900">Dịch vụ và vận hành cần theo dõi</h3>
+                  <div className="mt-5 space-y-3">
+                    {advancedData.top_services?.[0] ? (
+                      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
+                        <div className="flex items-start gap-3">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white"><TrendingUp size={15} /></span>
+                          <div>
+                            <p className="text-[9px] font-black uppercase tracking-wider text-emerald-700">Nhiều lượt nhất trong khoảng đang xem</p>
+                            <p className="mt-1 text-sm font-black text-slate-900">{advancedData.top_services[0].service_name}</p>
+                            <p className="mt-1 text-[11px] text-slate-600">{advancedData.top_services[0].total_qty} lượt · {Number(advancedData.top_services[0].total_revenue || 0).toLocaleString('vi-VN')} đ doanh thu</p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-xs text-slate-500">Chưa đủ dữ liệu để xác định dịch vụ dẫn đầu.</div>
+                    )}
+
+                    {advancedData.yoy_service_drivers?.declining?.[0] ? (
+                      <div className="rounded-2xl border border-rose-100 bg-rose-50/50 p-4">
+                        <div className="flex items-start gap-3">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-rose-600 text-white"><ArrowDownRight size={15} /></span>
+                          <div>
+                            <p className="text-[9px] font-black uppercase tracking-wider text-rose-700">Giảm nhiều nhất so với cùng ngày năm trước</p>
+                            <p className="mt-1 text-sm font-black text-slate-900">{advancedData.yoy_service_drivers.declining[0].service_name}</p>
+                            <p className="mt-1 text-[11px] text-slate-600">Giảm {Math.abs(Number(advancedData.yoy_service_drivers.declining[0].growth_amount || 0)).toLocaleString('vi-VN')} đ · hiện đạt {Number(advancedData.yoy_service_drivers.declining[0].this_year_rev || 0).toLocaleString('vi-VN')} đ</p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-xs text-slate-600">Chưa phát hiện dịch vụ giảm doanh thu đáng kể so với cùng khoảng thời gian năm trước.</div>
+                    )}
+
+                    {advancedData.ai_planner?.import_suggestions?.[0] && (
+                      <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
+                        <div className="flex items-start gap-3">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white"><Package size={15} /></span>
+                          <div>
+                            <p className="text-[9px] font-black uppercase tracking-wider text-amber-700">Nhu cầu phụ tùng dự kiến</p>
+                            <p className="mt-1 text-sm font-black text-slate-900">{advancedData.ai_planner.import_suggestions[0].part_name}</p>
+                            <p className="mt-1 text-[11px] text-slate-600">Mức cần chuẩn bị: {advancedData.ai_planner.import_suggestions[0].suggested_import} sản phẩm · cần đối chiếu tồn kho trước khi nhập</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-indigo-100 bg-white p-6 shadow-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-600">Đề xuất ưu tiên</p>
+                    <h3 className="mt-1 font-black text-slate-900">Ba việc nên làm tiếp theo</h3>
+                    <p className="mt-1 text-[11px] text-slate-500">Đề xuất theo quy tắc dữ liệu; dùng “Kế hoạch AI chi tiết” để tạo KPI và thời hạn cụ thể.</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setAdvancedView('plan');
+                      if (!advancedData?.gemini_insights || advancedData?.plan_horizon !== planHorizon) fetchAiStrategy();
+                    }}
+                    className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-700"
+                  >
+                    <Sparkles size={14} /> Mở kế hoạch AI
+                  </button>
+                </div>
+                <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                  {[
+                    {
+                      title: aiSnapshot.revenueDifference >= 0 ? 'Giữ đà tăng trưởng' : 'Khôi phục doanh thu',
+                      reason: `${aiSnapshot.revenueDifference >= 0 ? 'Doanh thu tăng' : 'Doanh thu giảm'} ${Math.abs(aiSnapshot.revenueDifference).toLocaleString('vi-VN')} đ so với ${comparisonPeriodLabel.toLowerCase()}.`,
+                      action: aiSnapshot.primaryDriver === 'orders' ? 'Theo dõi số đơn hoàn thành hằng tuần.' : 'Theo dõi giá trị trung bình mỗi đơn.',
+                    },
+                    {
+                      title: advancedData.yoy_service_drivers?.declining?.[0] ? `Kiểm tra ${advancedData.yoy_service_drivers.declining[0].service_name}` : 'Theo dõi dịch vụ chủ lực',
+                      reason: advancedData.yoy_service_drivers?.declining?.[0]
+                        ? `Dịch vụ này giảm ${Math.abs(Number(advancedData.yoy_service_drivers.declining[0].growth_amount || 0)).toLocaleString('vi-VN')} đ so với cùng khoảng thời gian năm trước.`
+                        : `${advancedData.top_services?.[0]?.service_name || 'Dịch vụ dẫn đầu'} có nhiều lượt nhất trong khoảng đang xem.`,
+                      action: advancedData.yoy_service_drivers?.declining?.[0] ? 'Kiểm tra báo giá bị từ chối và số đơn hoàn thành.' : 'Duy trì năng lực phục vụ và chất lượng.',
+                    },
+                    {
+                      title: aiSnapshot.ticketDifference < 0 ? 'Cải thiện giá trị mỗi đơn' : 'Duy trì mức chi tiêu mỗi đơn',
+                      reason: aiSnapshot.comparisonTicket > 0 ? `Hóa đơn trung bình ${aiSnapshot.ticketDifference >= 0 ? 'tăng' : 'giảm'} ${Math.abs(Math.round(aiSnapshot.ticketDifference)).toLocaleString('vi-VN')} đ.` : 'Khoảng thời gian dùng để so sánh chưa có đủ dữ liệu.',
+                      action: 'Theo dõi giá trị đơn và tỷ lệ dịch vụ mua kèm.',
+                    },
+                  ].map((item, index) => (
+                    <div key={item.title} className="relative rounded-2xl border border-slate-200 bg-slate-50/50 p-5">
+                      <span className="absolute right-4 top-4 text-3xl font-black text-slate-100">0{index + 1}</span>
+                      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#00285E] text-xs font-black text-white">{index + 1}</span>
+                      <h4 className="mt-3 pr-8 text-sm font-black text-slate-900">{item.title}</h4>
+                      <p className="mt-2 text-[11px] leading-relaxed text-slate-500"><strong className="text-slate-700">Căn cứ:</strong> {item.reason}</p>
+                      <p className="mt-2 text-[11px] leading-relaxed text-indigo-700"><strong>Việc cần làm:</strong> {item.action}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -1103,7 +1670,7 @@ export default function AdminStatistics() {
             <div className="flex flex-col items-center justify-center min-h-[400px] bg-white rounded-2xl border border-slate-200/60 shadow-xs">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500 mb-4"></div>
               <p className="text-slate-700 text-sm font-bold">Đang xử lý dữ liệu Pandas...</p>
-              <p className="text-slate-400 text-xs mt-1">Đang phân tích kỳ đã chọn và các kỳ so sánh, vui lòng chờ</p>
+              <p className="text-slate-400 text-xs mt-1">Đang phân tích khoảng ngày đã chọn và các khoảng dùng để so sánh, vui lòng chờ</p>
             </div>
           ) : advancedData ? (
             <div className="space-y-6">
@@ -1114,19 +1681,19 @@ export default function AdminStatistics() {
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
                       {
-                        label: 'Doanh thu kỳ đã chọn',
+                        label: 'Doanh thu khoảng đang xem',
                         value: `${((advancedData?.summary?.total_this_year || 0) / 1_000_000).toFixed(1)} Tr.đ`,
                         icon: <TrendingUp size={20} />, color: '#10B981', bg: '#D1FAE5',
                         sub: `${advancedData?.summary?.selected_period?.startDate || '--'} → ${advancedData?.summary?.selected_period?.endDate || '--'}`,
                       },
                       {
-                        label: 'Doanh thu kỳ liền trước',
+                        label: 'Doanh thu khoảng trước đó',
                         value: `${((advancedData?.summary?.total_previous_period || 0) / 1_000_000).toFixed(1)} Tr.đ`,
                         icon: <Calendar size={20} />, color: '#8B5CF6', bg: '#F3E8FF',
                         sub: `${advancedData?.summary?.previous_period?.startDate || '--'} → ${advancedData?.summary?.previous_period?.endDate || '--'}`,
                       },
                       {
-                        label: 'Doanh thu cùng kỳ năm trước',
+                        label: 'Doanh thu cùng khoảng năm trước',
                         value: `${((advancedData?.summary?.total_last_year || 0) / 1_000_000).toFixed(1)} Tr.đ`,
                         icon: <Calendar size={20} />, color: '#3B82F6', bg: '#EFF6FF',
                         sub: `${advancedData?.summary?.same_period_last_year?.startDate || '--'} → ${advancedData?.summary?.same_period_last_year?.endDate || '--'}`,
@@ -1137,7 +1704,7 @@ export default function AdminStatistics() {
                         icon: advancedData?.summary?.yoy_growth_pct >= 0 ? <ArrowUpRight size={20} /> : <ArrowDownRight size={20} />,
                         color: advancedData?.summary?.yoy_growth_pct >= 0 ? '#10B981' : '#EF4444',
                         bg: advancedData?.summary?.yoy_growth_pct >= 0 ? '#D1FAE5' : '#FEE2E2',
-                        sub: 'So với cùng kỳ năm ngoái',
+                        sub: 'So với cùng khoảng thời gian năm trước',
                       },
                     ].map((card, i) => (
                       <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs">
@@ -1198,7 +1765,7 @@ export default function AdminStatistics() {
                         </div>
                         <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
                           Doanh thu biến động do số lượng xe ghé Gara thay đổi.
-                          Lượng xe đã thay đổi <span className="font-bold text-white">{advancedData?.summary?.this_year_orders - advancedData?.summary?.last_year_orders} lượt xe</span> so với cùng kỳ năm trước.
+                          Lượng xe đã thay đổi <span className="font-bold text-white">{advancedData?.summary?.this_year_orders - advancedData?.summary?.last_year_orders} lượt xe</span> so với cùng khoảng thời gian năm trước.
                         </p>
                       </div>
 
@@ -1213,7 +1780,7 @@ export default function AdminStatistics() {
                         </div>
                         <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
                           Doanh thu biến động do khách làm nhiều hạng mục hơn hoặc thay linh kiện đắt tiền hơn.
-                          Hóa đơn trung bình đạt <span className="font-bold text-white">{Math.round(advancedData?.summary?.this_year_avg_ticket || 0).toLocaleString('vi-VN')} đ</span> (cùng kỳ năm trước là {Math.round(advancedData?.summary?.last_year_avg_ticket || 0).toLocaleString('vi-VN')} đ).
+                          Hóa đơn trung bình đạt <span className="font-bold text-white">{Math.round(advancedData?.summary?.this_year_avg_ticket || 0).toLocaleString('vi-VN')} đ</span> (cùng khoảng thời gian năm trước là {Math.round(advancedData?.summary?.last_year_avg_ticket || 0).toLocaleString('vi-VN')} đ).
                         </p>
                       </div>
 
@@ -1229,7 +1796,7 @@ export default function AdminStatistics() {
                           </p>
                         </div>
                         <div className="text-[10px] text-slate-400 font-semibold italic mt-2">
-                          * Phân tích tự động dựa trên dữ liệu thanh toán Booking_Payments.
+                          * Phân tích tự động dựa trên các khoản khách đã thanh toán.
                         </div>
                       </div>
                     </div>
@@ -1241,7 +1808,7 @@ export default function AdminStatistics() {
                       <div>
                         <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
                           <BarChart3 size={18} className="text-[#00285E]" />
-                          📈 Biểu đồ doanh thu kỳ đã chọn và cùng kỳ năm trước
+                          📈 Doanh thu khoảng đang xem và cùng khoảng thời gian năm trước
                         </h2>
                         <p className="text-xs text-slate-400 mt-0.5">So sánh chi tiết kết quả kinh doanh (đơn vị tính: Triệu đồng)</p>
                       </div>
@@ -1897,6 +2464,50 @@ export default function AdminStatistics() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {isRevenueDetailOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" onMouseDown={() => setIsRevenueDetailOpen(false)}>
+          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-3xl bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white/95 px-6 py-5 backdrop-blur">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">Đối soát doanh thu</p>
+                <h2 className="mt-1 text-xl font-black text-slate-900">Chi tiết tiền dịch vụ và hàng nhập kho</h2>
+                <p className="mt-1 text-xs text-slate-500">Khoảng {businessOverview?.period?.startDate || startDate} → {businessOverview?.period?.endDate || endDate} · Chỉ tính các hóa đơn khách đã thanh toán.</p>
+              </div>
+              <button type="button" onClick={() => setIsRevenueDetailOpen(false)} className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-100" aria-label="Đóng"><X size={18} /></button>
+            </div>
+
+            <div className="space-y-6 p-6">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                  <p className="text-[10px] font-black uppercase text-blue-700">1. Tổng tiền dịch vụ đã thu</p>
+                  <p className="mt-2 text-2xl font-black text-slate-900">{formatBusinessMoney(businessOverview?.revenueSources?.totalPaidRevenue)}</p>
+                  <p className="mt-1 text-[10px] text-slate-600">Tổng tiền của {statsSummary.totalOrd} hóa đơn khách đã thanh toán; đã gồm tiền công và tiền linh kiện.</p>
+                </div>
+                <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                  <p className="text-[10px] font-black uppercase text-amber-700">2. Giá trị hàng nhập kho</p>
+                  <p className="mt-2 text-2xl font-black text-slate-900">{formatBusinessMoney(businessOverview?.inventory?.importValue)}</p>
+                  <p className="mt-1 text-[10px] text-slate-600">Tổng giá trị {businessOverview?.inventory?.importLineCount || 0} phiếu nhập; thống kê riêng, không trừ doanh thu.</p>
+                </div>
+              </div>
+
+              <section className="overflow-hidden rounded-2xl border border-slate-200">
+                <div className="flex items-start justify-between gap-4 bg-slate-50 px-5 py-4">
+                  <div><h3 className="text-sm font-black text-slate-900">Danh sách hóa đơn đã thanh toán</h3><p className="mt-1 text-[10px] text-slate-500">Tiền công và tiền linh kiện giúp giải thích mỗi hóa đơn gồm những khoản nào.</p></div>
+                  <span className="rounded-lg bg-blue-100 px-3 py-1.5 text-xs font-black text-blue-700">Tổng {formatBusinessMoney(businessOverview?.revenueSources?.totalPaidRevenue)}</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[650px] text-left text-xs">
+                    <thead className="border-y border-slate-200 bg-white text-[9px] uppercase text-slate-500"><tr><th className="px-5 py-3">Mã đơn</th><th className="px-4 py-3">Ngày thanh toán</th><th className="px-4 py-3 text-right">Tiền công</th><th className="px-4 py-3 text-right">Tiền linh kiện</th><th className="px-5 py-3 text-right">Tổng đã trả</th></tr></thead>
+                    <tbody className="divide-y divide-slate-100">{(businessOverview?.paidServiceOrders || []).map((item: any) => <tr key={item.orderId}><td className="px-5 py-3 font-bold text-slate-800">Phiếu #{item.orderId}</td><td className="px-4 py-3">{new Date(item.paidAt).toLocaleDateString('vi-VN')}</td><td className="px-4 py-3 text-right text-slate-600">{formatBusinessMoney(item.laborAmount)}</td><td className="px-4 py-3 text-right text-slate-600">{formatBusinessMoney(item.partsAmount)}</td><td className="px-5 py-3 text-right font-black text-blue-700">{formatBusinessMoney(item.paidAmount)}</td></tr>)}</tbody>
+                  </table>
+                </div>
+              </section>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4"><p className="text-xs font-black text-amber-800">Cách đọc hai số</p><p className="mt-2 text-[10px] leading-relaxed text-slate-600">Tổng tiền dịch vụ đã thu và giá trị hàng nhập kho là hai thống kê độc lập. Màn hình không thực hiện phép trừ và không kết luận lời/lỗ.</p></div>
+            </div>
+          </div>
         </div>
       )}
     </div>

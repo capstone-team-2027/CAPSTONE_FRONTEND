@@ -762,7 +762,7 @@ export default function LeaderCreateServiceOrder() {
           isWaitingForBay ? 'info' : 'success'
         );
         setTimeout(() => {
-          navigate('/leader/appointments');
+          navigate('/leader/appointments', { state: { activeTab: isWaitingForBay ? 'waiting' : 'received' } });
         }, 1000);
       } else {
         throw new Error(res.message || 'Lỗi khi tạo hóa đơn dịch vụ');

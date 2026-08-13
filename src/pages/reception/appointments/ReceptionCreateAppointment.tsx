@@ -322,7 +322,7 @@ export default function ReceptionCreateAppointment() {
   }, [dbCategories]);
 
   const activeDbServices = useMemo(() => {
-    return dbServices.filter((s: any) => s.is_active !== false);
+    return dbServices.filter((s: any) => s.is_active !== false && !s.is_default_inspection_service);
   }, [dbServices]);
 
   const mappedServices: CustomerServiceItem[] = useMemo(() => {

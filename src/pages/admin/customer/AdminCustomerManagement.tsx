@@ -69,7 +69,7 @@ export default function AdminCustomerManagement() {
             loyalty_points: c.loyalty_points || 0,
             status: c.user?.status || "ACTIVE",
             createdAt: c.createdAt ? c.createdAt.split("T")[0] : "",
-            avatar: c.user?.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+            avatar: c.user?.avatar || "",
             type: "REGISTERED" as CustomerType,
             vehicles: [],
             appointments: [],
@@ -86,7 +86,7 @@ export default function AdminCustomerManagement() {
             loyalty_points: 0,
             status: "ACTIVE",
             createdAt: c.createdAt ? c.createdAt.split("T")[0] : "",
-            avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+            avatar: "",
             type: "GUEST" as CustomerType,
             vehicles: [],
             appointments: [],
@@ -212,6 +212,9 @@ export default function AdminCustomerManagement() {
     showToast("Cập nhật thông tin khách hàng thành công", "success");
   };
 
+  const getInitials = (name: string) =>
+    name.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase();
+
   const handleExportCSV = () => {
     if (filteredCustomers.length === 0) {
       showToast("Không có dữ liệu khách hàng để xuất báo cáo", "warning");
@@ -308,14 +311,14 @@ export default function AdminCustomerManagement() {
           whileHover={{ y: -4 }}
           className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs flex items-center gap-4 transition-all"
         >
-          <div className="w-12 h-12 rounded-xl bg-[#EDF3FF] flex items-center justify-center text-[#00285E] shrink-0">
+          <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
             <TrendingUp size={22} />
           </div>
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block">
               Tổng doanh thu dịch vụ
             </span>
-            <span className="text-lg font-black text-[#00285E] tracking-tight block mt-1">
+            <span className="text-lg font-black text-slate-900 tracking-tight block mt-1">
               {statistics.totalSpendVal.toLocaleString("vi-VN")} đ
             </span>
           </div>
@@ -386,48 +389,38 @@ export default function AdminCustomerManagement() {
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Loại khách:</span>
-              <select
-                value={customerTypeFilter}
-                onChange={(e) => setCustomerTypeFilter(e.target.value as any)}
-                className="px-3.5 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10"
-              >
-                <option value="ALL">Tất cả</option>
-                <option value="REGISTERED">Khách hệ thống</option>
-                <option value="GUEST">Khách vãng lai</option>
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Trạng thái:</span>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3.5 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10"
-              >
-                <option value="ALL">Tất cả</option>
-                <option value="ACTIVE">Hoạt động</option>
-                <option value="INACTIVE">Tạm khóa</option>
-                <option value="BANNED">Bị cấm</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Hạng:</span>
-              <select
-                value={tierFilter}
-                onChange={(e) => setTierFilter(e.target.value)}
-                className="px-3.5 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10"
-              >
-                <option value="ALL">Tất cả</option>
-                <option value="BRONZE">Đồng</option>
-                <option value="SILVER">Bạc</option>
-                <option value="GOLD">Vàng</option>
-                <option value="PLATINUM">Bạch Kim</option>
-                <option value="NONE">Không hạng</option>
-              </select>
-            </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={customerTypeFilter}
+              onChange={(e) => setCustomerTypeFilter(e.target.value as any)}
+              className="px-3.5 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10"
+            >
+              <option value="ALL">Loại khách: Tất cả</option>
+              <option value="REGISTERED">Khách hệ thống</option>
+              <option value="GUEST">Khách vãng lai</option>
+            </select>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3.5 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10"
+            >
+              <option value="ALL">Trạng thái: Tất cả</option>
+              <option value="ACTIVE">Hoạt động</option>
+              <option value="INACTIVE">Tạm khóa</option>
+              <option value="BANNED">Bị cấm</option>
+            </select>
+            <select
+              value={tierFilter}
+              onChange={(e) => setTierFilter(e.target.value)}
+              className="px-3.5 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10"
+            >
+              <option value="ALL">Hạng: Tất cả</option>
+              <option value="BRONZE">Đồng</option>
+              <option value="SILVER">Bạc</option>
+              <option value="GOLD">Vàng</option>
+              <option value="PLATINUM">Bạch Kim</option>
+              <option value="NONE">Không hạng</option>
+            </select>
           </div>
         </div>
 
@@ -463,21 +456,27 @@ export default function AdminCustomerManagement() {
                       className="border-b border-slate-100 hover:bg-slate-50/70 transition-all cursor-pointer group"
                     >
                       <td className="py-4 px-6 flex items-center gap-3">
-                        <img
-                          src={customer.avatar}
-                          alt={customer.fullName}
-                          className="w-10 h-10 rounded-full object-cover border border-slate-200/80"
-                        />
-                        <div>
-                          <span className="font-bold text-[#00285E] text-sm block group-hover:text-blue-600 transition-colors">
-                            {customer.fullName}
+                        {customer.avatar ? (
+                          <img
+                            src={customer.avatar}
+                            alt={customer.fullName}
+                            className="w-10 h-10 rounded-full object-cover border border-slate-200/80 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-[#EDF3FF] text-[#00285E] flex items-center justify-center text-xs font-bold shrink-0">
+                            {getInitials(customer.fullName)}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <span className="font-bold text-[#00285E] text-sm flex items-center gap-2 group-hover:text-blue-600 transition-colors">
+                            <span className="truncate">{customer.fullName}</span>
                             {customer.type === "REGISTERED" ? (
-                              <span className="ml-2 inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">Hệ thống</span>
+                              <span className="shrink-0 inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">Hệ thống</span>
                             ) : (
-                              <span className="ml-2 inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">Vãng lai</span>
+                              <span className="shrink-0 inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">Vãng lai</span>
                             )}
                           </span>
-                          <span className="text-xs text-slate-400 font-medium block mt-0.5">
+                          <span className="text-xs text-slate-400 font-medium block mt-0.5 truncate">
                             {customer.email}
                           </span>
                         </div>

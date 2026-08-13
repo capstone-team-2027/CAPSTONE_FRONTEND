@@ -17,7 +17,8 @@ import {
   Package,
   ShieldCheck,
   CalendarClock,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -92,7 +93,10 @@ export default function AdminLayout() {
   const menuGroups = [
     {
       label: null,
-      items: [{ name: 'Thống kê', icon: BarChart3, path: '/admin/statistics' }],
+      items: [
+        { name: 'Thống kê', icon: BarChart3, path: '/admin/statistics' },
+        { name: 'AI phân tích hệ thống', icon: Sparkles, path: '/admin/ai-analysis' },
+      ],
     },
     {
       label: 'Khách hàng',
@@ -122,6 +126,7 @@ export default function AdminLayout() {
   // Dynamic active menu item based on current URL path
   const activeMenu = useMemo(() => {
     const path = location.pathname;
+    if (path.includes('/ai-analysis')) return 'AI phân tích hệ thống';
     if (path === '/admin' || path === '/admin/' || path.includes('/statistics')) return 'Thống kê';
     if (path.includes('/customers')) return 'Khách Hàng';
     if (path.includes('/staff')) return 'Nhân sự';
