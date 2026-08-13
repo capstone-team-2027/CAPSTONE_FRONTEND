@@ -4,6 +4,8 @@ export const LEADER_QUOTE_MANAGEMENT_ENDPOINTS = {
   GET_COMPONENTS: `${API_BASE_URL}/api/head-technician/components`,
   ACTIVE_TASKS_FOR_ISSUE_REPORT: `${API_BASE_URL}/api/head-technician/issue-report/tasks`,
   CREATE_ISSUE_REPORT: `${API_BASE_URL}/api/head-technician/issue-report`,
+  CREATE_STANDALONE_ISSUE_REPORT: `${API_BASE_URL}/api/head-technician/issue-report/standalone`,
+  GET_ALL_TECHNICIANS: `${API_BASE_URL}/api/head-technician/technicians`,
   ISSUES_REPORT: `${API_BASE_URL}/api/head-technician/issues`,
   QUOTE_MANAGEMENT: `${API_BASE_URL}/api/head-technician/quote`,
   APPROVE_QUOTE: (id: number) => `${API_BASE_URL}/api/head-technician/quotation/${id}/approve`,

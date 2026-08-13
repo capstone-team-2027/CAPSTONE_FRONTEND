@@ -205,6 +205,18 @@ interface InspectionHistoryItem {
   task?: {
     serviceOrder?: {
       symptoms?: string | null;
+      vehicle?: {
+        license_plate?: string | null;
+        model?: {
+          model_name?: string | null;
+        } | null;
+        customer?: {
+          name?: string | null;
+          user?: {
+            fullName?: string | null;
+          } | null;
+        } | null;
+      } | null;
     } | null;
   } | null;
 }
@@ -433,11 +445,25 @@ export default function TechnicianAssignments() {
         id: `common-${item.id}`,
         issue: item.symptom || "—",
         cause: item.possible_causes || "—",
+        vehicleLabel: null as string | null,
+        customerName: null as string | null,
       }));
     }
     return inspectionDiagnostics.map((item) => {
       const componentName = item.component?.name?.trim() ?? "";
       const errorDescription = item.error_description?.trim() ?? "";
+      const vehicle = item.task?.serviceOrder?.vehicle;
+      const plate = vehicle?.license_plate?.trim();
+      const modelName = vehicle?.model?.model_name?.trim();
+      const vehicleLabel = plate
+        ? modelName
+          ? `${plate} · ${modelName}`
+          : plate
+        : null;
+      const customerName =
+        vehicle?.customer?.name?.trim() ||
+        vehicle?.customer?.user?.fullName?.trim() ||
+        null;
       return {
         id: `garage-${item.id}`,
         issue: item.task?.serviceOrder?.symptoms?.trim() || "—",
@@ -445,6 +471,8 @@ export default function TechnicianAssignments() {
           componentName && errorDescription
             ? `${componentName} - ${errorDescription}`
             : componentName || errorDescription || "—",
+        vehicleLabel,
+        customerName,
       };
     });
   }, [diagnostics, inspectionDiagnostics, lookupView]);
@@ -1941,18 +1969,21 @@ export default function TechnicianAssignments() {
               </div>
             <div className="overflow-y-auto flex-1 px-4 sm:px-6 py-5 space-y-4 bg-slate-50/50">
              <div className="overflow-x-auto overflow-hidden rounded-2xl border border-slate-200 bg-white">
-  <div className="grid grid-cols-[36px_1fr_1fr] sm:grid-cols-[56px_1.4fr_1.6fr] border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+  <div className={`grid ${lookupView === "garage" ? "grid-cols-[36px_1fr_1fr_1fr] sm:grid-cols-[56px_1.2fr_1.3fr_1fr]" : "grid-cols-[36px_1fr_1fr] sm:grid-cols-[56px_1.4fr_1.6fr]"} border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-widest text-slate-400`}>
     <div className="px-2 sm:px-3 py-2.5">STT</div>
     <div className="px-2 sm:px-3 py-2.5">
       {lookupView === "common" ? "Các lỗi thường gặp" : "Lỗi đã gặp"}
     </div>
     <div className="px-2 sm:px-3 py-2.5">Nguyên nhân</div>
+    {lookupView === "garage" && (
+      <div className="px-2 sm:px-3 py-2.5">Thuộc đơn</div>
+    )}
   </div>
 
   {lookupRows.map((row, index) => (
     <div
       key={row.id}
-      className="grid grid-cols-[36px_1fr_1fr] sm:grid-cols-[56px_1.4fr_1.6fr] border-b border-slate-100 last:border-b-0"
+      className={`grid ${lookupView === "garage" ? "grid-cols-[36px_1fr_1fr_1fr] sm:grid-cols-[56px_1.2fr_1.3fr_1fr]" : "grid-cols-[36px_1fr_1fr] sm:grid-cols-[56px_1.4fr_1.6fr]"} border-b border-slate-100 last:border-b-0`}
     >
       <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm font-semibold text-slate-500">
         {index + 1}
@@ -1963,6 +1994,14 @@ export default function TechnicianAssignments() {
       <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm text-slate-600 whitespace-pre-line leading-relaxed">
         {row.cause}
       </div>
+      {lookupView === "garage" && (
+        <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm text-slate-600">
+          <p className="font-semibold text-slate-700">
+            {row.customerName || "Khách vãng lai"}
+          </p>
+          <p className="text-slate-400">{row.vehicleLabel || "—"}</p>
+        </div>
+      )}
     </div>
   ))}
 </div>

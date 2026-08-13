@@ -510,6 +510,9 @@ export default function ReceptionReceiveCustomer() {
         : (serviceMode === 'SERVICE' ? 'RECEPTIONIST_SPECIFIC' : 'RECEPTIONIST_REPAIR'),
       vehicle_id: useNewVehicle ? null : Number(selectedVehicleId),
       walk_in: useNewVehicle ? {
+        // Khách cũ (đã xác định qua selectedCustomer) chỉ thêm xe mới -> gửi kèm customer_id để
+        // backend dùng đúng khách đã có, không hiểu nhầm thành yêu cầu tạo khách mới trùng SĐT.
+        customer_id: customerMode === 'existing' ? selectedCustomer?.id : undefined,
         customer_name: customerMode === 'new' ? customerName.trim() : selectedCustomer?.customer_name,
         customer_phone: customerMode === 'new' ? customerPhone.trim() : selectedCustomer?.phone,
         vehicle_plate: plate.trim(),

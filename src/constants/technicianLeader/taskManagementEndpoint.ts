@@ -11,4 +11,5 @@ export const TECHNICIAN_LEADER_TASK_ENDPOINTS = {
         `${API_BASE_URL}/api/head-technician/assignments/${assignmentId}/complete`,
     GET_TASK_TRACKING: `${API_BASE_URL}/api/head-technician/task-tracking`,
     GET_RECEIVED_APPOINTMENTS: `${API_BASE_URL}/api/head-technician/appointments`,
+    GET_ISSUES_REPORT: `${API_BASE_URL}/api/head-technician/issues-report-history`,
 };

@@ -273,6 +273,7 @@ export default function ReceptionLayout() {
         { name: "Danh sách báo giá", icon: History, path: "/reception/quotes" },
         { name: "Quản lý hóa đơn dịch vụ", icon: ClipboardPlus, path: "/reception/service-orders" },
         { name: 'Khách hàng & Cứu hộ', icon: Users, path: '/reception/customers' },
+        { name: "Thanh toán dịch vụ", icon: CreditCard, path: "/reception/payments" },
         { name: "Phản hồi khách hàng", icon: MessageSquare, path: "/reception/feedback" },
       ],
     },
@@ -292,6 +293,7 @@ export default function ReceptionLayout() {
     if (path.includes('/technicians')) return 'Kỹ thuật viên hôm nay';
     if (path.includes("/feedback")) return "Phản hồi khách hàng";
     if (path.includes("/service-orders")) return "Quản lý hóa đơn dịch vụ";
+    if (path.includes("/payments")) return "Thanh toán dịch vụ";
 
     return "Danh sách lịch hẹn";
   }, [location.pathname]);

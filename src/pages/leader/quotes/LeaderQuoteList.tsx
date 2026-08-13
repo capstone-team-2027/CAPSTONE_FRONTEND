@@ -7,7 +7,6 @@ import type {
 } from "../../../model/dto/quoteManagement.dto";
 import {
   ArrowLeft,
-  History,
   Search,
   Filter,
   FileText,
@@ -732,8 +731,7 @@ export default function LeaderQuoteList() {
             <ArrowLeft size={24} />
           </button>
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
-              <History className="text-[#F9A11B]" size={28} />
+            <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
               Lịch sử báo giá
             </h1>
             <p className="text-slate-500 text-sm">

@@ -81,6 +81,7 @@ const LeaderCreateServiceOrder = lazy(() => import("./pages/leader/LeaderCreateS
 const LeaderServiceOrderDetail = lazy(() => import("./pages/leader/LeaderServiceOrderDetail"));
 const LeaderQuoteList = lazy(() => import("./pages/leader/quotes/LeaderQuoteList"));
 const LeaderCreateQuotation = lazy(() => import("./pages/leader/quotes/LeaderCreateQuotation"));
+const LeaderIssuesReportHistory = lazy(() => import("./pages/leader/LeaderIssuesReportHistory"));
 
 const LoadingScreen = () => (
   <div className="fixed inset-0 bg-slate-50/50 backdrop-blur-xs flex flex-col items-center justify-center z-50">
@@ -205,6 +206,7 @@ function App() {
             <Route path="task-tracking" element={<LeaderTaskTracking />} />
             <Route path="quotes" element={<LeaderQuoteList />} />
             <Route path="quotes/create" element={<LeaderCreateQuotation />} />
+            <Route path="issues-report" element={<LeaderIssuesReportHistory />} />
           </Route>
         </Route>
       </Routes>

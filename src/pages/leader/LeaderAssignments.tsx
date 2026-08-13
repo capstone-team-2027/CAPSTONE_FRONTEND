@@ -15,8 +15,9 @@ import {
   CheckCircle2,
   Eye,
   Calendar,
+  ArrowLeft,
 } from "lucide-react";
-import { useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { useFetchClient } from "../../hook/useFetchClient";
 import { useSocket } from "../../hook/useSocket";
 import { TECHNICIAN_LEADER_TASK_ENDPOINTS } from "../../constants/technicianLeader/taskManagementEndpoint";
@@ -227,6 +228,7 @@ const TechnicianCard = ({
 };
 
 export default function LeaderAssignments() {
+  const navigate = useNavigate();
   const { searchQuery, showToast } = useOutletContext<{
     searchQuery: string;
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
@@ -603,13 +605,22 @@ export default function LeaderAssignments() {
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* TITLE */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
-          Phân công kỹ thuật
-        </h1>
-        <p className="text-slate-500 text-sm">
-          Danh sách đơn dịch vụ đang có công việc cần xử lý.
-        </p>
+      <div className="flex items-start gap-3">
+        <button
+          onClick={() => navigate(-1)}
+          title="Quay lại"
+          className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-[#00285E] border border-[#00285E] text-white hover:bg-[#003C7D] hover:border-[#003C7D] active:scale-[0.97] transition-all"
+        >
+          <ArrowLeft size={24} />
+        </button>
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
+            Phân công kỹ thuật
+          </h1>
+          <p className="text-slate-500 text-sm">
+            Danh sách đơn dịch vụ đang có công việc cần xử lý.
+          </p>
+        </div>
       </div>
 
       {/* SUMMARY CARDS */}

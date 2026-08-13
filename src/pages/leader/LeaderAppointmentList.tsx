@@ -91,7 +91,7 @@ export default function LeaderAppointmentList() {
   const [error, setError] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'uncreated' | 'waiting' | 'in_progress' | 'completed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'uncreated' | 'waiting' | 'in_progress' | 'completed'>('uncreated');
   const [currentPage, setCurrentPage] = useState(1);
   // Modal State
   const [selectedAppt, setSelectedAppt] = useState<AppointmentModel | null>(null);
@@ -328,8 +328,7 @@ export default function LeaderAppointmentList() {
             <ArrowLeft size={24} />
           </button>
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
-              <CalendarCheck className="text-amber-500" size={28} />
+            <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
               Lịch hẹn đã tiếp nhận
             </h1>
             <p className="text-slate-500 text-sm">

@@ -23,7 +23,10 @@ export interface CreateQuotationItemRequest {
   quantity: number;
 }
 export interface CreateQuotationRequest {
-  task_id: number;
+  // Một trong hai bắt buộc phải có: task_id (luồng cũ, issue gắn Task) hoặc service_order_id
+  // (lỗi phát sinh không gắn Task — backend tự chọn 1 Task bất kỳ của đơn làm điểm neo).
+  task_id?: number;
+  service_order_id?: number;
   items: CreateQuotationItemRequest[];
   deposit_amount?: number;
   note?: string;

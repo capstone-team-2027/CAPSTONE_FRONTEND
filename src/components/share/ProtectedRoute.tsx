@@ -50,15 +50,30 @@ export default function ProtectedRoute({ requiredRoles }: ProtectedRouteProps) {
     }
 
     let isMounted = true;
+    // Timeout an toàn: nếu request treo quá lâu (mạng chậm, race condition, promise
+    // không bao giờ resolve/reject vì lý do lạ), vẫn phải thoát khỏi màn hình
+    // "Đang xác thực..." thay vì kẹt vĩnh viễn — coi như không xác định được quyền.
+    const timeoutId = window.setTimeout(() => {
+      if (isMounted) {
+        console.warn('Xác thực quyền truy cập quá thời gian chờ (8s), hủy chờ.');
+        setResolvedRole(null);
+        setIsCheckingRole(false);
+      }
+    }, 8000);
+
     const fetchRole = async () => {
       try {
         const response = await fetchPrivate(AUTH_API_ENDPOINTS.PROFILE);
         const role = extractRoleCode(response?.data?.role);
+        if (!role) {
+          console.warn('Xác thực quyền truy cập: API trả về nhưng không có role hợp lệ.', response);
+        }
         if (isMounted) setResolvedRole(role);
       } catch (error) {
         console.error('Không xác thực được quyền truy cập:', error);
         if (isMounted) setResolvedRole(null);
       } finally {
+        window.clearTimeout(timeoutId);
         if (isMounted) setIsCheckingRole(false);
       }
     };
@@ -66,6 +81,7 @@ export default function ProtectedRoute({ requiredRoles }: ProtectedRouteProps) {
 
     return () => {
       isMounted = false;
+      window.clearTimeout(timeoutId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, needsRoleCheck]);

@@ -18,6 +18,8 @@ import {
   FolderHeart,
   FolderOpen,
   XCircle,
+  ShieldCheck,
+  Loader2,
 } from "lucide-react";
 import { useOutletContext, useSearchParams } from "react-router-dom";
 import { type Category, type ServiceCatalog } from "../../../model/dto/serviceCatalog.dto";
@@ -110,6 +112,7 @@ export default function AdminServiceManagement() {
   const [totalServices, setTotalServices] = useState(0);
   const [totalActiveServices, setTotalActiveServices] = useState(0);
   const [servicesLoading, setServicesLoading] = useState(false);
+  const [settingDefaultInspectionId, setSettingDefaultInspectionId] = useState<number | null>(null);
 
   const [totalCombos, setTotalCombos] = useState(0);
   const [totalActiveCombos, setTotalActiveCombos] = useState(0);
@@ -160,6 +163,23 @@ export default function AdminServiceManagement() {
       showToast('Không thể tải danh sách dịch vụ', 'warning');
     } finally {
       setServicesLoading(false);
+    }
+  };
+
+  const handleSetDefaultInspectionService = async (serviceId: number) => {
+    setSettingDefaultInspectionId(serviceId);
+    try {
+      await fetchPrivate(
+        SERVICE_CATALOG_API_ENDPOINTS.SET_DEFAULT_INSPECTION(serviceId),
+        'PATCH',
+      );
+      showToast('Đã đặt làm dịch vụ kiểm tra mặc định!', 'success');
+      await handleGetServiceCatalog();
+    } catch (error: any) {
+      console.error('Lỗi đặt dịch vụ kiểm tra mặc định:', error);
+      showToast(error?.message || 'Không thể đặt dịch vụ kiểm tra mặc định', 'warning');
+    } finally {
+      setSettingDefaultInspectionId(null);
     }
   };
 
@@ -917,6 +937,7 @@ export default function AdminServiceManagement() {
                   <th className="py-4 px-4">Giá</th>
                   <th className="py-4 px-4">Thời gian dự kiến</th>
                   <th className="py-4 px-4">Trạng thái</th>
+                  <th className="py-4 px-4">Kiểm tra mặc định</th>
                   <th className="py-4 px-6 text-right">Thao tác</th>
                 </tr>
               </thead>
@@ -924,7 +945,7 @@ export default function AdminServiceManagement() {
                 {filteredServices.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       className="py-12 text-center text-slate-400 text-sm"
                     >
                       Không tìm thấy dịch vụ phù hợp...
@@ -974,6 +995,28 @@ export default function AdminServiceManagement() {
                         >
                           {s.is_active ? "Hoạt động" : "Tạm dừng"}
                         </span>
+                      </td>
+
+                      <td className="py-4 px-4">
+                        {s.is_default_inspection_service ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#00285E] text-white">
+                            <ShieldCheck size={13} />
+                            Mặc định
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleSetDefaultInspectionService(s.id)}
+                            disabled={settingDefaultInspectionId === s.id}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border border-slate-200 text-slate-500 hover:border-[#00285E] hover:text-[#00285E] hover:bg-[#EDF3FF] transition-colors disabled:opacity-50"
+                          >
+                            {settingDefaultInspectionId === s.id ? (
+                              <Loader2 size={13} className="animate-spin" />
+                            ) : (
+                              <ShieldCheck size={13} />
+                            )}
+                            Đặt làm mặc định
+                          </button>
+                        )}
                       </td>
 
                       <td className="py-4 px-6">

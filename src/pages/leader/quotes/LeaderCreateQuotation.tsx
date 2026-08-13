@@ -268,9 +268,13 @@ interface QuotationServiceForm {
 type Step = "select-report" | "build-quotation";
 
 // 1 nhóm báo cáo lỗi = các issue cùng chung 1 task (Leader tick nhiều linh kiện lỗi cùng lúc
-// khi bấm "Tạo báo cáo lỗi" ở trang Theo dõi công việc), chưa có báo giá nào gắn vào.
+// khi bấm "Tạo báo cáo lỗi" ở trang Theo dõi công việc), HOẶC cùng chung 1 service_order_id
+// nếu là lỗi phát sinh không gắn Task (createStandaloneIssueReport) — chưa có báo giá nào gắn vào.
 interface IssueReportGroup {
-  taskId: number;
+  // taskId null nghĩa là nhóm issue "lỗi phát sinh" không gắn Task — lúc submit backend sẽ tự
+  // chọn 1 Task bất kỳ của serviceOrderId làm điểm neo cho Quotation.task_id (ràng buộc NOT NULL).
+  taskId: number | null;
+  serviceOrderId: number | null;
   vehicle: ActiveServiceOrderForIssueReport["vehicle"];
   issues: UnquotedIssueReport[];
   latestCreatedAt: string;
@@ -284,10 +288,17 @@ export default function LeaderCreateQuotation() {
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
 
-  // Đến từ trang Theo dõi công việc: task INSPECTION đã được complete + lỗi đã ghi sẵn
-  // (createIssueReports gọi từ đó rồi) — bỏ qua bước chọn báo cáo, vào thẳng lập báo giá.
+  // Đến từ trang Theo dõi công việc (task INSPECTION đã complete) hoặc từ trang Lịch sử báo
+  // cáo lỗi (lỗi phát sinh không gắn Task, chỉ có serviceOrderId) — bỏ qua bước chọn báo cáo,
+  // vào thẳng lập báo giá. Đúng 1 trong 2 (taskId/serviceOrderId) sẽ có giá trị.
   const navState = location.state as
-    | { fromTaskTracking?: boolean; taskId?: number; order?: ActiveServiceOrderForIssueReport; savedIssues?: any[] }
+    | {
+      fromTaskTracking?: boolean;
+      taskId?: number;
+      serviceOrderId?: number;
+      order?: ActiveServiceOrderForIssueReport;
+      savedIssues?: any[];
+    }
     | undefined;
 
   const [step, setStep] = useState<Step>(navState?.fromTaskTracking ? "build-quotation" : "select-report");
@@ -315,6 +326,9 @@ export default function LeaderCreateQuotation() {
   const [approveNow, setApproveNow] = useState(false);
   const issueDraftUidRef = useRef(0);
   const savedTaskIdRef = useRef<number | null>(null);
+  // Chỉ dùng khi issue là "lỗi phát sinh" không gắn Task (savedTaskIdRef null) — backend tự
+  // chọn 1 Task bất kỳ của đơn này làm điểm neo cho Quotation.task_id.
+  const savedServiceOrderIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     handleGetComponents();
@@ -322,6 +336,7 @@ export default function LeaderCreateQuotation() {
     handleGetServices();
     if (navState?.fromTaskTracking) {
       savedTaskIdRef.current = navState.taskId ?? null;
+      savedServiceOrderIdRef.current = navState.serviceOrderId ?? null;
       setSelectedOrder(navState.order ?? null);
       const items: QuotationItemForm[] = (navState.savedIssues ?? []).map((issue: any) => {
         issueDraftUidRef.current += 1;
@@ -404,20 +419,27 @@ export default function LeaderCreateQuotation() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [components]);
 
-  // Gom các issue chưa có báo giá theo cùng 1 task -> mỗi nhóm là 1 báo cáo lỗi hiển thị 1 card
+  // Gom các issue chưa có báo giá: cùng task -> 1 nhóm (luồng cũ qua Task); không có task (lỗi
+  // phát sinh gắn thẳng service_order_id) -> gom theo service_order_id -> mỗi nhóm 1 card.
   const issueReportGroups = useMemo<IssueReportGroup[]>(() => {
-    const groups = new Map<number, IssueReportGroup>();
+    const groups = new Map<string, IssueReportGroup>();
     unquotedIssues.forEach((issue) => {
-      const taskId = issue.task?.id;
-      if (!taskId) return;
-      const existing = groups.get(taskId);
+      const taskId = issue.task?.id ?? null;
+      const serviceOrderId = taskId != null
+        ? issue.task?.serviceOrder?.id ?? null
+        : issue.service_order_id ?? issue.serviceOrder?.id ?? null;
+      if (taskId == null && serviceOrderId == null) return;
+      const groupKey = taskId != null ? `task-${taskId}` : `so-${serviceOrderId}`;
+      const vehicle = issue.task?.serviceOrder?.vehicle ?? issue.serviceOrder?.vehicle ?? null;
+      const existing = groups.get(groupKey);
       if (existing) {
         existing.issues.push(issue);
         if (issue.createdAt > existing.latestCreatedAt) existing.latestCreatedAt = issue.createdAt;
       } else {
-        groups.set(taskId, {
+        groups.set(groupKey, {
           taskId,
-          vehicle: issue.task?.serviceOrder?.vehicle ?? null,
+          serviceOrderId,
+          vehicle,
           issues: [issue],
           latestCreatedAt: issue.createdAt,
         });
@@ -428,8 +450,9 @@ export default function LeaderCreateQuotation() {
 
   const selectIssueReport = (group: IssueReportGroup) => {
     savedTaskIdRef.current = group.taskId;
+    savedServiceOrderIdRef.current = group.serviceOrderId;
     setSelectedOrder({
-      id: group.taskId,
+      id: group.taskId ?? group.serviceOrderId ?? 0,
       status: "",
       vehicle: group.vehicle,
       tasks: [],
@@ -654,11 +677,12 @@ export default function LeaderCreateQuotation() {
   );
 
   const handleCreateQuotation = async () => {
-    if (!savedTaskIdRef.current) return;
+    if (!savedTaskIdRef.current && !savedServiceOrderIdRef.current) return;
     setIsSubmittingQuotation(true);
     try {
       const payload: CreateQuotationRequest = {
-        task_id: savedTaskIdRef.current,
+        task_id: savedTaskIdRef.current ?? undefined,
+        service_order_id: savedTaskIdRef.current ? undefined : savedServiceOrderIdRef.current ?? undefined,
         items: [
           ...quotationItems
             .filter((i) => i.partId || i.isCustom)
@@ -777,7 +801,7 @@ export default function LeaderCreateQuotation() {
                 const customer = vehicle?.customer;
                 return (
                   <div
-                    key={group.taskId}
+                    key={group.taskId ?? `so-${group.serviceOrderId}`}
                     className="w-full bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden hover:border-[#00285E]/40 transition-colors"
                   >
                     <div className="flex items-center gap-4 px-5 py-4">
