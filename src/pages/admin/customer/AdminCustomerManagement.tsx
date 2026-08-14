@@ -267,7 +267,7 @@ export default function AdminCustomerManagement() {
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
+          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
             Quản lý Khách Hàng
           </h1>
           <p className="text-slate-500 text-sm">
@@ -361,36 +361,6 @@ export default function AdminCustomerManagement() {
         </motion.div>
       </div>
 
-      {/* MEMBERSHIP TIERS BAR CHART SUMMARY */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs space-y-4">
-        <div className="flex justify-between items-center">
-          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-            <Award className="text-[#F9A11B]" size={18} />
-            Phân bố hạng thành viên
-          </h3>
-          <span className="text-xs text-slate-400 font-semibold">Tự động tính từ điểm tích lũy</span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-          {(Object.keys(TIER_CONFIG) as MembershipTier[]).map(tier => {
-            const count = statistics.tiersBreakdown[tier];
-            const pct = statistics.total > 0 ? Math.round((count / statistics.total) * 100) : 0;
-            const config = TIER_CONFIG[tier];
-            return (
-              <div key={tier} className={`p-4 rounded-xl border ${config.border} ${config.bg} flex flex-col justify-between h-24`}>
-                <span className={`text-xs font-bold ${config.color} uppercase tracking-wider`}>{config.label}</span>
-                <div className="flex items-baseline justify-between mt-auto">
-                  <span className="text-2xl font-black text-slate-800">{count}</span>
-                  <span className="text-xs font-bold text-slate-500">{pct}%</span>
-                </div>
-                <div className="w-full h-1.5 bg-slate-200/60 rounded-full overflow-hidden mt-2">
-                  <div className={`h-full rounded-full`} style={{ width: `${pct}%`, backgroundColor: config.iconColor }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
 
       {/* FILTER & DATA TABLE SECTION */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">

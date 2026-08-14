@@ -25,7 +25,6 @@ const AdminServicesCategories = lazy(() => import("./pages/admin/services/AdminS
 const AdminResources = lazy(() => import("./pages/admin/resources/AdminResources"));
 const AdminServiceCatalog = lazy(() => import("./pages/admin/services/AdminServiceCatalog"));
 const AdminStaffManagement = lazy(() => import("./pages/admin/staff/AdminStaffManagement"));
-const AdminShiftManagement = lazy(() => import("./pages/admin/staff/AdminShiftManagement"));
 const AdminWarrantyPolicies = lazy(() => import("./pages/admin/warranty/AdminWarrantyPolicies"));
 const AdminStatistics = lazy(() => import("./pages/admin/dashboard/AdminStatistics"));
 const AdminAiAnalysis = lazy(() => import("./pages/admin/dashboard/AdminAiAnalysis"));
@@ -139,7 +138,6 @@ function App() {
             <Route path="settings" element={<AdminSettings />} />
             <Route path="services" element={<AdminServiceCatalog />} />
             <Route path="staff" element={<AdminStaffManagement />} />
-            <Route path="shifts" element={<AdminShiftManagement />} />
             <Route path="warranty" element={<AdminWarrantyPolicies />} />
             <Route path="statistics" element={<AdminStatistics />} />
             <Route path="ai-analysis" element={<AdminAiAnalysis />} />

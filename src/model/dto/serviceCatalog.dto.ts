@@ -16,4 +16,5 @@ export interface ServiceCatalog {
     sparePart?: { id: number; name: string; retail_price: string };
     total_price?: number;
     is_default_inspection_service?: boolean;
+    requires_bay?: boolean;
 }
