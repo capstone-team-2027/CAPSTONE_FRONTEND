@@ -539,10 +539,11 @@ export default function AdminStatistics() {
 
   const statsSummary = useMemo(() => {
     if (!data?.kpis) {
-      return { totalRev: 0, totalOrd: 0, avgRevPerOrder: 0, activeCustomers: 0, completedAppointments: 0 };
+      return { totalRev: 0, totalProfit: 0, totalOrd: 0, avgRevPerOrder: 0, activeCustomers: 0, completedAppointments: 0 };
     }
     return {
       totalRev: parseFloat(data.kpis.totalRevenue || 0),
+      totalProfit: parseFloat(data.kpis.totalProfit || 0),
       totalOrd: parseInt(data.kpis.totalOrders || 0, 10),
       avgRevPerOrder: parseFloat(data.kpis.avgRevenuePerOrder || 0),
       activeCustomers: parseInt(data.kpis.activeCustomers || 0, 10),
@@ -827,32 +828,32 @@ export default function AdminStatistics() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               {
-                label: 'Tiền khách đã thanh toán',
+                label: 'Tổng doanh thu',
                 value: formatBusinessMoney(statsSummary.totalRev),
                 icon: <TrendingUp size={22} />, color: C.green, bg: '#D1FAE5',
                 change: formatBusinessChange(businessOverview?.comparisons?.revenue?.changePct),
                 purpose: 'Tổng tiền khách đã thanh toán cho các phiếu dịch vụ trong khoảng ngày đã chọn.'
               },
               {
-                label: 'Đã tiếp nhận',
-                value: Number(businessOverview?.workflow?.received || 0).toLocaleString('vi-VN'),
-                icon: <Wrench size={22} />, color: C.navy, bg: '#EFF6FF',
-                change: 'Chờ kiểm tra hoặc lập báo giá',
-                purpose: 'Số phiếu đã tiếp nhận nhưng chưa bắt đầu sửa chữa.'
+                label: 'Tổng lợi nhuận',
+                value: formatBusinessMoney(statsSummary.totalProfit),
+                icon: <Target size={22} />, color: C.navy, bg: '#EFF6FF',
+                change: 'Doanh thu trừ giá vốn phụ tùng đã dùng',
+                purpose: 'Ước tính lợi nhuận: doanh thu trừ giá vốn trung bình của phụ tùng đã sử dụng trong khoảng ngày đã chọn.'
               },
               {
-                label: 'Đang sửa chữa ',
-                value: Number(businessOverview?.workflow?.repairing || 0).toLocaleString('vi-VN'),
-                icon: <Target size={22} />, color: C.purple, bg: '#EDE9FE',
-                change: 'Đang thực hiện hoặc chờ linh kiện',
-                purpose: 'Số phiếu đang trong quá trình sửa chữa tại gara.'
+                label: 'Đơn dịch vụ',
+                value: statsSummary.totalOrd.toLocaleString('vi-VN'),
+                icon: <Wrench size={22} />, color: C.purple, bg: '#EDE9FE',
+                change: formatBusinessChange(businessOverview?.comparisons?.paidOrders?.changePct),
+                purpose: 'Tổng số đơn dịch vụ đã thanh toán trong khoảng ngày đã chọn.'
               },
               {
-                label: 'Đã hoàn thành',
-                value: Number(businessOverview?.workflow?.completed || 0).toLocaleString('vi-VN'),
+                label: 'Khách hàng',
+                value: statsSummary.activeCustomers.toLocaleString('vi-VN'),
                 icon: <Users size={22} />, color: C.orange, bg: '#FEF3C7',
-                change: 'Đã sửa xong hoặc đã giao xe',
-                purpose: 'Tổng số phiếu đã hoàn tất trong hệ thống ở trạng thái hiện tại.'
+                change: 'Khách có xe hoàn tất trong kỳ',
+                purpose: 'Số khách hàng khác nhau có phiếu dịch vụ hoàn tất trong khoảng ngày đã chọn.'
               },
             ].map((card, i) => (
               <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs">
