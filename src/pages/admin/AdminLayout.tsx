@@ -106,7 +106,6 @@ export default function AdminLayout() {
       label: 'Nhân sự',
       items: [
         { name: 'Nhân sự', icon: UserCog, path: '/admin/staff' },
-        { name: 'Ca làm việc', icon: CalendarClock, path: '/admin/shifts' },
       ],
     },
     {
@@ -130,7 +129,6 @@ export default function AdminLayout() {
     if (path === '/admin' || path === '/admin/' || path.includes('/statistics')) return 'Thống kê';
     if (path.includes('/customers')) return 'Khách Hàng';
     if (path.includes('/staff')) return 'Nhân sự';
-    if (path.includes('/shifts')) return 'Ca làm việc';
     if (path.includes('/services')) return 'Dịch vụ';
     if (path.includes('/resources')) return 'Tài nguyên';
     if (path.includes('/warranty')) return 'Chính sách bảo hành';
