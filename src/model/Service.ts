@@ -31,6 +31,7 @@ export interface ServiceItem {
     category_id?: number;
     is_active?: boolean;
     sparePartName?: string;
+    hasFixedSparePart?: boolean;
 }
 
 export interface ServiceCategoryInfo {

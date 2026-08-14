@@ -2,6 +2,8 @@ import React from 'react';
 import { Check, Star, Settings, Search } from 'lucide-react';
 import type { ServiceItem, ServiceCombo } from '../../../model/Service';
 
+const formatVndAmount = (value: number) => Math.round(Number(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
 interface SingleServicesSelectorProps {
     mappedServices: ServiceItem[];
     activeCategories: any[];
@@ -20,6 +22,10 @@ interface SingleServicesSelectorProps {
     selectedComboId?: number | null;
     elevated?: boolean;
     hideFilters?: boolean;
+    allowManualSparePart?: boolean;
+    spareParts?: { id: number; name: string; brand?: string; retail_price?: number }[];
+    serviceSpareParts?: Record<number, number | undefined>;
+    setServiceSpareParts?: React.Dispatch<React.SetStateAction<Record<number, number | undefined>>>;
 }
 
 export default function SingleServicesSelector({
@@ -40,7 +46,14 @@ export default function SingleServicesSelector({
     selectedComboId = null,
     elevated = false,
     hideFilters = false,
+    allowManualSparePart = false,
+    spareParts = [],
+    serviceSpareParts = {},
+    setServiceSpareParts,
 }: SingleServicesSelectorProps) {
+    const [sparePartSearch, setSparePartSearch] = React.useState<Record<number, string>>({});
+    const [openSparePartFor, setOpenSparePartFor] = React.useState<number | null>(null);
+
     // Reset pagination to page 1 when category changes
     const handleCategoryChange = (catId: number | null) => {
         setSelectedCategoryId(catId);
@@ -180,12 +193,65 @@ export default function SingleServicesSelector({
                                         <span className="line-clamp-2 leading-tight">{service.promoText}</span>
                                     </div>
                                 )}
-                                {service.sparePartName && (
+                                {service.sparePartName && service.hasFixedSparePart !== false && (
                                     <div className="mb-2 p-1 bg-emerald-50/40 rounded-md border border-emerald-100/40 flex items-start gap-1 text-[8px] text-emerald-700 font-medium text-left">
                                         <span className="shrink-0">🔧</span>
                                         <span className="line-clamp-2 leading-tight">Đã kèm: {service.sparePartName}</span>
                                     </div>
                                 )}
+                                {allowManualSparePart && !service.hasFixedSparePart && isSelected && (() => {
+                                    const selectedPart = spareParts.find(p => p.id === serviceSpareParts[service.id]);
+                                    const searchValue = sparePartSearch[service.id] ?? '';
+                                    const isOpen = openSparePartFor === service.id;
+                                    const filteredParts = searchValue.trim()
+                                        ? spareParts.filter(p => `${p.name} ${p.brand || ''}`.toLowerCase().includes(searchValue.trim().toLowerCase()))
+                                        : spareParts;
+                                    return (
+                                        <div className="relative mb-2" onClick={(e) => e.stopPropagation()}>
+                                            <input
+                                                type="text"
+                                                value={isOpen ? searchValue : (selectedPart ? `${selectedPart.name}${selectedPart.brand ? ` - ${selectedPart.brand}` : ''}` : '')}
+                                                placeholder="Tìm phụ tùng (nếu cần)..."
+                                                onFocus={() => {
+                                                    setOpenSparePartFor(service.id);
+                                                    setSparePartSearch(prev => ({ ...prev, [service.id]: '' }));
+                                                }}
+                                                onChange={(e) => setSparePartSearch(prev => ({ ...prev, [service.id]: e.target.value }))}
+                                                onBlur={() => setTimeout(() => setOpenSparePartFor(prev => prev === service.id ? null : prev), 150)}
+                                                className="w-full text-xs font-semibold border border-slate-200 rounded-md px-2 py-1.5 text-slate-700 outline-none focus:border-[#00285E]"
+                                            />
+                                            {isOpen && (
+                                                <div className="absolute z-20 mt-1 min-w-[260px] max-h-64 overflow-y-auto bg-white border border-slate-200 rounded-md shadow-lg">
+                                                    <div
+                                                        onMouseDown={() => {
+                                                            setServiceSpareParts?.(prev => ({ ...prev, [service.id]: undefined }));
+                                                            setOpenSparePartFor(null);
+                                                        }}
+                                                        className="px-2.5 py-2 text-xs text-slate-400 hover:bg-slate-50 cursor-pointer"
+                                                    >
+                                                        Không chọn
+                                                    </div>
+                                                    {filteredParts.length === 0 && (
+                                                        <div className="px-2.5 py-2 text-xs text-slate-400">Không tìm thấy phụ tùng</div>
+                                                    )}
+                                                    {filteredParts.map((part) => (
+                                                        <div
+                                                            key={part.id}
+                                                            onMouseDown={() => {
+                                                                setServiceSpareParts?.(prev => ({ ...prev, [service.id]: part.id }));
+                                                                setOpenSparePartFor(null);
+                                                            }}
+                                                            className="px-2.5 py-2 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer flex flex-col gap-0.5"
+                                                        >
+                                                            <span>{part.name}{part.brand ? ` - ${part.brand}` : ''}</span>
+                                                            {part.retail_price ? <span className="text-slate-400 font-semibold">{formatVndAmount(part.retail_price)} VND</span> : null}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
 
                             <div className="flex justify-between items-end mt-1.5 pt-1.5 border-t border-slate-50/70">

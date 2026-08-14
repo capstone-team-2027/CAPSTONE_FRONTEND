@@ -31,6 +31,7 @@ import { APPOINTMENT_API_ENDPOINTS } from '../../constants/reception/appointment
 import { SEARCH_API_ENDPOINTS } from '../../constants/reception/searchEndpoints';
 
 import { SERVICE_API_ENDPOINTS } from '../../constants/customer/serviceApiEndpoints';
+import { LEADER_QUOTE_MANAGEMENT_ENDPOINTS } from '../../constants/technicianLeader/quoteManagementEndpoints';
 import type { ServiceCombo, ServiceItem as CustomerServiceItem } from '../../model/Service';
 import { useTranslation } from 'react-i18next';
 import { VEHICLE_MAKE_MODEL_API_ENDPOINTS } from '../../constants/customer/vehicelMakeModelEndpoint';
@@ -161,6 +162,8 @@ export default function LeaderCreateServiceOrder() {
   const [dbServices, setDbServices] = useState<any[]>([]);
   const [dbCategories, setDbCategories] = useState<any[]>([]);
   const [dbCombos, setDbCombos] = useState<ServiceCombo[]>([]);
+  const [spareParts, setSpareParts] = useState<{ id: number; name: string; brand?: string; retail_price?: number }[]>([]);
+  const [serviceSpareParts, setServiceSpareParts] = useState<Record<number, number | undefined>>({});
 
   // Load dynamic categories & services from backend
   useEffect(() => {
@@ -182,6 +185,15 @@ export default function LeaderCreateServiceOrder() {
         }
       } catch (error) {
         console.error("Lỗi khi tải dữ liệu services:", error);
+      }
+
+      try {
+        const partsRes = await fetchPrivate(LEADER_QUOTE_MANAGEMENT_ENDPOINTS.GET_SPARE_PARTS);
+        if (partsRes && partsRes.data) {
+          setSpareParts(partsRes.data);
+        }
+      } catch (error) {
+        console.error("Lỗi khi tải dữ liệu phụ tùng:", error);
       }
 
       try {
@@ -282,7 +294,10 @@ export default function LeaderCreateServiceOrder() {
 
   const mappedServices: CustomerServiceItem[] = useMemo(() => {
     return activeDbServices.map((s: any) => {
-      const priceValue = s.total_price || s.labor_price || s.price || s.base_price || 0;
+      const laborValue = Number(s.total_price || s.labor_price || s.price || s.base_price || 0);
+      const manualSparePartId = !s.sparePart ? serviceSpareParts[s.id] : undefined;
+      const manualSparePart = manualSparePartId ? spareParts.find(p => p.id === manualSparePartId) : undefined;
+      const priceValue = laborValue + Number(manualSparePart?.retail_price || 0);
       const discountPercent = s.discount_percentage || 0;
       const originalPriceValue = discountPercent > 0 && priceValue > 0 ? Math.round(priceValue / (1 - discountPercent / 100)) : 0;
       const originalPriceStr = originalPriceValue > 0 ? `Từ ${originalPriceValue.toLocaleString("vi-VN")} VND` : "";
@@ -312,10 +327,11 @@ export default function LeaderCreateServiceOrder() {
         badge: s.badge || undefined,
         details: detailsList,
         category_id: s.category_id,
-        sparePartName: s.sparePart ? s.sparePart.name : undefined
+        sparePartName: s.sparePart ? s.sparePart.name : (manualSparePart ? manualSparePart.name : undefined),
+        hasFixedSparePart: !!s.sparePart
       };
     });
-  }, [activeDbServices]);
+  }, [activeDbServices, serviceSpareParts, spareParts]);
 
   const SERVICES_PER_PAGE = 8;
 
@@ -582,7 +598,8 @@ export default function LeaderCreateServiceOrder() {
           }
         } else {
           if (selectedServiceIds.includes(sd.id)) {
-            list.push(sd);
+            const s = mappedServices.find(item => item.id === sd.id);
+            list.push({ ...sd, price: s ? (s.numericPrice || 0) : sd.price });
           }
         }
       });
@@ -743,6 +760,9 @@ export default function LeaderCreateServiceOrder() {
         bay_id: Number(bayId) || null,
         service_ids: effectiveServiceMode === 'SERVICE' ? selectedServiceIds : undefined,
         combo_ids: effectiveServiceMode === 'SERVICE' && selectedComboId ? [selectedComboId] : undefined,
+        service_spare_parts: effectiveServiceMode === 'SERVICE'
+          ? Object.fromEntries(Object.entries(serviceSpareParts).filter(([, v]) => v !== undefined))
+          : undefined,
         notes: notes.trim() ? notes.trim() : undefined,
         symptoms: initialCondition.trim(),
         rescue_id: rescueId ? Number(rescueId) : undefined
@@ -1462,6 +1482,10 @@ export default function LeaderCreateServiceOrder() {
                         serviceTotalPages={serviceTotalPages}
                         searchText={serviceSearch}
                         setSearchText={setServiceSearch}
+                        allowManualSparePart
+                        spareParts={spareParts}
+                        serviceSpareParts={serviceSpareParts}
+                        setServiceSpareParts={setServiceSpareParts}
                       />
                     ) : (
                       <ComboServicesSelector

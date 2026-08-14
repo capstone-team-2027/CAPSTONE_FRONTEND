@@ -90,7 +90,8 @@ export default function ReceptionServiceOrderList() {
         vehiclePlate.toLowerCase().includes(searchTerm.toLowerCase()) ||
         soId.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchStatus = statusFilter === 'all' || so.status === statusFilter;
+      const matchStatus = statusFilter === 'all'
+        || (statusFilter === 'PAID' ? (so.payment?.payment_status === 'PAID' || so.payment?.payment_status === 'COMPLETED') : so.status === statusFilter);
 
       return matchSearch && matchStatus;
     });
@@ -192,10 +193,8 @@ export default function ReceptionServiceOrderList() {
               <option value="INSPECTING">Tiếp nhận xe</option>
               <option value="ASSIGNED">Đã phân công</option>
               <option value="IN_PROGRESS">Đang sửa chữa</option>
-              <option value="WAITING_FOR_PARTS">Chờ phụ tùng</option>
-              <option value="WAITING_APPROVAL">Chờ khách duyệt</option>
-              <option value="QC_CHECKING">Chờ QC</option>
               <option value="COMPLETED">Đã hoàn thành</option>
+              <option value="PAID">Đã thanh toán</option>
               <option value="CANCELLED">Đã huỷ</option>
             </select>
           </div>
