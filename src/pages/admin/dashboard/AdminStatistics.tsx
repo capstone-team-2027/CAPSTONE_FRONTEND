@@ -539,11 +539,11 @@ export default function AdminStatistics() {
 
   const statsSummary = useMemo(() => {
     if (!data?.kpis) {
-      return { totalRev: 0, totalProfit: 0, totalOrd: 0, avgRevPerOrder: 0, activeCustomers: 0, completedAppointments: 0 };
+      return { totalRev: 0, completionRate: 0, totalOrd: 0, avgRevPerOrder: 0, activeCustomers: 0, completedAppointments: 0 };
     }
     return {
       totalRev: parseFloat(data.kpis.totalRevenue || 0),
-      totalProfit: parseFloat(data.kpis.totalProfit || 0),
+      completionRate: parseFloat(data.kpis.completionRate || 0),
       totalOrd: parseInt(data.kpis.totalOrders || 0, 10),
       avgRevPerOrder: parseFloat(data.kpis.avgRevenuePerOrder || 0),
       activeCustomers: parseInt(data.kpis.activeCustomers || 0, 10),
@@ -835,11 +835,11 @@ export default function AdminStatistics() {
                 purpose: 'Tổng tiền khách đã thanh toán cho các phiếu dịch vụ trong khoảng ngày đã chọn.'
               },
               {
-                label: 'Tổng lợi nhuận',
-                value: formatBusinessMoney(statsSummary.totalProfit),
+                label: 'Tỷ lệ hoàn thành',
+                value: `${statsSummary.completionRate.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`,
                 icon: <Target size={22} />, color: C.navy, bg: '#EFF6FF',
-                change: 'Doanh thu trừ giá vốn phụ tùng đã dùng',
-                purpose: 'Ước tính lợi nhuận: doanh thu trừ giá vốn trung bình của phụ tùng đã sử dụng trong khoảng ngày đã chọn.'
+                change: 'Trên tổng số đơn dịch vụ tiếp nhận trong kỳ',
+                purpose: 'Tỷ lệ phần trăm đơn dịch vụ đã hoàn thành/giao xe trên tổng số đơn được tiếp nhận trong khoảng ngày đã chọn.'
               },
               {
                 label: 'Đơn dịch vụ',
