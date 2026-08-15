@@ -65,13 +65,13 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
   waiting_approval: { label: 'Chờ khách duyệt', color: '#EC4899', bg: '#FDF2F8', icon: Clock },
   qc_checking: { label: 'Đang QC', color: '#8B5CF6', bg: '#F5F3FF', icon: Clock },
   completed: { label: 'Hoàn thành', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
+  closed_partial: { label: 'Đã đóng một phần', color: '#EA580C', bg: '#FED7AA', icon: AlertCircle },
   cancelled: { label: 'Đã huỷ lệnh', color: '#EF4444', bg: '#FEF2F2', icon: XCircle },
 };
 
 const TABS = {
   all: 'Tất cả',
   uncreated: 'Đợi tạo lệnh',
-  waiting: 'Chờ cầu nâng',
   received: 'Đã tiếp nhận',
   in_progress: 'Đang sửa chữa',
   completed: 'Hoàn thành',
@@ -95,7 +95,7 @@ export default function LeaderAppointmentList() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const initialTab = (location.state as { activeTab?: string } | null)?.activeTab;
-  const [statusFilter, setStatusFilter] = useState<'all' | 'uncreated' | 'waiting' | 'received' | 'in_progress' | 'completed' | 'cancelled'>(
+  const [statusFilter, setStatusFilter] = useState<'all' | 'uncreated' | 'received' | 'in_progress' | 'completed' | 'cancelled'>(
     (initialTab as any) || 'uncreated'
   );
   const [currentPage, setCurrentPage] = useState(1);
@@ -246,17 +246,14 @@ export default function LeaderAppointmentList() {
       let matchStatus = false;
       const statusLower = apt.status.toLowerCase();
       const orderStatusUpper = apt.serviceOrderStatus?.toUpperCase();
-      const isWaitingForBay = apt.hasServiceOrder && apt.bayStatus?.toUpperCase() === 'WAITING';
       if (statusFilter === 'all') {
         matchStatus = true;
       } else if (statusFilter === 'uncreated') {
         matchStatus = statusLower === 'information_received';
-      } else if (statusFilter === 'waiting') {
-        matchStatus = isWaitingForBay;
       } else if (statusFilter === 'received') {
-        matchStatus = apt.hasServiceOrder && orderStatusUpper === 'INSPECTING' && !isWaitingForBay;
+        matchStatus = apt.hasServiceOrder && orderStatusUpper === 'INSPECTING';
       } else if (statusFilter === 'in_progress') {
-        matchStatus = apt.hasServiceOrder && orderStatusUpper !== 'COMPLETED' && orderStatusUpper !== 'CANCELLED' && orderStatusUpper !== 'INSPECTING' && !isWaitingForBay;
+        matchStatus = apt.hasServiceOrder && orderStatusUpper !== 'COMPLETED' && orderStatusUpper !== 'CANCELLED' && orderStatusUpper !== 'INSPECTING';
       } else if (statusFilter === 'completed') {
         matchStatus = orderStatusUpper === 'COMPLETED';
       } else if (statusFilter === 'cancelled') {
@@ -274,14 +271,13 @@ export default function LeaderAppointmentList() {
         const s = a.status.toLowerCase();
         return s === 'information_received';
       }).length,
-      waiting: appointments.filter((a) => a.hasServiceOrder && a.bayStatus?.toUpperCase() === 'WAITING').length,
       received: appointments.filter((a) => {
         const orderStatusUpper = a.serviceOrderStatus?.toUpperCase();
-        return a.hasServiceOrder && orderStatusUpper === 'INSPECTING' && a.bayStatus?.toUpperCase() !== 'WAITING';
+        return a.hasServiceOrder && orderStatusUpper === 'INSPECTING';
       }).length,
       in_progress: appointments.filter((a) => {
         const orderStatusUpper = a.serviceOrderStatus?.toUpperCase();
-        return a.hasServiceOrder && orderStatusUpper !== 'COMPLETED' && orderStatusUpper !== 'CANCELLED' && orderStatusUpper !== 'INSPECTING' && a.bayStatus?.toUpperCase() !== 'WAITING';
+        return a.hasServiceOrder && orderStatusUpper !== 'COMPLETED' && orderStatusUpper !== 'CANCELLED' && orderStatusUpper !== 'INSPECTING';
       }).length,
       completed: appointments.filter((a) => a.serviceOrderStatus?.toUpperCase() === 'COMPLETED').length,
       cancelled: appointments.filter((a) => a.serviceOrderStatus?.toUpperCase() === 'CANCELLED').length,
@@ -313,22 +309,16 @@ export default function LeaderAppointmentList() {
   // bao giờ được cập nhật thành IN_PROGRESS trong suốt vòng đời sửa chữa nên không thể dùng
   // để hiển thị "Đang sửa chữa"/"Hoàn thành".
   const getDisplayStatus = (apt: AppointmentModel) => {
-    const isWaitingForBay = apt.hasServiceOrder && apt.bayStatus?.toUpperCase() === 'WAITING';
     const statusKey = apt.hasServiceOrder
       ? (apt.serviceOrderStatus || 'INSPECTING').toLowerCase()
       : apt.status.toLowerCase();
-    const config = isWaitingForBay ? {
-      label: 'Đang chờ cầu nâng',
-      color: '#D97706',
-      bg: '#FEF3C7',
-      icon: Clock,
-    } : STATUS_CONFIG[statusKey] || {
+    const config = STATUS_CONFIG[statusKey] || {
       label: apt.hasServiceOrder ? (apt.serviceOrderStatus || apt.status) : apt.status,
       color: '#EA580C',
       bg: '#FED7AA',
       icon: CheckCircle2,
     };
-    return { config, statusKey, isWaitingForBay };
+    return { config, statusKey };
   };
 
   return (
@@ -448,7 +438,7 @@ export default function LeaderAppointmentList() {
           {/* Compact cards for mobile and tablet */}
           <div className="space-y-3 bg-slate-50/60 p-3 sm:p-4 xl:hidden">
             {paginatedData.map((apt) => {
-              const { config, statusKey, isWaitingForBay } = getDisplayStatus(apt);
+              const { config, statusKey } = getDisplayStatus(apt);
               const StatusIcon = config.icon;
               const isWalkIn = apt.bookingType?.includes('WALK');
               return (
@@ -467,7 +457,7 @@ export default function LeaderAppointmentList() {
                       style={{ color: config.color, backgroundColor: config.bg }}
                       className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold"
                     >
-                      <StatusIcon size={12} className={!isWaitingForBay && statusKey === 'in_progress' ? 'animate-spin' : ''} />
+                      <StatusIcon size={12} className={statusKey === 'in_progress' ? 'animate-spin' : ''} />
                       {config.label}
                     </span>
                   </div>
@@ -533,7 +523,7 @@ export default function LeaderAppointmentList() {
               </thead>
               <tbody>
                 {paginatedData.map((apt) => {
-                  const { config, statusKey, isWaitingForBay } = getDisplayStatus(apt);
+                  const { config, statusKey } = getDisplayStatus(apt);
                   const StatusIcon = config.icon;
                   return (
                     <tr key={apt.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors">
@@ -577,7 +567,7 @@ export default function LeaderAppointmentList() {
                           style={{ color: config.color, backgroundColor: config.bg }}
                           className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-bold"
                         >
-                          <StatusIcon size={12} className={!isWaitingForBay && statusKey === 'in_progress' ? 'animate-spin' : ''} />
+                          <StatusIcon size={12} className={statusKey === 'in_progress' ? 'animate-spin' : ''} />
                           {config.label}
                         </span>
                       </td>

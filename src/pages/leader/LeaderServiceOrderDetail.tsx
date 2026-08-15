@@ -74,12 +74,10 @@ export default function LeaderServiceOrderDetail() {
   const [isPaymentSuccess, setIsPaymentSuccess] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'NONE' | 'CASH' | 'ONLINE'>('NONE');
 
-  // Loyalty points
-  const [maxDiscountPercent, setMaxDiscountPercent] = useState<number>(30);
-  const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
-  const [inputPoints, setInputPoints] = useState<number>(0);
+  const [pointsToRedeem] = useState<number>(0);
 
   const isPaid = order?.payment?.payment_status === 'PAID' || order?.payment?.payment_status === 'COMPLETED';
+  const hasCombo = Boolean(order?.appointment?.appointmentDetails?.some((d: any) => d.combo));
 
   const handleOpenPaymentModal = () => {
     setPaymentMethod('NONE');
@@ -215,21 +213,6 @@ export default function LeaderServiceOrderDetail() {
     };
   }, [socket, id]);
 
-  useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
-        const res = await fetchPublic(`${apiBaseUrl}/api/guest/garage-configurations/MAX_LOYALTY_DISCOUNT_PERCENT`);
-        if (res && res.success && res.data) {
-          setMaxDiscountPercent(parseInt(res.data.config_value) || 30);
-        }
-      } catch (err) {
-        console.warn("Lỗi tải cấu hình max discount:", err);
-      }
-    };
-    fetchConfig();
-  }, []);
-
   const loadOrderDetail = async (orderId: string) => {
     try {
       setIsLoading(true);
@@ -287,10 +270,12 @@ export default function LeaderServiceOrderDetail() {
   const getOrderTotal = () => {
     let baseTotal = 0;
     if (order.quotation && Array.isArray(order.quotation.items)) {
-      baseTotal = order.quotation.items.reduce((sum: number, item: any) => {
-        const itemTotal = (parseFloat(item.unit_price) || 0) * (item.quantity || 1) + (parseFloat(item.repair_price) || 0);
-        return sum + itemTotal;
-      }, 0);
+      baseTotal = order.quotation.items
+        .filter((item: any) => item.status !== 'CANCELLED')
+        .reduce((sum: number, item: any) => {
+          const itemTotal = (parseFloat(item.unit_price) || 0) * (item.quantity || 1) + (parseFloat(item.repair_price) || 0);
+          return sum + itemTotal;
+        }, 0);
     } else {
       baseTotal = order.tasks?.reduce((sum: number, task: any) => sum + (parseFloat(task.catalog?.total_price || task.catalog?.labor_price) || 0), 0) || 0;
     }
@@ -303,74 +288,6 @@ export default function LeaderServiceOrderDetail() {
       return Math.max(0, total - (parseFloat(order.payment.amount) || 0));
     }
     return total;
-  };
-
-  const renderLoyaltyPointsSection = () => {
-    const availablePoints = order?.vehicle?.customer?.loyalty_points || 0;
-    const remainingToPay = getRemainingAmount();
-    const maxDiscountAmount = remainingToPay * (maxDiscountPercent / 100);
-    const maxPointsUsable = Math.floor(maxDiscountAmount / 1000);
-
-    if (availablePoints <= 0) return null;
-
-    return (
-      <div className="bg-[#EDF3FF] border border-blue-200 rounded-xl p-4 mt-4 text-left">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-blue-800 font-semibold text-sm">Điểm tích lũy:</span>
-          <span className="font-bold text-blue-900 bg-blue-100 px-2 py-0.5 rounded">{availablePoints.toLocaleString()} điểm</span>
-        </div>
-
-        <div className="space-y-3">
-          <p className="text-xs text-blue-600">Bạn có thể dùng điểm để giảm tối đa {maxDiscountPercent}% hóa đơn ({formatPrice(maxDiscountAmount)}).</p>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              min="0"
-              max={Math.min(availablePoints, maxPointsUsable)}
-              value={inputPoints || ''}
-              onChange={(e) => {
-                const val = parseInt(e.target.value) || 0;
-                setInputPoints(Math.min(val, availablePoints, maxPointsUsable));
-              }}
-              placeholder="Nhập số điểm muốn đổi"
-              className="flex-1 border border-blue-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
-            />
-            <button
-              onClick={async () => {
-                setPointsToRedeem(inputPoints);
-                if (paymentMethod === 'ONLINE') {
-                  try {
-                    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
-                    const discountedAmount = Math.max(0, getRemainingAmount() - (inputPoints * 1000));
-                    await fetchPublic(`${apiBaseUrl}/api/payment/init-payment`, 'POST', {
-                      orderId: order.id,
-                      amount: discountedAmount,
-                    });
-                    showToast(`Đã áp dụng ${inputPoints} điểm!`, 'success');
-                  } catch (err) {
-                    console.warn(err);
-                  }
-                } else {
-                  showToast(`Đã áp dụng ${inputPoints} điểm!`, 'success');
-                }
-              }}
-              disabled={!inputPoints || inputPoints <= 0}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50 hover:bg-blue-700 transition"
-            >
-              Áp dụng
-            </button>
-          </div>
-          {pointsToRedeem > 0 && (
-            <div className="flex justify-between items-center bg-green-50 border border-green-200 rounded-lg p-2 px-3 mt-2">
-              <span className="text-green-700 text-sm font-semibold flex items-center gap-1">
-                ✓ Đang áp dụng {pointsToRedeem.toLocaleString()} điểm
-              </span>
-              <span className="text-green-700 font-bold">-{formatPrice(pointsToRedeem * 1000)}</span>
-            </div>
-          )}
-        </div>
-      </div>
-    );
   };
 
   const finalAmountToPay = Math.max(0, getRemainingAmount() - (pointsToRedeem * 1000));
@@ -502,11 +419,6 @@ export default function LeaderServiceOrderDetail() {
                 <StatusIcon size={12} className={order.status === 'IN_PROGRESS' ? 'animate-spin' : ''} />
                 {statusCfg.label}
               </span>
-              {order.bay_status === 'WAITING' && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap bg-orange-100 text-orange-700">
-                  <Clock size={12} /> Đang chờ cầu nâng
-                </span>
-              )}
               {order.status === 'CANCELLED' ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap bg-rose-100 text-rose-700 max-w-xs truncate">
                   Lý do: {order.early_closure_reason || 'Không có ghi chú'}
@@ -529,7 +441,7 @@ export default function LeaderServiceOrderDetail() {
         </div>
 
         <div className="flex items-center gap-3">
-          {!isPaid && order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && order.status !== 'CLOSED_PARTIAL' && order.quotation && (
+          {!isPaid && order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && order.status !== 'CLOSED_PARTIAL' && order.quotation && !hasCombo && (
             <button
               onClick={handleOpenCloseEarlyModal}
               title="Đóng sớm lệnh sửa chữa khi khách hàng muốn dừng giữa chừng"
@@ -667,10 +579,6 @@ export default function LeaderServiceOrderDetail() {
             <span className="text-slate-800">
               {order.entry_time ? new Date(order.entry_time).toLocaleString('vi-VN') : new Date(order.createdAt).toLocaleString('vi-VN')}
             </span>
-          </div>
-          <div>
-            <span className="text-slate-400 block mb-0.5">Cầu nâng thực hiện</span>
-            <span className="text-slate-800">{order.bay?.bay_name || '—'}</span>
           </div>
           {order.appointment?.scheduled_time && (
             <div>
@@ -1305,7 +1213,6 @@ export default function LeaderServiceOrderDetail() {
                         </div>
                       </>
                     )}
-                    {renderLoyaltyPointsSection()}
                     <div className="flex justify-between items-center text-lg mt-4 pt-4 border-t border-slate-200">
                       <span className="text-slate-600 font-bold">Số tiền thực thu:</span>
                       <span className="text-2xl font-black text-rose-600">{formatPrice(finalAmountToPay)}</span>
@@ -1399,8 +1306,6 @@ export default function LeaderServiceOrderDetail() {
                         </div>
                       </div>
                     </div>
-
-                    {renderLoyaltyPointsSection()}
 
                     <div className="mt-6 pt-4 border-t border-dashed border-slate-300 space-y-3">
                       {order.payment?.payment_status === 'DEPOSITED' && (

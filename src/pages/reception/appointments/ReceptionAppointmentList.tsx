@@ -130,27 +130,7 @@ export default function AppointmentList() {
             appointmentTime = String(dateObj.getHours()).padStart(2, '0') + ':' + String(dateObj.getMinutes()).padStart(2, '0');
           }
 
-          let status = (appt.status || 'pending').toLowerCase() as any;
-
-          // Check if appointment is expired (should be treated as expired/cancelled)
-          if ((status === 'pending' || status === 'confirmed') && appt.scheduled_time) {
-            const scheduledDate = new Date(appt.scheduled_time);
-            const now = new Date();
-
-            const scheduledDateOnly = new Date(scheduledDate.getFullYear(), scheduledDate.getMonth(), scheduledDate.getDate());
-            const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-            if (scheduledDateOnly < nowDateOnly) {
-              // Past day
-              status = 'expired';
-            } else if (scheduledDateOnly.getTime() === nowDateOnly.getTime()) {
-              // Today: check if scheduled time is more than 1 hour ago
-              const oneHourLater = new Date(scheduledDate.getTime() + 60 * 20 * 1000);
-              if (oneHourLater < now) {
-                status = 'expired';
-              }
-            }
-          }
+          const status = (appt.status || 'pending').toLowerCase() as any;
 
           return {
             id: String(appt.id),

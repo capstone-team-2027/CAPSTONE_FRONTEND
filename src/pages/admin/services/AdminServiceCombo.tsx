@@ -34,15 +34,6 @@ export const saveServiceCombos = (combos: ServiceCombo[]) => {
   }
 };
 
-const getServicePrices = (): Record<number, number> => {
-  try {
-    const stored = localStorage.getItem("service_prices");
-    return stored ? JSON.parse(stored) : {};
-  } catch (e) {
-    return {};
-  }
-};
-
 interface ComboFormModalProps {
   initial: ServiceCombo | null;
   services: ServiceCatalog[];
@@ -62,11 +53,15 @@ export function ComboFormModal({ initial, services, categories, existingCombos, 
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  const servicePrices = getServicePrices();
+  const getServicePrice = (id: number) => {
+    const service = services.find((s) => s.id === id);
+    if (!service) return 0;
+    return Number(service.total_price != null ? service.total_price : service.labor_price) || 0;
+  };
 
   // Dynamic calculations
   const totalOriginal = selectedServiceIds.reduce((sum, id) => {
-    return sum + (servicePrices[id] ?? 300000);
+    return sum + getServicePrice(id);
   }, 0);
   const totalDiscounted = Math.round(totalOriginal * (1 - discount / 100));
 
@@ -244,7 +239,7 @@ export function ComboFormModal({ initial, services, categories, existingCombos, 
               <div className="border border-slate-200 rounded-lg max-h-48 overflow-y-auto p-3 space-y-2 bg-slate-50/50">
                 {services.filter(s => s.is_active).map(s => {
                   const isChecked = selectedServiceIds.includes(s.id);
-                  const sPrice = servicePrices[s.id] ?? 300000;
+                  const sPrice = getServicePrice(s.id);
                   return (
                     <label key={s.id} className="flex items-center gap-3 p-2 rounded hover:bg-white cursor-pointer transition-colors text-xs font-semibold text-slate-700">
                       <input

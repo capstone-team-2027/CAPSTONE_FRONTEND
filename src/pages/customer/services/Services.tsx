@@ -138,29 +138,16 @@ export default function Services() {
         return () => clearTimeout(timer);
     }, [currentPage, searchQuery, activeTab, currentLang]);
 
-    const getServicePriceValue = (id: number): number => {
-        try {
-            const storedPrices = localStorage.getItem("service_prices");
-            if (storedPrices) {
-                const prices = JSON.parse(storedPrices);
-                if (prices[id] !== undefined) return prices[id];
-            }
-        } catch (e) { }
-
-        const priceMap: Record<number, number> = {
-            1: 500000,
-            2: 1200000,
-            3: 400000,
-            4: 800000,
-            5: 300000,
-            6: 0
-        };
-        return priceMap[id] ?? 300000;
+    const getServicePriceValue = (catalog: any): number => {
+        const value = catalog?.total_price !== undefined && catalog?.total_price !== null
+            ? catalog.total_price
+            : (catalog?.labor_price || 0);
+        return Number(value) || 0;
     };
 
-    const calculateComboPrices = (serviceIds: number[], discount: number) => {
-        const totalOriginal = serviceIds.reduce((sum, id) => {
-            return sum + getServicePriceValue(id);
+    const calculateComboPrices = (catalogs: any[], discount: number) => {
+        const totalOriginal = (catalogs || []).reduce((sum, catalog) => {
+            return sum + getServicePriceValue(catalog);
         }, 0);
         const discounted = totalOriginal * (1 - discount / 100);
         return { totalOriginal, discounted };
@@ -214,7 +201,7 @@ export default function Services() {
 
     const services: ServiceItem[] = dbServices.map((s: any) => {
         const categoryName = s.category?.category_name || "";
-        const priceValue = getServicePriceValue(s.id);
+        const priceValue = getServicePriceValue(s);
 
         return {
             id: s.id,
@@ -587,7 +574,7 @@ export default function Services() {
                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 >
                     {combos.filter(c => c.is_active).map((combo) => {
-                        const { totalOriginal, discounted } = calculateComboPrices(combo.service_ids, combo.discount_percentage);
+                        const { totalOriginal, discounted } = calculateComboPrices(combo.catalogs || [], combo.discount_percentage);
                         return (
                             <motion.div
                                 key={combo.id}
@@ -914,7 +901,7 @@ export default function Services() {
 
                             {/* Modal Footer - Price Comparison & Action */}
                             {(() => {
-                                const { totalOriginal, discounted } = calculateComboPrices(selectedCombo.service_ids, selectedCombo.discount_percentage);
+                                const { totalOriginal, discounted } = calculateComboPrices(selectedCombo.catalogs || [], selectedCombo.discount_percentage);
                                 const savings = totalOriginal - discounted;
                                 return (
                                     <div className="p-6 md:p-8 bg-white border-t border-slate-100 shrink-0">

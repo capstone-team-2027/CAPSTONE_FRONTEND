@@ -149,7 +149,6 @@ export default function ReceptionCreateServiceOrder() {
   const [manualVehicleYear, setManualVehicleYear] = useState('');
   const [currentOdo, setCurrentOdo] = useState(searchParams.get('odo') || '');
   const [initialCondition, setInitialCondition] = useState(searchParams.get('condition') || '');
-  const [bayId, setBayId] = useState('1'); // Cầu nâng (default 1)
 
   // Vehicle autocomplete states
   const [vehicleBrand, setVehicleBrand] = useState('');
@@ -705,7 +704,6 @@ export default function ReceptionCreateServiceOrder() {
         booking_type: finalBookingType || undefined,
         vehicle_id: finalVehicleId,
         walk_in: walkInPayload,
-        bay_id: Number(bayId) || null,
         current_odo: currentOdo.trim() ? Number(currentOdo) : undefined,
         service_ids: receptionServiceMode === 'SERVICE' ? selectedServiceIds : undefined,
         combo_ids: receptionServiceMode === 'SERVICE' && selectedComboId ? [selectedComboId] : undefined,
@@ -720,13 +718,7 @@ export default function ReceptionCreateServiceOrder() {
 
       const res = await fetchPrivate(SERVICE_ORDER_API_ENDPOINTS.CREATE, 'POST', payload);
       if (res.success) {
-        const isWaitingForBay = res.data?.bay_status?.toUpperCase() === 'WAITING';
-        showToast(
-          isWaitingForBay
-            ? 'Đã tiếp nhận xe. Xe đang chờ cầu nâng trống.'
-            : 'Tạo hóa đơn dịch vụ thành công!',
-          isWaitingForBay ? 'info' : 'success'
-        );
+        showToast('Tạo hóa đơn dịch vụ thành công!', 'success');
         setTimeout(() => {
           if (rescueId) {
             navigate('/reception/customers');
