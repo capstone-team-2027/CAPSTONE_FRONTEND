@@ -143,7 +143,7 @@ export default function TechnicianWorkHistory() {
     try {
       const [taskResponse, rescueResponse] = await Promise.all([
         fetchPrivate<ApiEnvelope<CompletedTaskResponse[]>>(
-          TASK_ASSIGNMENT_ENDPOINTS.GET_COMPLETED_TASKS,
+          TASK_ASSIGNMENT_ENDPOINTS.GET_MY_WORK_HISTORY,
         ) as Promise<ApiEnvelope<CompletedTaskResponse[]>>,
         fetchPrivate<ApiEnvelope<RescueHistoryResponse[]>>(
           TASK_ASSIGNMENT_ENDPOINTS.GET_MY_RESCUE_HISTORY,

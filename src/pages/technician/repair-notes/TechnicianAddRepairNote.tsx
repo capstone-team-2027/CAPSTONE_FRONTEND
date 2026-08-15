@@ -229,7 +229,9 @@ export default function TechnicianAddRepairNote() {
       });
       showToast("Đã lưu kinh nghiệm sửa chữa.", "success");
       setContent("");
+      setSelectedTaskId(null);
       setHistoryLoaded(false);
+      await loadRepairTasks();
     } catch (error) {
       console.error("Lỗi khi lưu kinh nghiệm sửa chữa:", error);
       showToast(
