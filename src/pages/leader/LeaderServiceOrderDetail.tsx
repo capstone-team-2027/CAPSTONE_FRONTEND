@@ -896,8 +896,8 @@ export default function LeaderServiceOrderDetail() {
 
       {/* EARLY CLOSURE MODAL */}
       {showCloseEarlyModal && (() => {
-        const allItems: any[] = order.quotation?.items || [];
-        const tasks: any[] = order.tasks || [];
+        const allItems: any[] = (order.quotation?.items || []).filter((i: any) => i.status !== 'CANCELLED');
+        const tasks: any[] = (order.tasks || []).filter((t: any) => t.status?.toUpperCase() !== 'CANCELLED');
 
         const depositBadge = (item: any) => {
           if (!item.customPartOrder) return null;
