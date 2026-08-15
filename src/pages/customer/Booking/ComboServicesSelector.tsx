@@ -5,6 +5,8 @@ import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { SERVICE_API_ENDPOINTS } from '../../../constants/customer/serviceApiEndpoints';
 import type { ServiceCombo, ServiceItem } from '../../../model/Service';
 
+const formatVndAmount = (value: number) => Math.round(Number(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
 interface ComboServicesSelectorProps {
     dbCombos: ServiceCombo[];
     setDbCombos: React.Dispatch<React.SetStateAction<ServiceCombo[]>>;
@@ -18,6 +20,10 @@ interface ComboServicesSelectorProps {
     elevated?: boolean;
     hideSearch?: boolean;
     externalSearchText?: string;
+    allowManualSparePart?: boolean;
+    spareParts?: { id: number; name: string; brand?: string; retail_price?: number }[];
+    serviceSpareParts?: Record<number, number | undefined>;
+    setServiceSpareParts?: React.Dispatch<React.SetStateAction<Record<number, number | undefined>>>;
 }
 
 export default function ComboServicesSelector({
@@ -33,7 +39,13 @@ export default function ComboServicesSelector({
     elevated = false,
     hideSearch = false,
     externalSearchText,
+    allowManualSparePart = false,
+    spareParts = [],
+    serviceSpareParts = {},
+    setServiceSpareParts,
 }: ComboServicesSelectorProps) {
+    const [sparePartSearch, setSparePartSearch] = useState<Record<number, string>>({});
+    const [openSparePartFor, setOpenSparePartFor] = useState<number | null>(null);
     const { fetchPublic } = useFetchClient_v2();
     const { t, i18n } = useTranslation();
     const currentLang = i18n.language || 'vi';
@@ -115,8 +127,10 @@ export default function ComboServicesSelector({
                 const serviceIds = combo.service_ids || [];
                 const original = (combo as any).originalPrice || 0;
                 const comboServiceRows = ((combo as any).catalogs || []).map((cat: any) => ({
+                    catalogId: cat.id as number,
                     name: cat.translations?.[0]?.name || cat.service_name || "Dịch vụ bảo dưỡng",
                     sparePartName: cat.sparePart?.name as string | undefined,
+                    hasFixedSparePart: !!cat.sparePart,
                 }));
 
                 return (
@@ -166,7 +180,7 @@ export default function ComboServicesSelector({
 
                             <div className={`pl-2 border-l-2 border-amber-400/50 ${compact ? 'my-2 space-y-1' : 'my-3 space-y-1.5'}`}>
                                 <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block font-display">{t('booking.includedServices', 'Dịch vụ đi kèm:')}</span>
-                                {comboServiceRows.map((row: { name: string; sparePartName?: string }, idx: number) => (
+                                {comboServiceRows.map((row: { catalogId: number; name: string; sparePartName?: string; hasFixedSparePart: boolean }, idx: number) => (
                                     <div key={idx} className={`${compact ? 'text-[10px]' : 'text-[11px]'} text-slate-500 leading-snug flex items-center gap-1 flex-wrap`}>
                                         <span className="text-[#F9A11B] shrink-0">•</span>
                                         <span>{row.name}</span>
@@ -178,6 +192,60 @@ export default function ComboServicesSelector({
                                         )}
                                     </div>
                                 ))}
+                                {allowManualSparePart && isSelected && comboServiceRows.filter((row: { hasFixedSparePart: boolean }) => !row.hasFixedSparePart).map((row: { catalogId: number; name: string; hasFixedSparePart: boolean }) => {
+                                    const selectedPart = spareParts.find(p => p.id === serviceSpareParts[row.catalogId]);
+                                    const searchValue = sparePartSearch[row.catalogId] ?? '';
+                                    const isOpen = openSparePartFor === row.catalogId;
+                                    const filteredParts = searchValue.trim()
+                                        ? spareParts.filter(p => `${p.name} ${p.brand || ''}`.toLowerCase().includes(searchValue.trim().toLowerCase()))
+                                        : spareParts;
+                                    return (
+                                        <div key={row.catalogId} className="relative" onClick={(e) => e.stopPropagation()}>
+                                            <span className="text-[9px] text-slate-400">{row.name}:</span>
+                                            <input
+                                                type="text"
+                                                value={isOpen ? searchValue : (selectedPart ? `${selectedPart.name}${selectedPart.brand ? ` - ${selectedPart.brand}` : ''}` : '')}
+                                                placeholder="Tìm phụ tùng (nếu cần)..."
+                                                onFocus={() => {
+                                                    setOpenSparePartFor(row.catalogId);
+                                                    setSparePartSearch(prev => ({ ...prev, [row.catalogId]: '' }));
+                                                }}
+                                                onChange={(e) => setSparePartSearch(prev => ({ ...prev, [row.catalogId]: e.target.value }))}
+                                                onBlur={() => setTimeout(() => setOpenSparePartFor(prev => prev === row.catalogId ? null : prev), 150)}
+                                                className="w-full text-xs font-semibold border border-slate-200 rounded-md px-2 py-1.5 text-slate-700 outline-none focus:border-[#00285E] mt-0.5"
+                                            />
+                                            {isOpen && (
+                                                <div className="absolute z-20 mt-1 min-w-[260px] max-h-64 overflow-y-auto bg-white border border-slate-200 rounded-md shadow-lg">
+                                                    <div
+                                                        onMouseDown={() => {
+                                                            setServiceSpareParts?.(prev => ({ ...prev, [row.catalogId]: undefined }));
+                                                            setOpenSparePartFor(null);
+                                                        }}
+                                                        className="px-2.5 py-2 text-xs text-slate-400 hover:bg-slate-50 cursor-pointer"
+                                                    >
+                                                        Không chọn
+                                                    </div>
+                                                    {filteredParts.length === 0 && (
+                                                        <div className="px-2.5 py-2 text-xs text-slate-400">Không tìm thấy phụ tùng</div>
+                                                    )}
+                                                    {filteredParts.map((part) => (
+                                                        <div
+                                                            key={part.id}
+                                                            onMouseDown={() => {
+                                                                setServiceSpareParts?.(prev => ({ ...prev, [row.catalogId]: part.id }));
+                                                                setOpenSparePartFor(null);
+                                                            }}
+                                                            className="px-2.5 py-2 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer flex flex-col gap-0.5"
+                                                        >
+                                                            <span>{part.name}{part.brand ? ` - ${part.brand}` : ''}</span>
+                                                            {part.retail_price ? <span className="text-slate-400 font-semibold">{formatVndAmount(part.retail_price)} VND</span> : null}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
 

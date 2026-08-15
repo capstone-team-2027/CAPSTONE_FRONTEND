@@ -30,26 +30,6 @@ import { type ServiceCombo, ComboFormModal } from "./AdminServiceCombo";
 import { SERVICE_COMBOS_API_ENDPOINTS } from "../../../constants/admin/serviceCombosApiEndPoint";
 import { SPARE_PART_API_ENDPOINTS } from '../../../constants/inventory/sparePartApiEnPoint';
 
-// LocalStorage helpers for prices and combos persistence
-const getServicePrices = (): Record<number, number> => {
-  try {
-    const stored = localStorage.getItem("service_prices");
-    return stored ? JSON.parse(stored) : {};
-  } catch (e) {
-    return {};
-  }
-};
-
-const saveServicePrice = (id: number, price: number) => {
-  try {
-    const prices = getServicePrices();
-    prices[id] = price;
-    localStorage.setItem("service_prices", JSON.stringify(prices));
-  } catch (e) {
-    console.error(e);
-  }
-};
-
 const getServiceImage = (id: number): string => {
   try {
     const stored = localStorage.getItem("service_images");
@@ -388,48 +368,6 @@ export default function AdminServiceManagement() {
     loadCategories();
   }, [categoryPage, debouncedCategoryQuery]);
 
-  // Prepopulate mock service prices and combos if empty
-  useEffect(() => {
-    if (services.length > 0) {
-      const currentPrices = getServicePrices();
-      let pricesUpdated = false;
-      services.forEach((s) => {
-        const name = s.service_name;
-        let expectedPrice = currentPrices[s.id];
-
-        // Map exact matching names to their correct prices matching the screenshot
-        if (name.includes("cấp 1")) expectedPrice = 500000;
-        else if (name.includes("cấp 2")) expectedPrice = 800000;
-        else if (name.includes("cấp 3")) expectedPrice = 1500000;
-        else if (name.includes("Thay dầu động cơ")) expectedPrice = 650000;
-        else if (name.includes("Vệ sinh kim phun")) expectedPrice = 1200000;
-        else if (name.includes("dây curoa cam")) expectedPrice = 2500000;
-        else if (name.includes("nắp giàn cò")) expectedPrice = 1800000;
-        else if (name.includes("Cân bằng động")) expectedPrice = 400000;
-        else if (name.includes("Cân chỉnh góc đặt")) expectedPrice = 600000;
-        else if (name.includes("má phanh trước")) expectedPrice = 850000;
-        else if (name.includes("Vệ sinh & dưỡng nội thất")) expectedPrice = 800000;
-        else if (name.includes("Khử mùi diệt khuẩn")) expectedPrice = 200000;
-        else if (name.includes("OBD2")) expectedPrice = 300000;
-        else if (name.includes("chẩn đoán hệ thống điều hòa")) expectedPrice = 400000;
-        else if (name.includes("kích bình")) expectedPrice = 200000;
-        else if (name.includes("lốp dự phòng")) expectedPrice = 250000;
-        else if (name.includes("cẩu kéo xe")) expectedPrice = 1200000;
-
-        if (expectedPrice !== undefined && currentPrices[s.id] !== expectedPrice) {
-          currentPrices[s.id] = expectedPrice;
-          pricesUpdated = true;
-        } else if (currentPrices[s.id] === undefined) {
-          currentPrices[s.id] = expectedPrice || 350000;
-          pricesUpdated = true;
-        }
-      });
-      if (pricesUpdated) {
-        localStorage.setItem("service_prices", JSON.stringify(currentPrices));
-      }
-    }
-  }, [services, categoryList]);
-
   useEffect(() => {
     if (activeTab === "categories") {
       loadCategories();
@@ -541,9 +479,11 @@ export default function AdminServiceManagement() {
   };
 
   const calculateComboPrice = (serviceIds: number[]) => {
-    const prices = getServicePrices();
     return serviceIds.reduce((sum, id) => {
-      const price = prices[id] ?? 300000;
+      const service = services.find((s) => s.id === id);
+      const price = service
+        ? Number(service.total_price != null ? service.total_price : service.labor_price) || 0
+        : 0;
       return sum + price;
     }, 0);
   };
@@ -551,7 +491,6 @@ export default function AdminServiceManagement() {
   const filteredServices = services;
   const filteredCombos = combos;
   const filteredCategories = categories;
-  const servicePrices = getServicePrices();
 
   const handlePageChange = (type: "services" | "combos" | "categories", newPage: number) => {
     setSearchParams(prev => {

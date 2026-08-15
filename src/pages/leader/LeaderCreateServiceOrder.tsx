@@ -128,7 +128,6 @@ export default function LeaderCreateServiceOrder() {
   const [manualVehicleYear, setManualVehicleYear] = useState('');
   const [currentOdo, setCurrentOdo] = useState(searchParams.get('odo') || '');
   const [initialCondition, setInitialCondition] = useState(searchParams.get('condition') || '');
-  const [bayId, setBayId] = useState('1'); // Cầu nâng (default 1)
   const [originalServiceIds, setOriginalServiceIds] = useState<number[]>([]);
   const [originalComboId, setOriginalComboId] = useState<number | null>(null);
   const [isServiceEditorOpen, setIsServiceEditorOpen] = useState(false);
@@ -757,7 +756,6 @@ export default function LeaderCreateServiceOrder() {
         booking_type: finalBookingType || undefined,
         vehicle_id: finalVehicleId,
         walk_in: walkInPayload,
-        bay_id: Number(bayId) || null,
         service_ids: effectiveServiceMode === 'SERVICE' ? selectedServiceIds : undefined,
         combo_ids: effectiveServiceMode === 'SERVICE' && selectedComboId ? [selectedComboId] : undefined,
         service_spare_parts: effectiveServiceMode === 'SERVICE'
@@ -774,15 +772,9 @@ export default function LeaderCreateServiceOrder() {
 
       const res = await fetchPrivate(LEADER_SERVICE_ORDER_API_ENDPOINTS.CREATE, 'POST', payload);
       if (res.success) {
-        const isWaitingForBay = res.data?.bay_status?.toUpperCase() === 'WAITING';
-        showToast(
-          isWaitingForBay
-            ? 'Đã tiếp nhận xe. Xe đang chờ cầu nâng trống.'
-            : 'Tạo hóa đơn dịch vụ thành công!',
-          isWaitingForBay ? 'info' : 'success'
-        );
+        showToast('Tạo hóa đơn dịch vụ thành công!', 'success');
         setTimeout(() => {
-          navigate('/leader/appointments', { state: { activeTab: isWaitingForBay ? 'waiting' : 'received' } });
+          navigate('/leader/appointments', { state: { activeTab: 'received' } });
         }, 1000);
       } else {
         throw new Error(res.message || 'Lỗi khi tạo hóa đơn dịch vụ');
@@ -1497,6 +1489,10 @@ export default function LeaderCreateServiceOrder() {
                         COLORS={{ orange: '#00285E', navy: '#FFFFFF' }}
                         selectedServiceIds={selectedServiceIds}
                         setSelectedServiceIds={setSelectedServiceIds}
+                        allowManualSparePart
+                        spareParts={spareParts}
+                        serviceSpareParts={serviceSpareParts}
+                        setServiceSpareParts={setServiceSpareParts}
                       />
                     )}
 

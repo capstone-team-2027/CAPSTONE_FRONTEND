@@ -13,7 +13,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useFetchClient_v2 as useFetchClient } from '../../../hook/useFetchClient';
 import { SERVICE_ORDER_API_ENDPOINTS } from '../../../constants/reception/appointmentsEndpoints';
-import { GARAGE_CONFIG_API_ENDPOINTS } from '../../../constants/customer/garage_configurationsEndpoints';
 
 interface AwaitingPaymentOrder {
   serviceOrder: {
@@ -23,7 +22,9 @@ interface AwaitingPaymentOrder {
     vehicle?: {
       id: number;
       license_plate: string;
-      model?: { model_name: string } | null;
+      color?: string | null;
+      year?: number | null;
+      model?: { model_name: string; make?: { make_name: string } | null } | null;
       customer?: { id: number; name: string | null; phone: string | null; loyalty_points?: number | null } | null;
     } | null;
   };
@@ -71,9 +72,7 @@ export default function ReceptionProcessPayment() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState<PaymentSuccessInfo | null>(null);
 
-  const [maxDiscountPercent, setMaxDiscountPercent] = useState(30);
-  const [pointsToRedeem, setPointsToRedeem] = useState(0);
-  const [appliedPoints, setAppliedPoints] = useState(0);
+  const [appliedPoints] = useState(0);
 
   const activeOrder = pendingOrders.find((o) => o.serviceOrder.id === selectedOrderId) || null;
 
@@ -94,20 +93,6 @@ export default function ReceptionProcessPayment() {
 
   useEffect(() => {
     loadPendingOrders();
-    const loadConfig = async () => {
-      try {
-        const res = await fetchPublic(GARAGE_CONFIG_API_ENDPOINTS.GET_CONFIGS);
-        if (res && res.success && res.data) {
-          const maxPctConfig = res.data.find((c: any) => c.config_key === 'MAX_LOYALTY_DISCOUNT_PERCENT');
-          if (maxPctConfig) {
-            setMaxDiscountPercent(parseInt(maxPctConfig.config_value) || 30);
-          }
-        }
-      } catch (error) {
-        console.error('Lỗi khi tải cấu hình điểm thưởng:', error);
-      }
-    };
-    loadConfig();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -130,17 +115,10 @@ export default function ReceptionProcessPayment() {
       }
     };
     loadDetail();
-    setPointsToRedeem(0);
-    setAppliedPoints(0);
   }, [selectedOrderId]);
 
   // Khách đã cọc phụ tùng đặt riêng -> chỉ còn remainingAmount cần thu ở quầy.
   const remainingAmount = activeOrder?.remainingAmount ?? 0;
-  const customerPoints = activeOrder?.serviceOrder.vehicle?.customer?.loyalty_points ?? 0;
-  const maxRedeemablePoints = Math.min(
-    customerPoints,
-    Math.floor((remainingAmount * (maxDiscountPercent / 100)) / 1000),
-  );
   const finalAmount = Math.max(0, remainingAmount - appliedPoints * 1000);
 
   // Poll trạng thái thanh toán ONLINE mỗi 5s, giống pattern ReceptionServiceOrderDetail.tsx.
@@ -364,6 +342,9 @@ export default function ReceptionProcessPayment() {
                       pendingOrders.map((o) => {
                         const so = o.serviceOrder;
                         const name = so.vehicle?.customer?.name || 'Khách vãng lai';
+                        const vehicleModel = [so.vehicle?.model?.make?.make_name, so.vehicle?.model?.model_name]
+                          .filter(Boolean)
+                          .join(' ');
                         return (
                           <button
                             key={so.id}
@@ -382,6 +363,9 @@ export default function ReceptionProcessPayment() {
                             </div>
                             <div className="flex flex-col">
                               <span className="text-xs font-extrabold text-slate-800">{name}</span>
+                              {vehicleModel && (
+                                <span className="text-[11px] text-slate-400 font-semibold">{vehicleModel}</span>
+                              )}
                               <span className="text-[11px] text-slate-500 font-semibold">
                                 Còn lại: {formatPrice(o.remainingAmount)}
                               </span>
@@ -504,62 +488,6 @@ export default function ReceptionProcessPayment() {
                       <span className="text-xl font-black text-[#00285E]">{formatPrice(finalAmount)}</span>
                     </div>
                   </div>
-
-                  {false && customerPoints > 0 && (
-                    <div className="space-y-2 pt-2 border-t border-slate-100">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                          Điểm tích lũy khách hàng
-                        </label>
-                        <span className="text-xs font-bold text-[#00285E]">{customerPoints} điểm</span>
-                      </div>
-                      <p className="text-[11px] text-slate-400 font-medium">
-                        Có thể dùng tối đa {maxRedeemablePoints} điểm (giảm {maxDiscountPercent}% hóa đơn).
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min={0}
-                          max={maxRedeemablePoints}
-                          value={pointsToRedeem === 0 ? '' : pointsToRedeem}
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            if (raw === '') {
-                              setPointsToRedeem(0);
-                              return;
-                            }
-                            const val = parseInt(raw, 10);
-                            if (isNaN(val)) return;
-                            setPointsToRedeem(Math.min(val, maxRedeemablePoints));
-                          }}
-                          disabled={appliedPoints > 0 || maxRedeemablePoints <= 0}
-                          placeholder="Nhập số điểm muốn đổi"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-[#00285E] disabled:bg-slate-100 disabled:text-slate-400"
-                        />
-                        {appliedPoints === 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => setAppliedPoints(pointsToRedeem)}
-                            disabled={pointsToRedeem <= 0 || pointsToRedeem > maxRedeemablePoints}
-                            className="px-4 py-2 rounded-xl bg-[#00285E] text-white text-xs font-bold hover:bg-[#00285E]/90 disabled:bg-slate-200 disabled:text-slate-400 transition-all whitespace-nowrap"
-                          >
-                            Áp dụng
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setAppliedPoints(0);
-                              setPointsToRedeem(0);
-                            }}
-                            className="px-4 py-2 rounded-xl bg-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-300 transition-all whitespace-nowrap"
-                          >
-                            Hủy
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
 
                   <div className="space-y-3 pt-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">

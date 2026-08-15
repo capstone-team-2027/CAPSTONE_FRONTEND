@@ -304,12 +304,6 @@ export default function ReceptionServiceOrderList() {
                             <StatusIcon size={12} className={so.status === 'IN_PROGRESS' ? 'animate-spin' : ''} />
                             {statusCfg.label}
                           </span>
-                          {so.bay_status === 'WAITING' && (
-                            <span className="flex h-6 min-w-[104px] items-center justify-center gap-1.5 px-2.5 rounded-lg text-xs font-bold leading-none whitespace-nowrap bg-orange-100 text-orange-700">
-                              <Clock size={12} />
-                              Chờ cầu nâng
-                            </span>
-                          )}
                           {so.early_closure_reason && so.status !== 'CANCELLED' && so.status !== 'CLOSED_PARTIAL' && (
                             <span
                               title={so.early_closure_reason}
