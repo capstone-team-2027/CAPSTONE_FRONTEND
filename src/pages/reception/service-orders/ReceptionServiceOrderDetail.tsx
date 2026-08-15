@@ -431,7 +431,7 @@ export default function ReceptionServiceOrderDetail() {
         </div>
 
         <div className="flex items-center gap-3">
-          {!isPaid && order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && order.status !== 'CLOSED_PARTIAL' && order.quotation && !hasCombo && (
+          {!isPaid && order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && order.quotation && !hasCombo && (
             <button
               onClick={handleOpenCloseEarlyModal}
               title="Đóng sớm lệnh sửa chữa khi khách hàng muốn dừng giữa chừng"
