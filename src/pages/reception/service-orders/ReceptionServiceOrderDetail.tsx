@@ -69,8 +69,6 @@ export default function ReceptionServiceOrderDetail() {
     setPaymentMethod('NONE');
     setShowPaymentModal(true);
     setIsPaymentSuccess(false);
-    setPointsToRedeem(0);
-    setInputPoints(0);
   };
 
   const handleSelectPaymentMethod = async (method: 'CASH' | 'ONLINE') => {
