@@ -904,8 +904,8 @@ export default function ReceptionServiceOrderDetail() {
           Nguyên tắc: KHÔNG hủy đơn đã có chi phí thực tế — chỉ chốt đúng phần đã thực hiện thật.
           Hạng mục KHÔNG tick sẽ bị loại khỏi hóa đơn cuối (không tính tiền), không tạo dòng bù trừ giả tạo. */}
       {showCloseEarlyModal && (() => {
-        const allItems: any[] = order.quotation?.items || [];
-        const tasks: any[] = order.tasks || [];
+        const allItems: any[] = (order.quotation?.items || []).filter((i: any) => i.status !== 'CANCELLED');
+        const tasks: any[] = (order.tasks || []).filter((t: any) => t.status?.toUpperCase() !== 'CANCELLED');
 
         // Trạng thái cọc của phụ tùng đặt riêng lấy từ customPartOrder.status (tách bảng riêng,
         // không còn nằm trên chính dòng Quotation_Details nữa) — WAITING_DEPOSIT = chưa cọc,
