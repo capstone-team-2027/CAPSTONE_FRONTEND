@@ -656,7 +656,7 @@ export default function ReceptionServiceOrderDetail() {
                         Tổng cộng
                       </td>
                       <td className="py-3 px-4 text-right font-black text-[#00285E]">
-                        {formatPrice(getLaborTotal())}
+                        {formatPrice(getLaborTotal() + getRescuePrice())}
                       </td>
                     </tr>
                   </tfoot>
