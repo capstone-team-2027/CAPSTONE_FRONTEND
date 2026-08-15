@@ -3,6 +3,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localho
 export const TASK_ASSIGNMENT_ENDPOINTS = {
     GET_MY_ASSIGNMENTS: `${API_BASE_URL}/api/technician/task-assignments`,
     GET_COMPLETED_TASKS: `${API_BASE_URL}/api/technician/completed-tasks`,
+    GET_MY_WORK_HISTORY: `${API_BASE_URL}/api/technician/work-history`,
     ADD_REPAIR_NOTE: `${API_BASE_URL}/api/technician/repair-notes`,
     GET_MY_REPAIR_NOTES: `${API_BASE_URL}/api/technician/repair-notes`,
     GET_SERVICE_ORDER_DETAIL: (id: string | number) => `${API_BASE_URL}/api/technician/service-orders/${id}`,
