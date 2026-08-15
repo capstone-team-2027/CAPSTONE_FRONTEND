@@ -251,9 +251,13 @@ export default function AdminAiAnalysis() {
 
   const growing = (data?.yoy_service_drivers?.growing || []).slice(0, 3);
   const declining = (data?.yoy_service_drivers?.declining || []).slice(0, 3);
-  const popularServices = [...growing, ...declining]
+  const yoyServices = [...growing, ...declining]
     .sort((a: any, b: any) => Number(b.this_year_rev || 0) - Number(a.this_year_rev || 0))
     .slice(0, 5);
+  const topServicesInRange = (data?.dashboard_stats?.topServices || [])
+    .map((item: any) => ({ service_name: item.name, this_year_rev: item.revenue }))
+    .slice(0, 5);
+  const popularServices = yoyServices.length > 0 ? yoyServices : topServicesInRange;
   const maxServiceRevenue = Math.max(...popularServices.map((item: any) => Number(item.this_year_rev || 0)), 1);
   const risks = data?.dashboard_stats?.businessOverview?.operationalRisks || {};
   const overloadedTechnicians = (risks?.workload?.technicians || []).filter((tech: any) => tech.aboveTeamAverage);
