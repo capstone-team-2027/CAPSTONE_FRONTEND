@@ -443,17 +443,29 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
                 />
               </div>
 
-              {/* Calculated price */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Số tiền cứu hộ (VND)</label>
-                <input
-                  type="number"
-                  value={rescuePrice || ''}
-                  onChange={(e) => setRescuePrice(parseFloat(e.target.value) || 0)}
-                  placeholder="Hệ thống tự tính hoặc nhập tay"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-                />
-              </div>
+       {/* Calculated price */}
+<div>
+  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+    Số tiền cứu hộ (VND)
+  </label>
+
+  <input
+    type="text"
+    value={
+      rescuePrice
+        ? new Intl.NumberFormat('vi-VN').format(rescuePrice)
+        : ''
+    }
+    onChange={(e) => {
+      // Xóa toàn bộ ký tự không phải số
+      const rawValue = e.target.value.replace(/\D/g, '');
+
+      setRescuePrice(Number(rawValue) || 0);
+    }}
+    placeholder="Hệ thống tự tính hoặc nhập tay"
+    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+  />
+</div>
             </div>
 
             {/* Description */}
