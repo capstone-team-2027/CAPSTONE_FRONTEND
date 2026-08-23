@@ -209,13 +209,22 @@ export default function LeaderLayout() {
       fetchNotifications();
       setIsNotificationOpen(true);
     };
+    const handleUrgentNotification = () => {
+      playLeaderNotificationSound().catch(error => console.error('Không thể phát âm báo:', error));
+      showToast('Có công việc vừa hoàn thành, cần chú ý!', 'info');
+      fetchUnreadCount();
+      fetchNotifications();
+      setIsNotificationOpen(true);
+    };
     socket.on('new_notification', handleNewNotification);
     socket.on('customer_received', handleCustomerReceived);
+    socket.on('urgent_notification', handleUrgentNotification);
 
     return () => {
       socket.off('connect', joinRooms);
       socket.off('new_notification', handleNewNotification);
       socket.off('customer_received', handleCustomerReceived);
+      socket.off('urgent_notification', handleUrgentNotification);
     };
   }, [socket, user?.id, user?.role, isNotificationOpen]);
 
@@ -399,13 +408,14 @@ export default function LeaderLayout() {
                           onClick={() => {
                             if (!notif.isRead) handleMarkAsRead(notif.id);
                           }}
-                          className={`p-3 rounded-xl cursor-pointer transition-colors mb-1 ${notif.isRead ? 'opacity-70 hover:bg-slate-50' : 'bg-blue-50/50 hover:bg-blue-50 border border-blue-100/50'}`}
+                          className={`p-3 rounded-xl cursor-pointer transition-colors mb-1 ${notif.priority === 'HIGH' ? 'bg-rose-50 border border-rose-200 hover:bg-rose-100' : notif.isRead ? 'opacity-70 hover:bg-slate-50' : 'bg-blue-50/50 hover:bg-blue-50 border border-blue-100/50'}`}
                         >
                           <div className="flex justify-between items-start gap-2 mb-1">
-                            <h4 className={`text-sm font-semibold ${notif.isRead ? 'text-slate-700' : 'text-slate-900'}`}>
+                            <h4 className={`text-sm font-semibold flex items-center gap-1.5 ${notif.priority === 'HIGH' ? 'text-rose-700' : notif.isRead ? 'text-slate-700' : 'text-slate-900'}`}>
+                              {notif.priority === 'HIGH' && <span className="rounded bg-rose-600 px-1.5 py-0.5 text-[9px] font-bold text-white shrink-0">KHẨN</span>}
                               {notif.title}
                             </h4>
-                            {!notif.isRead && <span className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0"></span>}
+                            {!notif.isRead && <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${notif.priority === 'HIGH' ? 'bg-rose-500' : 'bg-blue-500'}`}></span>}
                           </div>
                           <p className="text-xs text-slate-500 line-clamp-2">{notif.content}</p>
                           <span className="text-[10px] text-slate-400 mt-2 block font-medium">
