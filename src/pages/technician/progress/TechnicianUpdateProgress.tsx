@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   Loader2,
+  PlayCircle,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useFetchClient } from '../../../hook/useFetchClient';
@@ -174,6 +175,27 @@ export default function TechnicianUpdateProgress() {
       alert(error?.message || 'Đã xảy ra lỗi khi hoàn thành công việc.');
     } finally {
       setCompletingTaskId(null);
+    }
+  };
+
+  const [startingTaskId, setStartingTaskId] = useState<string | null>(null);
+
+  const startTask = async (task: RepairTask) => {
+    if (!task.taskAssignmentId) {
+      alert('Không tìm thấy thông tin phân công của công việc này.');
+      return;
+    }
+    setStartingTaskId(task.id);
+    try {
+      await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.START_TASK, 'PUT', {
+        taskAssignmentId: task.taskAssignmentId,
+      });
+      await loadTasks();
+    } catch (error: any) {
+      console.error('Lỗi khi bắt đầu công việc:', error);
+      alert(error?.message || 'Đã xảy ra lỗi khi bắt đầu công việc.');
+    } finally {
+      setStartingTaskId(null);
     }
   };
 
@@ -357,7 +379,21 @@ export default function TechnicianUpdateProgress() {
                   >
                     {statusOpt.label}
                   </span>
-                  {!isDone && (
+                  {task.status === 'not_started' ? (
+                    <button
+                      onClick={() => startTask(task)}
+                      disabled={startingTaskId === task.id}
+                      title="Bắt đầu thực hiện công việc"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:brightness-110 active:scale-[0.97] transition-all disabled:opacity-50"
+                    >
+                      {startingTaskId === task.id ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <PlayCircle size={13} />
+                      )}
+                      {startingTaskId === task.id ? 'Đang khởi động...' : 'Bắt đầu'}
+                    </button>
+                  ) : !isDone && (
                     <button
                       onClick={() => completeTask(task)}
                       disabled={isSending}

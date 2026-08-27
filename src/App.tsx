@@ -137,6 +137,7 @@ function App() {
             <Route path="settings" element={<AdminSettings />} />
             <Route path="services" element={<AdminServiceCatalog />} />
             <Route path="staff" element={<AdminStaffManagement />} />
+            <Route path="staff-ranking" element={<AdminStaffManagement />} />
             <Route path="warranty" element={<AdminWarrantyPolicies />} />
             <Route path="technical-documents" element={<AdminTechnicalDocuments />} />
             <Route path="statistics" element={<AdminStatistics />} />

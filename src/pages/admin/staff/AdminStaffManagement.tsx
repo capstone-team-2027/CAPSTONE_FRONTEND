@@ -22,7 +22,7 @@ import 'react-phone-input-2/lib/style.css';
 import * as PhoneInputLib from 'react-phone-input-2';
 
 const PAGE_SIZE = 6;
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { useNavigate,useLocation,useOutletContext } from "react-router-dom";
 import type { Role, StaffManagement } from "../../../model/dto/staffManagement.dto";
 
 // ── resolve PhoneInput default export ─────────────────────────
@@ -102,7 +102,6 @@ type StaffStatus = "ACTIVE" | "INACTIVE" | "PENDING" | "BANNED";
 const STATUS_OPTIONS: { value: StaffStatus; label: string }[] = [
   { value: "ACTIVE", label: "Đang hoạt động" },
   { value: "INACTIVE", label: "Tạm nghỉ" },
-  { value: "PENDING", label: "Chờ duyệt" },
   { value: "BANNED", label: "Bị khóa" },
 ];
 
@@ -118,7 +117,8 @@ export default function AdminStaffManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Tab & Ranking State variables
-  const [activeTab, setActiveTab] = useState<"list" | "ranking">("list");
+  const location = useLocation();
+  const activeTab = location.pathname.includes("staff-ranking") ? "ranking" : "list";
   const [timeframe, setTimeframe] = useState<string>("month");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [customStartDate, setCustomStartDate] = useState<string>("");
@@ -131,7 +131,7 @@ export default function AdminStaffManagement() {
   const totalActive = staff.filter((s) => s.status === "ACTIVE").length;
   const totalTechnicians = staff.filter((s) => s.role.roleCode === "TECHNICIAN",).length;
   const filteredStaff = useMemo(() => {
-    return staff.filter((s) => {
+    const list = staff.filter((s) => {
       const searchMatch =
         s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.phoneNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -142,6 +142,26 @@ export default function AdminStaffManagement() {
         s.status === statusFilter;
 
       return searchMatch && statusMatch;
+    });
+
+    const getRolePriority = (roleCode: string) => {
+      switch (roleCode) {
+        case "TECHNICIAN_LEADER":
+          return 1;
+        case "TECHNICIAN":
+          return 2;
+        case "RECEPTIONIST":
+          return 3;
+        default:
+          return 4;
+      }
+    };
+
+    return list.sort((a, b) => {
+      const pA = getRolePriority(a.role.roleCode);
+      const pB = getRolePriority(b.role.roleCode);
+      if (pA !== pB) return pA - pB;
+      return a.fullName.localeCompare(b.fullName, "vi");
     });
   }, [staff, searchTerm, statusFilter]);
 
@@ -171,7 +191,7 @@ export default function AdminStaffManagement() {
       { id: 105, fullName: "Nguyễn Thị Mai", roleName: "Lễ tân", completedTasks: 120, revenueContribution: 15000000, rating: 4.9, performanceScore: 97, workDate: "2026-05-10", status: "Active" },
     ];
 
-    if (staff.length > 0) {
+      if (staff.length > 0) {
       return staff.map((s, idx) => {
         const base = baseRanks[idx % baseRanks.length];
         return {
@@ -185,10 +205,10 @@ export default function AdminStaffManagement() {
           workDate: base.workDate,
           status: s.status === "ACTIVE" ? "Active" : "Inactive",
         };
-      }).sort((a, b) => b.performanceScore - a.performanceScore);
+      }).sort((a, b) => b.rating - a.rating || b.completedTasks - a.completedTasks);
     }
     
-    return baseRanks.sort((a, b) => b.performanceScore - a.performanceScore);
+    return baseRanks.sort((a, b) => b.rating - a.rating || b.completedTasks - a.completedTasks);
   }, [staff, isDateRangeInvalid]);
 
   // Export CSV Report
@@ -340,29 +360,7 @@ export default function AdminStaffManagement() {
         )}
       </div>
 
-      {/* TABS SWITCHER */}
-      <div className="flex border-b border-slate-200/60">
-        <button
-          onClick={() => setActiveTab("list")}
-          className={`px-6 py-3 font-bold text-sm border-b-2 transition-all ${
-            activeTab === "list"
-              ? "border-[#00285E] text-[#00285E]"
-              : "border-transparent text-slate-400 hover:text-slate-600"
-          }`}
-        >
-          Danh sách nhân sự
-        </button>
-        <button
-          onClick={() => setActiveTab("ranking")}
-          className={`px-6 py-3 font-bold text-sm border-b-2 transition-all ${
-            activeTab === "ranking"
-              ? "border-[#00285E] text-[#00285E]"
-              : "border-transparent text-slate-400 hover:text-slate-600"
-          }`}
-        >
-          Xếp hạng & Hiệu suất
-        </button>
-      </div>
+      {/* TABS SWITCHER REMOVED */}
 
       {/* ERROR MESSAGE WHEN DATE RANGE IS INVALID */}
       {isDateRangeInvalid && (
@@ -574,7 +572,6 @@ export default function AdminStaffManagement() {
                     <th className="py-3 px-4 text-center">Nhiệm vụ</th>
                     <th className="py-3 px-4 text-right">Doanh thu</th>
                     <th className="py-3 px-4 text-center">Đánh giá</th>
-                    <th className="py-3 px-4 text-center">Điểm hiệu suất</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -619,11 +616,6 @@ export default function AdminStaffManagement() {
                               <Star size={12} fill="currentColor" /> {r.rating}
                             </span>
                           </td>
-                          <td className="py-4 px-4 text-center">
-                            <span className="inline-block px-2.5 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-600 border border-emerald-100">
-                              {r.performanceScore}/100
-                            </span>
-                          </td>
                         </tr>
                       );
                     })
@@ -654,10 +646,6 @@ export default function AdminStaffManagement() {
                     <div>
                       <h3 className="font-bold text-base text-slate-800 leading-tight">{selectedEmp.fullName}</h3>
                       <p className="text-xs text-slate-400 font-semibold mt-0.5">{selectedEmp.roleName}</p>
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 mt-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                        {selectedEmp.status}
-                      </span>
                     </div>
                   </div>
 
@@ -675,17 +663,11 @@ export default function AdminStaffManagement() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Đánh giá sao</span>
-                        <span className="text-xl font-bold text-amber-500 flex items-center gap-1.5 mt-1">
-                          <Star size={16} fill="currentColor" className="shrink-0" /> {selectedEmp.rating}
-                        </span>
-                      </div>
-                      <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Điểm hiệu suất</span>
-                        <span className="text-xl font-black text-emerald-600 block mt-1">{selectedEmp.performanceScore}/100</span>
-                      </div>
+                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Đánh giá sao</span>
+                      <span className="text-xl font-bold text-amber-500 flex items-center gap-1.5 mt-1">
+                        <Star size={16} fill="currentColor" className="shrink-0" /> {selectedEmp.rating}
+                      </span>
                     </div>
 
                     <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
@@ -696,22 +678,7 @@ export default function AdminStaffManagement() {
                     </div>
                   </div>
 
-                  {/* Visual progress score bar */}
-                  <div className="space-y-3 pt-2">
-                    <div className="flex justify-between text-xs font-bold text-slate-700">
-                      <span>Đánh giá hiệu suất chung</span>
-                      <span>{selectedEmp.performanceScore}%</span>
-                    </div>
-                    <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 transition-all duration-500"
-                        style={{ width: `${selectedEmp.performanceScore}%` }}
-                      />
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-relaxed font-semibold">
-                      Nhân viên này có hiệu suất làm việc đạt mức <span className="text-emerald-600 font-bold">{selectedEmp.performanceScore >= 90 ? "Xuất sắc" : selectedEmp.performanceScore >= 80 ? "Tốt" : "Trung bình"}</span>. Có đóng góp tích cực vào tiến độ sửa chữa và dịch vụ khách hàng của gara.
-                    </p>
-                  </div>
+                  {/* Visual progress score bar removed */}
                 </div>
               );
             })()}

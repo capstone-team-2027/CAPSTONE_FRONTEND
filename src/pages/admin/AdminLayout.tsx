@@ -15,9 +15,9 @@ import {
   Info,
   AlertTriangle,
   ShieldCheck,
-  CalendarClock,
   RefreshCw,
   Sparkles,
+  Award,
   BookOpen
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
@@ -106,6 +106,7 @@ export default function AdminLayout() {
       label: 'Nhân sự',
       items: [
         { name: 'Nhân sự', icon: UserCog, path: '/admin/staff' },
+        { name: 'Xếp hạng & Hiệu suất', icon: Award, path: '/admin/staff-ranking' },
       ],
     },
     {
@@ -128,6 +129,7 @@ export default function AdminLayout() {
     if (path.includes('/ai-analysis')) return 'AI phân tích hệ thống';
     if (path === '/admin' || path === '/admin/' || path.includes('/statistics')) return 'Thống kê';
     if (path.includes('/customers')) return 'Khách Hàng';
+    if (path.includes('/staff-ranking')) return 'Xếp hạng & Hiệu suất';
     if (path.includes('/staff')) return 'Nhân sự';
     if (path.includes('/services')) return 'Dịch vụ';
     if (path.includes('/warranty')) return 'Chính sách bảo hành';
