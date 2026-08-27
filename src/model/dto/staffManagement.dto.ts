@@ -9,6 +9,7 @@ export interface StaffManagement {
     fullName: string;
     phoneNumber: string;
     status: string;
+    avatar?: string;
     role: Role
 }
 
