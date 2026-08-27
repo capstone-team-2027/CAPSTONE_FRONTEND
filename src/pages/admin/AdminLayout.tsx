@@ -373,7 +373,7 @@ export default function AdminLayout() {
       <main className="flex-1 flex flex-col min-w-0 pb-16">
 
         {/* DESKTOP HEADER BAR */}
-        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-25">
+        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-30">
         {/* User profile & Actions */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
