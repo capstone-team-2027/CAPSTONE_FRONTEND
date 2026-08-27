@@ -1318,7 +1318,9 @@ export default function TechnicianAssignments() {
                             </button>
                           ) : hasProgressTask ? (
                             <button
-                              onClick={() => openIssueReportModal(asg)}
+                              onClick={() =>
+                                navigate(`/technician/progress/${asg.serviceOrderId}`)
+                              }
                               className="flex items-center gap-1 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:brightness-110 transition-all"
                             >
                               <ClipboardList size={13} />
@@ -1554,6 +1556,17 @@ export default function TechnicianAssignments() {
                       <Sparkles size={13} />
                       Tham khảo AI
                     </button>
+                    {issueReportAssignment.taskType === "REPAIR" && (
+                      <button
+                        onClick={() =>
+                          navigate(`/technician/progress/${issueReportAssignment.serviceOrderId}`)
+                        }
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.97] transition-all"
+                      >
+                        <CheckCircle2 size={13} />
+                        Tiến độ công việc
+                      </button>
+                    )}
                   </div>
                 </div>
                 <p className="text-sm text-slate-700 leading-relaxed">

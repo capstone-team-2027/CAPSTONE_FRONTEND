@@ -4,7 +4,7 @@ export const RECEPTION_API = {
   APPOINTMENTS: `${BASE}/api/reception/appointments`,
   APPOINTMENT_DETAIL: (id: string) => `${BASE}/api/reception/appointments/${id}`,
   SERVICE_ORDERS: `${BASE}/api/reception/service-orders`,
-  FEEDBACK: `${BASE}/api/reception/feedback`,
+  FEEDBACK: `${BASE}/api/receptionist/feedback`,
   SERVICE_HISTORY: (customerId: string) => `${BASE}/api/reception/customers/${customerId}/history`,
   PAYMENTS: `${BASE}/api/reception/payments`,
   QUOTES: `${BASE}/api/reception/quotes`,

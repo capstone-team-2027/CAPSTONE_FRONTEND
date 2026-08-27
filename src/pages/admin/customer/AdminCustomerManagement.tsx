@@ -125,6 +125,7 @@ export default function AdminCustomerManagement() {
   const navigate = useNavigate();
   const [editingCustomer, setEditingCustomer] = useState<CustomerData | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const handleCustomerClick = (customer: CustomerData) => {
     navigate(`/admin/customers/${customer.id}`);
@@ -137,6 +138,58 @@ export default function AdminCustomerManagement() {
   const [editCustTier, setEditCustTier] = useState<MembershipTier>("BRONZE");
   const [editCustPoints, setEditCustPoints] = useState(0);
   const [editCustStatus, setEditCustStatus] = useState<CustomerStatus>("ACTIVE");
+
+  // Create Customer Form State
+  const [createCustName, setCreateCustName] = useState("");
+  const [createCustPhone, setCreateCustPhone] = useState("");
+  const [createCustEmail, setCreateCustEmail] = useState("");
+  const [createCustTier, setCreateCustTier] = useState<MembershipTier>("BRONZE");
+  const [createCustPoints, setCreateCustPoints] = useState(0);
+  const [createCustStatus, setCreateCustStatus] = useState<CustomerStatus>("ACTIVE");
+  const [createCustType, setCreateCustType] = useState<CustomerType>("REGISTERED");
+  const [createCustPassword, setCreateCustPassword] = useState("");
+
+  const handleOpenCreate = () => {
+    setCreateCustName("");
+    setCreateCustPhone("");
+    setCreateCustEmail("");
+    setCreateCustTier("BRONZE");
+    setCreateCustPoints(0);
+    setCreateCustStatus("ACTIVE");
+    setCreateCustType("REGISTERED");
+    setCreateCustPassword("");
+    setIsCreateModalOpen(true);
+  };
+
+  const handleSaveCreate = async () => {
+    if (!createCustName.trim() || !createCustPhone.trim()) {
+      showToast("Vui lòng điền đầy đủ Tên và Số điện thoại", "warning");
+      return;
+    }
+    try {
+      const response = await fetchPrivate<{ success: boolean; message?: string }>(
+        CUSTOMER_API_ENDPOINTS.LIST,
+        "POST",
+        {
+          fullName: createCustName,
+          phoneNumber: createCustPhone,
+          email: createCustEmail || null,
+          membership_tier: createCustTier,
+          loyalty_points: Number(createCustPoints),
+          status: createCustStatus,
+          type: createCustType,
+          password: createCustType === "REGISTERED" ? (createCustPassword || "123456") : null
+        }
+      );
+      if (response) {
+        showToast("Tạo khách hàng mới thành công", "success");
+        setIsCreateModalOpen(false);
+        window.location.reload();
+      }
+    } catch (err: any) {
+      showToast(err?.message || "Có lỗi xảy ra khi tạo khách hàng", "warning");
+    }
+  };
 
   // Computed Global Statistics
   const statistics = useMemo(() => {
@@ -172,7 +225,7 @@ export default function AdminCustomerManagement() {
 
   // Filtering Logic
   const filteredCustomers = useMemo(() => {
-    return customers.filter(c => {
+    const list = customers.filter(c => {
       const matchesSearch =
         c.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.phoneNumber.includes(searchTerm) ||
@@ -183,6 +236,21 @@ export default function AdminCustomerManagement() {
       const matchesType = customerTypeFilter === "ALL" || c.type === customerTypeFilter;
 
       return matchesSearch && matchesStatus && matchesTier && matchesType;
+    });
+
+    const tierPriority: Record<MembershipTier, number> = {
+      PLATINUM: 1,
+      GOLD: 2,
+      SILVER: 3,
+      BRONZE: 4,
+      NONE: 5
+    };
+
+    return list.sort((a, b) => {
+      const pA = tierPriority[a.membership_tier] || 5;
+      const pB = tierPriority[b.membership_tier] || 5;
+      if (pA !== pB) return pA - pB;
+      return b.loyalty_points - a.loyalty_points;
     });
   }, [customers, searchTerm, statusFilter, tierFilter, customerTypeFilter]);
 
@@ -277,11 +345,11 @@ export default function AdminCustomerManagement() {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={handleExportCSV}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm"
+            onClick={handleOpenCreate}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#F9A11B] text-[#00285E] rounded-xl text-sm font-bold shadow-md shadow-[#F9A11B]/20 hover:bg-[#E08F12] transition-all transform hover:translate-y-[-1px]"
           >
-            <Download size={16} />
-            <span>Xuất báo cáo</span>
+            <UserPlus size={16} />
+            <span>Tạo khách hàng mới</span>
           </button>
         </div>
       </div>
@@ -676,6 +744,163 @@ export default function AdminCustomerManagement() {
                   className="px-6 py-2.5 bg-[#00285E] text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#062047] transition-all"
                 >
                   Lưu thay đổi
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* CREATE CUSTOMER MODAL */}
+      <AnimatePresence>
+        {isCreateModalOpen && (
+          <div className="fixed inset-0 z-55 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsCreateModalOpen(false)}
+              className="absolute inset-0 bg-slate-900/50 backdrop-blur-xs"
+            />
+            {/* Modal Box */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col"
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg">Tạo khách hàng mới</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Thêm thông tin khách hàng mới vào hệ thống</p>
+                </div>
+                <button
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Loại khách hàng</label>
+                  <select
+                    value={createCustType}
+                    onChange={(e) => setCreateCustType(e.target.value as CustomerType)}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-bold text-slate-800"
+                  >
+                    <option value="REGISTERED">Khách hệ thống (Tạo tài khoản đăng nhập)</option>
+                    <option value="GUEST">Khách vãng lai</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Họ và tên</label>
+                    <input
+                      type="text"
+                      value={createCustName}
+                      onChange={(e) => setCreateCustName(e.target.value)}
+                      placeholder="Nguyễn Văn A"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Số điện thoại</label>
+                    <input
+                      type="text"
+                      value={createCustPhone}
+                      onChange={(e) => setCreateCustPhone(e.target.value.replace(/\D/g, ""))}
+                      placeholder="0901234567"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Email</label>
+                  <input
+                    type="email"
+                    value={createCustEmail}
+                    onChange={(e) => setCreateCustEmail(e.target.value)}
+                    placeholder="customer@gmail.com"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
+                  />
+                </div>
+
+                {createCustType === "REGISTERED" && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Hạng thành viên</label>
+                      <select
+                        value={createCustTier}
+                        onChange={(e) => setCreateCustTier(e.target.value as MembershipTier)}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-bold text-slate-800"
+                      >
+                        <option value="BRONZE">Đồng (Bronze)</option>
+                        <option value="SILVER">Bạc (Silver)</option>
+                        <option value="GOLD">Vàng (Gold)</option>
+                        <option value="PLATINUM">Bạch Kim (Platinum)</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Điểm tích lũy</label>
+                      <input
+                        type="number"
+                        value={createCustPoints}
+                        onChange={(e) => setCreateCustPoints(Number(e.target.value))}
+                        placeholder="0"
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {createCustType === "REGISTERED" && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Mật khẩu (Tùy chọn, mặc định 123456)</label>
+                    <input
+                      type="password"
+                      value={createCustPassword}
+                      onChange={(e) => setCreateCustPassword(e.target.value)}
+                      placeholder="Mật khẩu tài khoản"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Trạng thái tài khoản</label>
+                  <select
+                    value={createCustStatus}
+                    onChange={(e) => setCreateCustStatus(e.target.value as CustomerStatus)}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-bold text-slate-800"
+                  >
+                    <option value="ACTIVE">Hoạt động (Active)</option>
+                    <option value="INACTIVE">Tạm khóa (Inactive)</option>
+                    <option value="BANNED">Bị khóa vĩnh viễn (Banned)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleSaveCreate}
+                  className="px-6 py-2.5 bg-[#F9A11B] text-[#00285E] rounded-xl text-sm font-bold shadow-md hover:bg-[#E08F12] transition-all"
+                >
+                  Tạo khách hàng
                 </button>
               </div>
             </motion.div>
