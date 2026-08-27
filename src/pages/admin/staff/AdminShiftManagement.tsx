@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion } from "motion/react";
 import {
+  ArrowLeft,
   CalendarClock,
   Clock,
   Settings2,
@@ -17,7 +18,7 @@ import {
   Loader2,
   CheckCircle
 } from "lucide-react";
-import { useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { useFetchClient_v2 } from "../../../hook/useFetchClient";
 import { SHIFT_API_ENDPOINTS, API_BASE_URL } from "../../../constants/admin/ShiftManagementApiEndpoint";
 import { STAFF_MANAGEMENT_API_ENDPOINTS } from "../../../constants/admin/staffManagementApiEndPoint";
@@ -73,6 +74,7 @@ type ShiftTemplate = {
 };
 
 export default function AdminShiftManagement() {
+  const navigate = useNavigate();
   const { showToast } = useOutletContext<any>();
   const { fetchPrivate } = useFetchClient_v2();
 
@@ -368,15 +370,24 @@ export default function AdminShiftManagement() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-[1600px] w-full mx-auto">
       {/* TITLE BAR */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
-            Quản lý Ca làm việc
-          </h1>
-          <p className="text-slate-500 text-sm">
-            {activeTab === "roster"
-              ? "Phân công và theo dõi lịch làm việc của nhân sự trong tuần."
-              : "Thiết lập các khung giờ ca làm việc và yêu cầu bắt buộc."}
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-[#00285E] border border-[#00285E] text-white hover:bg-[#003C7D] hover:border-[#003C7D] active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
+              Quản lý Ca làm việc
+            </h1>
+            <p className="text-slate-500 text-sm">
+              {activeTab === "roster"
+                ? "Phân công và theo dõi lịch làm việc của nhân sự trong tuần."
+                : "Thiết lập các khung giờ ca làm việc và yêu cầu bắt buộc."}
+            </p>
+          </div>
         </div>
 
         {activeTab === "roster" ? (

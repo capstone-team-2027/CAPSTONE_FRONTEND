@@ -79,6 +79,7 @@ export default function LeaderIssuesReportHistory() {
   const [activeOrders, setActiveOrders] = useState<ActiveServiceOrderForIssueReport[]>([]);
   const [isLoadingActiveOrders, setIsLoadingActiveOrders] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [activeOrderSearch, setActiveOrderSearch] = useState("");
   const [components, setComponents] = useState<VehicleComponent[]>([]);
   const [selectedComponentIds, setSelectedComponentIds] = useState<Set<number>>(new Set());
   const [componentDescriptions, setComponentDescriptions] = useState<Record<number, string>>({});
@@ -160,7 +161,10 @@ export default function LeaderIssuesReportHistory() {
     if (technicians.length === 0) void loadTechnicians();
   };
 
-  const closeCreateModal = () => setIsCreateOpen(false);
+  const closeCreateModal = () => {
+    setIsCreateOpen(false);
+    setActiveOrderSearch("");
+  };
 
   const toggleComponent = (componentId: number) =>
     setSelectedComponentIds((prev) => {
@@ -225,6 +229,25 @@ export default function LeaderIssuesReportHistory() {
   };
 
   const selectedOrder = activeOrders.find((o) => o.id === selectedOrderId) || null;
+
+  const filteredActiveOrders = useMemo(() => {
+    const keyword = activeOrderSearch.trim().toLowerCase();
+    if (!keyword) return activeOrders;
+    return activeOrders.filter((order) => {
+      const vehicle = order.vehicle;
+      const customer = vehicle?.customer;
+      const haystack = [
+        vehicle?.license_plate,
+        vehicle?.model?.model_name,
+        customer?.name,
+        customer?.user?.fullName,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(keyword);
+    });
+  }, [activeOrders, activeOrderSearch]);
 
   const openReportDetail = (report: IssueReport) => {
     setSelectedReport(report);
@@ -352,25 +375,15 @@ export default function LeaderIssuesReportHistory() {
     return filteredReports.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredReports, currentPage]);
 
-  const kpiCounts = useMemo(
-    () => ({
-      total: reports.length,
-      components: issues.length,
-      inProgress: reports.filter((r) => r.taskStatus === "IN_PROGRESS").length,
-      completed: reports.filter((r) => r.taskStatus === "COMPLETED").length,
-    }),
-    [reports, issues],
-  );
-
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* HEADER */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="flex items-start gap-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
             title="Quay lại"
-            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-[#00285E] border border-[#00285E] text-white hover:bg-[#003C7D] hover:border-[#003C7D] active:scale-[0.97] transition-all"
+            className="w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-[#00285E] border border-[#00285E] text-white hover:bg-[#003C7D] hover:border-[#003C7D] active:scale-[0.97] transition-all"
           >
             <ArrowLeft size={24} />
           </button>
@@ -385,67 +398,11 @@ export default function LeaderIssuesReportHistory() {
         </div>
         <button
           onClick={openCreateModal}
-          className="h-11 shrink-0 flex items-center gap-1.5 px-5 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-[#003C7D] to-[#00285E] shadow-lg shadow-[#00285E]/25 hover:shadow-[#00285E]/40 hover:brightness-110 active:scale-[0.98] transition-all"
+          className="h-11 shrink-0 flex items-center gap-1.5 px-5 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-[#003C7D] to-[#00285E] shadow-lg shadow-[#00285E]/25 hover:shadow-[#00285E]/40 hover:brightness-110 active:scale-[0.98] transition-all ml-auto"
         >
           <Plus size={16} />
-          Tạo báo cáo lỗi mới
+          Tạo báo cáo lỗi
         </button>
-      </div>
-
-      {/* KPI CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          {
-            label: "Tổng báo cáo",
-            value: kpiCounts.total,
-            icon: <ClipboardList size={22} />,
-            color: "#00285E",
-            bg: "#EDF3FF",
-          },
-          {
-            label: "Hạng mục lỗi",
-            value: kpiCounts.components,
-            icon: <Wrench size={22} />,
-            color: "#D97706",
-            bg: "#FEF3C7",
-          },
-          {
-            label: "Đang thực hiện",
-            value: kpiCounts.inProgress,
-            icon: <CheckSquare size={22} />,
-            color: "#3B82F6",
-            bg: "#EFF6FF",
-          },
-          {
-            label: "Đã hoàn thành",
-            value: kpiCounts.completed,
-            icon: <CheckCircle2 size={22} />,
-            color: "#10B981",
-            bg: "#ECFDF5",
-          },
-        ].map((card, i) => (
-          <div
-            key={i}
-            className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs"
-          >
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
-                  {card.label}
-                </span>
-                <span className="text-2xl font-bold text-slate-900 tracking-tight block">
-                  {card.value}
-                </span>
-              </div>
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{ backgroundColor: card.bg, color: card.color }}
-              >
-                {card.icon}
-              </div>
-            </div>
-          </div>
-        ))}
       </div>
 
       {/* SEARCH & FILTER */}
@@ -467,15 +424,15 @@ export default function LeaderIssuesReportHistory() {
               className="w-full bg-slate-50 border border-slate-200/80 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <Filter size={16} className="text-slate-400" />
+          <div className="flex items-center gap-2 shrink-0">
+            <Filter size={16} className="text-slate-400 shrink-0" />
             <select
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              className="bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+              className="w-full min-w-0 bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
             >
               <option value="all">Tất cả trạng thái</option>
               <option value="IN_PROGRESS">Đang thực hiện</option>
@@ -509,11 +466,11 @@ export default function LeaderIssuesReportHistory() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-left border-collapse text-sm">
+            <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-[10px] font-bold text-blue-100 uppercase tracking-widest bg-[#00285E] lg:text-slate-400 lg:bg-slate-50/50">
-                  <th className="py-3 px-4 align-middle whitespace-nowrap">
-                    ID
+                  <th className="py-3 px-4 align-middle whitespace-nowrap w-14">
+                    STT
                   </th>
                   <th className="py-3 px-4 align-middle whitespace-nowrap">
                     Khách hàng
@@ -524,13 +481,13 @@ export default function LeaderIssuesReportHistory() {
                   <th className="py-3 px-4 align-middle whitespace-nowrap">
                     Kỹ thuật viên
                   </th>
-                  <th className="py-3 px-4 align-middle text-center whitespace-nowrap">
+                  <th className="py-3 px-4 align-middle text-center whitespace-nowrap w-28">
                     Thao tác
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {paginatedData.map((report) => {
+                {paginatedData.map((report, reportIdx) => {
                   return (
                     <tr
                       key={report.groupKey}
@@ -538,11 +495,11 @@ export default function LeaderIssuesReportHistory() {
                     >
                       <td className="py-4 px-4 align-middle whitespace-nowrap">
                         <span className="font-bold text-[#00285E] text-xs">
-                          {report.code}
+                          {(currentPage - 1) * ITEMS_PER_PAGE + reportIdx + 1}
                         </span>
                       </td>
                       <td className="py-4 px-4 align-middle">
-                        <div className="flex items-center gap-2 min-w-[160px]">
+                        <div className="flex items-center gap-2 min-w-0">
                           <div className="w-8 h-8 shrink-0 rounded-full bg-[#EDF3FF] flex items-center justify-center">
                             <Users size={14} className="text-[#00285E]" />
                           </div>
@@ -557,7 +514,7 @@ export default function LeaderIssuesReportHistory() {
                         </div>
                       </td>
                       <td className="py-4 px-4 align-middle">
-                        <div className="flex items-center gap-1.5 min-w-[140px]">
+                        <div className="flex items-center gap-1.5 min-w-0">
                           <Car size={13} className="text-slate-400 shrink-0" />
                           <div className="min-w-0">
                             <p className="font-semibold text-slate-700 text-xs truncate">
@@ -567,7 +524,7 @@ export default function LeaderIssuesReportHistory() {
                         </div>
                       </td>
                       <td className="py-4 px-4 align-middle">
-                        <div className="flex items-center gap-1.5 min-w-[120px]">
+                        <div className="flex items-center gap-1.5 min-w-0">
                           <UserCog size={13} className="text-slate-400 shrink-0" />
                           <p className="font-semibold text-slate-700 text-xs truncate">
                             {report.technicianName}
@@ -659,9 +616,6 @@ export default function LeaderIssuesReportHistory() {
                   <Plus size={20} className="text-white" />
                 </div>
                 <div>
-                  <p className="text-[11px] font-bold text-white/80 uppercase tracking-widest">
-                    {selectedOrderId ? "Bước 2/2" : "Bước 1/2"}
-                  </p>
                   <h3 className="text-lg font-bold text-white leading-none">
                     Tạo báo cáo lỗi mới
                   </h3>
@@ -681,6 +635,20 @@ export default function LeaderIssuesReportHistory() {
                   Chọn lệnh sửa chữa đang mở để gắn báo cáo lỗi phát sinh vào đơn đó.
                 </p>
 
+                <div className="relative">
+                  <Search
+                    size={15}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    type="text"
+                    value={activeOrderSearch}
+                    onChange={(e) => setActiveOrderSearch(e.target.value)}
+                    placeholder="Tìm biển số, dòng xe hoặc khách hàng..."
+                    className="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[#00285E] focus:border-[#00285E]"
+                  />
+                </div>
+
                 {isLoadingActiveOrders ? (
                   <div className="flex flex-col items-center justify-center py-16 text-slate-400">
                     <Loader2 size={32} className="mb-3 text-[#00285E] animate-spin" />
@@ -691,9 +659,14 @@ export default function LeaderIssuesReportHistory() {
                     <AlertCircle size={32} className="mb-3 text-slate-300" />
                     <p className="text-sm font-semibold">Không có lệnh sửa chữa nào đang mở.</p>
                   </div>
+                ) : filteredActiveOrders.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                    <Search size={32} className="mb-3 text-slate-300" />
+                    <p className="text-sm font-semibold">Không tìm thấy lệnh sửa chữa phù hợp.</p>
+                  </div>
                 ) : (
                   <div className="space-y-2">
-                    {activeOrders.map((order) => {
+                    {filteredActiveOrders.map((order) => {
                       const vehicle = order.vehicle;
                       const customer = vehicle?.customer;
                       return (
@@ -983,7 +956,7 @@ export default function LeaderIssuesReportHistory() {
               <div>
                 <div className="flex items-center justify-between mb-3 px-1">
                   <label className="text-sm font-bold text-slate-700">
-                    Hạng mục linh kiện
+                    Hạng mục lỗi
                   </label>
                   <span
                     className="text-xs font-semibold px-2.5 py-1 rounded-full"

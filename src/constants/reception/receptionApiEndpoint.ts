@@ -17,4 +17,5 @@ export const RECEPTION_API = {
   TECHNICIANS_WORKING_TODAY: `${BASE}/api/receptionist/technicians/working-today`,
   ASSIGN_RESCUE: `${BASE}/api/receptionist/rescue/assign`,
   CREATE_RESCUE: `${BASE}/api/receptionist/rescue/create`,
+  CANCEL_RESCUE: (rescueId: number) => `${BASE}/api/receptionist/rescue/${rescueId}/cancel`,
 };

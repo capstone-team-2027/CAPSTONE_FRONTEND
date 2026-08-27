@@ -14,11 +14,21 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-const garageIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/1986/1986937.png',
-  iconSize: [35, 35],
-  iconAnchor: [17, 35],
-  popupAnchor: [0, -35],
+// Icon gara — dùng SVG nhúng trực tiếp thay vì ảnh PNG tải từ CDN ngoài, vì các nguồn ảnh
+// bên ngoài (vd flaticon) có thể chặn hotlink và hiện icon lỗi (⊘).
+const garageIcon = L.divIcon({
+  className: 'custom-garage-marker',
+  html: `
+    <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:#00285E;border-radius:9999px;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.35);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 21V10l9-7 9 7v11" />
+        <path d="M9 21v-6h6v6" />
+      </svg>
+    </div>
+  `,
+  iconSize: [28, 28],
+  iconAnchor: [14, 14],
+  popupAnchor: [0, -14],
 });
 
 const carIcon = L.icon({
@@ -50,16 +60,16 @@ const technicianIcon = L.divIcon({
 const userIcon = L.divIcon({
   className: 'custom-user-marker',
   html: `
-    <div style="display:flex;align-items:center;justify-content:center;width:45px;height:45px;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="45" height="45" viewBox="0 0 24 24" fill="#DC2626" stroke="white" stroke-width="1.5">
+    <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="#DC2626" stroke="white" stroke-width="1.5">
         <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
         <circle cx="12" cy="10" r="3" fill="white" stroke="none" />
       </svg>
     </div>
   `,
-  iconSize: [45, 45],
-  iconAnchor: [22, 45],
-  popupAnchor: [0, -45],
+  iconSize: [28, 28],
+  iconAnchor: [14, 28],
+  popupAnchor: [0, -28],
 });
 
 const MapFitter = ({ bounds, lat, lng }: { bounds?: L.LatLngBounds | null, lat?: number; lng?: number }) => {

@@ -127,19 +127,6 @@ export default function LeaderTaskTracking() {
     };
   }, [socket]);
 
-  // Mở sẵn các đơn đang có việc dở dang ngay lần tải đầu, cho leader thấy việc cần làm ngay
-  useEffect(() => {
-    if (orders.length === 0) return;
-    setExpandedIds((prev) => {
-      if (prev.size > 0) return prev;
-      const withActiveWork = orders.filter((o) =>
-        o.tasks.some((t) => t.status === "IN_PROGRESS"),
-      );
-      return new Set(withActiveWork.map((o) => o.id));
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orders.length]);
-
   const toggleExpand = (orderId: number) =>
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -398,8 +385,10 @@ export default function LeaderTaskTracking() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25, delay: Math.min(orderIdx * 0.04, 0.3) }}
-                className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden"
+                className="flex items-stretch bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden"
               >
+                <span className={`w-1.5 shrink-0 ${isFullyDone ? "bg-emerald-500" : "bg-[#00285E]"}`} />
+                <div className="flex-1 min-w-0 flex flex-col">
                 <button
                   onClick={() => toggleExpand(order.id)}
                   className="w-full flex items-center justify-between gap-4 px-5 py-4 hover:bg-slate-50/60 transition-colors text-left"
@@ -481,7 +470,7 @@ export default function LeaderTaskTracking() {
                       transition={{ duration: 0.25, ease: "easeInOut" }}
                       className="overflow-hidden"
                     >
-                      <div className="border-t border-slate-100 divide-y divide-slate-100 bg-slate-50/40">
+                      <div className="border-t border-slate-100 bg-slate-50/60 p-3 space-y-2.5">
                         {order.tasks.length === 0 ? (
                           <p className="px-5 py-4 text-sm text-slate-400 italic">
                             Chưa có công việc nào cho lệnh sửa chữa này.
@@ -506,10 +495,10 @@ export default function LeaderTaskTracking() {
                                 initial={{ opacity: 0, x: -8 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ duration: 0.2, delay: taskIdx * 0.03 }}
-                                className="flex items-center justify-between gap-4 px-5 py-3.5 bg-white"
+                                className="flex items-stretch gap-3 rounded-xl border border-slate-200/70 bg-white overflow-hidden"
                               >
-                                <div className="flex items-center gap-3 min-w-0">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-[#00285E] shrink-0" />
+                                <span className="w-1 shrink-0 bg-[#00285E]" />
+                                <div className="flex-1 min-w-0 flex items-center justify-between gap-4 py-3.5 pr-4">
                                   <div className="min-w-0">
                                     <span className="text-sm font-semibold text-slate-800 truncate block">
                                       {task.catalog?.service_name || `Công việc #${task.id}`}
@@ -520,37 +509,37 @@ export default function LeaderTaskTracking() {
                                         ` · Bắt đầu ${formatDateTime(completableAssignment.actual_start_time)}`}
                                     </p>
                                   </div>
-                                </div>
-                                <div className="flex items-center gap-3 shrink-0">
-                                  <span
-                                    className={`hidden sm:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${statusCfg.className}`}
-                                  >
-                                    <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
-                                    {statusCfg.label}
-                                  </span>
-                                  {completableAssignment && (
-                                    <button
-                                      onClick={() =>
-                                        setCompleteConfirmTarget({
-                                          taskId: task.id,
-                                          assignmentId: completableAssignment.id,
-                                          taskType: task.type,
-                                          taskName: task.catalog?.service_name || `Công việc #${task.id}`,
-                                          orderId: order.id,
-                                          orderLabel: `${vehicle?.license_plate || "—"} · ${vehicle?.model?.model_name || "—"}`,
-                                        })
-                                      }
-                                      disabled={completingId === completableAssignment.id}
-                                      className="shrink-0 h-9 flex items-center gap-1.5 px-3.5 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:brightness-125 active:scale-[0.97] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                  <div className="flex items-center gap-3 shrink-0">
+                                    <span
+                                      className={`hidden sm:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${statusCfg.className}`}
                                     >
-                                      {completingId === completableAssignment.id ? (
-                                        <Loader2 size={14} className="animate-spin" />
-                                      ) : (
-                                        <CheckCircle2 size={14} />
-                                      )}
-                                      Xác nhận hoàn thành
-                                    </button>
-                                  )}
+                                      <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
+                                      {statusCfg.label}
+                                    </span>
+                                    {completableAssignment && (
+                                      <button
+                                        onClick={() =>
+                                          setCompleteConfirmTarget({
+                                            taskId: task.id,
+                                            assignmentId: completableAssignment.id,
+                                            taskType: task.type,
+                                            taskName: task.catalog?.service_name || `Công việc #${task.id}`,
+                                            orderId: order.id,
+                                            orderLabel: `${vehicle?.license_plate || "—"} · ${vehicle?.model?.model_name || "—"}`,
+                                          })
+                                        }
+                                        disabled={completingId === completableAssignment.id}
+                                        className="shrink-0 h-9 flex items-center gap-1.5 px-3.5 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:brightness-125 active:scale-[0.97] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                      >
+                                        {completingId === completableAssignment.id ? (
+                                          <Loader2 size={14} className="animate-spin" />
+                                        ) : (
+                                          <CheckCircle2 size={14} />
+                                        )}
+                                        Xác nhận hoàn thành
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               </motion.div>
                             );
@@ -560,6 +549,7 @@ export default function LeaderTaskTracking() {
                     </motion.div>
                   )}
                 </AnimatePresence>
+                </div>
               </motion.div>
             );
           })}

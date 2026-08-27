@@ -22,10 +22,10 @@ const ProtectedRoute = lazy(() => import("./components/share/ProtectedRoute"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminSettings = lazy(() => import("./pages/admin/settings/AdminSettings"));
 const AdminServicesCategories = lazy(() => import("./pages/admin/services/AdminServicesCategories"));
-const AdminResources = lazy(() => import("./pages/admin/resources/AdminResources"));
 const AdminServiceCatalog = lazy(() => import("./pages/admin/services/AdminServiceCatalog"));
 const AdminStaffManagement = lazy(() => import("./pages/admin/staff/AdminStaffManagement"));
 const AdminWarrantyPolicies = lazy(() => import("./pages/admin/warranty/AdminWarrantyPolicies"));
+const AdminTechnicalDocuments = lazy(() => import("./pages/admin/technical-documents/AdminTechnicalDocuments"));
 const AdminStatistics = lazy(() => import("./pages/admin/dashboard/AdminStatistics"));
 const AdminAiAnalysis = lazy(() => import("./pages/admin/dashboard/AdminAiAnalysis"));
 const AdminCustomerManagement = lazy(() => import("./pages/admin/customer/AdminCustomerManagement"));
@@ -134,11 +134,11 @@ function App() {
           <Route path="/admin" element={<AdminLayout />}>
             <Route path="" element={<AdminStatistics />} />
             <Route path="services-category" element={<AdminServicesCategories />} />
-            <Route path="resources" element={<AdminResources />} />
             <Route path="settings" element={<AdminSettings />} />
             <Route path="services" element={<AdminServiceCatalog />} />
             <Route path="staff" element={<AdminStaffManagement />} />
             <Route path="warranty" element={<AdminWarrantyPolicies />} />
+            <Route path="technical-documents" element={<AdminTechnicalDocuments />} />
             <Route path="statistics" element={<AdminStatistics />} />
             <Route path="ai-analysis" element={<AdminAiAnalysis />} />
             <Route path="customers" element={<AdminCustomerManagement />} />

@@ -111,7 +111,7 @@ export default function LeaderDashboard() {
           <div className="px-6 py-4 flex items-center justify-between" style={{ backgroundColor: "#00285E" }}>
             <h2 className="text-sm font-bold text-white flex items-center gap-2">
               <ClipboardList size={16} className="text-[#F9A11B]" />
-              Xe có công việc chưa gán kỹ thuật viên
+              Các lịch hẹn đã tiếp nhận
             </h2>
             <button
               onClick={() => navigate("/leader/assignments")}

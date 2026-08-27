@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
+  ArrowLeft,
   Users,
   UserPlus,
   Pencil,
@@ -44,6 +45,7 @@ import {
 } from "../../../model/customerTypes";
 
 export default function AdminCustomerManagement() {
+  const navigate = useNavigate();
   const { showToast } = useOutletContext<{
     searchQuery: string;
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
@@ -122,7 +124,6 @@ export default function AdminCustomerManagement() {
   }, [socket]);
 
   // Selection & Modal State
-  const navigate = useNavigate();
   const [editingCustomer, setEditingCustomer] = useState<CustomerData | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
@@ -266,13 +267,22 @@ export default function AdminCustomerManagement() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
-            Quản lý Khách Hàng
-          </h1>
-          <p className="text-slate-500 text-sm">
-            Xem hồ sơ, lịch sử dịch vụ, hạng thành viên và thống kê toàn bộ khách hàng.
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-[#00285E] border border-[#00285E] text-white hover:bg-[#003C7D] hover:border-[#003C7D] active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
+              Quản lý Khách Hàng
+            </h1>
+            <p className="text-slate-500 text-sm">
+              Xem hồ sơ, lịch sử dịch vụ, hạng thành viên và thống kê toàn bộ khách hàng.
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">

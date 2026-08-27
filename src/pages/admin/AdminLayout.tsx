@@ -14,11 +14,11 @@ import {
   CheckCircle,
   Info,
   AlertTriangle,
-  Package,
   ShieldCheck,
   CalendarClock,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  BookOpen
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -112,7 +112,7 @@ export default function AdminLayout() {
       label: 'Dịch vụ',
       items: [
         { name: 'Dịch vụ', icon: Wrench, path: '/admin/services' },
-        { name: 'Tài nguyên', icon: Package, path: '/admin/resources' },
+        { name: 'Tài liệu kỹ thuật', icon: BookOpen, path: '/admin/technical-documents' },
         { name: 'Chính sách bảo hành', icon: ShieldCheck, path: '/admin/warranty' },
       ],
     },
@@ -130,8 +130,8 @@ export default function AdminLayout() {
     if (path.includes('/customers')) return 'Khách Hàng';
     if (path.includes('/staff')) return 'Nhân sự';
     if (path.includes('/services')) return 'Dịch vụ';
-    if (path.includes('/resources')) return 'Tài nguyên';
     if (path.includes('/warranty')) return 'Chính sách bảo hành';
+    if (path.includes('/technical-documents')) return 'Tài liệu kỹ thuật';
     if (path.includes('/settings')) return 'Cài đặt';
     return 'Thống kê';
   }, [location.pathname]);

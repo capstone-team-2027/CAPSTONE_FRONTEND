@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  LayoutDashboard,
+  Home,
   ClipboardCheck,
   ClipboardList,
   ShieldCheck,
@@ -242,7 +242,7 @@ export default function LeaderLayout() {
     {
       label: 'Nội dung',
       items: [
-        { name: 'Tổng quan', icon: LayoutDashboard, path: '/leader' },
+        { name: 'Tổng quan', icon: Home, path: '/leader' },
         { name: 'Lịch hẹn đã tiếp nhận', icon: CalendarCheck, path: '/leader/appointments' },
         { name: 'Phân công kỹ thuật', icon: ClipboardCheck, path: '/leader/assignments' },
         { name: 'Theo dõi công việc', icon: ClipboardList, path: '/leader/task-tracking' },
@@ -544,7 +544,7 @@ export default function LeaderLayout() {
       )}
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 flex flex-col min-w-0 pb-16">
+      <main className="flex-1 flex flex-col min-w-0 pb-20 lg:pb-0">
 
         {/* DESKTOP HEADER BAR */}
         <header className="hidden lg:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-30">
@@ -658,6 +658,63 @@ export default function LeaderLayout() {
         <Outlet context={{ searchQuery, setSearchQuery, showToast }} />
 
       </main>
+
+      {/* MOBILE BOTTOM NAV */}
+      {(() => {
+        const centerItem = menuItems.find((item) => item.name === 'Tổng quan');
+        const sideItems = [
+          ...menuItems.filter((item) => item.name !== 'Tổng quan'),
+          { name: 'Đăng xuất', icon: LogOut, path: '' },
+        ];
+        const half = Math.ceil(sideItems.length / 2);
+        const leftItems = sideItems.slice(0, half);
+        const rightItems = sideItems.slice(half);
+
+        const renderSideButton = (item: (typeof sideItems)[number]) => {
+          const Icon = item.icon;
+          const isActive = activeMenu === item.name;
+          const isLogout = item.name === 'Đăng xuất';
+          return (
+            <button
+              key={item.name}
+              onClick={() => (isLogout ? handleLogout() : navigate(item.path))}
+              className="flex flex-col items-center gap-1 px-1.5 py-1 min-w-0 shrink-0"
+            >
+              <Icon size={19} className={isLogout ? 'text-rose-500' : isActive ? 'text-[#00285E]' : 'text-slate-400'} />
+              <span className={`text-[8.5px] font-semibold truncate max-w-[56px] ${isLogout ? 'text-rose-500' : isActive ? 'text-[#00285E]' : 'text-slate-400'}`}>
+                {item.name}
+              </span>
+            </button>
+          );
+        };
+
+        return (
+          <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex items-end justify-around px-1 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2">
+            {leftItems.map(renderSideButton)}
+            {centerItem && (() => {
+              const Icon = centerItem.icon;
+              const isActive = activeMenu === centerItem.name;
+              return (
+                <button
+                  key={centerItem.name}
+                  onClick={() => navigate(centerItem.path)}
+                  className="flex flex-col items-center gap-1 -mt-6 shrink-0"
+                >
+                  <span
+                    className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-colors ${isActive ? 'bg-[#F9A11B] shadow-[#F9A11B]/40' : 'bg-[#00285E] shadow-[#00285E]/30'}`}
+                  >
+                    <Icon size={24} className="text-white" />
+                  </span>
+                  <span className={`text-[10px] font-bold ${isActive ? 'text-[#F9A11B]' : 'text-[#00285E]'}`}>
+                    {centerItem.name}
+                  </span>
+                </button>
+              );
+            })()}
+            {rightItems.map(renderSideButton)}
+          </nav>
+        );
+      })()}
 
       <LogoutConfirmModal
         isOpen={showLogoutConfirm}

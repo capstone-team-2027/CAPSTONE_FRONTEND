@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { motion } from "motion/react";
 import {
+  ArrowLeft,
   Users,
   UserPlus,
   Pencil,
@@ -21,7 +22,7 @@ import 'react-phone-input-2/lib/style.css';
 import * as PhoneInputLib from 'react-phone-input-2';
 
 const PAGE_SIZE = 6;
-import { useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import type { Role, StaffManagement } from "../../../model/dto/staffManagement.dto";
 
 // ── resolve PhoneInput default export ─────────────────────────
@@ -106,6 +107,7 @@ const STATUS_OPTIONS: { value: StaffStatus; label: string }[] = [
 ];
 
 export default function AdminStaffManagement() {
+  const navigate = useNavigate();
   const { showToast } = useOutletContext<{
     searchQuery: string;
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
@@ -266,15 +268,24 @@ export default function AdminStaffManagement() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* TITLE BAR */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
-            Quản lý Nhân sự
-          </h1>
-          <p className="text-slate-500 text-sm">
-            {activeTab === "list"
-              ? "Tạo và quản lý tài khoản nhân viên trong gara."
-              : "Theo dõi, đánh giá và xếp hạng hiệu suất công việc của nhân viên."}
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-[#00285E] border border-[#00285E] text-white hover:bg-[#003C7D] hover:border-[#003C7D] active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
+              Quản lý Nhân sự
+            </h1>
+            <p className="text-slate-500 text-sm">
+              {activeTab === "list"
+                ? "Tạo và quản lý tài khoản nhân viên trong gara."
+                : "Theo dõi, đánh giá và xếp hạng hiệu suất công việc của nhân viên."}
+            </p>
+          </div>
         </div>
 
         {activeTab === "list" ? (

@@ -732,7 +732,7 @@ export default function LeaderAssignments() {
                   <th className="py-4 px-4">Công việc</th>
                   <th className="py-4 px-4">Ngày tạo</th>
                   <th className="py-4 px-4">Trạng thái</th>
-                  <th className="py-4 px-6 text-right">Thao tác</th>
+                  <th className="py-4 px-6 text-left">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -809,7 +809,7 @@ export default function LeaderAssignments() {
                           )}
                         </td>
                         <td className="py-4 px-6">
-                          <div className="flex justify-end">
+                          <div className="flex justify-start">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -870,7 +870,7 @@ export default function LeaderAssignments() {
                   <th className="py-4 px-4">Công việc</th>
                   <th className="py-4 px-4">Ngày tạo</th>
                   <th className="py-4 px-4">Trạng thái</th>
-                  <th className="py-4 px-6 text-right">Thao tác</th>
+                  <th className="py-4 px-6 text-left">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -941,7 +941,7 @@ export default function LeaderAssignments() {
                           )}
                         </td>
                         <td className="py-4 px-6">
-                          <div className="flex justify-end">
+                          <div className="flex justify-start">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();

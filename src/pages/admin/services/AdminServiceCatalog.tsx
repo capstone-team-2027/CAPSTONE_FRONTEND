@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
 import {
+  ArrowLeft,
   Package,
   TrendingUp,
   Boxes,
@@ -21,7 +22,7 @@ import {
   ShieldCheck,
   Loader2,
 } from "lucide-react";
-import { useOutletContext, useSearchParams } from "react-router-dom";
+import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { type Category, type ServiceCatalog } from "../../../model/dto/serviceCatalog.dto";
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { SERVICE_CATALOG_API_ENDPOINTS } from '../../../constants/admin/serviceCatalogApiEndPoint';
@@ -53,6 +54,7 @@ const saveServiceImage = (id: number, dataUrl: string) => {
 // Service combos are managed via AdminServiceCombo.tsx helpers
 
 export default function AdminServiceManagement() {
+  const navigate = useNavigate();
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
@@ -595,21 +597,30 @@ export default function AdminServiceManagement() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* TITLE BAR */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
-            {activeTab === "services"
-              ? "Quản lý Dịch vụ"
-              : activeTab === "combos"
-                ? "Quản lý Gói Combo"
-                : "Quản lý Danh mục Dịch vụ"}
-          </h1>
-          <p className="text-slate-500 text-sm">
-            {activeTab === "services"
-              ? "Tối ưu hóa các gói dịch vụ và bảo dưỡng của gara."
-              : activeTab === "combos"
-                ? "Thiết lập các gói combo tích hợp ưu đãi hấp dẫn cho khách hàng."
-                : "Quản lý và tổ chức các nhóm phân loại dịch vụ chính của gara."}
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-[#00285E] border border-[#00285E] text-white hover:bg-[#003C7D] hover:border-[#003C7D] active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
+              {activeTab === "services"
+                ? "Quản lý Dịch vụ"
+                : activeTab === "combos"
+                  ? "Quản lý Gói Combo"
+                  : "Quản lý Danh mục Dịch vụ"}
+            </h1>
+            <p className="text-slate-500 text-sm">
+              {activeTab === "services"
+                ? "Tối ưu hóa các gói dịch vụ và bảo dưỡng của gara."
+                : activeTab === "combos"
+                  ? "Thiết lập các gói combo tích hợp ưu đãi hấp dẫn cho khách hàng."
+                  : "Quản lý và tổ chức các nhóm phân loại dịch vụ chính của gara."}
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">

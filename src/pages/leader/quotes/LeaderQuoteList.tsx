@@ -375,16 +375,6 @@ export default function LeaderQuoteList() {
     }
   };
 
-  const kpiCounts = useMemo(
-    () => ({
-      total: quotations.length,
-      pending: quotations.filter((q) => q.status === "PENDING").length,
-      approved: quotations.filter((q) => q.status === "APPROVED").length,
-      rejected: quotations.filter((q) => q.status === "REJECTED").length,
-    }),
-    [quotations],
-  );
-
   const openQuotationDetail = (q: QuotationRow) => {
     setIsEditing(false);
     setSelectedQuotation(q);
@@ -746,62 +736,6 @@ export default function LeaderQuoteList() {
           <FileText size={16} />
           Tạo báo giá
         </button>
-      </div>
-
-      {/* KPI CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          {
-            label: "Tổng báo giá",
-            value: kpiCounts.total,
-            icon: <FileText size={22} />,
-            color: "#00285E",
-            bg: "#EDF3FF",
-          },
-          {
-            label: "Đang chờ duyệt",
-            value: kpiCounts.pending,
-            icon: <Clock size={22} />,
-            color: "#D97706",
-            bg: "#FEF3C7",
-          },
-          {
-            label: "Đã duyệt",
-            value: kpiCounts.approved,
-            icon: <CheckCircle2 size={22} />,
-            color: "#10B981",
-            bg: "#ECFDF5",
-          },
-          {
-            label: "Bị từ chối",
-            value: kpiCounts.rejected,
-            icon: <XCircle size={22} />,
-            color: "#E11D48",
-            bg: "#FFF1F2",
-          },
-        ].map((card, i) => (
-          <div
-            key={i}
-            className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs"
-          >
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
-                  {card.label}
-                </span>
-                <span className="text-2xl font-bold text-slate-900 tracking-tight block">
-                  {card.value}
-                </span>
-              </div>
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{ backgroundColor: card.bg, color: card.color }}
-              >
-                {card.icon}
-              </div>
-            </div>
-          </div>
-        ))}
       </div>
 
       {/* SEARCH & FILTER */}
