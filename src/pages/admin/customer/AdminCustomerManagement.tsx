@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Users,
@@ -718,9 +719,10 @@ export default function AdminCustomerManagement() {
       />
 
       {/* EDIT CUSTOMER MODAL */}
-      <AnimatePresence>
-        {isEditModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-4 pt-24 md:pt-4 overflow-y-auto">
+      {createPortal(
+        <AnimatePresence>
+          {isEditModalOpen && (
+            <div className="fixed inset-0 z-[9999] flex items-start md:items-center justify-center p-4 pt-24 md:pt-4 overflow-y-auto">
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -871,13 +873,16 @@ export default function AdminCustomerManagement() {
                 </button>
               </div>
             </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
       {/* CREATE CUSTOMER MODAL */}
-      <AnimatePresence>
-        {isCreateModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-4 pt-24 md:pt-4 overflow-y-auto">
+      {createPortal(
+        <AnimatePresence>
+          {isCreateModalOpen && (
+            <div className="fixed inset-0 z-[9999] flex items-start md:items-center justify-center p-4 pt-24 md:pt-4 overflow-y-auto">
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -1012,9 +1017,11 @@ export default function AdminCustomerManagement() {
                 </button>
               </div>
             </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

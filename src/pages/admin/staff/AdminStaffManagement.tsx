@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import {
   Users,
@@ -17,6 +18,7 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  CheckCircle,
 } from "lucide-react";
 import 'react-phone-input-2/lib/style.css';
 import * as PhoneInputLib from 'react-phone-input-2';
@@ -776,8 +778,8 @@ export default function AdminStaffManagement() {
         />
       )}
 
-      {feedbackStaff && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+      {feedbackStaff && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="px-6 py-5 bg-[#00285E] text-white flex items-center justify-between shrink-0">
@@ -851,7 +853,8 @@ export default function AdminStaffManagement() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -991,8 +994,8 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
     }
   }; 
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <style>{phoneStyles}</style>
       <div
         className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
@@ -1206,7 +1209,8 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
           </button>
         </div>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 }
 function StatusBadge({ status }: { status: StaffStatus }) {

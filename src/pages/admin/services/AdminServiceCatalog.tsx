@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import {
   Package,
@@ -1414,8 +1415,8 @@ function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefres
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
         onClick={onClose}
@@ -1649,7 +1650,8 @@ function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefres
           </button>
         </div>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 }
 // ComboFormModal extracted to AdminServiceCombo.tsx
@@ -1720,8 +1722,8 @@ function CategoryFormModal({ initial, onClose, onRefresh, showToast }: CategoryF
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       {/* Overlay */}
       <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity" onClick={onClose} />
 
@@ -1804,7 +1806,8 @@ function CategoryFormModal({ initial, onClose, onRefresh, showToast }: CategoryF
           </div>
         </form>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -1944,8 +1947,8 @@ function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalP
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
         onClick={onClose}
@@ -2221,6 +2224,7 @@ function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalP
           </button>
         </div>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 }
