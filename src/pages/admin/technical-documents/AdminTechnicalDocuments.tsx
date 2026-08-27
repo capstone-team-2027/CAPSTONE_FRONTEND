@@ -118,6 +118,21 @@ export default function AdminTechnicalDocuments() {
     }
   };
 
+  const handleViewPdf = async (doc: TechnicalDocument) => {
+    try {
+      const response = await fetchPrivate<{ url: string }>(
+        TECHNICAL_DOCUMENT_API_ENDPOINTS.GET_VIEW_URL(doc.id)
+      );
+      if (response && response.success && response.data?.url) {
+        window.open(response.data.url, '_blank', 'noopener,noreferrer');
+      } else {
+        showToast('Không lấy được đường dẫn xem PDF', 'warning');
+      }
+    } catch (error) {
+      showToast((error as Error)?.message || 'Lỗi khi mở file PDF', 'warning');
+    }
+  };
+
   const handleDelete = async (doc: TechnicalDocument) => {
     if (!window.confirm(`Xóa tài liệu "${doc.title}"? Hành động này không thể hoàn tác.`)) return;
     setDeletingId(doc.id);
@@ -264,15 +279,14 @@ export default function AdminTechnicalDocuments() {
                     </td>
 
                     <td className="py-4 px-4">
-                      <a
-                        href={doc.file_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs text-[#00285E] hover:underline font-bold bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg"
+                      <button
+                        type="button"
+                        onClick={() => handleViewPdf(doc)}
+                        className="inline-flex items-center gap-1.5 text-xs text-[#00285E] hover:underline font-bold bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg cursor-pointer"
                       >
                         <FileText size={14} className="text-amber-600" />
                         <span>Xem PDF</span>
-                      </a>
+                      </button>
                     </td>
 
                     <td className="py-4 px-4 text-center">
