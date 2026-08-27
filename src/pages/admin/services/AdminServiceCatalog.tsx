@@ -1215,7 +1215,7 @@ function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefres
   const [categoryId, setCategoryId] = useState<number>(initial?.category_id ?? 0);
   const [durationMinutes, setDurationMinutes] = useState<number>(initial?.estimated_duration ?? 30);
   const [isActive, setIsActive] = useState<boolean>(initial?.is_active ?? true);
-  const [isDefaultInspectionService, setIsDefaultInspectionService] = useState<boolean>(initial?.is_default_inspection_service ?? false);
+  const isDefaultInspectionService = initial?.is_default_inspection_service ?? false;
 
   const [imageUrl, setImageUrl] = useState<string>(() => {
     if (initial?.id) {
@@ -1514,21 +1514,6 @@ function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefres
                 </span>
               </label>
 
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={isDefaultInspectionService}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setIsDefaultInspectionService(checked);
-                    if (checked) setPrice(0);
-                  }}
-                  className="w-4 h-4 rounded border-slate-300 text-[#00285E] focus:ring-[#00285E]/20"
-                />
-                <span className="text-xs font-semibold text-slate-700" title="Đặt làm dịch vụ kiểm tra mặc định khi khách không chọn dịch vụ cụ thể">
-                  Kiểm tra mặc định
-                </span>
-              </label>
 
             </div>
 
