@@ -23,7 +23,8 @@ import {
   Sparkles,
   ShieldCheck,
   Wrench,
-  MapPin
+  MapPin,
+  Loader2
 } from "lucide-react";
 import RescueTrackingModal from "../../../components/share/RescueTrackingModal";
 import { useSocket } from "../../../hook/useSocket";
@@ -50,7 +51,7 @@ export default function AdminCustomerManagement() {
     searchQuery: string;
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
-  const { fetchPrivate } = useFetchClient_v2();
+  const { fetchPrivate, fetchPrivateForm } = useFetchClient_v2();
   const socket = useSocket();
 
   // Primary State
@@ -139,6 +140,32 @@ export default function AdminCustomerManagement() {
   const [editCustTier, setEditCustTier] = useState<MembershipTier>("BRONZE");
   const [editCustPoints, setEditCustPoints] = useState(0);
   const [editCustStatus, setEditCustStatus] = useState<CustomerStatus>("ACTIVE");
+  const [editCustAvatar, setEditCustAvatar] = useState("");
+  const [isUploadingEditAvatar, setIsUploadingEditAvatar] = useState(false);
+
+  const handleCustEditAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    try {
+      setIsUploadingEditAvatar(true);
+      const response = await fetchPrivateForm(
+        `${CUSTOMER_API_ENDPOINTS.LIST}/upload-avatar`,
+        "POST",
+        formData
+      );
+      if (response && response.url) {
+        setEditCustAvatar(response.url);
+      }
+    } catch (err: any) {
+      showToast(err.message || "Tải ảnh đại diện thất bại", "warning");
+    } finally {
+      setIsUploadingEditAvatar(false);
+    }
+  };
 
   // Create Customer Form State
   const [createCustName, setCreateCustName] = useState("");
@@ -149,6 +176,33 @@ export default function AdminCustomerManagement() {
   const [createCustStatus, setCreateCustStatus] = useState<CustomerStatus>("ACTIVE");
   const [createCustType, setCreateCustType] = useState<CustomerType>("REGISTERED");
   const [createCustPassword, setCreateCustPassword] = useState("");
+  const [createCustConfirmPassword, setCreateCustConfirmPassword] = useState("");
+  const [createCustAvatar, setCreateCustAvatar] = useState("");
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  const handleCustAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    try {
+      setIsUploadingAvatar(true);
+      const response = await fetchPrivateForm(
+        `${CUSTOMER_API_ENDPOINTS.LIST}/upload-avatar`,
+        "POST",
+        formData
+      );
+      if (response && response.url) {
+        setCreateCustAvatar(response.url);
+      }
+    } catch (err: any) {
+      showToast(err.message || "Tải ảnh đại diện thất bại", "warning");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
 
   const handleOpenCreate = () => {
     setCreateCustName("");
@@ -159,12 +213,23 @@ export default function AdminCustomerManagement() {
     setCreateCustStatus("ACTIVE");
     setCreateCustType("REGISTERED");
     setCreateCustPassword("");
+    setCreateCustConfirmPassword("");
+    setCreateCustAvatar("");
+    setIsUploadingAvatar(false);
     setIsCreateModalOpen(true);
   };
 
   const handleSaveCreate = async () => {
     if (!createCustName.trim() || !createCustPhone.trim()) {
       showToast("Vui lòng điền đầy đủ Tên và Số điện thoại", "warning");
+      return;
+    }
+    if (!createCustPassword) {
+      showToast("Vui lòng nhập mật khẩu", "warning");
+      return;
+    }
+    if (createCustPassword !== createCustConfirmPassword) {
+      showToast("Mật khẩu xác nhận không trùng khớp", "warning");
       return;
     }
     try {
@@ -174,12 +239,13 @@ export default function AdminCustomerManagement() {
         {
           fullName: createCustName,
           phoneNumber: createCustPhone,
-          email: createCustEmail || null,
-          membership_tier: createCustTier,
-          loyalty_points: Number(createCustPoints),
-          status: createCustStatus,
-          type: createCustType,
-          password: createCustType === "REGISTERED" ? (createCustPassword || "123456") : null
+          email: null,
+          membership_tier: "BRONZE",
+          loyalty_points: 0,
+          status: "ACTIVE",
+          type: "REGISTERED",
+          password: createCustPassword,
+          avatar: createCustAvatar || null
         }
       );
       if (response) {
@@ -268,35 +334,54 @@ export default function AdminCustomerManagement() {
     setEditCustTier(customer.membership_tier);
     setEditCustPoints(customer.loyalty_points);
     setEditCustStatus(customer.status);
+    setEditCustAvatar(customer.avatar || "");
+    setIsUploadingEditAvatar(false);
     setIsEditModalOpen(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editCustName.trim() || !editCustPhone.trim()) {
       showToast("Vui lòng điền đầy đủ Tên và Số điện thoại", "warning");
       return;
     }
 
-    setCustomers(prev =>
-      prev.map(c =>
-        c.id === editingCustomer?.id
-          ? {
-            ...c,
-            fullName: editCustName,
-            phoneNumber: editCustPhone,
-            email: editCustEmail,
-            membership_tier: editCustTier,
-            loyalty_points: Number(editCustPoints),
-            status: editCustStatus
-          }
-          : c
-      )
-    );
+    try {
+      await fetchPrivate(
+        `${CUSTOMER_API_ENDPOINTS.LIST}/${editingCustomer?.id}`,
+        "PUT",
+        {
+          fullName: editCustName,
+          phoneNumber: editCustPhone,
+          membership_tier: editCustTier,
+          loyalty_points: Number(editCustPoints),
+          status: editCustStatus,
+          avatar: editCustAvatar || null
+        }
+      );
 
+      setCustomers(prev =>
+        prev.map(c =>
+          c.id === editingCustomer?.id
+            ? {
+              ...c,
+              fullName: editCustName,
+              phoneNumber: editCustPhone,
+              email: editCustEmail,
+              membership_tier: editCustTier,
+              loyalty_points: Number(editCustPoints),
+              status: editCustStatus,
+              avatar: editCustAvatar
+            }
+            : c
+        )
+      );
 
-    setIsEditModalOpen(false);
-    setEditingCustomer(null);
-    showToast("Cập nhật thông tin khách hàng thành công", "success");
+      setIsEditModalOpen(false);
+      setEditingCustomer(null);
+      showToast("Cập nhật thông tin khách hàng thành công", "success");
+    } catch (err: any) {
+      showToast(err?.message || "Có lỗi xảy ra khi cập nhật khách hàng", "warning");
+    }
   };
 
   const getInitials = (name: string) =>
@@ -633,7 +718,7 @@ export default function AdminCustomerManagement() {
       {/* EDIT CUSTOMER MODAL */}
       <AnimatePresence>
         {isEditModalOpen && (
-          <div className="fixed inset-0 z-55 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-4 pt-24 md:pt-4 overflow-y-auto">
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -664,7 +749,39 @@ export default function AdminCustomerManagement() {
               </div>
 
               {/* Modal Body */}
-              <div className="p-6 space-y-4">
+              <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                {/* Avatar Section */}
+                <div className="flex flex-col items-center gap-2.5 pb-4 border-b border-slate-100">
+                  <div className="relative w-20 h-20 rounded-full overflow-hidden shadow-md border border-slate-200 bg-[#EDF3FF] flex items-center justify-center">
+                    {editCustAvatar ? (
+                      <img
+                        src={editCustAvatar}
+                        alt="Customer Avatar"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Users size={36} className="text-[#00285E]/30" />
+                    )}
+                    
+                    {isUploadingEditAvatar && (
+                      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center">
+                        <Loader2 className="animate-spin text-white" size={18} />
+                      </div>
+                    )}
+                  </div>
+
+                  <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 transition-all cursor-pointer">
+                    <span>Thay đổi ảnh đại diện</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCustEditAvatarUpload}
+                      disabled={isUploadingEditAvatar}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Họ và tên</label>
@@ -687,17 +804,6 @@ export default function AdminCustomerManagement() {
                       className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
                     />
                   </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Email</label>
-                  <input
-                    type="email"
-                    value={editCustEmail}
-                    onChange={(e) => setEditCustEmail(e.target.value)}
-                    placeholder="customer@gmail.com"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
-                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -763,7 +869,7 @@ export default function AdminCustomerManagement() {
       {/* CREATE CUSTOMER MODAL */}
       <AnimatePresence>
         {isCreateModalOpen && (
-          <div className="fixed inset-0 z-55 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-4 pt-24 md:pt-4 overflow-y-auto">
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -795,16 +901,36 @@ export default function AdminCustomerManagement() {
 
               {/* Modal Body */}
               <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Loại khách hàng</label>
-                  <select
-                    value={createCustType}
-                    onChange={(e) => setCreateCustType(e.target.value as CustomerType)}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-bold text-slate-800"
-                  >
-                    <option value="REGISTERED">Khách hệ thống (Tạo tài khoản đăng nhập)</option>
-                    <option value="GUEST">Khách vãng lai</option>
-                  </select>
+                {/* Avatar Section */}
+                <div className="flex flex-col items-center gap-2.5 pb-4 border-b border-slate-100">
+                  <div className="relative w-20 h-20 rounded-full overflow-hidden shadow-md border border-slate-200 bg-[#EDF3FF] flex items-center justify-center">
+                    {createCustAvatar ? (
+                      <img
+                        src={createCustAvatar}
+                        alt="Customer Avatar"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Users size={36} className="text-[#00285E]/30" />
+                    )}
+                    
+                    {isUploadingAvatar && (
+                      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center">
+                        <Loader2 className="animate-spin text-white" size={18} />
+                      </div>
+                    )}
+                  </div>
+
+                  <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 transition-all cursor-pointer">
+                    <span>Chọn ảnh đại diện</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCustAvatarUpload}
+                      disabled={isUploadingAvatar}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -831,49 +957,9 @@ export default function AdminCustomerManagement() {
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Email</label>
-                  <input
-                    type="email"
-                    value={createCustEmail}
-                    onChange={(e) => setCreateCustEmail(e.target.value)}
-                    placeholder="customer@gmail.com"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
-                  />
-                </div>
-
-                {createCustType === "REGISTERED" && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Hạng thành viên</label>
-                      <select
-                        value={createCustTier}
-                        onChange={(e) => setCreateCustTier(e.target.value as MembershipTier)}
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-bold text-slate-800"
-                      >
-                        <option value="BRONZE">Đồng (Bronze)</option>
-                        <option value="SILVER">Bạc (Silver)</option>
-                        <option value="GOLD">Vàng (Gold)</option>
-                        <option value="PLATINUM">Bạch Kim (Platinum)</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Điểm tích lũy</label>
-                      <input
-                        type="number"
-                        value={createCustPoints}
-                        onChange={(e) => setCreateCustPoints(Number(e.target.value))}
-                        placeholder="0"
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {createCustType === "REGISTERED" && (
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Mật khẩu (Tùy chọn, mặc định 123456)</label>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Mật khẩu</label>
                     <input
                       type="password"
                       value={createCustPassword}
@@ -882,19 +968,17 @@ export default function AdminCustomerManagement() {
                       className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
                     />
                   </div>
-                )}
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Trạng thái tài khoản</label>
-                  <select
-                    value={createCustStatus}
-                    onChange={(e) => setCreateCustStatus(e.target.value as CustomerStatus)}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-bold text-slate-800"
-                  >
-                    <option value="ACTIVE">Hoạt động (Active)</option>
-                    <option value="INACTIVE">Tạm khóa (Inactive)</option>
-                    <option value="BANNED">Bị khóa vĩnh viễn (Banned)</option>
-                  </select>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Xác nhận mật khẩu</label>
+                    <input
+                      type="password"
+                      value={createCustConfirmPassword}
+                      onChange={(e) => setCreateCustConfirmPassword(e.target.value)}
+                      placeholder="Nhập lại mật khẩu"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
+                    />
+                  </div>
                 </div>
               </div>
 

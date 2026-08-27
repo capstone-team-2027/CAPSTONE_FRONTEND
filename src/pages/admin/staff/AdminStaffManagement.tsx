@@ -50,6 +50,13 @@ type PhoneInputProps = {
 };
 const PhoneInput = resolveDefault<React.ComponentType<PhoneInputProps>>(PhoneInputLib);
 
+const getInitials = (name: string) => {
+  if (!name) return "";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
 const phoneStyles = `
     .login-phone .react-tel-input .form-control {
         width: 100% !important;
@@ -512,7 +519,18 @@ export default function AdminStaffManagement() {
                         key={s.id}
                         className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors group"
                       >
-                        <td className="py-4 px-6">
+                        <td className="py-4 px-6 flex items-center gap-3">
+                          {s.avatar ? (
+                            <img
+                              src={s.avatar}
+                              alt={s.fullName}
+                              className="w-10 h-10 rounded-full object-cover border border-slate-200/80 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-[#EDF3FF] text-[#00285E] flex items-center justify-center text-xs font-bold shrink-0">
+                              {getInitials(s.fullName)}
+                            </div>
+                          )}
                           <span className="font-bold text-[#00285E] text-sm block">
                             {s.fullName}
                           </span>
@@ -586,7 +604,6 @@ export default function AdminStaffManagement() {
                     <th className="py-3 px-4">Nhân viên</th>
                     <th className="py-3 px-4">Vai trò</th>
                     <th className="py-3 px-4 text-center">Nhiệm vụ</th>
-                    <th className="py-3 px-4 text-right">Doanh thu</th>
                     <th className="py-3 px-4 text-center">Đánh giá</th>
                     <th className="py-3 px-4 text-center">Hành động</th>
                   </tr>
@@ -631,14 +648,34 @@ export default function AdminStaffManagement() {
                               <span className="text-slate-500 text-xs">#{idx + 1}</span>
                             )}
                           </td>
-                          <td className="py-4 px-4 font-bold text-[#00285E]">{r.fullName}</td>
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-3">
+                              {r.avatar ? (
+                                <img
+                                  src={r.avatar}
+                                  alt={r.fullName}
+                                  className="w-8 h-8 rounded-full object-cover shadow-xs border border-slate-100 shrink-0"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-[#EDF3FF] flex items-center justify-center text-xs font-bold text-[#00285E] shrink-0">
+                                  {getInitials(r.fullName)}
+                                </div>
+                              )}
+                              <span className="font-bold text-[#00285E] text-sm">{r.fullName}</span>
+                            </div>
+                          </td>
                           <td className="py-4 px-4 text-slate-500 font-semibold text-xs">{r.roleName}</td>
                           <td className="py-4 px-4 text-center font-semibold text-slate-700">{r.completedTasks}</td>
-                          <td className="py-4 px-4 text-right font-bold text-slate-900">{r.revenueContribution.toLocaleString("vi-VN")} đ</td>
                           <td className="py-4 px-4 text-center">
-                            <span className="inline-flex items-center gap-1 font-bold text-amber-500 text-xs">
-                              <Star size={12} fill="currentColor" /> {r.rating}
-                            </span>
+                            {r.feedbackCount === 0 || r.rating === 0 ? (
+                              <span className="inline-flex items-center gap-1 font-bold text-slate-400 text-xs">
+                                <Star size={12} className="text-slate-300" fill="none" /> 0
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 font-bold text-amber-500 text-xs">
+                                <Star size={12} fill="currentColor" /> {r.rating}
+                              </span>
+                            )}
                           </td>
                           <td className="py-4 px-4 text-center">
                             <button
@@ -676,9 +713,17 @@ export default function AdminStaffManagement() {
               return (
                 <div className="space-y-6">
                   <div className="flex items-center gap-4 border-b border-slate-100 pb-5">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#00285E] to-[#003a8a] flex items-center justify-center text-white font-bold text-xl shadow-md shrink-0">
-                      {selectedEmp.fullName.slice(0, 1)}
-                    </div>
+                    {selectedEmp.avatar ? (
+                      <img
+                        src={selectedEmp.avatar}
+                        alt={selectedEmp.fullName}
+                        className="w-14 h-14 rounded-2xl object-cover border border-slate-100 shadow-md shrink-0"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#00285E] to-[#003a8a] flex items-center justify-center text-white font-bold text-xl shadow-md shrink-0">
+                        {getInitials(selectedEmp.fullName)}
+                      </div>
+                    )}
                     <div>
                       <h3 className="font-bold text-base text-slate-800 leading-tight">{selectedEmp.fullName}</h3>
                       <p className="text-xs text-slate-400 font-semibold mt-0.5">{selectedEmp.roleName}</p>
@@ -688,23 +733,23 @@ export default function AdminStaffManagement() {
                   <div className="space-y-4">
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Chỉ số năng suất</h4>
                     
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nhiệm vụ hoàn thành</span>
-                        <span className="text-xl font-bold text-slate-800 block mt-1">{selectedEmp.completedTasks}</span>
-                      </div>
-                      <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Doanh thu đóng góp</span>
-                        <span className="text-sm font-bold text-[#00285E] block mt-2">{selectedEmp.revenueContribution.toLocaleString("vi-VN")} đ</span>
-                      </div>
+                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nhiệm vụ hoàn thành</span>
+                      <span className="text-xl font-bold text-slate-800 block mt-1">{selectedEmp.completedTasks}</span>
                     </div>
 
                     <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl flex items-center justify-between">
                       <div>
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Đánh giá sao</span>
-                        <span className="text-xl font-bold text-amber-500 flex items-center gap-1.5 mt-1">
-                          <Star size={16} fill="currentColor" className="shrink-0" /> {selectedEmp.rating}
-                        </span>
+                        {selectedEmp.feedbackCount === 0 || selectedEmp.rating === 0 ? (
+                          <span className="text-xl font-bold text-slate-400 flex items-center gap-1.5 mt-1">
+                            <Star size={16} className="text-slate-300 shrink-0" fill="none" /> 0
+                          </span>
+                        ) : (
+                          <span className="text-xl font-bold text-amber-500 flex items-center gap-1.5 mt-1">
+                            <Star size={16} fill="currentColor" className="shrink-0" /> {selectedEmp.rating}
+                          </span>
+                        )}
                       </div>
                       <button
                         type="button"
@@ -790,8 +835,15 @@ export default function AdminStaffManagement() {
                         </span>
                       </div>
                       <p className="text-slate-800 text-sm font-semibold italic">&ldquo;{fb.comment}&rdquo;</p>
-                      <div className="text-[11px] text-slate-500 font-bold">
-                        Người đánh giá: {fb.customerName} {fb.customerPhone && `(${fb.customerPhone})`}
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 font-bold">
+                        <div>
+                          Người đánh giá: {fb.customerName} {fb.customerPhone && `(${fb.customerPhone})`}
+                        </div>
+                        {fb.serviceOrderId && (
+                          <span className="px-2 py-0.5 rounded-md bg-blue-50 text-[#00285E] border border-blue-100 font-bold">
+                            Mã đơn: #{fb.serviceOrderId}
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -829,7 +881,7 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
   const isEdit = !!initial;
   const [fullName, setFullName] = useState(initial?.fullName ?? "");
   const [phoneNumber, setPhoneNumber] = useState(initial?.phoneNumber ?? "");
-  const { fetchPrivate } = useFetchClient();
+  const { fetchPrivate, fetchPrivateForm } = useFetchClient();
   const [roleList, setRoleList] = useState<Role[]>([]);
   const [roleCode, setRoleCode] = useState(initial?.role?.roleCode ?? "");
   const [status, setStatus] = useState(initial?.status ?? "ACTIVE");
@@ -839,6 +891,33 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
   const [successMsg, setSuccessMsg] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [avatar, setAvatar] = useState(initial?.avatar ?? "");
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    try {
+      setIsUploading(true);
+      setErrorMsg("");
+      const response = await fetchPrivateForm(
+        `${STAFF_MANAGEMENT_API_ENDPOINTS.STAFF_MANAGEMENT}/upload-avatar`,
+        "POST",
+        formData
+      );
+      if (response && response.url) {
+        setAvatar(response.url);
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || "Tải ảnh đại diện thất bại");
+    } finally {
+      setIsUploading(false);
+    }
+  };
   
   const handleGetRole = async () =>{
       try {
@@ -867,7 +946,8 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
           phoneNumber,
           roleCode,
           password,
-          confirmPassword
+          confirmPassword,
+          avatar
         }
       );
       setSuccessMsg("Tạo nhân sự thành công!");
@@ -887,7 +967,8 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
           { fullName, 
             phoneNumber,
             roleCode,
-            status
+            status,
+            avatar
           }
         );
       setSuccessMsg("Cập nhật thông tin nhân sự thành công!");
@@ -948,8 +1029,33 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
             </div>
 
             <div className="relative aspect-square rounded-md overflow-hidden shadow-2xl border border-white/10 group flex-1 bg-gradient-to-br from-[#00285E] to-[#003a8a] flex items-center justify-center">
-              <Users size={96} className="text-[#F9A11B]/30" />
+              {avatar ? (
+                <img
+                  src={avatar}
+                  alt={fullName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Users size={96} className="text-[#F9A11B]/30" />
+              )}
+              
+              {isUploading && (
+                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center">
+                  <Loader2 className="animate-spin text-white" size={24} />
+                </div>
+              )}
             </div>
+
+            <label className="flex items-center justify-center gap-2 w-full py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition-all cursor-pointer shadow-xs">
+              <span>Tải ảnh đại diện</span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                disabled={isUploading}
+                className="hidden"
+              />
+            </label>
 
             <div className="text-[11px] text-slate-600 leading-relaxed bg-white/60 rounded p-3 border border-white/40">
               <span className="font-bold text-[#00285E]">Gợi ý:</span> Để trống
@@ -994,7 +1100,7 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
               className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
             >
               <option value="" disabled>-- Chọn vai trò --</option>
-              {roleList.map((r) => (
+              {roleList.filter(r => r.roleCode !== "CUSTOMER").map((r) => (
                 <option key={r.id} value={r.roleCode}>
                   {r.roleName}
                 </option>
