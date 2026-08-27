@@ -16,6 +16,7 @@ import {
   Search,
   Eye,
   EyeOff,
+  Loader2,
 } from "lucide-react";
 import 'react-phone-input-2/lib/style.css';
 import * as PhoneInputLib from 'react-phone-input-2';
@@ -126,6 +127,55 @@ export default function AdminStaffManagement() {
   const [page, setPage] = useState(1);
   const [loadingError, setLoadingError] = useState<string | null>(null);
 
+  // Real performance & reviews state
+  const [performanceData, setPerformanceData] = useState<any[]>([]);
+  const [isPerformanceLoading, setIsPerformanceLoading] = useState(false);
+  const [feedbackStaff, setFeedbackStaff] = useState<any | null>(null);
+  const [staffFeedbacks, setStaffFeedbacks] = useState<any[]>([]);
+  const [isFeedbacksLoading, setIsFeedbacksLoading] = useState(false);
+
+  const handleGetPerformance = async () => {
+    try {
+      setIsPerformanceLoading(true);
+      const response = await fetchPrivate<any[]>(
+        `${STAFF_MANAGEMENT_API_ENDPOINTS.PERFORMANCE}?timeframe=${timeframe}`,
+        "GET"
+      );
+      if (response && Array.isArray(response.data)) {
+        setPerformanceData(response.data);
+      }
+    } catch (error) {
+      console.error("Lỗi lấy dữ liệu hiệu suất:", error);
+    } finally {
+      setIsPerformanceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "ranking") {
+      handleGetPerformance();
+    }
+  }, [activeTab, timeframe]);
+
+  const handleOpenFeedbacksModal = async (employee: any) => {
+    setFeedbackStaff(employee);
+    setStaffFeedbacks([]);
+    try {
+      setIsFeedbacksLoading(true);
+      const response = await fetchPrivate<any>(
+        STAFF_MANAGEMENT_API_ENDPOINTS.STAFF_FEEDBACKS(employee.id),
+        "GET"
+      );
+      if (response && response.success && Array.isArray(response.data)) {
+        setStaffFeedbacks(response.data);
+      }
+    } catch (error) {
+      console.error("Lỗi lấy danh sách đánh giá nhân viên:", error);
+    } finally {
+      setIsFeedbacksLoading(false);
+    }
+  };
+
   const totalActive = staff.filter((s) => s.status === "ACTIVE").length;
   const totalTechnicians = staff.filter((s) => s.role.roleCode === "TECHNICIAN",).length;
   const filteredStaff = useMemo(() => {
@@ -178,36 +228,10 @@ export default function AdminStaffManagement() {
   // Compute Employee Rankings and statistics
   const rankingList = useMemo(() => {
     if (isDateRangeInvalid) {
-      return []; // Return empty list if filter is invalid to simulate empty state on UI
+      return [];
     }
-
-    const baseRanks = [
-      { id: 101, fullName: "Trần Văn Hùng", roleName: "Kỹ thuật viên", completedTasks: 96, revenueContribution: 42000000, rating: 4.8, performanceScore: 95, workDate: "2026-05-15", status: "Active" },
-      { id: 102, fullName: "Lê Minh Tuấn", roleName: "Kỹ thuật viên", completedTasks: 84, revenueContribution: 38000000, rating: 4.6, performanceScore: 89, workDate: "2026-05-18", status: "Active" },
-      { id: 103, fullName: "Nguyễn Nam Khánh", roleName: "Kỹ thuật viên", completedTasks: 78, revenueContribution: 31000000, rating: 4.5, performanceScore: 86, workDate: "2026-05-20", status: "Active" },
-      { id: 104, fullName: "Phạm Văn Thành", roleName: "Kỹ thuật viên", completedTasks: 72, revenueContribution: 29000000, rating: 4.7, performanceScore: 88, workDate: "2026-05-22", status: "Active" },
-      { id: 105, fullName: "Nguyễn Thị Mai", roleName: "Lễ tân", completedTasks: 120, revenueContribution: 15000000, rating: 4.9, performanceScore: 97, workDate: "2026-05-10", status: "Active" },
-    ];
-
-      if (staff.length > 0) {
-      return staff.map((s, idx) => {
-        const base = baseRanks[idx % baseRanks.length];
-        return {
-          id: s.id,
-          fullName: s.fullName,
-          roleName: s.role.roleName,
-          completedTasks: base.completedTasks + (s.id % 5) + 1,
-          revenueContribution: base.revenueContribution + (s.id * 8000),
-          rating: Number((4.2 + (s.id % 8) / 10).toFixed(1)),
-          performanceScore: Math.min(100, Math.max(70, 76 + (s.id % 23))),
-          workDate: base.workDate,
-          status: s.status === "ACTIVE" ? "Active" : "Inactive",
-        };
-      }).sort((a, b) => b.rating - a.rating || b.completedTasks - a.completedTasks);
-    }
-    
-    return baseRanks.sort((a, b) => b.rating - a.rating || b.completedTasks - a.completedTasks);
-  }, [staff, isDateRangeInvalid]);
+    return [...performanceData].sort((a, b) => b.rating - a.rating || b.completedTasks - a.completedTasks);
+  }, [performanceData, isDateRangeInvalid]);
 
   // Export CSV Report
   const handleExportRanking = () => {
@@ -300,7 +324,7 @@ export default function AdminStaffManagement() {
         {activeTab === "list" ? (
           <button
             onClick={handleOpenCreate}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#F9A11B] text-[#00285E] rounded text-sm font-bold shadow-md shadow-[#F9A11B]/20 hover:bg-[#E08F12] transition-all transform hover:translate-y-[-1px]"
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#F9A11B] text-[#00285E] rounded-xl text-sm font-bold shadow-md shadow-[#F9A11B]/20 hover:bg-[#E08F12] transition-all transform hover:translate-y-[-1px]"
           >
             <UserPlus size={16} />
             <span>Thêm nhân sự</span>
@@ -337,14 +361,6 @@ export default function AdminStaffManagement() {
                 </div>
               )}
             </div>
-
-            <button
-              onClick={handleExportRanking}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#00285E] text-white rounded text-sm font-bold shadow-md shadow-[#00285E]/15 hover:bg-[#062047] transition-all transform hover:translate-y-[-1px]"
-            >
-              <Download size={16} />
-              <span>Xuất báo cáo xếp hạng</span>
-            </button>
           </div>
         )}
       </div>
@@ -561,10 +577,18 @@ export default function AdminStaffManagement() {
                     <th className="py-3 px-4 text-center">Nhiệm vụ</th>
                     <th className="py-3 px-4 text-right">Doanh thu</th>
                     <th className="py-3 px-4 text-center">Đánh giá</th>
+                    <th className="py-3 px-4 text-center">Hành động</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rankingList.length === 0 ? (
+                  {isPerformanceLoading ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-[#00285E] text-sm">
+                        <Loader2 className="animate-spin mx-auto mb-2" size={24} />
+                        Đang tải dữ liệu xếp hạng...
+                      </td>
+                    </tr>
+                  ) : rankingList.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="py-12 text-center text-slate-400 text-sm">
                         Không có dữ liệu xếp hạng nhân viên được tìm thấy.
@@ -604,6 +628,18 @@ export default function AdminStaffManagement() {
                             <span className="inline-flex items-center gap-1 font-bold text-amber-500 text-xs">
                               <Star size={12} fill="currentColor" /> {r.rating}
                             </span>
+                          </td>
+                          <td className="py-4 px-4 text-center">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenFeedbacksModal(r);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-[#00285E] bg-blue-50 hover:bg-[#EDF3FF] border border-blue-100 transition-colors"
+                            >
+                              <Eye size={12} /> Xem đánh giá
+                            </button>
                           </td>
                         </tr>
                       );
@@ -652,17 +688,26 @@ export default function AdminStaffManagement() {
                       </div>
                     </div>
 
-                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Đánh giá sao</span>
-                      <span className="text-xl font-bold text-amber-500 flex items-center gap-1.5 mt-1">
-                        <Star size={16} fill="currentColor" className="shrink-0" /> {selectedEmp.rating}
-                      </span>
+                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Đánh giá sao</span>
+                        <span className="text-xl font-bold text-amber-500 flex items-center gap-1.5 mt-1">
+                          <Star size={16} fill="currentColor" className="shrink-0" /> {selectedEmp.rating}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenFeedbacksModal(selectedEmp)}
+                        className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-white bg-[#00285E] hover:bg-[#00285E]/90 transition-all active:scale-[0.98]"
+                      >
+                        <Eye size={14} /> Chi tiết đánh giá
+                      </button>
                     </div>
 
                     <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Ngày làm việc</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Ngày tham gia</span>
                       <span className="text-sm font-bold text-slate-800 block mt-1">
-                        {new Date(selectedEmp.workDate).toLocaleDateString("vi-VN")}
+                        {new Date(selectedEmp.createdAt).toLocaleDateString("vi-VN")}
                       </span>
                     </div>
                   </div>
@@ -684,6 +729,77 @@ export default function AdminStaffManagement() {
           }}
           onRefresh={handleGetStaff}
         />
+      )}
+
+      {feedbackStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-5 bg-[#00285E] text-white flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="text-lg font-bold">Lịch sử đánh giá nhân sự</h3>
+                <p className="text-xs text-slate-200 mt-1">Đang xem đánh giá của: <span className="font-extrabold">{feedbackStaff.fullName}</span></p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFeedbackStaff(null)}
+                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {isFeedbacksLoading ? (
+                <div className="flex flex-col items-center justify-center py-16 text-[#00285E]">
+                  <Loader2 className="animate-spin mb-3" size={32} />
+                  <p className="text-sm font-bold">Đang tải danh sách đánh giá...</p>
+                </div>
+              ) : staffFeedbacks.length === 0 ? (
+                <div className="text-center py-16 text-slate-400 space-y-2">
+                  <Star size={36} className="mx-auto opacity-30" />
+                  <p className="text-sm font-semibold">Nhân viên này chưa nhận được đánh giá nào.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {staffFeedbacks.map((fb) => (
+                    <div key={fb.id} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-amber-500">
+                          {Array.from({ length: fb.rating }).map((_, i) => (
+                            <Star key={i} size={14} fill="currentColor" />
+                          ))}
+                          {Array.from({ length: 5 - fb.rating }).map((_, i) => (
+                            <Star key={i} size={14} className="text-slate-200" />
+                          ))}
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-semibold">
+                          {new Date(fb.createdAt).toLocaleDateString('vi-VN')}
+                        </span>
+                      </div>
+                      <p className="text-slate-800 text-sm font-semibold italic">&ldquo;{fb.comment}&rdquo;</p>
+                      <div className="text-[11px] text-slate-500 font-bold">
+                        Người đánh giá: {fb.customerName} {fb.customerPhone && `(${fb.customerPhone})`}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setFeedbackStaff(null)}
+                className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-sm transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

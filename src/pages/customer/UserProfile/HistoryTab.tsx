@@ -193,21 +193,27 @@ export default function HistoryTab() {
         "Dịch vụ rất tốt và chuyên nghiệp",
         "Kỹ thuật sửa chữa tốt, xe chạy êm",
         "Thời gian sửa nhanh chóng",
-        "Chi phí sửa chữa hợp lý"
+        "Chi phí sửa chữa hợp lý",
+        "Xe vận hành mượt mà sau sửa",
+        "Phụ tùng chính hãng chất lượng"
     ];
 
     const RECEPTIONIST_SUGGESTIONS = [
         "Lễ tân tiếp đón nhiệt tình, niềm nở",
         "Tư vấn dịch vụ rõ ràng, dễ hiểu",
         "Thao tác làm thủ tục nhanh chóng",
-        "Giải đáp thắc mắc chu đáo"
+        "Giải đáp thắc mắc chu đáo",
+        "Không gian phòng chờ thoải mái",
+        "Quy trình làm việc chuyên nghiệp"
     ];
 
     const HEAD_TECH_SUGGESTIONS = [
         "KTV trưởng giám sát chuyên nghiệp",
         "Tư vấn kỹ thuật chính xác, tin cậy",
         "Kiểm tra lỗi xe rất kỹ càng",
-        "Thái độ làm việc chuyên nghiệp"
+        "Thái độ làm việc chuyên nghiệp",
+        "Bàn giao xe đúng thời hạn",
+        "Kỹ năng chuyên môn tuyệt vời"
     ];
 
     const handleAddSuggestion = (
@@ -820,7 +826,7 @@ export default function HistoryTab() {
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
-                            className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden"
+                            className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden"
                         >
                             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                                 <h3 className="text-lg font-bold text-[#00285E]">Đánh giá dịch vụ</h3>
