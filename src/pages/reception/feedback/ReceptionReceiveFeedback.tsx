@@ -231,17 +231,7 @@ export default function ReceptionReceiveFeedback() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-5 py-3 rounded-xl bg-[#00285E] text-white hover:bg-[#00285E]/90 transition-all font-bold shadow-md shadow-[#00285E]/10"
-        >
-          {showForm ? 'Quay lại danh sách' : (
-            <>
-              <Plus size={18} />
-              <span>Ghi nhận phản hồi mới</span>
-            </>
-          )}
-        </button>
+
       </div>
 
       <AnimatePresence mode="wait">
@@ -495,51 +485,18 @@ export default function ReceptionReceiveFeedback() {
                 />
               </div>
 
-              {/* Filters */}
-              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                <div className="flex items-center gap-2">
-                  <Filter size={16} className="text-slate-400" />
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Lọc theo:</span>
-                </div>
 
-                {/* Category Dropdown */}
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 focus:outline-none"
-                >
-                  <option value="all">Tất cả phân loại</option>
-                  {Object.entries(FEEDBACK_CATEGORY_LABELS).map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Status Dropdown */}
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 focus:outline-none"
-                >
-                  <option value="all">Tất cả trạng thái</option>
-                  <option value="new">Mới nhận</option>
-                  <option value="processing">Đang xử lý</option>
-                  <option value="resolved">Đã giải quyết</option>
-                  <option value="closed">Đã đóng</option>
-                </select>
-              </div>
             </div>
 
-            {/* Feedback items list */}
-            <div className="space-y-4">
+            {/* Feedback items grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {isLoading ? (
-                <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-12 text-center text-[#00285E]">
+                <div className="col-span-full bg-white rounded-2xl border border-slate-200/60 shadow-sm p-12 text-center text-[#00285E]">
                   <Loader2 className="animate-spin mx-auto mb-4" size={40} />
                   <p className="font-semibold text-sm">Đang tải phản hồi khách hàng...</p>
                 </div>
               ) : filteredFeedbacks.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-12 text-center text-slate-400">
+                <div className="col-span-full bg-white rounded-2xl border border-slate-200/60 shadow-sm p-12 text-center text-slate-400">
                   <MessageSquare className="mx-auto mb-4 opacity-30" size={40} />
                   <p className="font-semibold text-sm">Không tìm thấy phản hồi nào trùng khớp.</p>
                 </div>
@@ -548,139 +505,101 @@ export default function ReceptionReceiveFeedback() {
                   <motion.div
                     key={fb.id}
                     layout
-                    className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 hover:border-slate-300 transition-all flex flex-col md:flex-row gap-6 justify-between items-start"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-white rounded-2xl border border-slate-200/60 shadow-xs hover:shadow-md hover:border-slate-300 transition-all flex flex-col overflow-hidden"
                   >
-                    <div className="space-y-3 flex-1">
-                      <div className="flex flex-wrap items-center gap-3">
+                    {/* Card Header */}
+                    <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-slate-100">
+                      <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-[#00285E] bg-[#E0ECFF] px-2.5 py-1 rounded-lg">
                           FB-{String(fb.id).padStart(3, '0')}
                         </span>
                         {getStatusBadge(fb.status || 'new')}
-                        {fb.serviceOrder && (
-                          <span className="text-xs font-bold text-slate-500 hover:underline cursor-pointer">
-                            Hóa đơn dịch vụ: SO-{String(fb.serviceOrder.id).padStart(3, '0')}
-                          </span>
-                        )}
-                        {fb.serviceOrderId && (
-                          <span className="text-xs font-bold text-slate-500 hover:underline cursor-pointer">
-                            Hóa đơn dịch vụ: {fb.serviceOrderId}
-                          </span>
-                        )}
                       </div>
+                      <div className="flex items-center gap-1 text-amber-400">
+                        {Array.from({ length: fb.rating || fb.service_rating || 5 }).map((_, i) => (
+                          <Star key={i} size={14} fill="currentColor" />
+                        ))}
+                      </div>
+                    </div>
 
-                      {/* Display detailed ratings if available */}
+                    {/* Card Body */}
+                    <div className="px-5 py-4 flex-1 space-y-3">
+                      {/* Service Order Info */}
+                      {(fb.serviceOrder || fb.serviceOrderId) && (
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          Hóa đơn: SO-{String(fb.serviceOrder?.id || fb.serviceOrderId).padStart(3, '0')}
+                        </div>
+                      )}
+
+                      {/* Ratings Detail */}
                       {fb.service_rating !== undefined && fb.service_rating !== null ? (
-                        <div className="space-y-3">
-                          {/* 1. Service Quality */}
-                          <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs font-extrabold text-slate-600">Dịch vụ & Sửa chữa:</span>
+                        <div className="space-y-2.5">
+                          {/* Service */}
+                          <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wide">Dịch vụ & Sửa chữa</span>
                               <div className="flex items-center gap-0.5 text-amber-400">
                                 {Array.from({ length: fb.service_rating }).map((_, i) => (
-                                  <Star key={i} size={12} fill="currentColor" />
+                                  <Star key={i} size={10} fill="currentColor" />
                                 ))}
                               </div>
                             </div>
-                            <p className="text-slate-800 text-xs font-semibold">&ldquo;{fb.service_comment || 'Không có bình luận.'}&rdquo;</p>
+                            <p className="text-slate-700 text-xs font-medium leading-relaxed line-clamp-2">&ldquo;{fb.service_comment || 'Không có bình luận.'}&rdquo;</p>
                           </div>
 
-                          {/* 2. Receptionist Attitude */}
-                          <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs font-extrabold text-slate-600">Thái độ Lễ tân:</span>
+                          {/* Receptionist */}
+                          <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wide">Thái độ Lễ tân</span>
                               <div className="flex items-center gap-0.5 text-amber-400">
                                 {Array.from({ length: fb.receptionist_rating }).map((_, i) => (
-                                  <Star key={i} size={12} fill="currentColor" />
+                                  <Star key={i} size={10} fill="currentColor" />
                                 ))}
                               </div>
-                              {fb.receptionist && (
-                                <span className="text-[10px] text-slate-400 font-semibold">({fb.receptionist.fullName})</span>
-                              )}
                             </div>
-                            <p className="text-slate-800 text-xs font-semibold">&ldquo;{fb.receptionist_comment || 'Không có bình luận.'}&rdquo;</p>
+                            <p className="text-slate-700 text-xs font-medium leading-relaxed line-clamp-2">&ldquo;{fb.receptionist_comment || 'Không có bình luận.'}&rdquo;</p>
+                            {fb.receptionist && (
+                              <p className="text-[10px] text-slate-400 font-semibold mt-1">— {fb.receptionist.fullName}</p>
+                            )}
                           </div>
 
-                          {/* 3. Chief Technician */}
-                          <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs font-extrabold text-slate-600">KTV Trưởng quản lý:</span>
+                          {/* Head Technician */}
+                          <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wide">KTV Trưởng</span>
                               <div className="flex items-center gap-0.5 text-amber-400">
-                                {Array.from({ length: fb.head_technician_rating }).map((_, i) => (
-                                  <Star key={i} size={12} fill="currentColor" />
+                                {Array.from({ length: fb.head_technician_rating || 0 }).map((_, i) => (
+                                  <Star key={i} size={10} fill="currentColor" />
                                 ))}
                               </div>
-                              {fb.headTechnician && (
-                                <span className="text-[10px] text-slate-400 font-semibold">({fb.headTechnician.fullName})</span>
-                              )}
                             </div>
-                            <p className="text-slate-800 text-xs font-semibold">&ldquo;{fb.head_technician_comment || 'Không có bình luận.'}&rdquo;</p>
+                            <p className="text-slate-700 text-xs font-medium leading-relaxed line-clamp-2">&ldquo;{fb.head_technician_comment || 'Không có bình luận.'}&rdquo;</p>
+                            {fb.headTechnician && (
+                              <p className="text-[10px] text-slate-400 font-semibold mt-1">— {fb.headTechnician.fullName}</p>
+                            )}
                           </div>
                         </div>
                       ) : (
-                        <div className="p-3 bg-slate-50/50 rounded-xl border border-slate-100">
-                          <div className="flex items-center gap-1.5 mb-1.5">
-                            <div className="flex items-center gap-0.5 text-amber-400">
-                              {Array.from({ length: fb.rating || 5 }).map((_, i) => (
-                                <Star key={i} size={12} fill="currentColor" />
-                              ))}
-                            </div>
-                          </div>
-                          <p className="text-slate-800 text-sm font-semibold leading-relaxed">
+                        <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                          <p className="text-slate-700 text-sm font-medium leading-relaxed line-clamp-3">
                             &ldquo;{fb.comment || fb.content}&rdquo;
                           </p>
                         </div>
                       )}
-
-                      {fb.internalNotes && (
-                        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-600 flex gap-2">
-                          <FileText size={14} className="text-slate-400 mt-0.5" />
-                          <div>
-                            <span className="text-slate-400 font-bold block mb-0.5">Xử lý nội bộ:</span>
-                            {fb.internalNotes}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-6 text-xs text-slate-400 font-semibold pt-1">
-                        <span className="flex items-center gap-1">
-                          <User size={12} />
-                          {fb.customer?.name || fb.customerName} ({fb.customer?.phone || fb.customerPhone})
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock size={12} />
-                          {new Date(fb.createdAt || fb.receivedDate).toLocaleDateString('vi-VN')} {new Date(fb.createdAt || fb.receivedDate).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
                     </div>
 
-                    {/* Actions button for changing status in mock view */}
-                    <div className="flex md:flex-col gap-2 shrink-0 w-full md:w-auto border-t md:border-t-0 border-slate-100 pt-4 md:pt-0 justify-end">
-                      {fb.status === 'new' && (
-                        <button
-                          onClick={() => {
-                            setFeedbacks(
-                              feedbacks.map((f) => (f.id === fb.id ? { ...f, status: 'processing' } : f))
-                            );
-                          }}
-                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 text-xs font-bold transition-all"
-                        >
-                          <span>Xử lý phản hồi</span>
-                          <ArrowRight size={12} />
-                        </button>
-                      )}
-                      {fb.status === 'processing' && (
-                        <button
-                          onClick={() => {
-                            setFeedbacks(
-                              feedbacks.map((f) => (f.id === fb.id ? { ...f, status: 'resolved' } : f))
-                            );
-                          }}
-                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100 text-xs font-bold transition-all"
-                        >
-                          <CheckCircle size={12} />
-                          <span>Hoàn thành giải quyết</span>
-                        </button>
-                      )}
+                    {/* Card Footer */}
+                    <div className="px-5 py-3 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1 text-[11px] text-slate-400 font-semibold truncate">
+                        <User size={11} />
+                        <span className="truncate">{fb.customer?.name || fb.customerName} ({fb.customer?.phone || fb.customerPhone})</span>
+                      </span>
+                      <span className="flex items-center gap-1 text-[11px] text-slate-400 font-semibold whitespace-nowrap">
+                        <Clock size={11} />
+                        {new Date(fb.createdAt || fb.receivedDate).toLocaleDateString('vi-VN')}
+                      </span>
                     </div>
                   </motion.div>
                 ))
