@@ -19,8 +19,6 @@ import {
   FolderHeart,
   FolderOpen,
   XCircle,
-  ShieldCheck,
-  Loader2,
 } from "lucide-react";
 import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { type Category, type ServiceCatalog } from "../../../model/dto/serviceCatalog.dto";
@@ -94,8 +92,6 @@ export default function AdminServiceManagement() {
   const [totalServices, setTotalServices] = useState(0);
   const [totalActiveServices, setTotalActiveServices] = useState(0);
   const [servicesLoading, setServicesLoading] = useState(false);
-  const [settingDefaultInspectionId, setSettingDefaultInspectionId] = useState<number | null>(null);
-  const [togglingRequiresBayId, setTogglingRequiresBayId] = useState<number | null>(null);
 
   const [totalCombos, setTotalCombos] = useState(0);
   const [totalActiveCombos, setTotalActiveCombos] = useState(0);
@@ -146,52 +142,6 @@ export default function AdminServiceManagement() {
       showToast('Không thể tải danh sách dịch vụ', 'warning');
     } finally {
       setServicesLoading(false);
-    }
-  };
-
-  const handleSetDefaultInspectionService = async (serviceId: number) => {
-    setSettingDefaultInspectionId(serviceId);
-    try {
-      await fetchPrivate(
-        SERVICE_CATALOG_API_ENDPOINTS.SET_DEFAULT_INSPECTION(serviceId),
-        'PATCH',
-      );
-      showToast('Đã đặt làm dịch vụ kiểm tra mặc định!', 'success');
-      await handleGetServiceCatalog();
-    } catch (error: any) {
-      console.error('Lỗi đặt dịch vụ kiểm tra mặc định:', error);
-      showToast(error?.message || 'Không thể đặt dịch vụ kiểm tra mặc định', 'warning');
-    } finally {
-      setSettingDefaultInspectionId(null);
-    }
-  };
-
-  const handleToggleRequiresBay = async (service: ServiceCatalog) => {
-    setTogglingRequiresBayId(service.id);
-    try {
-      const newStatus = !service.requires_bay;
-      await fetchPrivate(
-        `${SERVICE_CATALOG_API_ENDPOINTS.SERVICE_CATALOG}/${service.id}`,
-        'PATCH',
-        {
-          category_id: service.category_id,
-          service_name: service.service_name,
-          description: service.description,
-          estimated_duration: service.estimated_duration,
-          is_active: service.is_active,
-          labor_price: service.labor_price,
-          spare_part_id: service.spare_part_id,
-          is_default_inspection_service: service.is_default_inspection_service,
-          requires_bay: newStatus
-        }
-      );
-      showToast(`Đã cập nhật yêu cầu cầu nâng thành: ${newStatus ? 'Cần cầu nâng' : 'Không cần'}`, 'success');
-      await handleGetServiceCatalog();
-    } catch (error: any) {
-      console.error('Lỗi cập nhật yêu cầu cầu nâng:', error);
-      showToast(error?.message || 'Không thể cập nhật yêu cầu cầu nâng', 'warning');
-    } finally {
-      setTogglingRequiresBayId(null);
     }
   };
 
@@ -917,8 +867,6 @@ export default function AdminServiceManagement() {
                   <th className="py-4 px-4">Giá</th>
                   <th className="py-4 px-4">Thời gian dự kiến</th>
                   <th className="py-4 px-4">Trạng thái</th>
-                  <th className="py-4 px-4">Kiểm tra mặc định</th>
-                  <th className="py-4 px-4">Yêu cầu cầu nâng</th>
                   <th className="py-4 px-6 text-right">Thao tác</th>
                 </tr>
               </thead>
@@ -926,7 +874,7 @@ export default function AdminServiceManagement() {
                 {filteredServices.length === 0 ? (
                    <tr>
                      <td
-                       colSpan={9}
+                       colSpan={7}
                        className="py-12 text-center text-slate-400 text-sm"
                      >
                       Không tìm thấy dịch vụ phù hợp...
@@ -976,49 +924,6 @@ export default function AdminServiceManagement() {
                         >
                           {s.is_active ? "Hoạt động" : "Tạm dừng"}
                         </span>
-                      </td>
-
-                      <td className="py-4 px-4">
-                        {s.is_default_inspection_service ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#00285E] text-white">
-                            <ShieldCheck size={13} />
-                            Mặc định
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => handleSetDefaultInspectionService(s.id)}
-                            disabled={settingDefaultInspectionId === s.id}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border border-slate-200 text-slate-500 hover:border-[#00285E] hover:text-[#00285E] hover:bg-[#EDF3FF] transition-colors disabled:opacity-50"
-                          >
-                            {settingDefaultInspectionId === s.id ? (
-                              <Loader2 size={13} className="animate-spin" />
-                            ) : (
-                              <ShieldCheck size={13} />
-                            )}
-                            Đặt làm mặc định
-                          </button>
-                        )}
-                      </td>
-
-                      <td className="py-4 px-4">
-                        <button
-                          onClick={() => handleToggleRequiresBay(s)}
-                          disabled={togglingRequiresBayId === s.id}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer hover:opacity-80 active:scale-95 transition-all disabled:opacity-50"
-                          title="Click để bật/tắt yêu cầu cầu nâng"
-                        >
-                          {togglingRequiresBayId === s.id ? (
-                            <Loader2 size={13} className="animate-spin text-blue-600" />
-                          ) : s.requires_bay ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-100">
-                              Cần cầu nâng
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-500 border border-slate-200">
-                              Không cần
-                            </span>
-                          )}
-                        </button>
                       </td>
 
                       <td className="py-4 px-6">
@@ -1311,7 +1216,6 @@ function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefres
   const [durationMinutes, setDurationMinutes] = useState<number>(initial?.estimated_duration ?? 30);
   const [isActive, setIsActive] = useState<boolean>(initial?.is_active ?? true);
   const [isDefaultInspectionService, setIsDefaultInspectionService] = useState<boolean>(initial?.is_default_inspection_service ?? false);
-  const [requiresBay, setRequiresBay] = useState<boolean>(initial?.requires_bay ?? true);
 
   const [imageUrl, setImageUrl] = useState<string>(() => {
     if (initial?.id) {
@@ -1336,8 +1240,8 @@ function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefres
       setErrorMsg("Vui lòng chọn danh mục dịch vụ");
       return false;
     }
-    if (price <= 0 || isNaN(price)) {
-      setErrorMsg("Giá dịch vụ phải lớn hơn 0");
+    if (!isDefaultInspectionService && (price <= 0 || isNaN(price))) {
+      setErrorMsg("Giá dịch vụ thường phải lớn hơn 0");
       return false;
     }
     if (durationMinutes <= 0 || isNaN(durationMinutes)) {
@@ -1373,8 +1277,7 @@ function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefres
           is_active: isActive,
           labor_price: price,
           spare_part_id: sparePartId || null,
-          is_default_inspection_service: isDefaultInspectionService,
-          requires_bay: requiresBay
+          is_default_inspection_service: isDefaultInspectionService
         }
       );
 
@@ -1407,8 +1310,7 @@ function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefres
           is_active: isActive,
           labor_price: price,
           spare_part_id: sparePartId || null,
-          is_default_inspection_service: isDefaultInspectionService,
-          requires_bay: requiresBay
+          is_default_inspection_service: isDefaultInspectionService
         }
       );
       if (initial?.id) {
@@ -1565,15 +1467,18 @@ function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefres
                   <input
                     type="text"
                     inputMode="numeric"
-                    value={price ? price.toLocaleString('vi-VN') : ''}
+                    value={isDefaultInspectionService ? '' : (price ? price.toLocaleString('vi-VN') : '')}
+                    disabled={isDefaultInspectionService}
                     onChange={(e) => {
                       const raw = e.target.value.replace(/\./g, '').replace(/[^0-9]/g, '');
                       setPrice(raw ? Number(raw) : 0);
                     }}
                     placeholder="Vd: 350.000"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm font-bold text-[#00285E] focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all pr-12"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm font-bold text-[#00285E] focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all pr-12 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:placeholder:text-transparent"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">VND</span>
+                  {!isDefaultInspectionService && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">VND</span>
+                  )}
                 </div>
               </div>
 
@@ -1596,7 +1501,7 @@ function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefres
               </div>
             </div>
 
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 grid grid-cols-3 gap-4">
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 grid grid-cols-2 gap-4">
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -1613,7 +1518,11 @@ function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefres
                 <input
                   type="checkbox"
                   checked={isDefaultInspectionService}
-                  onChange={(e) => setIsDefaultInspectionService(e.target.checked)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIsDefaultInspectionService(checked);
+                    if (checked) setPrice(0);
+                  }}
                   className="w-4 h-4 rounded border-slate-300 text-[#00285E] focus:ring-[#00285E]/20"
                 />
                 <span className="text-xs font-semibold text-slate-700" title="Đặt làm dịch vụ kiểm tra mặc định khi khách không chọn dịch vụ cụ thể">
@@ -1621,17 +1530,6 @@ function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefres
                 </span>
               </label>
 
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={requiresBay}
-                  onChange={(e) => setRequiresBay(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-[#00285E] focus:ring-[#00285E]/20"
-                />
-                <span className="text-xs font-semibold text-slate-700" title="Dịch vụ cần sử dụng cầu nâng sửa chữa">
-                  Yêu cầu cầu nâng
-                </span>
-              </label>
             </div>
 
             {errorMsg && (
@@ -1836,7 +1734,6 @@ interface ExcelRow {
   estimated_duration: number;
   is_active: boolean;
   is_default_inspection_service?: boolean;
-  requires_bay?: boolean;
   isValid?: boolean;
   errors?: string[];
 }
@@ -2087,8 +1984,6 @@ function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalP
                       <th className="py-2 px-3 w-28 text-right">Giá</th>
                       <th className="py-2 px-3 w-20 text-center">Thời gian</th>
                       <th className="py-2 px-3 w-20 text-center">Trạng thái</th>
-                      <th className="py-2 px-3 w-20 text-center">Kiểm tra mặc định</th>
-                      <th className="py-2 px-3 w-20 text-center">Cần cầu nâng</th>
                       <th className="py-2 px-3 w-12 text-center">Thao tác</th>
                     </tr>
                   </thead>
@@ -2155,28 +2050,6 @@ function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalP
                           </label>
                         </td>
                         <td className="py-2 px-2 align-top text-center">
-                          <label className="inline-flex items-center cursor-pointer mt-1.5 justify-center w-full">
-                            <input 
-                              type="checkbox" 
-                              checked={row.is_default_inspection_service ?? false} 
-                              onChange={(e) => handleRowChange(idx, 'is_default_inspection_service', e.target.checked)}
-                              className="sr-only peer"
-                            />
-                            <div className="w-7 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#00285E] relative font-semibold text-slate-800"></div>
-                          </label>
-                        </td>
-                        <td className="py-2 px-2 align-top text-center">
-                          <label className="inline-flex items-center cursor-pointer mt-1.5 justify-center w-full">
-                            <input 
-                              type="checkbox" 
-                              checked={row.requires_bay ?? true} 
-                              onChange={(e) => handleRowChange(idx, 'requires_bay', e.target.checked)}
-                              className="sr-only peer"
-                            />
-                            <div className="w-7 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-500 relative font-semibold text-slate-800"></div>
-                          </label>
-                        </td>
-                        <td className="py-2 px-2 align-top text-center">
                           <button 
                             onClick={() => {
                               setPreviewData(prev => prev.filter((_, i) => i !== idx));
@@ -2198,7 +2071,7 @@ function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalP
           <div className="text-xs text-slate-500 leading-relaxed bg-amber-50/40 border border-amber-100 rounded p-3">
             <span className="font-bold text-[#C27803]">Lưu ý:</span> Định dạng file import phải chứa các cột tiêu đề:{" "}
             <span className="font-semibold text-slate-700">
-              Tên dịch vụ, Mô tả, Danh mục, Giá, Thời gian (phút), Trạng thái, Kiểm tra mặc định, Yêu cầu cầu nâng
+              Tên dịch vụ, Mô tả, Danh mục, Giá, Thời gian (phút), Trạng thái
             </span>
             .
           </div>
