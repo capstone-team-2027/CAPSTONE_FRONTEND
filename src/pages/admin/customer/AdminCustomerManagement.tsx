@@ -141,6 +141,7 @@ export default function AdminCustomerManagement() {
   const [editCustStatus, setEditCustStatus] = useState<CustomerStatus>("ACTIVE");
   const [editCustAvatar, setEditCustAvatar] = useState("");
   const [isUploadingEditAvatar, setIsUploadingEditAvatar] = useState(false);
+  const [editErrorMsg, setEditErrorMsg] = useState("");
 
   const handleCustEditAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -151,6 +152,7 @@ export default function AdminCustomerManagement() {
 
     try {
       setIsUploadingEditAvatar(true);
+      setEditErrorMsg("");
       const response = await fetchPrivateForm(
         `${CUSTOMER_API_ENDPOINTS.LIST}/upload-avatar`,
         "POST",
@@ -160,7 +162,7 @@ export default function AdminCustomerManagement() {
         setEditCustAvatar(response.url);
       }
     } catch (err: any) {
-      showToast(err.message || "Tải ảnh đại diện thất bại", "warning");
+      setEditErrorMsg(err.message || "Tải ảnh đại diện thất bại");
     } finally {
       setIsUploadingEditAvatar(false);
     }
@@ -178,6 +180,7 @@ export default function AdminCustomerManagement() {
   const [createCustConfirmPassword, setCreateCustConfirmPassword] = useState("");
   const [createCustAvatar, setCreateCustAvatar] = useState("");
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [createErrorMsg, setCreateErrorMsg] = useState("");
 
   const handleCustAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -188,6 +191,7 @@ export default function AdminCustomerManagement() {
 
     try {
       setIsUploadingAvatar(true);
+      setCreateErrorMsg("");
       const response = await fetchPrivateForm(
         `${CUSTOMER_API_ENDPOINTS.LIST}/upload-avatar`,
         "POST",
@@ -197,7 +201,7 @@ export default function AdminCustomerManagement() {
         setCreateCustAvatar(response.url);
       }
     } catch (err: any) {
-      showToast(err.message || "Tải ảnh đại diện thất bại", "warning");
+      setCreateErrorMsg(err.message || "Tải ảnh đại diện thất bại");
     } finally {
       setIsUploadingAvatar(false);
     }
@@ -215,23 +219,29 @@ export default function AdminCustomerManagement() {
     setCreateCustConfirmPassword("");
     setCreateCustAvatar("");
     setIsUploadingAvatar(false);
+    setCreateErrorMsg("");
     setIsCreateModalOpen(true);
   };
 
   const handleSaveCreate = async () => {
     if (!createCustName.trim() || !createCustPhone.trim()) {
-      showToast("Vui lòng điền đầy đủ Tên và Số điện thoại", "warning");
+      setCreateErrorMsg("Vui lòng điền đầy đủ Tên và Số điện thoại");
       return;
     }
     if (!createCustPassword) {
-      showToast("Vui lòng nhập mật khẩu", "warning");
+      setCreateErrorMsg("Vui lòng nhập mật khẩu");
+      return;
+    }
+    if (createCustPassword.length < 6) {
+      setCreateErrorMsg("Mật khẩu phải từ 6 ký tự trở lên");
       return;
     }
     if (createCustPassword !== createCustConfirmPassword) {
-      showToast("Mật khẩu xác nhận không trùng khớp", "warning");
+      setCreateErrorMsg("Mật khẩu xác nhận không trùng khớp");
       return;
     }
     try {
+      setCreateErrorMsg("");
       const response = await fetchPrivate<{ success: boolean; message?: string }>(
         CUSTOMER_API_ENDPOINTS.LIST,
         "POST",
@@ -253,7 +263,7 @@ export default function AdminCustomerManagement() {
         window.location.reload();
       }
     } catch (err: any) {
-      showToast(err?.message || "Có lỗi xảy ra khi tạo khách hàng", "warning");
+      setCreateErrorMsg(err?.message || "Có lỗi xảy ra khi tạo khách hàng");
     }
   };
 
@@ -335,16 +345,18 @@ export default function AdminCustomerManagement() {
     setEditCustStatus(customer.status);
     setEditCustAvatar(customer.avatar || "");
     setIsUploadingEditAvatar(false);
+    setEditErrorMsg("");
     setIsEditModalOpen(true);
   };
 
   const handleSaveEdit = async () => {
     if (!editCustName.trim() || !editCustPhone.trim()) {
-      showToast("Vui lòng điền đầy đủ Tên và Số điện thoại", "warning");
+      setEditErrorMsg("Vui lòng điền đầy đủ Tên và Số điện thoại");
       return;
     }
 
     try {
+      setEditErrorMsg("");
       await fetchPrivate(
         `${CUSTOMER_API_ENDPOINTS.LIST}/${editingCustomer?.id}`,
         "PUT",
@@ -379,7 +391,7 @@ export default function AdminCustomerManagement() {
       setEditingCustomer(null);
       showToast("Cập nhật thông tin khách hàng thành công", "success");
     } catch (err: any) {
-      showToast(err?.message || "Có lỗi xảy ra khi cập nhật khách hàng", "warning");
+      setEditErrorMsg(err?.message || "Có lỗi xảy ra khi cập nhật khách hàng");
     }
   };
 
@@ -740,6 +752,12 @@ export default function AdminCustomerManagement() {
 
               {/* Modal Body */}
               <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                {editErrorMsg && (
+                  <div className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-bold flex items-center gap-2 mb-4">
+                    <AlertTriangle size={14} className="shrink-0" />
+                    <span>{editErrorMsg}</span>
+                  </div>
+                )}
                 {/* Avatar Section */}
                 <div className="flex flex-col items-center gap-2.5 pb-4 border-b border-slate-100">
                   <div className="relative w-20 h-20 rounded-full overflow-hidden shadow-md border border-slate-200 bg-[#EDF3FF] flex items-center justify-center">
@@ -891,6 +909,12 @@ export default function AdminCustomerManagement() {
 
               {/* Modal Body */}
               <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                {createErrorMsg && (
+                  <div className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-bold flex items-center gap-2 mb-4">
+                    <AlertTriangle size={14} className="shrink-0" />
+                    <span>{createErrorMsg}</span>
+                  </div>
+                )}
                 {/* Avatar Section */}
                 <div className="flex flex-col items-center gap-2.5 pb-4 border-b border-slate-100">
                   <div className="relative w-20 h-20 rounded-full overflow-hidden shadow-md border border-slate-200 bg-[#EDF3FF] flex items-center justify-center">

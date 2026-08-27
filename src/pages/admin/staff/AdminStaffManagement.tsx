@@ -926,8 +926,30 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
   }, []);
 
   const handleCreateStaff = async () => {
-   try {
-        await fetchPrivate<Role[]>(
+    if (!fullName.trim() || !phoneNumber.trim()) {
+      setErrorMsg("Vui lòng điền đầy đủ Họ và tên và Số điện thoại");
+      return;
+    }
+    if (!roleCode.trim()) {
+      setErrorMsg("Vui lòng chọn vai trò cho nhân sự");
+      return;
+    }
+    if (!password) {
+      setErrorMsg("Vui lòng nhập mật khẩu");
+      return;
+    }
+    if (password.length < 6) {
+      setErrorMsg("Mật khẩu phải từ 6 ký tự trở lên");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErrorMsg("Mật khẩu xác nhận không trùng khớp");
+      return;
+    }
+
+    try {
+      setErrorMsg("");
+      await fetchPrivate<Role[]>(
         STAFF_MANAGEMENT_API_ENDPOINTS.STAFF_MANAGEMENT,
         "POST",
         {
