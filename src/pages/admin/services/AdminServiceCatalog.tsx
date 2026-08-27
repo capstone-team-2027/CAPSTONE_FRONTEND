@@ -858,16 +858,16 @@ export default function AdminServiceManagement() {
         {/* Dynamic tables based on tab */}
         <div className="overflow-x-auto">
           {activeTab === "services" ? (
-            <table className="w-full text-left border-collapse">
+            <table className="w-full min-w-[1080px] table-fixed text-left border-collapse">
               <thead>
                 <tr className="border-y border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
-                  <th className="py-4 px-6">Tên dịch vụ</th>
-                  <th className="py-4 px-4">Phân loại</th>
-                  <th className="py-4 px-4">Mô tả</th>
-                  <th className="py-4 px-4">Giá</th>
-                  <th className="py-4 px-4">Thời gian dự kiến</th>
-                  <th className="py-4 px-4">Trạng thái</th>
-                  <th className="py-4 px-6 text-right">Thao tác</th>
+                  <th className="w-[190px] py-4 px-6 text-center">Tên dịch vụ</th>
+                  <th className="w-[150px] py-4 px-4 text-center whitespace-nowrap">Phân loại</th>
+                  <th className="w-[290px] py-4 px-4 text-center">Mô tả</th>
+                  <th className="w-[125px] py-4 px-4 text-center whitespace-nowrap">Giá</th>
+                  <th className="w-[135px] py-4 px-4 text-center whitespace-nowrap">Thời gian dự kiến</th>
+                  <th className="w-[125px] py-4 px-4 text-center whitespace-nowrap">Trạng thái</th>
+                  <th className="w-[105px] py-4 px-4 text-center whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -886,36 +886,36 @@ export default function AdminServiceManagement() {
                       key={s.id}
                       className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors group"
                     >
-                      <td className="py-4 px-6">
+                      <td className="py-4 px-6 align-top">
                         <div className="flex items-center gap-3">
                           <img
                             src={getServiceImage(s.id)}
                             alt={s.service_name}
                             className="w-10 h-10 rounded-lg object-cover border border-slate-200/80 shrink-0 bg-slate-50"
                           />
-                          <span className="font-bold text-[#00285E] text-sm block">
+                          <span className="font-bold text-[#00285E] text-sm block break-words">
                             {s.service_name}
                           </span>
                         </div>
                       </td>
 
-                      <td className="py-4 px-4">
-                        <span className="inline-block px-2.5 py-1 rounded-md text-[10px] font-extrabold tracking-wide uppercase bg-[#EDF3FF] text-[#00285E]">
+                      <td className="py-4 px-4 align-top whitespace-nowrap">
+                        <span className="inline-block px-2.5 py-1 rounded-md text-[10px] font-extrabold tracking-wide uppercase bg-[#EDF3FF] text-[#00285E] whitespace-nowrap">
                           {s.category?.category_name || "Chưa phân loại"}
                         </span>
                       </td>
-                      <td className="py-4 px-4 text-slate-600 text-sm">
+                      <td className="py-4 px-4 align-top text-slate-600 text-sm break-words">
                         {s.description || "—"}
                       </td>
 
-                      <td className="py-4 px-4 text-slate-900 font-bold text-sm">
-                        {((s.total_price != null ? s.total_price : Number(s.labor_price)) || 0).toLocaleString("vi-VN")} đ
+                      <td className="py-4 px-4 align-top text-slate-900 font-bold text-sm whitespace-nowrap">
+                        {((s.total_price != null ? s.total_price : Number(s.labor_price)) || 0).toLocaleString("vi-VN")} VND
                       </td>
-                      <td className="py-4 px-4 text-slate-600 text-sm font-semibold">
+                      <td className="py-4 px-4 align-top text-center text-slate-600 text-sm font-semibold whitespace-nowrap">
                         {s.estimated_duration} phút
                       </td>
 
-                      <td className="py-4 px-4">
+                      <td className="py-4 px-4 align-top text-center whitespace-nowrap">
                         <span
                           className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${s.is_active
                             ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
@@ -926,8 +926,8 @@ export default function AdminServiceManagement() {
                         </span>
                       </td>
 
-                      <td className="py-4 px-6">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="py-4 px-4">
+                        <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => handleOpenEdit(s)}
                             className="p-2 rounded-lg hover:bg-blue-50 text-slate-500 hover:text-blue-600 transition-colors"
@@ -992,8 +992,8 @@ export default function AdminServiceManagement() {
 
                         <td className="py-4 px-4">
                           <div className="flex flex-col">
-                            <span className="text-slate-400 line-through text-xs font-semibold">{totalPrice.toLocaleString("vi-VN")} đ</span>
-                            <span className="text-slate-900 font-black text-sm">{Math.round(totalPrice * (1 - (c.discount_percentage || 0) / 100)).toLocaleString("vi-VN")} đ</span>
+                            <span className="text-slate-400 line-through text-xs font-semibold">{totalPrice.toLocaleString("vi-VN")} VND</span>
+                            <span className="text-slate-900 font-black text-sm">{Math.round(totalPrice * (1 - (c.discount_percentage || 0) / 100)).toLocaleString("vi-VN")} VND</span>
                           </div>
                         </td>
 
@@ -1215,7 +1215,7 @@ function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefres
   const [categoryId, setCategoryId] = useState<number>(initial?.category_id ?? 0);
   const [durationMinutes, setDurationMinutes] = useState<number>(initial?.estimated_duration ?? 30);
   const [isActive, setIsActive] = useState<boolean>(initial?.is_active ?? true);
-  const [isDefaultInspectionService, setIsDefaultInspectionService] = useState<boolean>(initial?.is_default_inspection_service ?? false);
+  const isDefaultInspectionService = initial?.is_default_inspection_service ?? false;
 
   const [imageUrl, setImageUrl] = useState<string>(() => {
     if (initial?.id) {
@@ -1494,7 +1494,7 @@ function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefres
                   <option value="">-- Không có --</option>
                   {spareParts.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} - {Number(p.retail_price).toLocaleString("vi-VN")}đ
+                      {p.name} - {Number(p.retail_price).toLocaleString("vi-VN")} VND
                     </option>
                   ))}
                 </select>
@@ -1514,21 +1514,6 @@ function ServiceFormModal({ initial, categoryList, spareParts, onClose, onRefres
                 </span>
               </label>
 
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={isDefaultInspectionService}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setIsDefaultInspectionService(checked);
-                    if (checked) setPrice(0);
-                  }}
-                  className="w-4 h-4 rounded border-slate-300 text-[#00285E] focus:ring-[#00285E]/20"
-                />
-                <span className="text-xs font-semibold text-slate-700" title="Đặt làm dịch vụ kiểm tra mặc định khi khách không chọn dịch vụ cụ thể">
-                  Kiểm tra mặc định
-                </span>
-              </label>
 
             </div>
 
