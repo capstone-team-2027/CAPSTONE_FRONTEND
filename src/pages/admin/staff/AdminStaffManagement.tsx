@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { motion } from "motion/react";
 import {
+  ArrowLeft,
   Users,
   UserPlus,
   Pencil,
@@ -16,12 +17,13 @@ import {
   Search,
   Eye,
   EyeOff,
+  Loader2,
 } from "lucide-react";
 import 'react-phone-input-2/lib/style.css';
 import * as PhoneInputLib from 'react-phone-input-2';
 
 const PAGE_SIZE = 6;
-import { useOutletContext } from "react-router-dom";
+import { useNavigate,useLocation,useOutletContext } from "react-router-dom";
 import type { Role, StaffManagement } from "../../../model/dto/staffManagement.dto";
 
 // ── resolve PhoneInput default export ─────────────────────────
@@ -47,6 +49,13 @@ type PhoneInputProps = {
     disabled?: boolean;
 };
 const PhoneInput = resolveDefault<React.ComponentType<PhoneInputProps>>(PhoneInputLib);
+
+const getInitials = (name: string) => {
+  if (!name) return "";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
 
 const phoneStyles = `
     .login-phone .react-tel-input .form-control {
@@ -101,11 +110,11 @@ type StaffStatus = "ACTIVE" | "INACTIVE" | "PENDING" | "BANNED";
 const STATUS_OPTIONS: { value: StaffStatus; label: string }[] = [
   { value: "ACTIVE", label: "Đang hoạt động" },
   { value: "INACTIVE", label: "Tạm nghỉ" },
-  { value: "PENDING", label: "Chờ duyệt" },
   { value: "BANNED", label: "Bị khóa" },
 ];
 
 export default function AdminStaffManagement() {
+  const navigate = useNavigate();
   const { showToast } = useOutletContext<{
     searchQuery: string;
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
@@ -116,7 +125,8 @@ export default function AdminStaffManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Tab & Ranking State variables
-  const [activeTab, setActiveTab] = useState<"list" | "ranking">("list");
+  const location = useLocation();
+  const activeTab = location.pathname.includes("staff-ranking") ? "ranking" : "list";
   const [timeframe, setTimeframe] = useState<string>("month");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [customStartDate, setCustomStartDate] = useState<string>("");
@@ -126,10 +136,59 @@ export default function AdminStaffManagement() {
   const [page, setPage] = useState(1);
   const [loadingError, setLoadingError] = useState<string | null>(null);
 
+  // Real performance & reviews state
+  const [performanceData, setPerformanceData] = useState<any[]>([]);
+  const [isPerformanceLoading, setIsPerformanceLoading] = useState(false);
+  const [feedbackStaff, setFeedbackStaff] = useState<any | null>(null);
+  const [staffFeedbacks, setStaffFeedbacks] = useState<any[]>([]);
+  const [isFeedbacksLoading, setIsFeedbacksLoading] = useState(false);
+
+  const handleGetPerformance = async () => {
+    try {
+      setIsPerformanceLoading(true);
+      const response = await fetchPrivate<any[]>(
+        `${STAFF_MANAGEMENT_API_ENDPOINTS.PERFORMANCE}?timeframe=${timeframe}`,
+        "GET"
+      );
+      if (response && Array.isArray(response.data)) {
+        setPerformanceData(response.data);
+      }
+    } catch (error) {
+      console.error("Lỗi lấy dữ liệu hiệu suất:", error);
+    } finally {
+      setIsPerformanceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "ranking") {
+      handleGetPerformance();
+    }
+  }, [activeTab, timeframe]);
+
+  const handleOpenFeedbacksModal = async (employee: any) => {
+    setFeedbackStaff(employee);
+    setStaffFeedbacks([]);
+    try {
+      setIsFeedbacksLoading(true);
+      const response = await fetchPrivate<any>(
+        STAFF_MANAGEMENT_API_ENDPOINTS.STAFF_FEEDBACKS(employee.id),
+        "GET"
+      );
+      if (response && response.success && Array.isArray(response.data)) {
+        setStaffFeedbacks(response.data);
+      }
+    } catch (error) {
+      console.error("Lỗi lấy danh sách đánh giá nhân viên:", error);
+    } finally {
+      setIsFeedbacksLoading(false);
+    }
+  };
+
   const totalActive = staff.filter((s) => s.status === "ACTIVE").length;
   const totalTechnicians = staff.filter((s) => s.role.roleCode === "TECHNICIAN",).length;
   const filteredStaff = useMemo(() => {
-    return staff.filter((s) => {
+    const list = staff.filter((s) => {
       const searchMatch =
         s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.phoneNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -140,6 +199,26 @@ export default function AdminStaffManagement() {
         s.status === statusFilter;
 
       return searchMatch && statusMatch;
+    });
+
+    const getRolePriority = (roleCode: string) => {
+      switch (roleCode) {
+        case "TECHNICIAN_LEADER":
+          return 1;
+        case "TECHNICIAN":
+          return 2;
+        case "RECEPTIONIST":
+          return 3;
+        default:
+          return 4;
+      }
+    };
+
+    return list.sort((a, b) => {
+      const pA = getRolePriority(a.role.roleCode);
+      const pB = getRolePriority(b.role.roleCode);
+      if (pA !== pB) return pA - pB;
+      return a.fullName.localeCompare(b.fullName, "vi");
     });
   }, [staff, searchTerm, statusFilter]);
 
@@ -158,36 +237,10 @@ export default function AdminStaffManagement() {
   // Compute Employee Rankings and statistics
   const rankingList = useMemo(() => {
     if (isDateRangeInvalid) {
-      return []; // Return empty list if filter is invalid to simulate empty state on UI
+      return [];
     }
-
-    const baseRanks = [
-      { id: 101, fullName: "Trần Văn Hùng", roleName: "Kỹ thuật viên", completedTasks: 96, revenueContribution: 42000000, rating: 4.8, performanceScore: 95, workDate: "2026-05-15", status: "Active" },
-      { id: 102, fullName: "Lê Minh Tuấn", roleName: "Kỹ thuật viên", completedTasks: 84, revenueContribution: 38000000, rating: 4.6, performanceScore: 89, workDate: "2026-05-18", status: "Active" },
-      { id: 103, fullName: "Nguyễn Nam Khánh", roleName: "Kỹ thuật viên", completedTasks: 78, revenueContribution: 31000000, rating: 4.5, performanceScore: 86, workDate: "2026-05-20", status: "Active" },
-      { id: 104, fullName: "Phạm Văn Thành", roleName: "Kỹ thuật viên", completedTasks: 72, revenueContribution: 29000000, rating: 4.7, performanceScore: 88, workDate: "2026-05-22", status: "Active" },
-      { id: 105, fullName: "Nguyễn Thị Mai", roleName: "Lễ tân", completedTasks: 120, revenueContribution: 15000000, rating: 4.9, performanceScore: 97, workDate: "2026-05-10", status: "Active" },
-    ];
-
-    if (staff.length > 0) {
-      return staff.map((s, idx) => {
-        const base = baseRanks[idx % baseRanks.length];
-        return {
-          id: s.id,
-          fullName: s.fullName,
-          roleName: s.role.roleName,
-          completedTasks: base.completedTasks + (s.id % 5) + 1,
-          revenueContribution: base.revenueContribution + (s.id * 8000),
-          rating: Number((4.2 + (s.id % 8) / 10).toFixed(1)),
-          performanceScore: Math.min(100, Math.max(70, 76 + (s.id % 23))),
-          workDate: base.workDate,
-          status: s.status === "ACTIVE" ? "Active" : "Inactive",
-        };
-      }).sort((a, b) => b.performanceScore - a.performanceScore);
-    }
-    
-    return baseRanks.sort((a, b) => b.performanceScore - a.performanceScore);
-  }, [staff, isDateRangeInvalid]);
+    return [...performanceData].sort((a, b) => b.rating - a.rating || b.completedTasks - a.completedTasks);
+  }, [performanceData, isDateRangeInvalid]);
 
   // Export CSV Report
   const handleExportRanking = () => {
@@ -266,21 +319,30 @@ export default function AdminStaffManagement() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* TITLE BAR */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
-            Quản lý Nhân sự
-          </h1>
-          <p className="text-slate-500 text-sm">
-            {activeTab === "list"
-              ? "Tạo và quản lý tài khoản nhân viên trong gara."
-              : "Theo dõi, đánh giá và xếp hạng hiệu suất công việc của nhân viên."}
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-[#00285E] border border-[#00285E] text-white hover:bg-[#003C7D] hover:border-[#003C7D] active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
+              Quản lý Nhân sự
+            </h1>
+            <p className="text-slate-500 text-sm">
+              {activeTab === "list"
+                ? "Tạo và quản lý tài khoản nhân viên trong gara."
+                : "Theo dõi, đánh giá và xếp hạng hiệu suất công việc của nhân viên."}
+            </p>
+          </div>
         </div>
 
         {activeTab === "list" ? (
           <button
             onClick={handleOpenCreate}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#F9A11B] text-[#00285E] rounded text-sm font-bold shadow-md shadow-[#F9A11B]/20 hover:bg-[#E08F12] transition-all transform hover:translate-y-[-1px]"
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#F9A11B] text-[#00285E] rounded-xl text-sm font-bold shadow-md shadow-[#F9A11B]/20 hover:bg-[#E08F12] transition-all transform hover:translate-y-[-1px]"
           >
             <UserPlus size={16} />
             <span>Thêm nhân sự</span>
@@ -317,41 +379,11 @@ export default function AdminStaffManagement() {
                 </div>
               )}
             </div>
-
-            <button
-              onClick={handleExportRanking}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#00285E] text-white rounded text-sm font-bold shadow-md shadow-[#00285E]/15 hover:bg-[#062047] transition-all transform hover:translate-y-[-1px]"
-            >
-              <Download size={16} />
-              <span>Xuất báo cáo xếp hạng</span>
-            </button>
           </div>
         )}
       </div>
 
-      {/* TABS SWITCHER */}
-      <div className="flex border-b border-slate-200/60">
-        <button
-          onClick={() => setActiveTab("list")}
-          className={`px-6 py-3 font-bold text-sm border-b-2 transition-all ${
-            activeTab === "list"
-              ? "border-[#00285E] text-[#00285E]"
-              : "border-transparent text-slate-400 hover:text-slate-600"
-          }`}
-        >
-          Danh sách nhân sự
-        </button>
-        <button
-          onClick={() => setActiveTab("ranking")}
-          className={`px-6 py-3 font-bold text-sm border-b-2 transition-all ${
-            activeTab === "ranking"
-              ? "border-[#00285E] text-[#00285E]"
-              : "border-transparent text-slate-400 hover:text-slate-600"
-          }`}
-        >
-          Xếp hạng & Hiệu suất
-        </button>
-      </div>
+      {/* TABS SWITCHER REMOVED */}
 
       {/* ERROR MESSAGE WHEN DATE RANGE IS INVALID */}
       {isDateRangeInvalid && (
@@ -487,7 +519,18 @@ export default function AdminStaffManagement() {
                         key={s.id}
                         className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors group"
                       >
-                        <td className="py-4 px-6">
+                        <td className="py-4 px-6 flex items-center gap-3">
+                          {s.avatar ? (
+                            <img
+                              src={s.avatar}
+                              alt={s.fullName}
+                              className="w-10 h-10 rounded-full object-cover border border-slate-200/80 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-[#EDF3FF] text-[#00285E] flex items-center justify-center text-xs font-bold shrink-0">
+                              {getInitials(s.fullName)}
+                            </div>
+                          )}
                           <span className="font-bold text-[#00285E] text-sm block">
                             {s.fullName}
                           </span>
@@ -561,13 +604,19 @@ export default function AdminStaffManagement() {
                     <th className="py-3 px-4">Nhân viên</th>
                     <th className="py-3 px-4">Vai trò</th>
                     <th className="py-3 px-4 text-center">Nhiệm vụ</th>
-                    <th className="py-3 px-4 text-right">Doanh thu</th>
                     <th className="py-3 px-4 text-center">Đánh giá</th>
-                    <th className="py-3 px-4 text-center">Điểm hiệu suất</th>
+                    <th className="py-3 px-4 text-center">Hành động</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rankingList.length === 0 ? (
+                  {isPerformanceLoading ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-[#00285E] text-sm">
+                        <Loader2 className="animate-spin mx-auto mb-2" size={24} />
+                        Đang tải dữ liệu xếp hạng...
+                      </td>
+                    </tr>
+                  ) : rankingList.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="py-12 text-center text-slate-400 text-sm">
                         Không có dữ liệu xếp hạng nhân viên được tìm thấy.
@@ -599,19 +648,46 @@ export default function AdminStaffManagement() {
                               <span className="text-slate-500 text-xs">#{idx + 1}</span>
                             )}
                           </td>
-                          <td className="py-4 px-4 font-bold text-[#00285E]">{r.fullName}</td>
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-3">
+                              {r.avatar ? (
+                                <img
+                                  src={r.avatar}
+                                  alt={r.fullName}
+                                  className="w-8 h-8 rounded-full object-cover shadow-xs border border-slate-100 shrink-0"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-[#EDF3FF] flex items-center justify-center text-xs font-bold text-[#00285E] shrink-0">
+                                  {getInitials(r.fullName)}
+                                </div>
+                              )}
+                              <span className="font-bold text-[#00285E] text-sm">{r.fullName}</span>
+                            </div>
+                          </td>
                           <td className="py-4 px-4 text-slate-500 font-semibold text-xs">{r.roleName}</td>
                           <td className="py-4 px-4 text-center font-semibold text-slate-700">{r.completedTasks}</td>
-                          <td className="py-4 px-4 text-right font-bold text-slate-900">{r.revenueContribution.toLocaleString("vi-VN")} đ</td>
                           <td className="py-4 px-4 text-center">
-                            <span className="inline-flex items-center gap-1 font-bold text-amber-500 text-xs">
-                              <Star size={12} fill="currentColor" /> {r.rating}
-                            </span>
+                            {r.feedbackCount === 0 || r.rating === 0 ? (
+                              <span className="inline-flex items-center gap-1 font-bold text-slate-400 text-xs">
+                                <Star size={12} className="text-slate-300" fill="none" /> 0
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 font-bold text-amber-500 text-xs">
+                                <Star size={12} fill="currentColor" /> {r.rating}
+                              </span>
+                            )}
                           </td>
                           <td className="py-4 px-4 text-center">
-                            <span className="inline-block px-2.5 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-600 border border-emerald-100">
-                              {r.performanceScore}/100
-                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenFeedbacksModal(r);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-[#00285E] bg-blue-50 hover:bg-[#EDF3FF] border border-blue-100 transition-colors"
+                            >
+                              <Eye size={12} /> Xem đánh giá
+                            </button>
                           </td>
                         </tr>
                       );
@@ -637,70 +713,62 @@ export default function AdminStaffManagement() {
               return (
                 <div className="space-y-6">
                   <div className="flex items-center gap-4 border-b border-slate-100 pb-5">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#00285E] to-[#003a8a] flex items-center justify-center text-white font-bold text-xl shadow-md shrink-0">
-                      {selectedEmp.fullName.slice(0, 1)}
-                    </div>
+                    {selectedEmp.avatar ? (
+                      <img
+                        src={selectedEmp.avatar}
+                        alt={selectedEmp.fullName}
+                        className="w-14 h-14 rounded-2xl object-cover border border-slate-100 shadow-md shrink-0"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#00285E] to-[#003a8a] flex items-center justify-center text-white font-bold text-xl shadow-md shrink-0">
+                        {getInitials(selectedEmp.fullName)}
+                      </div>
+                    )}
                     <div>
                       <h3 className="font-bold text-base text-slate-800 leading-tight">{selectedEmp.fullName}</h3>
                       <p className="text-xs text-slate-400 font-semibold mt-0.5">{selectedEmp.roleName}</p>
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 mt-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                        {selectedEmp.status}
-                      </span>
                     </div>
                   </div>
 
                   <div className="space-y-4">
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Chỉ số năng suất</h4>
                     
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nhiệm vụ hoàn thành</span>
-                        <span className="text-xl font-bold text-slate-800 block mt-1">{selectedEmp.completedTasks}</span>
-                      </div>
-                      <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Doanh thu đóng góp</span>
-                        <span className="text-sm font-bold text-[#00285E] block mt-2">{selectedEmp.revenueContribution.toLocaleString("vi-VN")} đ</span>
-                      </div>
+                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nhiệm vụ hoàn thành</span>
+                      <span className="text-xl font-bold text-slate-800 block mt-1">{selectedEmp.completedTasks}</span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
+                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl flex items-center justify-between">
+                      <div>
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Đánh giá sao</span>
-                        <span className="text-xl font-bold text-amber-500 flex items-center gap-1.5 mt-1">
-                          <Star size={16} fill="currentColor" className="shrink-0" /> {selectedEmp.rating}
-                        </span>
+                        {selectedEmp.feedbackCount === 0 || selectedEmp.rating === 0 ? (
+                          <span className="text-xl font-bold text-slate-400 flex items-center gap-1.5 mt-1">
+                            <Star size={16} className="text-slate-300 shrink-0" fill="none" /> 0
+                          </span>
+                        ) : (
+                          <span className="text-xl font-bold text-amber-500 flex items-center gap-1.5 mt-1">
+                            <Star size={16} fill="currentColor" className="shrink-0" /> {selectedEmp.rating}
+                          </span>
+                        )}
                       </div>
-                      <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Điểm hiệu suất</span>
-                        <span className="text-xl font-black text-emerald-600 block mt-1">{selectedEmp.performanceScore}/100</span>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenFeedbacksModal(selectedEmp)}
+                        className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-white bg-[#00285E] hover:bg-[#00285E]/90 transition-all active:scale-[0.98]"
+                      >
+                        <Eye size={14} /> Chi tiết đánh giá
+                      </button>
                     </div>
 
                     <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Ngày làm việc</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Ngày tham gia</span>
                       <span className="text-sm font-bold text-slate-800 block mt-1">
-                        {new Date(selectedEmp.workDate).toLocaleDateString("vi-VN")}
+                        {new Date(selectedEmp.createdAt).toLocaleDateString("vi-VN")}
                       </span>
                     </div>
                   </div>
 
-                  {/* Visual progress score bar */}
-                  <div className="space-y-3 pt-2">
-                    <div className="flex justify-between text-xs font-bold text-slate-700">
-                      <span>Đánh giá hiệu suất chung</span>
-                      <span>{selectedEmp.performanceScore}%</span>
-                    </div>
-                    <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 transition-all duration-500"
-                        style={{ width: `${selectedEmp.performanceScore}%` }}
-                      />
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-relaxed font-semibold">
-                      Nhân viên này có hiệu suất làm việc đạt mức <span className="text-emerald-600 font-bold">{selectedEmp.performanceScore >= 90 ? "Xuất sắc" : selectedEmp.performanceScore >= 80 ? "Tốt" : "Trung bình"}</span>. Có đóng góp tích cực vào tiến độ sửa chữa và dịch vụ khách hàng của gara.
-                    </p>
-                  </div>
+                  {/* Visual progress score bar removed */}
                 </div>
               );
             })()}
@@ -717,6 +785,84 @@ export default function AdminStaffManagement() {
           }}
           onRefresh={handleGetStaff}
         />
+      )}
+
+      {feedbackStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-5 bg-[#00285E] text-white flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="text-lg font-bold">Lịch sử đánh giá nhân sự</h3>
+                <p className="text-xs text-slate-200 mt-1">Đang xem đánh giá của: <span className="font-extrabold">{feedbackStaff.fullName}</span></p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFeedbackStaff(null)}
+                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {isFeedbacksLoading ? (
+                <div className="flex flex-col items-center justify-center py-16 text-[#00285E]">
+                  <Loader2 className="animate-spin mb-3" size={32} />
+                  <p className="text-sm font-bold">Đang tải danh sách đánh giá...</p>
+                </div>
+              ) : staffFeedbacks.length === 0 ? (
+                <div className="text-center py-16 text-slate-400 space-y-2">
+                  <Star size={36} className="mx-auto opacity-30" />
+                  <p className="text-sm font-semibold">Nhân viên này chưa nhận được đánh giá nào.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {staffFeedbacks.map((fb) => (
+                    <div key={fb.id} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-amber-500">
+                          {Array.from({ length: fb.rating }).map((_, i) => (
+                            <Star key={i} size={14} fill="currentColor" />
+                          ))}
+                          {Array.from({ length: 5 - fb.rating }).map((_, i) => (
+                            <Star key={i} size={14} className="text-slate-200" />
+                          ))}
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-semibold">
+                          {new Date(fb.createdAt).toLocaleDateString('vi-VN')}
+                        </span>
+                      </div>
+                      <p className="text-slate-800 text-sm font-semibold italic">&ldquo;{fb.comment}&rdquo;</p>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 font-bold">
+                        <div>
+                          Người đánh giá: {fb.customerName} {fb.customerPhone && `(${fb.customerPhone})`}
+                        </div>
+                        {fb.serviceOrderId && (
+                          <span className="px-2 py-0.5 rounded-md bg-blue-50 text-[#00285E] border border-blue-100 font-bold">
+                            Mã đơn: #{fb.serviceOrderId}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setFeedbackStaff(null)}
+                className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-sm transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -735,7 +881,7 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
   const isEdit = !!initial;
   const [fullName, setFullName] = useState(initial?.fullName ?? "");
   const [phoneNumber, setPhoneNumber] = useState(initial?.phoneNumber ?? "");
-  const { fetchPrivate } = useFetchClient();
+  const { fetchPrivate, fetchPrivateForm } = useFetchClient();
   const [roleList, setRoleList] = useState<Role[]>([]);
   const [roleCode, setRoleCode] = useState(initial?.role?.roleCode ?? "");
   const [status, setStatus] = useState(initial?.status ?? "ACTIVE");
@@ -745,6 +891,33 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
   const [successMsg, setSuccessMsg] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [avatar, setAvatar] = useState(initial?.avatar ?? "");
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    try {
+      setIsUploading(true);
+      setErrorMsg("");
+      const response = await fetchPrivateForm(
+        `${STAFF_MANAGEMENT_API_ENDPOINTS.STAFF_MANAGEMENT}/upload-avatar`,
+        "POST",
+        formData
+      );
+      if (response && response.url) {
+        setAvatar(response.url);
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || "Tải ảnh đại diện thất bại");
+    } finally {
+      setIsUploading(false);
+    }
+  };
   
   const handleGetRole = async () =>{
       try {
@@ -773,7 +946,8 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
           phoneNumber,
           roleCode,
           password,
-          confirmPassword
+          confirmPassword,
+          avatar
         }
       );
       setSuccessMsg("Tạo nhân sự thành công!");
@@ -793,7 +967,8 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
           { fullName, 
             phoneNumber,
             roleCode,
-            status
+            status,
+            avatar
           }
         );
       setSuccessMsg("Cập nhật thông tin nhân sự thành công!");
@@ -854,8 +1029,33 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
             </div>
 
             <div className="relative aspect-square rounded-md overflow-hidden shadow-2xl border border-white/10 group flex-1 bg-gradient-to-br from-[#00285E] to-[#003a8a] flex items-center justify-center">
-              <Users size={96} className="text-[#F9A11B]/30" />
+              {avatar ? (
+                <img
+                  src={avatar}
+                  alt={fullName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Users size={96} className="text-[#F9A11B]/30" />
+              )}
+              
+              {isUploading && (
+                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center">
+                  <Loader2 className="animate-spin text-white" size={24} />
+                </div>
+              )}
             </div>
+
+            <label className="flex items-center justify-center gap-2 w-full py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition-all cursor-pointer shadow-xs">
+              <span>Tải ảnh đại diện</span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                disabled={isUploading}
+                className="hidden"
+              />
+            </label>
 
             <div className="text-[11px] text-slate-600 leading-relaxed bg-white/60 rounded p-3 border border-white/40">
               <span className="font-bold text-[#00285E]">Gợi ý:</span> Để trống
@@ -900,7 +1100,7 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
               className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
             >
               <option value="" disabled>-- Chọn vai trò --</option>
-              {roleList.map((r) => (
+              {roleList.filter(r => r.roleCode !== "CUSTOMER").map((r) => (
                 <option key={r.id} value={r.roleCode}>
                   {r.roleName}
                 </option>

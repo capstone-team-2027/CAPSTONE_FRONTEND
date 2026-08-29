@@ -3,39 +3,25 @@ import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import {
   ArrowLeft,
-  CalendarClock,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
   Loader2,
-  Wrench,
+  Search,
+  Zap,
 } from "lucide-react";
 import type { RootState } from "../../../store/store";
 import type { UserModel } from "../../../model/User";
 import { useFetchClient } from "../../../hook/useFetchClient";
-import { MY_SHIFTS_ENDPOINT } from "../../../constants/technician/myShiftsEndpoint";
 import { TASK_ASSIGNMENT_ENDPOINTS } from "../../../constants/technician/taskAssignmentEndpoint";
-
-interface ShiftSlot {
-  id: number;
-  slot_name: string;
-  start_time: string;
-  end_time: string;
-}
-
-interface ShiftData {
-  id: number;
-  work_date: string;
-  is_confirmed: boolean;
-  shiftSlot: ShiftSlot;
-}
 
 interface AssignmentTaskLite {
   taskId: number;
   taskType?: string;
   status?: string;
   serviceName?: string;
+  assignedAt?: string;
 }
 
 interface AssignmentLite {
@@ -46,6 +32,7 @@ interface AssignmentLite {
   customerName: string;
   status: string;
   tasks: AssignmentTaskLite[];
+  assignedAt?: string;
 }
 
 interface CompletedTaskLite {
@@ -58,7 +45,12 @@ interface CompletedTaskLite {
   completedAt?: string;
 }
 
-const todayStr = () => new Date().toISOString().split("T")[0];
+const formatAssignedTime = (value?: string) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+};
 
 const ASSIGNMENT_STATUS_LABEL: Record<string, string> = {
   INSPECTING: "Đã tiếp nhận",
@@ -83,8 +75,6 @@ export default function TechnicianOverview() {
   const user = useSelector(
     (state: RootState) => state.user.user as UserModel | null,
   );
-  const [isLoadingShifts, setIsLoadingShifts] = useState(true);
-  const [todayShifts, setTodayShifts] = useState<ShiftData[]>([]);
   const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
   const [assignments, setAssignments] = useState<AssignmentLite[]>([]);
   const [assignmentsPage, setAssignmentsPage] = useState(1);
@@ -92,26 +82,10 @@ export default function TechnicianOverview() {
   const [completedTasks, setCompletedTasks] = useState<CompletedTaskLite[]>(
     [],
   );
-  const [completedPage, setCompletedPage] = useState(1);
-
-  useEffect(() => {
-    const fetchShifts = async () => {
-      setIsLoadingShifts(true);
-      try {
-        const today = todayStr();
-        const response = await fetchPrivate(
-          `${MY_SHIFTS_ENDPOINT.GET_MY_SHIFTS}?startDate=${today}&endDate=${today}`,
-        );
-        setTodayShifts(response?.data ?? []);
-      } catch (error) {
-        console.error("Lỗi khi lấy ca làm việc hôm nay:", error);
-      } finally {
-        setIsLoadingShifts(false);
-      }
-    };
-    void fetchShifts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const [assignmentSearch, setAssignmentSearch] = useState("");
+  const [assignmentStatusFilter, setAssignmentStatusFilter] = useState<
+    "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "ALL"
+  >("ALL");
 
   useEffect(() => {
     const fetchAssignments = async () => {
@@ -121,24 +95,54 @@ export default function TechnicianOverview() {
           TASK_ASSIGNMENT_ENDPOINTS.GET_MY_ASSIGNMENTS,
         );
         const raw = Array.isArray(response) ? response : (response?.data ?? []);
-        const mapped: AssignmentLite[] = raw.map((so: any) => ({
-          id: so.id?.toString() ?? "",
-          serviceOrderId: so.id?.toString() ?? "",
-          vehiclePlate: so.vehicle?.license_plate || "—",
-          vehicleModel: so.vehicle?.model?.model_name || "—",
-          customerName:
-            so.vehicle?.customer?.user?.fullName ||
-            so.vehicle?.customer?.name ||
-            "Khách hàng",
-          status: so.status || "ASSIGNED",
-          tasks: (so.tasks ?? []).map((t: any) => ({
+        const mapped: AssignmentLite[] = raw.map((so: any) => {
+          const tasks: AssignmentTaskLite[] = (so.tasks ?? []).map((t: any) => ({
             taskId: t.id,
             taskType: t.type,
             status: t.status,
             serviceName: t.catalog?.service_name,
-          })),
-        }));
-        setAssignments(mapped.filter((a) => a.status !== "COMPLETED"));
+            assignedAt: t.assignments?.[0]?.createdAt,
+          }));
+          const assignedTimestamps = tasks
+            .map((t) => (t.assignedAt ? new Date(t.assignedAt).getTime() : null))
+            .filter((ts): ts is number => ts !== null);
+          const earliestAssignedAt =
+            assignedTimestamps.length > 0
+              ? new Date(Math.min(...assignedTimestamps)).toISOString()
+              : undefined;
+          const aggregatedStatus =
+            tasks.length > 0 && tasks.every((t) => t.status === "COMPLETED")
+              ? "COMPLETED"
+              : tasks.some(
+                    (t) =>
+                      !!t.status &&
+                      ["IN_PROGRESS", "PAUSED", "WAITING_STOCK", "WAITING_FOR_PARTS", "QC_CHECKING", "PENDING_QC"].includes(
+                        t.status,
+                      ),
+                  )
+                ? "IN_PROGRESS"
+                : so.status || "ASSIGNED";
+          return {
+            id: so.id?.toString() ?? "",
+            serviceOrderId: so.id?.toString() ?? "",
+            vehiclePlate: so.vehicle?.license_plate || "—",
+            vehicleModel: so.vehicle?.model?.model_name || "—",
+            customerName:
+              so.vehicle?.customer?.user?.fullName ||
+              so.vehicle?.customer?.name ||
+              "Khách hàng",
+            status: aggregatedStatus,
+            tasks,
+            assignedAt: earliestAssignedAt,
+          };
+        });
+        const sorted = [...mapped].sort((a, b) => {
+          if (!a.assignedAt && !b.assignedAt) return 0;
+          if (!a.assignedAt) return 1;
+          if (!b.assignedAt) return -1;
+          return new Date(a.assignedAt).getTime() - new Date(b.assignedAt).getTime();
+        });
+        setAssignments(sorted);
       } catch (error) {
         console.error("Lỗi khi lấy danh sách công việc:", error);
       } finally {
@@ -186,49 +190,62 @@ export default function TechnicianOverview() {
   }, []);
 
   const stats = useMemo(() => {
-    const inProgressCount = assignments.filter(
+    const activeAssignments = assignments.filter((a) => a.status !== "COMPLETED");
+    const inProgressCount = activeAssignments.filter(
       (a) => a.status === "IN_PROGRESS",
     ).length;
-    const pendingQcCount = assignments.filter(
-      (a) => a.status === "PENDING_QC",
-    ).length;
-    const totalTasksToday = assignments.reduce(
+    const totalTasksToday = activeAssignments.reduce(
       (sum, a) => sum + a.tasks.length,
       0,
     );
     return {
-      shiftsToday: todayShifts.length,
       inProgressCount,
-      pendingQcCount,
       totalTasksToday,
     };
-  }, [assignments, todayShifts]);
+  }, [assignments]);
+
+  const filteredAssignments = useMemo(() => {
+    const keyword = assignmentSearch.trim().toLowerCase();
+    return assignments.filter((a) => {
+      const isNotStarted = a.status === "ASSIGNED" || a.status === "INSPECTING";
+      const isCompleted = a.status === "COMPLETED";
+      const isInProgress = !isNotStarted && !isCompleted;
+
+      const matchesFilter =
+        assignmentStatusFilter === "ALL"
+          ? !isCompleted
+          : assignmentStatusFilter === "NOT_STARTED"
+            ? isNotStarted
+            : assignmentStatusFilter === "IN_PROGRESS"
+              ? isInProgress
+              : isCompleted;
+
+      const matchesSearch =
+        !keyword ||
+        a.vehiclePlate.toLowerCase().includes(keyword) ||
+        a.vehicleModel.toLowerCase().includes(keyword) ||
+        a.customerName.toLowerCase().includes(keyword);
+
+      return matchesFilter && matchesSearch;
+    });
+  }, [assignments, assignmentSearch, assignmentStatusFilter]);
 
   const assignmentsTotalPages = Math.max(
     1,
-    Math.ceil(assignments.length / PAGE_SIZE),
+    Math.ceil(filteredAssignments.length / PAGE_SIZE),
   );
   const pagedAssignments = useMemo(
     () =>
-      assignments.slice(
+      filteredAssignments.slice(
         (assignmentsPage - 1) * PAGE_SIZE,
         assignmentsPage * PAGE_SIZE,
       ),
-    [assignments, assignmentsPage],
+    [filteredAssignments, assignmentsPage],
   );
 
-  const completedTotalPages = Math.max(
-    1,
-    Math.ceil(completedTasks.length / PAGE_SIZE),
-  );
-  const pagedCompletedTasks = useMemo(
-    () =>
-      completedTasks.slice(
-        (completedPage - 1) * PAGE_SIZE,
-        completedPage * PAGE_SIZE,
-      ),
-    [completedTasks, completedPage],
-  );
+  useEffect(() => {
+    setAssignmentsPage(1);
+  }, [assignmentSearch, assignmentStatusFilter]);
 
   const displayName = user?.fullName || "Kỹ thuật viên";
 
@@ -248,90 +265,112 @@ export default function TechnicianOverview() {
             <span className="truncate">Tổng quan</span>
           </h1>
           <p className="text-slate-500 mt-1 text-sm font-medium">
-            Xin chào, {displayName}. Đây là tổng quan công việc và ca làm việc của bạn hôm nay.
+            Xin chào, {displayName}. Đây là tổng quan công việc của bạn hôm nay.
           </p>
         </div>
       </div>
 
       {/* Stat cards */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-slate-100">
-        <div className="p-5 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#EDF3FF] flex items-center justify-center shrink-0">
-            <CalendarClock className="text-[#00285E]" size={20} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
-              Ca hôm nay
-            </div>
-            <div className="text-lg font-bold text-slate-800">
-              {isLoadingShifts ? "—" : stats.shiftsToday}
-            </div>
-          </div>
-        </div>
-        <div className="p-5 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-            <Wrench className="text-blue-600" size={20} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
-              Đang thực hiện
-            </div>
-            <div className="text-lg font-bold text-slate-800">
-              {isLoadingAssignments ? "—" : stats.inProgressCount}
-            </div>
-          </div>
-        </div>
-        <div className="p-5 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
-            <ClipboardList className="text-amber-600" size={20} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
-              Chờ nghiệm thu
-            </div>
-            <div className="text-lg font-bold text-slate-800">
-              {isLoadingAssignments ? "—" : stats.pendingQcCount}
-            </div>
-          </div>
-        </div>
-        <div className="p-5 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="text-emerald-600" size={20} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-2xl px-4 py-4 bg-white border border-slate-200/60 shadow-xs flex flex-col gap-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide truncate">
               Tổng công việc
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-[#F9A11B] flex items-center justify-center shrink-0 shadow-sm shadow-[#F9A11B]/30">
+              <ClipboardList className="text-white" size={15} />
             </div>
-            <div className="text-lg font-bold text-slate-800">
-              {isLoadingAssignments ? "—" : stats.totalTasksToday}
+          </div>
+          <div className="text-xl font-black text-slate-800 leading-none">
+            {isLoadingAssignments ? "—" : stats.totalTasksToday}
+          </div>
+        </div>
+        <div className="rounded-2xl px-4 py-4 bg-white border border-slate-200/60 shadow-xs flex flex-col gap-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide truncate">
+              Đang thực hiện
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-[#00285E] flex items-center justify-center shrink-0 shadow-sm shadow-[#00285E]/30">
+              <Zap className="text-white" size={15} />
             </div>
+          </div>
+          <div className="text-xl font-black text-slate-800 leading-none">
+            {isLoadingAssignments ? "—" : stats.inProgressCount}
+          </div>
+        </div>
+        <div className="rounded-2xl px-4 py-4 bg-white border border-slate-200/60 shadow-xs flex flex-col gap-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide truncate">
+              Đã hoàn thành
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center shrink-0 shadow-sm shadow-emerald-600/30">
+              <CheckCircle2 className="text-white" size={15} />
+            </div>
+          </div>
+          <div className="text-xl font-black text-slate-800 leading-none">
+            {isLoadingCompleted ? "—" : completedTasks.length}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Công việc được giao trong hôm nay */}
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <Wrench size={16} className="text-[#00285E]" />
-              Công việc được giao trong hôm nay
-            </h2>
-            <button
-              onClick={() => navigate("/technician/assignments")}
-              className="text-xs font-bold text-[#00285E] hover:text-[#F9A11B] transition-colors"
-            >
-              Xem tất cả
-            </button>
-          </div>
+      {/* Công việc được giao trong hôm nay */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-slate-800">
+            Công việc được giao trong hôm nay
+          </h2>
+          <button
+            onClick={() => navigate("/technician/assignments")}
+            className="text-xs font-bold text-[#00285E] hover:text-[#F9A11B] transition-colors"
+          >
+            Xem tất cả
+          </button>
+        </div>
 
-          {isLoadingAssignments ? (
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={assignmentSearch}
+              onChange={(e) => setAssignmentSearch(e.target.value)}
+              placeholder="Tìm biển số, dòng xe, khách hàng..."
+              className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[#00285E] focus:border-[#00285E]"
+            />
+          </div>
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+            {(
+              [
+                { key: "ALL", label: "Tất cả" },
+                { key: "NOT_STARTED", label: "Chưa bắt đầu" },
+                { key: "IN_PROGRESS", label: "Đang thực hiện" },
+                { key: "COMPLETED", label: "Đã hoàn thành" },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => setAssignmentStatusFilter(opt.key)}
+                className={`shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
+                  assignmentStatusFilter === opt.key
+                    ? "bg-[#00285E] text-white"
+                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {isLoadingAssignments ? (
             <div className="py-8 flex items-center justify-center">
               <Loader2 className="animate-spin text-[#00285E]" size={24} />
             </div>
-          ) : assignments.length === 0 ? (
+          ) : filteredAssignments.length === 0 ? (
             <div className="py-8 text-center text-sm text-slate-400 italic">
-              Hiện không có công việc nào đang được giao.
+              {assignments.length === 0
+                ? "Hiện không có công việc nào đang được giao."
+                : "Không tìm thấy công việc phù hợp."}
             </div>
           ) : (
             <>
@@ -340,23 +379,36 @@ export default function TechnicianOverview() {
                   <button
                     key={assignment.id}
                     onClick={() =>
-                      navigate("/technician/assignments", {
-                        state: { openServiceOrderId: assignment.serviceOrderId },
-                      })
+                      navigate(
+                        assignment.status === "COMPLETED"
+                          ? "/technician/work-history"
+                          : "/technician/assignments",
+                        {
+                          state: { openServiceOrderId: assignment.serviceOrderId },
+                        },
+                      )
                     }
-                    className="w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/60 transition-colors text-left"
+                    className="w-full flex items-stretch gap-3 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/60 transition-colors text-left overflow-hidden"
                   >
-                    <div className="min-w-0">
-                      <div className="text-sm font-bold text-slate-800 truncate">
-                        {assignment.vehiclePlate} · {assignment.vehicleModel}
+                    <span className="w-1 shrink-0 bg-[#00285E]" />
+                    <div className="flex-1 min-w-0 flex items-center justify-between gap-3 py-3 pr-3.5">
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-slate-800 truncate">
+                          {assignment.vehiclePlate} · {assignment.vehicleModel}
+                        </div>
+                        <div className="text-xs text-slate-500 truncate">
+                          {assignment.customerName} · {assignment.tasks.length} công việc
+                        </div>
+                        {formatAssignedTime(assignment.assignedAt) && (
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            Được giao lúc {formatAssignedTime(assignment.assignedAt)}
+                          </div>
+                        )}
                       </div>
-                      <div className="text-xs text-slate-500 truncate">
-                        {assignment.customerName} · {assignment.tasks.length} công việc
-                      </div>
+                      <span className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#00285E] bg-[#EDF3FF]">
+                        {ASSIGNMENT_STATUS_LABEL[assignment.status] || assignment.status}
+                      </span>
                     </div>
-                    <span className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold text-white bg-[#00285E]">
-                      {ASSIGNMENT_STATUS_LABEL[assignment.status] || assignment.status}
-                    </span>
                   </button>
                 ))}
               </div>
@@ -392,85 +444,6 @@ export default function TechnicianOverview() {
             </>
           )}
         </div>
-
-        {/* Các công việc đã hoàn thành */}
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <CheckCircle2 size={16} className="text-emerald-600" />
-              Các công việc đã hoàn thành
-            </h2>
-            <button
-              onClick={() => navigate("/technician/work-history")}
-              className="text-xs font-bold text-[#00285E] hover:text-[#F9A11B] transition-colors"
-            >
-              Xem tất cả
-            </button>
-          </div>
-
-          {isLoadingCompleted ? (
-            <div className="py-8 flex items-center justify-center">
-              <Loader2 className="animate-spin text-[#00285E]" size={24} />
-            </div>
-          ) : completedTasks.length === 0 ? (
-            <div className="py-8 text-center text-sm text-slate-400 italic">
-              Chưa có công việc nào hoàn thành.
-            </div>
-          ) : (
-            <>
-              <div className="space-y-2">
-                {pagedCompletedTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className="w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl border border-slate-100"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-sm font-bold text-slate-800 truncate">
-                        {task.vehiclePlate} · {task.vehicleModel}
-                      </div>
-                      <div className="text-xs text-slate-500 truncate">
-                        {task.customerName} · {task.serviceName}
-                      </div>
-                    </div>
-                    <span className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold text-white bg-emerald-600">
-                      Hoàn thành
-                    </span>
-                  </div>
-                ))}
-              </div>
-              {completedTotalPages > 1 && (
-                <div className="flex items-center justify-between pt-2">
-                  <span className="text-xs font-semibold text-slate-400">
-                    Trang {completedPage}/{completedTotalPages}
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() =>
-                        setCompletedPage((p) => Math.max(1, p - 1))
-                      }
-                      disabled={completedPage === 1}
-                      className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronLeft size={16} />
-                    </button>
-                    <button
-                      onClick={() =>
-                        setCompletedPage((p) =>
-                          Math.min(completedTotalPages, p + 1),
-                        )
-                      }
-                      disabled={completedPage === completedTotalPages}
-                      className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronRight size={16} />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

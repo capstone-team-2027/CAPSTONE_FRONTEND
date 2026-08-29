@@ -329,6 +329,24 @@ export default function ReceptionServiceOrderDetail() {
     });
   };
 
+  // Dịch vụ và từng phụ tùng đi kèm tick độc lập, để lễ tân bỏ đúng món thiếu (vd phụ tùng đặt
+  // riêng khách không cọc) mà vẫn giữ dịch vụ + các món còn lại. Ràng buộc một chiều: bỏ dịch vụ
+  // thì bỏ luôn phụ tùng của nó (không làm dịch vụ thì phụ tùng vô nghĩa), nhưng bỏ 1 phụ tùng
+  // không ảnh hưởng tới dịch vụ.
+  const toggleServiceGroup = (serviceItemId: number, partIds: number[]) => {
+    setCompletedItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(serviceItemId)) {
+        next.delete(serviceItemId);
+        partIds.forEach((id) => next.delete(id));
+      } else {
+        next.add(serviceItemId);
+        partIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
   const handleConfirmCloseEarly = async () => {
     if (!closeEarlyReason.trim()) {
       showToast('Vui lòng điền lý do đóng sớm lệnh sửa chữa.', 'warning');
@@ -958,8 +976,16 @@ export default function ReceptionServiceOrderDetail() {
         const finishedLooseParts = looseParts.filter(isPartFinished);
         const pendingLooseParts = looseParts.filter((p: any) => !isPartFinished(p));
 
+        // Hạng mục đã xong thì tính trọn cụm (không cho bỏ nữa), còn hạng mục đang dở chỉ tính
+        // đúng những dòng lễ tân tick giữ — vì giờ mỗi phụ tùng tick/bỏ được độc lập.
         const groupAmount = (g: any) =>
           (parseFloat(g.serviceItem.amount) || 0) + g.relatedParts.reduce((s: number, p: any) => s + payableAmount(p), 0);
+
+        const checkedGroupAmount = (g: any) =>
+          (parseFloat(g.serviceItem.amount) || 0) +
+          g.relatedParts
+            .filter((p: any) => completedItemIds.has(p.id))
+            .reduce((s: number, p: any) => s + payableAmount(p), 0);
 
         const finishedTotal =
           finishedGroups.reduce((sum, g) => sum + groupAmount(g), 0) +
@@ -968,7 +994,7 @@ export default function ReceptionServiceOrderDetail() {
         const confirmedPendingTotal =
           pendingGroups
             .filter((g) => completedItemIds.has(g.serviceItem.id))
-            .reduce((sum, g) => sum + groupAmount(g), 0) +
+            .reduce((sum, g) => sum + checkedGroupAmount(g), 0) +
           pendingLooseParts
             .filter((p: any) => completedItemIds.has(p.id))
             .reduce((sum, p: any) => sum + payableAmount(p), 0);
@@ -1030,21 +1056,22 @@ export default function ReceptionServiceOrderDetail() {
                   <p className="text-[11px] text-slate-400 leading-relaxed px-1">
                     Tick vào hạng mục nào <strong className="text-slate-500">không thể hủy</strong> (đã lắp vào xe, đã sử dụng, kỹ thuật viên xác nhận không trả lại được...) — hạng mục đó sẽ được <strong className="text-slate-500">giữ nguyên</strong>, tính đủ tiền vào hóa đơn và chờ kỹ thuật viên tự cập nhật khi hoàn tất.
                     Hạng mục <strong className="text-slate-500">không tick</strong> coi như chưa thực hiện, sẽ <strong className="text-slate-500">không tính tiền</strong> và bị hủy khỏi báo giá.
+                    Phụ tùng đi kèm tick riêng được — bỏ tick đúng món khách không cọc / không lấy, dịch vụ và các món còn lại vẫn giữ nguyên.
                   </p>
                   {(pendingGroups.length > 0 || pendingLooseParts.length > 0) ? (
                     <div className="border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-100">
                       {pendingGroups.map((g) => {
-                        const allIdsInGroup = [g.serviceItem.id, ...g.relatedParts.map((p: any) => p.id)];
+                        const partIds = g.relatedParts.map((p: any) => p.id);
                         const isChecked = completedItemIds.has(g.serviceItem.id);
                         const serviceLabel = g.serviceItem.service_catalog?.service_name || 'Hạng mục dịch vụ';
-                        const groupTotal = groupAmount(g);
+                        const groupTotal = isChecked ? checkedGroupAmount(g) : groupAmount(g);
                         return (
                           <div key={g.serviceItem.id} className={`px-4 py-3 transition-colors ${isChecked ? 'bg-blue-50/60' : 'hover:bg-slate-50'}`}>
                             <label className="flex items-center gap-3 text-sm cursor-pointer">
                               <input
                                 type="checkbox"
                                 checked={isChecked}
-                                onChange={() => toggleCompletedItem(allIdsInGroup)}
+                                onChange={() => toggleServiceGroup(g.serviceItem.id, partIds)}
                                 className="w-4 h-4 rounded accent-[#00285E] shrink-0"
                               />
                               <div className="flex-1 min-w-0">
@@ -1061,19 +1088,34 @@ export default function ReceptionServiceOrderDetail() {
                               <div className="mt-2 ml-7 space-y-1.5 border-l-2 border-slate-200 pl-3">
                                 {g.relatedParts.map((p: any) => {
                                   const badge = depositBadge(p);
+                                  const isPartChecked = completedItemIds.has(p.id);
                                   return (
-                                    <div key={p.id} className="flex items-center gap-2 text-xs text-slate-500">
+                                    <label
+                                      key={p.id}
+                                      className={`flex items-center gap-2 text-xs cursor-pointer ${
+                                        isChecked ? 'text-slate-500' : 'text-slate-400'
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isPartChecked}
+                                        disabled={!isChecked}
+                                        onChange={() => toggleCompletedItem(p.id)}
+                                        className="w-3.5 h-3.5 rounded accent-[#00285E] shrink-0 disabled:opacity-40"
+                                      />
                                       <Package size={12} className="text-slate-400 shrink-0" />
-                                      <span className="flex-1 min-w-0 truncate">{p.customPartOrder?.item_name || p.sparePart?.name || 'Phụ tùng'} (x{p.quantity}) — cần cho hạng mục này</span>
+                                      <span className="flex-1 min-w-0 truncate">
+                                        {p.customPartOrder?.item_name || p.sparePart?.name || 'Phụ tùng'} (x{p.quantity})
+                                      </span>
                                       {badge && (
                                         <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${badge.className}`}>
                                           {badge.label}
                                         </span>
                                       )}
-                                      <span className={`font-semibold shrink-0 ${isChecked ? 'text-slate-700' : 'text-slate-300 line-through'}`}>
+                                      <span className={`font-semibold shrink-0 ${isPartChecked ? 'text-slate-700' : 'text-slate-300 line-through'}`}>
                                         {formatPrice(payableAmount(p))}
                                       </span>
-                                    </div>
+                                    </label>
                                   );
                                 })}
                               </div>

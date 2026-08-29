@@ -171,9 +171,67 @@ export default function HistoryTab() {
     const [error, setError] = useState<string | null>(null);
     const [selectedOrder, setSelectedOrder] = useState<ServiceOrderHistory | null>(null);
     const [feedbackOrder, setFeedbackOrder] = useState<ServiceOrderHistory | null>(null);
-    const [rating, setRating] = useState(5);
-    const [feedbackText, setFeedbackText] = useState('');
+    const [serviceRating, setServiceRating] = useState(5);
+    const [serviceComment, setServiceComment] = useState('');
+    const [receptionistRating, setReceptionistRating] = useState(5);
+    const [receptionistComment, setReceptionistComment] = useState('');
+    const [headTechnicianRating, setHeadTechnicianRating] = useState(5);
+    const [headTechnicianComment, setHeadTechnicianComment] = useState('');
     const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+
+    const handleOpenFeedback = (order: ServiceOrderHistory) => {
+        setFeedbackOrder(order);
+        setServiceRating(5);
+        setServiceComment('');
+        setReceptionistRating(5);
+        setReceptionistComment('');
+        setHeadTechnicianRating(5);
+        setHeadTechnicianComment('');
+    };
+
+    const SERVICE_SUGGESTIONS = [
+        "Dịch vụ rất tốt và chuyên nghiệp",
+        "Kỹ thuật sửa chữa tốt, xe chạy êm",
+        "Thời gian sửa nhanh chóng",
+        "Chi phí sửa chữa hợp lý",
+        "Xe vận hành mượt mà sau sửa",
+        "Phụ tùng chính hãng chất lượng"
+    ];
+
+    const RECEPTIONIST_SUGGESTIONS = [
+        "Lễ tân tiếp đón nhiệt tình, niềm nở",
+        "Tư vấn dịch vụ rõ ràng, dễ hiểu",
+        "Thao tác làm thủ tục nhanh chóng",
+        "Giải đáp thắc mắc chu đáo",
+        "Không gian phòng chờ thoải mái",
+        "Quy trình làm việc chuyên nghiệp"
+    ];
+
+    const HEAD_TECH_SUGGESTIONS = [
+        "KTV trưởng giám sát chuyên nghiệp",
+        "Tư vấn kỹ thuật chính xác, tin cậy",
+        "Kiểm tra lỗi xe rất kỹ càng",
+        "Thái độ làm việc chuyên nghiệp",
+        "Bàn giao xe đúng thời hạn",
+        "Kỹ năng chuyên môn tuyệt vời"
+    ];
+
+    const handleAddSuggestion = (
+        currentText: string,
+        setText: (val: string) => void,
+        suggestion: string
+    ) => {
+        if (currentText.trim() === '') {
+            setText(suggestion);
+        } else {
+            const trimmed = currentText.trim();
+            if (trimmed.endsWith('.') || trimmed.endsWith(',') || trimmed.endsWith('!')) {
+                setText(`${trimmed} ${suggestion}`);
+            } else {
+                setText(`${trimmed}, ${suggestion}`);
+            }
+        }
+    };
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -206,21 +264,29 @@ export default function HistoryTab() {
         try {
             await fetchPrivate(SERVICE_HISTORY_API_ENDPOINTS.SUBMIT_FEEDBACK, 'POST', {
                 service_order_id: feedbackOrder.id,
-                rating,
-                comment: feedbackText
+                service_rating: serviceRating,
+                service_comment: serviceComment,
+                receptionist_rating: receptionistRating,
+                receptionist_comment: receptionistComment,
+                head_technician_rating: headTechnicianRating,
+                head_technician_comment: headTechnicianComment
             });
             showToast('Cảm ơn bạn đã đánh giá dịch vụ!');
             
             // Cập nhật lại state orders để hiện "Đã đánh giá" mà không cần reload
             setOrders(prev => prev.map(order => 
                 order.id === feedbackOrder.id 
-                    ? { ...order, feedback: { id: Date.now(), rating } } 
+                    ? { ...order, feedback: { id: Date.now(), rating: serviceRating } } 
                     : order
             ));
             
             setFeedbackOrder(null);
-            setRating(5);
-            setFeedbackText('');
+            setServiceRating(5);
+            setServiceComment('');
+            setReceptionistRating(5);
+            setReceptionistComment('');
+            setHeadTechnicianRating(5);
+            setHeadTechnicianComment('');
         } catch (err: any) {
             alert(err?.message || 'Có lỗi xảy ra khi gửi đánh giá.');
         } finally {
@@ -477,7 +543,7 @@ export default function HistoryTab() {
                                                         </span>
                                                     ) : (
                                                         <button
-                                                            onClick={() => setFeedbackOrder(row.order)}
+                                                            onClick={() => handleOpenFeedback(row.order)}
                                                             className="p-2 border border-gray-200 hover:bg-slate-50 text-amber-500 rounded-lg transition-colors"
                                                             title="Đánh giá dịch vụ"
                                                         >
@@ -550,7 +616,7 @@ export default function HistoryTab() {
                                             ) : (
                                                 <button
                                                     type="button"
-                                                    onClick={() => setFeedbackOrder(selectedRow.order)}
+                                                    onClick={() => handleOpenFeedback(selectedRow.order)}
                                                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white bg-amber-500/20 hover:bg-amber-500/30 text-amber-100 transition-colors"
                                                 >
                                                     <MessageSquare className="w-4 h-4" />
@@ -760,63 +826,140 @@ export default function HistoryTab() {
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
-                            className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden"
+                            className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden"
                         >
                             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                                 <h3 className="text-lg font-bold text-[#00285E]">Đánh giá dịch vụ</h3>
                                 <button
                                     onClick={() => setFeedbackOrder(null)}
                                     className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
+                                    type="button"
                                 >
                                     <X className="w-5 h-5" />
                                 </button>
                             </div>
                             
-                            <form onSubmit={handleSubmitFeedback} className="p-6">
-                                <div className="mb-6 flex flex-col items-center">
-                                    <p className="text-sm font-semibold text-slate-600 mb-3">Mức độ hài lòng của bạn</p>
-                                    <div className="flex items-center gap-2">
+                            <form onSubmit={handleSubmitFeedback} className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
+                                {/* 1. Đánh giá chất lượng dịch vụ */}
+                                <div className="border-b border-slate-100 pb-4">
+                                    <h4 className="text-sm font-bold text-[#00285E] mb-3">1. Chất lượng dịch vụ & Sửa chữa</h4>
+                                    <div className="flex items-center gap-2 mb-3">
                                         {[1, 2, 3, 4, 5].map((star) => (
                                             <button
                                                 key={star}
                                                 type="button"
-                                                onClick={() => setRating(star)}
-                                                className={`p-1 transition-colors ${rating >= star ? 'text-amber-400' : 'text-slate-200'}`}
+                                                onClick={() => setServiceRating(star)}
+                                                className={`p-1 transition-colors ${serviceRating >= star ? 'text-amber-400' : 'text-slate-200'}`}
                                             >
-                                                <Star className="w-8 h-8 fill-current" />
+                                                <Star className="w-6 h-6 fill-current" />
                                             </button>
                                         ))}
                                     </div>
-                                    <p className="text-xs text-amber-500 font-medium mt-3 uppercase tracking-wider">
-                                        {rating === 5 ? 'Tuyệt vời' : rating === 4 ? 'Hài lòng' : rating === 3 ? 'Bình thường' : rating === 2 ? 'Không hài lòng' : 'Rất tệ'}
-                                    </p>
-                                </div>
-
-                                <div className="mb-6">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                                        Ý kiến đóng góp
-                                    </label>
                                     <textarea
-                                        value={feedbackText}
-                                        onChange={(e) => setFeedbackText(e.target.value)}
-                                        placeholder="Chia sẻ trải nghiệm của bạn về dịch vụ..."
-                                        rows={4}
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 transition-all text-sm resize-none"
+                                        value={serviceComment}
+                                        onChange={(e) => setServiceComment(e.target.value)}
+                                        placeholder="Ý kiến của bạn về chất lượng kỹ thuật, phụ tùng, thời gian..."
+                                        rows={2}
+                                        className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-400 transition-all text-xs resize-none"
                                     />
+                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                        {SERVICE_SUGGESTIONS.map((s) => (
+                                            <button
+                                                key={s}
+                                                type="button"
+                                                onClick={() => handleAddSuggestion(serviceComment, setServiceComment, s)}
+                                                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200/80 active:scale-[0.98] text-[10px] font-medium text-slate-600 rounded-lg transition-all"
+                                            >
+                                                + {s}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
 
-                                <div className="flex items-center gap-3">
+                                {/* 2. Đánh giá thái độ phục vụ lễ tân */}
+                                <div className="border-b border-slate-100 pb-4">
+                                    <h4 className="text-sm font-bold text-[#00285E] mb-3">2. Thái độ phục vụ của Lễ tân</h4>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        {[1, 2, 3, 4, 5].map((star) => (
+                                            <button
+                                                key={star}
+                                                type="button"
+                                                onClick={() => setReceptionistRating(star)}
+                                                className={`p-1 transition-colors ${receptionistRating >= star ? 'text-amber-400' : 'text-slate-200'}`}
+                                            >
+                                                <Star className="w-6 h-6 fill-current" />
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <textarea
+                                        value={receptionistComment}
+                                        onChange={(e) => setReceptionistComment(e.target.value)}
+                                        placeholder="Ý kiến của bạn về thái độ phục vụ, tiếp đón, tư vấn của lễ tân..."
+                                        rows={2}
+                                        className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-400 transition-all text-xs resize-none"
+                                    />
+                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                        {RECEPTIONIST_SUGGESTIONS.map((s) => (
+                                            <button
+                                                key={s}
+                                                type="button"
+                                                onClick={() => handleAddSuggestion(receptionistComment, setReceptionistComment, s)}
+                                                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200/80 active:scale-[0.98] text-[10px] font-medium text-slate-600 rounded-lg transition-all"
+                                            >
+                                                + {s}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* 3. Đánh giá KTV Trưởng */}
+                                <div className="pb-2">
+                                    <h4 className="text-sm font-bold text-[#00285E] mb-3">3. Chất lượng quản lý của KTV Trưởng</h4>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        {[1, 2, 3, 4, 5].map((star) => (
+                                            <button
+                                                key={star}
+                                                type="button"
+                                                onClick={() => setHeadTechnicianRating(star)}
+                                                className={`p-1 transition-colors ${headTechnicianRating >= star ? 'text-amber-400' : 'text-slate-200'}`}
+                                            >
+                                                <Star className="w-6 h-6 fill-current" />
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <textarea
+                                        value={headTechnicianComment}
+                                        onChange={(e) => setHeadTechnicianComment(e.target.value)}
+                                        placeholder="Ý kiến của bạn về KTV Trưởng (tư vấn giải pháp, giám sát chất lượng)..."
+                                        rows={2}
+                                        className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-400 transition-all text-xs resize-none"
+                                    />
+                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                        {HEAD_TECH_SUGGESTIONS.map((s) => (
+                                            <button
+                                                key={s}
+                                                type="button"
+                                                onClick={() => handleAddSuggestion(headTechnicianComment, setHeadTechnicianComment, s)}
+                                                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200/80 active:scale-[0.98] text-[10px] font-medium text-slate-600 rounded-lg transition-all"
+                                            >
+                                                + {s}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-3 pt-2">
                                     <button
                                         type="button"
                                         onClick={() => setFeedbackOrder(null)}
-                                        className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors"
+                                        className="flex-1 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors"
                                     >
                                         Hủy
                                     </button>
                                     <button
                                         type="submit"
                                         disabled={isSubmittingFeedback}
-                                        className="flex-1 px-4 py-2.5 rounded-xl bg-[#00285E] text-white font-semibold text-sm hover:bg-blue-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                        className="flex-1 px-4 py-2 rounded-xl bg-[#00285E] text-white font-semibold text-sm hover:bg-blue-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                     >
                                         {isSubmittingFeedback && <Loader2 className="w-4 h-4 animate-spin" />}
                                         Gửi đánh giá

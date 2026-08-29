@@ -55,6 +55,7 @@ interface RepairNoteHistoryItem {
   createdAt: string;
   taskId: number;
   serviceOrderCode: string;
+  serviceName: string;
   vehiclePlate: string;
   vehicleBrand: string;
   vehicleModel: string;
@@ -186,6 +187,7 @@ export default function TechnicianAddRepairNote() {
     return historyItems.filter(
       (item) =>
         item.serviceOrderCode.toLowerCase().includes(keyword) ||
+        item.serviceName.toLowerCase().includes(keyword) ||
         item.vehiclePlate.toLowerCase().includes(keyword) ||
         item.issueText.toLowerCase().includes(keyword) ||
         item.content.toLowerCase().includes(keyword),
@@ -452,15 +454,20 @@ export default function TechnicianAddRepairNote() {
               >
                 <div className="flex items-center justify-between">
                   <span className="inline-block rounded-md bg-[#00285E] px-2 py-0.5 text-[11px] font-semibold text-white">
-                    {item.serviceOrderCode}
+                    {item.serviceName || item.serviceOrderCode}
                   </span>
                   <span className="text-[11px] text-slate-400">
                     {formatDateTime(item.createdAt)}
                   </span>
                 </div>
-                <p className="mt-2 text-sm font-semibold text-[#00285E]">
-                  {item.issueText}
-                </p>
+                {item.issueText &&
+                  item.issueText.trim().toLowerCase() !==
+                    item.serviceName.trim().toLowerCase() &&
+                  !item.issueText.trim().toLowerCase().startsWith("dịch vụ:") && (
+                    <p className="mt-2 text-sm font-semibold text-[#00285E]">
+                      {item.issueText}
+                    </p>
+                  )}
                 <p className="mt-1 text-xs text-slate-400">
                   {item.vehiclePlate}
                   {item.vehicleBrand ? ` · ${item.vehicleBrand}` : ""}

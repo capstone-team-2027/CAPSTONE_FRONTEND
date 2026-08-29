@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, User, ShieldCheck, MapPin, CheckCircle, XCircle, Search, Car, CircleAlert, Eye, EyeOff } from 'lucide-react';
 import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { RECEPTION_API } from '../../../constants/reception/receptionApiEndpoint';
@@ -7,12 +8,21 @@ import L from 'leaflet';
 import 'react-phone-input-2/lib/style.css';
 import * as PhoneInputLib from 'react-phone-input-2';
 
-// Icons for Map
-const garageIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/1986/1986937.png',
-  iconSize: [35, 35],
-  iconAnchor: [17, 35],
-  popupAnchor: [0, -35],
+// Icons for Map — dùng SVG nhúng trực tiếp thay vì ảnh PNG tải từ CDN ngoài, vì các nguồn
+// ảnh bên ngoài (vd flaticon) có thể chặn hotlink và hiện icon lỗi (⊘).
+const garageIcon = L.divIcon({
+  className: 'custom-garage-marker',
+  html: `
+    <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:#00285E;border-radius:9999px;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.35);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 21V10l9-7 9 7v11" />
+        <path d="M9 21v-6h6v6" />
+      </svg>
+    </div>
+  `,
+  iconSize: [28, 28],
+  iconAnchor: [14, 14],
+  popupAnchor: [0, -14],
 });
 
 // Đồng nhất marker khách hàng với MapTracking, TechnicianRescuePage và bản đồ admin:
@@ -20,17 +30,19 @@ const garageIcon = L.icon({
 const userIcon = L.divIcon({
   className: 'custom-user-marker',
   html: `
-    <div style="display:flex;align-items:center;justify-content:center;width:35px;height:35px;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 24 24" fill="#DC2626" stroke="white" stroke-width="1.5">
+    <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="#DC2626" stroke="white" stroke-width="1.5">
         <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
         <circle cx="12" cy="10" r="3" fill="white" stroke="none" />
       </svg>
     </div>
   `,
-  iconSize: [35, 35],
-  iconAnchor: [17, 35],
-  popupAnchor: [0, -35],
+  iconSize: [28, 28],
+  iconAnchor: [14, 28],
+  popupAnchor: [0, -28],
 });
+
+const MAX_RESCUE_DISTANCE_KM = 20;
 
 const assignmentStatusLabel = (status: string) => ({
   ASSIGNED: 'Chờ thực hiện',
@@ -141,11 +153,19 @@ const MapClickHandler = ({ onClick }: { onClick: (lat: number, lng: number) => v
   return null;
 };
 
+// SĐT Việt Nam hợp lệ sau khi bỏ mã quốc gia 84: 9 số, đầu số di động 3/5/7/8/9.
+const isValidVietnamPhone = (value: string) => {
+  const digits = value.replace(/\D/g, '');
+  const national = digits.startsWith('84') ? digits.slice(2) : digits;
+  return /^(3|5|7|8|9)\d{8}$/.test(national);
+};
+
 interface CreateRescueModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
   showToast: (msg: string, type: 'success' | 'info' | 'warning') => void;
+  customers?: { phone: string; name: string; user?: { phoneNumber?: string } | null; rescueRequests?: any[] }[];
 }
 
 export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
@@ -153,6 +173,7 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
   onClose,
   onSuccess,
   showToast,
+  customers = [],
 }) => {
   const { fetchPrivate } = useFetchClient_v2();
 
@@ -176,6 +197,26 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchingAddress, setSearchingAddress] = useState(false);
   const programmaticAddressRef = useRef<string | null>(null);
+
+  // Khách hàng khớp SĐT đang nhập — dùng để cảnh báo nếu từng có cuốc cứu hộ bị hủy.
+  const matchedCustomer = useMemo(() => {
+    const digits = phoneNumber.replace(/\D/g, '');
+    const national = digits.startsWith('84') ? digits.slice(2) : digits;
+    if (national.length < 9) return null;
+    return customers.find((c) => {
+      const candidates = [c.phone, c.user?.phoneNumber].filter(Boolean) as string[];
+      return candidates.some((p) => {
+        const pDigits = p.replace(/\D/g, '');
+        const pNational = pDigits.startsWith('84') ? pDigits.slice(2) : pDigits.startsWith('0') ? pDigits.slice(1) : pDigits;
+        return pNational === national;
+      });
+    }) || null;
+  }, [phoneNumber, customers]);
+
+  const cancelledRescueHistory = useMemo(
+    () => matchedCustomer?.rescueRequests?.filter((r: any) => r.status === 'CANCELLED') || [],
+    [matchedCustomer],
+  );
 
   const fillAddressInput = (address: string) => {
     programmaticAddressRef.current = address;
@@ -282,12 +323,12 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
         setDistanceKm(distKm);
 
         // Calculate Price based on distance:
-        // <=15km: 15k/km, min 150k. >15km: 15*15k + (dist - 15)*20k
+        // <=5km: 15k/km, min 200k. >5km: 200k + (dist - 5)*20k
         let price = 0;
-        if (distKm <= 15) {
-          price = Math.max(150000, distKm * 15000);
+        if (distKm <= 5) {
+          price = Math.max(200000, distKm * 15000);
         } else {
-          price = (15 * 15000) + ((distKm - 15) * 20000);
+          price = 200000 + ((distKm - 5) * 20000);
         }
         setRescuePrice(price);
 
@@ -311,10 +352,10 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
     const val = parseFloat(valStr) || 0;
     setDistanceKm(val);
     let price = 0;
-    if (val <= 15) {
-      price = Math.max(150000, val * 15000);
+    if (val <= 5) {
+      price = Math.max(200000, val * 15000);
     } else {
-      price = (15 * 15000) + ((val - 15) * 20000);
+      price = 200000 + ((val - 5) * 20000);
     }
     setRescuePrice(price);
   };
@@ -324,12 +365,20 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
       showToast("Vui lòng nhập số điện thoại khách hàng", "warning");
       return;
     }
+    if (!isValidVietnamPhone(phoneNumber)) {
+      showToast("Số điện thoại khách hàng không hợp lệ", "warning");
+      return;
+    }
     if (!selectedTechnicianId) {
       showToast("Vui lòng chọn kỹ thuật viên để gán", "warning");
       return;
     }
     if (!customerLat || !customerLng) {
       showToast("Vui lòng click chọn vị trí của khách hàng trên bản đồ", "warning");
+      return;
+    }
+    if (distanceKm > MAX_RESCUE_DISTANCE_KM) {
+      showToast(`Khoảng cách cứu hộ vượt quá ${MAX_RESCUE_DISTANCE_KM}km, không thể tạo dịch vụ.`, "warning");
       return;
     }
 
@@ -425,8 +474,56 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
                     countryCodeEditable={false}
                   />
                 </div>
+                {phoneNumber && !isValidVietnamPhone(phoneNumber) && (
+                  <p className="mt-1.5 text-xs font-semibold text-rose-600">
+                    Số điện thoại không hợp lệ.
+                  </p>
+                )}
+                {cancelledRescueHistory.length > 0 && (
+                  <div className="mt-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                    <CircleAlert size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-xs font-semibold text-amber-700">
+                      Khách hàng này từng có {cancelledRescueHistory.length} cuốc cứu hộ bị hủy trước đây. Vui lòng xác nhận lại thông tin trước khi tạo mới.
+                    </p>
+                  </div>
+                )}
               </div>
 
+            </div>
+
+            {/* Location search — đặt ngay sau thông tin khách hàng vì quãng đường/giá tiền bên
+                dưới được tính tự động dựa trên vị trí chọn ở đây. */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                Tìm kiếm vị trí (Địa điểm / Địa chỉ)
+              </label>
+              <div className="relative">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchAddressQuery}
+                  onChange={(e) => setSearchAddressQuery(e.target.value)}
+                  placeholder="Vd: Đại học Bách Khoa Đà Nẵng..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+                />
+                {searchingAddress && (
+                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">Đang tìm...</span>
+                )}
+              </div>
+              {searchResults.length > 0 && (
+                <div className="mt-1 bg-white border border-slate-200 rounded-lg shadow-sm max-h-60 overflow-y-auto">
+                  {searchResults.map((result, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => handleSelectSearchResult(result)}
+                      className="px-4 py-2.5 hover:bg-slate-50 text-sm text-slate-700 cursor-pointer border-b border-slate-100 last:border-0 flex items-start gap-2"
+                    >
+                      <MapPin size={16} className="text-slate-400 mt-0.5 shrink-0" />
+                      <span>{result.display_name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -439,8 +536,17 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
                   value={distanceKm || ''}
                   onChange={(e) => handleDistanceChange(e.target.value)}
                   placeholder="Nhập hoặc click bản đồ"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+                  className={`w-full px-4 py-2.5 bg-slate-50 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all ${
+                    distanceKm > MAX_RESCUE_DISTANCE_KM
+                      ? 'border-rose-400 focus:ring-rose-100 focus:border-rose-500'
+                      : 'border-slate-200 focus:ring-[#00285E]/10 focus:border-[#00285E]'
+                  }`}
                 />
+                {distanceKm > MAX_RESCUE_DISTANCE_KM && (
+                  <p className="mt-1.5 text-xs font-semibold text-rose-600">
+                    Vượt quá phạm vi cứu hộ tối đa ({MAX_RESCUE_DISTANCE_KM}km), không thể tạo dịch vụ.
+                  </p>
+                )}
               </div>
 
        {/* Calculated price */}
@@ -480,40 +586,6 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
               />
             </div>
 
-            {/* Location search and map are placed after all rescue information. */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                Tìm kiếm vị trí (Địa điểm / Địa chỉ)
-              </label>
-              <div className="relative">
-                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchAddressQuery}
-                  onChange={(e) => setSearchAddressQuery(e.target.value)}
-                  placeholder="Vd: Đại học Bách Khoa Đà Nẵng..."
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-                />
-                {searchingAddress && (
-                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">Đang tìm...</span>
-                )}
-              </div>
-              {searchResults.length > 0 && (
-                <div className="mt-1 bg-white border border-slate-200 rounded-lg shadow-sm max-h-60 overflow-y-auto">
-                  {searchResults.map((result, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => handleSelectSearchResult(result)}
-                      className="px-4 py-2.5 hover:bg-slate-50 text-sm text-slate-700 cursor-pointer border-b border-slate-100 last:border-0 flex items-start gap-2"
-                    >
-                      <MapPin size={16} className="text-slate-400 mt-0.5 shrink-0" />
-                      <span>{result.display_name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
             <div className="relative">
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
                 Bản đồ định vị (Click để chọn vị trí khách hàng)
@@ -551,8 +623,8 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
               <button
                 type="button"
                 onClick={handleCreate}
-                disabled={submitting || !selectedTechnicianId || !phoneNumber || !customerLat}
-                className={`flex-1 py-3 px-4 text-white font-bold rounded-xl transition-colors flex justify-center items-center gap-2 shadow-lg ${submitting || !selectedTechnicianId || !phoneNumber || !customerLat
+                disabled={submitting || !selectedTechnicianId || !phoneNumber || !isValidVietnamPhone(phoneNumber) || !customerLat || distanceKm > MAX_RESCUE_DISTANCE_KM}
+                className={`flex-1 py-3 px-4 text-white font-bold rounded-xl transition-colors flex justify-center items-center gap-2 shadow-lg ${submitting || !selectedTechnicianId || !phoneNumber || !isValidVietnamPhone(phoneNumber) || !customerLat || distanceKm > MAX_RESCUE_DISTANCE_KM
                   ? 'bg-slate-300 cursor-not-allowed shadow-none'
                   : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
                   }`}
@@ -653,9 +725,9 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
             {expandedTechnicianId != null && (() => {
               const expandedTech = technicians.find((t) => t.id === expandedTechnicianId);
               if (!expandedTech) return null;
-              return (
+              return createPortal(
                 <div
-                  className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
+                  className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
                   onClick={() => setExpandedTechnicianId(null)}
                 >
                   <div
@@ -691,7 +763,8 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
                       ))}
                     </div>
                   </div>
-                </div>
+                </div>,
+                document.body
               );
             })()}
           </div>

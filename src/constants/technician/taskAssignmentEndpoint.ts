@@ -25,17 +25,6 @@ export const TASK_ASSIGNMENT_ENDPOINTS = {
         `${API_BASE_URL}/api/technician/service-orders/${serviceOrderId}/requestable-parts`,
     REQUEST_EXPORT: (serviceOrderId: number | string) =>
         `${API_BASE_URL}/api/technician/service-orders/${serviceOrderId}/request-export`,
-    // Tra cứu chẩn đoán (Diagnostic Knowledge)
-    GET_ALL_DIAGNOSTICS: `${API_BASE_URL}/api/technician/diagnostics`,
-    SEARCH_DIAGNOSTICS: (keyword: string) =>
-        `${API_BASE_URL}/api/technician/diagnostics/search?keyword=${encodeURIComponent(keyword)}`,
-    FILTER_DIAGNOSTICS: (params: { makeId?: number; modelId?: number }) => {
-        const q = new URLSearchParams();
-        if (params.makeId) q.set("makeId", String(params.makeId));
-        if (params.modelId) q.set("modelId", String(params.modelId));
-        const qs = q.toString();
-        return `${API_BASE_URL}/api/technician/diagnostics/filter${qs ? `?${qs}` : ""}`;
-    },
     GET_ALL_INSPECTION_HISTORY: `${API_BASE_URL}/api/technician/inspection-history`,
     SEARCH_INSPECTION_HISTORY: (keyword: string) =>
         `${API_BASE_URL}/api/technician/inspection-history/search?keyword=${encodeURIComponent(keyword)}`,

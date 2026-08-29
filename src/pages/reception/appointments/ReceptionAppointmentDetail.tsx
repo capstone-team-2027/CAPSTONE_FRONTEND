@@ -24,9 +24,9 @@ import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/reception/appointm
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   pending: { label: 'Chờ xác nhận', color: '#D97706', bg: '#FEF3C7', icon: Clock },
   confirmed: { label: 'Chờ tiếp nhận', color: '#2563EB', bg: '#DBEAFE', icon: Clock },
-  information_received: { label: 'Đã tiếp nhận', color: '#EA580C', bg: '#FED7AA', icon: CheckCircle2 },
-  in_progress: { label: 'Đã tiếp nhận (Đang sửa)', color: '#EA580C', bg: '#FED7AA', icon: Loader2 },
-  completed: { label: 'Đã tiếp nhận (Hoàn thành)', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
+  information_received: { label: 'Đã tiếp nhận', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
+  in_progress: { label: 'Đã tiếp nhận', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
+  completed: { label: 'Đã tiếp nhận', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
   cancelled: { label: 'Đã hủy', color: '#DC2626', bg: '#FEE2E2', icon: XCircle },
   no_show: { label: 'Khách không đến (No Show)', color: '#6B7280', bg: '#F3F4F6', icon: XCircle },
   expired: { label: 'Đã quá hạn (Hủy)', color: '#94A3B8', bg: '#F1F5F9', icon: XCircle },
@@ -266,14 +266,14 @@ export default function ReceptionAppointmentDetail() {
   };
 
   return (
-    <div className="flex-1 p-4 md:p-8 space-y-6 max-w-5xl w-full mx-auto">
+    <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <button
             onClick={() => navigate('/reception/appointments')}
             title="Quay lại"
-            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
+            className="mt-0.5 w-12 h-12 shrink-0 flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#00285E] hover:border-slate-300 active:scale-[0.97] transition-all"
           >
             <ArrowLeft size={24} />
           </button>
@@ -284,7 +284,7 @@ export default function ReceptionAppointmentDetail() {
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="text-sm font-bold text-slate-500">APT-{appointment.id.padStart(3, '0')}</span>
               <span
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold"
                 style={{ backgroundColor: statusCfg.bg, color: statusCfg.color }}
               >
                 <StatusIcon size={12} />
@@ -295,58 +295,90 @@ export default function ReceptionAppointmentDetail() {
         </div>
       </div>
 
-      {/* DETAIL */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs divide-y divide-slate-100">
-        <section className="p-6">
-          <SectionTitle icon={<Calendar size={15} />} label="Thông tin lịch hẹn" />
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <InfoRow label="Mã lịch hẹn" value={`APT-${appointment.id.padStart(3, '0')}`} />
-            <InfoRow label="Ngày tạo" value={formatDateTime(appointment.createdAt)} />
-            <InfoRow label="Ngày hẹn" value={appointment.appointmentDate ? formatDate(appointment.appointmentDate) : '—'} />
-            {appointment.appointmentDate && <InfoRow label="Giờ hẹn" value={appointment.appointmentTime} />}
-          </div>
-        </section>
+      {/* CHI TIẾT — gộp trong một khối duy nhất, các phần ngăn nhau bằng đường kẻ */}
+      <div className="bg-white border border-slate-200 rounded-md divide-y divide-slate-200 overflow-hidden">
+        {/* Dải tóm tắt: thông tin cần đọc nhanh nhất khi khách tới quầy */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-slate-200">
+          <SummaryCell icon={<Car size={15} />} label="Biển số xe" value={appointment.vehiclePlate} emphasis />
+          <SummaryCell
+            icon={<Calendar size={15} />}
+            label="Ngày hẹn"
+            value={appointment.appointmentDate ? formatDate(appointment.appointmentDate) : '—'}
+          />
+          <SummaryCell icon={<Clock size={15} />} label="Giờ hẹn" value={appointment.appointmentTime || '—'} />
+          <SummaryCell
+            icon={<Wrench size={15} />}
+            label="Số dịch vụ"
+            value={`${appointment.services.length} dịch vụ`}
+          />
+        </div>
 
-        <section className="p-6">
-          <SectionTitle icon={<User size={15} />} label="Thông tin khách hàng" />
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <InfoRow label="Họ và tên" value={appointment.customerName} />
-            <InfoRow label="Số điện thoại" value={appointment.customerPhone} icon={<Phone size={13} className="text-slate-400" />} />
-            <InfoRow label="Email" value={appointment.customerEmail || '—'} icon={<Mail size={13} className="text-slate-400" />} />
-          </div>
-        </section>
+        {/* Khách hàng & xe: 2 nhóm lễ tân đối chiếu cùng lúc, đặt cạnh nhau */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
+          <section className="p-7 lg:p-8">
+            <SectionTitle icon={<User size={15} />} label="Khách hàng" />
+            <dl className="space-y-5">
+              <DetailLine label="Họ và tên" value={appointment.customerName} />
+              <DetailLine
+                label="Số điện thoại"
+                value={appointment.customerPhone || '—'}
+                icon={<Phone size={13} className="text-slate-400" />}
+              />
+              <DetailLine
+                label="Email"
+                value={appointment.customerEmail || '—'}
+                icon={<Mail size={13} className="text-slate-400" />}
+              />
+            </dl>
+          </section>
 
-        <section className="p-6">
-          <SectionTitle icon={<Car size={15} />} label="Thông tin xe" />
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <InfoRow label="Biển số" value={appointment.vehiclePlate} highlight />
-            <InfoRow label="Loại xe" value={appointment.vehicleModel} />
-            <InfoRow label="Năm sản xuất" value={appointment.vehicleYear?.toString() || '—'} />
-          </div>
-        </section>
+          <section className="p-7 lg:p-8">
+            <SectionTitle icon={<Car size={15} />} label="Phương tiện" />
+            <dl className="space-y-5">
+              <DetailLine label="Biển số" value={appointment.vehiclePlate} />
+              <DetailLine label="Loại xe" value={appointment.vehicleModel} />
+              <DetailLine label="Năm sản xuất" value={appointment.vehicleYear?.toString() || '—'} />
+            </dl>
+          </section>
+        </div>
 
-        <section className="p-6">
+        <section className="p-7 lg:p-8">
           <SectionTitle icon={<Wrench size={15} />} label="Dịch vụ đã đặt" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {appointment.services.map((service, idx) => (
-              <div key={idx} className="flex items-center gap-3 px-3 py-2.5 bg-slate-50 rounded-xl">
-                <span className="w-6 h-6 shrink-0 rounded-lg bg-[#00285E] text-white text-xs font-bold flex items-center justify-center">
-                  {idx + 1}
-                </span>
-                <span className="text-sm font-semibold text-slate-700">{service}</span>
-              </div>
-            ))}
-          </div>
+          {appointment.services.length === 0 ? (
+            <p className="text-sm text-slate-400">Lịch hẹn này chưa chọn dịch vụ cụ thể.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {appointment.services.map((service, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-3 px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-md"
+                >
+                  <span className="w-6 h-6 shrink-0 bg-[#00285E] text-white text-[11px] font-bold flex items-center justify-center rounded">
+                    {idx + 1}
+                  </span>
+                  <span className="text-sm font-semibold text-slate-700 truncate">{service}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {appointment.notes && (
-          <section className="p-6">
+          <section className="p-7 lg:p-8">
             <SectionTitle icon={<StickyNote size={15} />} label="Ghi chú" />
-            <p className="text-sm text-slate-600 leading-relaxed bg-amber-50 border border-amber-100 rounded-xl p-4">
+            <p className="text-sm text-slate-600 leading-relaxed bg-amber-50 border border-amber-200 rounded-md p-4">
               {appointment.notes}
             </p>
           </section>
         )}
+
+        <section className="p-7 lg:p-8">
+          <SectionTitle icon={<Calendar size={15} />} label="Thông tin hệ thống" />
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <DetailLine label="Mã lịch hẹn" value={`APT-${appointment.id.padStart(3, '0')}`} />
+            <DetailLine label="Ngày tạo" value={formatDateTime(appointment.createdAt)} />
+          </dl>
+        </section>
       </div>
 
       {/* CANCEL MODAL */}
@@ -528,7 +560,7 @@ export default function ReceptionAppointmentDetail() {
 function SectionTitle({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
     <h2 className="flex items-center gap-2.5 mb-4">
-      <span className="w-7 h-7 shrink-0 rounded-lg bg-[#EDF3FF] text-[#00285E] flex items-center justify-center">
+      <span className="w-7 h-7 shrink-0 bg-[#EDF3FF] text-[#00285E] flex items-center justify-center">
         {icon}
       </span>
       <span className="text-xs font-bold text-slate-800 uppercase tracking-widest">{label}</span>
@@ -536,17 +568,40 @@ function SectionTitle({ icon, label }: { icon: React.ReactNode; label: string })
   );
 }
 
-// Reusable info row component
-function InfoRow({ label, value, icon, highlight }: { label: string; value: string; icon?: React.ReactNode; highlight?: boolean }) {
+// Ô tóm tắt ở dải trên cùng — thông tin lễ tân cần liếc thấy ngay, không phải đọc từng dòng.
+function SummaryCell({
+  icon,
+  label,
+  value,
+  emphasis,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  emphasis?: boolean;
+}) {
   return (
-    <div className="min-w-0">
-      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1">
+    <div className={`px-6 py-7 ${emphasis ? 'bg-[#00285E]' : ''}`}>
+      <div className={`flex items-center gap-1.5 mb-2 ${emphasis ? 'text-white/60' : 'text-slate-400'}`}>
         {icon}
-        {label}
-      </span>
-      <p className={`text-base font-bold truncate ${highlight ? 'inline-block text-[#00285E] bg-[#EDF3FF] px-2.5 py-1 rounded-lg' : 'text-slate-800'}`}>
+        <span className="text-[10px] font-bold uppercase tracking-widest">{label}</span>
+      </div>
+      <p className={`text-lg font-bold truncate ${emphasis ? 'text-white' : 'text-slate-800'}`}>
         {value}
       </p>
+    </div>
+  );
+}
+
+// Dòng nhãn — giá trị trong các khối chi tiết, nhãn trái / giá trị phải để dễ dò theo cột.
+function DetailLine({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4">
+      <dt className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 shrink-0">
+        {icon}
+        {label}
+      </dt>
+      <dd className="text-sm font-bold text-slate-800 text-right truncate">{value}</dd>
     </div>
   );
 }

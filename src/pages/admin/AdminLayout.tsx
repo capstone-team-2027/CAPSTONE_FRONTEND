@@ -14,11 +14,11 @@ import {
   CheckCircle,
   Info,
   AlertTriangle,
-  Package,
   ShieldCheck,
-  CalendarClock,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  Award,
+  BookOpen
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -106,19 +106,20 @@ export default function AdminLayout() {
       label: 'Nhân sự',
       items: [
         { name: 'Nhân sự', icon: UserCog, path: '/admin/staff' },
+        { name: 'Xếp hạng & Hiệu suất', icon: Award, path: '/admin/staff-ranking' },
       ],
     },
     {
       label: 'Dịch vụ',
       items: [
         { name: 'Dịch vụ', icon: Wrench, path: '/admin/services' },
-        { name: 'Tài nguyên', icon: Package, path: '/admin/resources' },
+        { name: 'Tài liệu kỹ thuật', icon: BookOpen, path: '/admin/technical-documents' },
         { name: 'Chính sách bảo hành', icon: ShieldCheck, path: '/admin/warranty' },
       ],
     },
     {
-      label: 'Cài đặt',
-      items: [{ name: 'Cài đặt', icon: Settings, path: '/admin/settings' }],
+      label: 'Cấu hình hệ thống',
+      items: [{ name: 'Cấu hình hệ thống', icon: Settings, path: '/admin/settings' }],
     },
   ];
 
@@ -128,11 +129,12 @@ export default function AdminLayout() {
     if (path.includes('/ai-analysis')) return 'AI phân tích hệ thống';
     if (path === '/admin' || path === '/admin/' || path.includes('/statistics')) return 'Thống kê';
     if (path.includes('/customers')) return 'Khách Hàng';
+    if (path.includes('/staff-ranking')) return 'Xếp hạng & Hiệu suất';
     if (path.includes('/staff')) return 'Nhân sự';
     if (path.includes('/services')) return 'Dịch vụ';
-    if (path.includes('/resources')) return 'Tài nguyên';
     if (path.includes('/warranty')) return 'Chính sách bảo hành';
-    if (path.includes('/settings')) return 'Cài đặt';
+    if (path.includes('/technical-documents')) return 'Tài liệu kỹ thuật';
+    if (path.includes('/settings')) return 'Cấu hình hệ thống';
     return 'Thống kê';
   }, [location.pathname]);
 
@@ -261,13 +263,6 @@ export default function AdminLayout() {
         {/* Sidebar Footer */}
         <div className="p-4 border-t border-white/10 space-y-1">
           <button
-            onClick={() => showToast('Chức năng hỗ trợ đang được kết nối...', 'info')}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-blue-100/80 hover:bg-white/10 hover:text-white transition-colors"
-          >
-            <HelpCircle size={18} className="text-blue-200/60" />
-            <span>Hỗ trợ</span>
-          </button>
-          <button
             onClick={() => setShowLogoutConfirm(true)}
             className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 transition-colors"
           >
@@ -346,16 +341,6 @@ export default function AdminLayout() {
             {/* Footer */}
             <div className="p-4 border-t border-white/10 space-y-1">
               <button
-                onClick={() => {
-                  showToast('Chức năng hỗ trợ đang được kết nối...', 'info');
-                  setIsMobileSidebarOpen(false);
-                }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-blue-100/80 hover:bg-white/10 hover:text-white transition-colors"
-              >
-                <HelpCircle size={18} className="text-blue-200/60" />
-                <span>Hỗ trợ</span>
-              </button>
-              <button
                 onClick={() => setShowLogoutConfirm(true)}
                 className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 transition-colors"
               >
@@ -371,7 +356,7 @@ export default function AdminLayout() {
       <main className="flex-1 flex flex-col min-w-0 pb-16">
 
         {/* DESKTOP HEADER BAR */}
-        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-25">
+        <header className="hidden md:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-30">
         {/* User profile & Actions */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">

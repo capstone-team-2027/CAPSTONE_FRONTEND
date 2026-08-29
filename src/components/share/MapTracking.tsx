@@ -99,11 +99,21 @@ const DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 // --- Tạo Icon tuỳ chỉnh ---
-const garageIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/1986/1986937.png',
-  iconSize: [35, 35],
-  iconAnchor: [17, 35],
-  popupAnchor: [0, -35],
+// Icon gara — dùng SVG nhúng trực tiếp thay vì ảnh PNG tải từ CDN ngoài, vì các nguồn ảnh
+// bên ngoài (vd flaticon) có thể chặn hotlink và hiện icon lỗi (⊘).
+const garageIcon = L.divIcon({
+  className: 'custom-garage-marker',
+  html: `
+    <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:#00285E;border-radius:9999px;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.35);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 21V10l9-7 9 7v11" />
+        <path d="M9 21v-6h6v6" />
+      </svg>
+    </div>
+  `,
+  iconSize: [28, 28],
+  iconAnchor: [14, 14],
+  popupAnchor: [0, -14],
 });
 
 // Icon vị trí khách hàng — dùng SVG nhúng trực tiếp (lucide MapPin) thay vì ảnh PNG tải từ CDN
@@ -111,24 +121,39 @@ const garageIcon = L.icon({
 const userIcon = L.divIcon({
   className: 'custom-user-marker',
   html: `
-    <div style="display:flex;align-items:center;justify-content:center;width:35px;height:35px;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 24 24" fill="#DC2626" stroke="white" stroke-width="1.5">
+    <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="#DC2626" stroke="white" stroke-width="1.5">
         <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
         <circle cx="12" cy="10" r="3" fill="white" stroke="none" />
       </svg>
     </div>
   `,
-  iconSize: [35, 35],
-  iconAnchor: [17, 35],
-  popupAnchor: [0, -35],
+  iconSize: [28, 28],
+  iconAnchor: [14, 28],
+  popupAnchor: [0, -28],
 });
 
-const carIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/744/744402.png',
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
-  popupAnchor: [0, -20],
+// Icon xe cứu hộ — dùng SVG nhúng trực tiếp (đồng bộ với 2 icon trên, tránh lỗi hotlink CDN).
+const carIcon = L.divIcon({
+  className: 'custom-car-marker',
+  html: `
+    <div style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:#00285E;border-radius:9999px;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.35);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" />
+        <path d="M15 18H9" />
+        <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14" />
+        <circle cx="17" cy="18" r="2" />
+        <circle cx="7" cy="18" r="2" />
+      </svg>
+    </div>
+  `,
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
+  popupAnchor: [0, -16],
 });
+
+// Giữ đồng bộ với CreateRescueModal.tsx (lễ tân) — cùng giới hạn phạm vi cứu hộ tối đa.
+const MAX_RESCUE_DISTANCE_KM = 20;
 
 // Component con để tự động dịch chuyển bản đồ tới vị trí người dùng khi tìm thấy
 const LocationUpdater = ({ userLocation }: { userLocation: [number, number] | null }) => {
@@ -332,10 +357,10 @@ export const MapTracking: React.FC = () => {
   }, [activeRescueId, activeRescueStatus, socket, userLocation]);
 
   const calculatePrice = (distKm: number) => {
-    if (distKm <= 15) {
-      return Math.max(150000, distKm * 15000);
+    if (distKm <= 5) {
+      return Math.max(200000, distKm * 15000);
     } else {
-      return (15 * 15000) + ((distKm - 15) * 20000);
+      return 200000 + ((distKm - 5) * 20000);
     }
   };
 
@@ -410,6 +435,7 @@ export const MapTracking: React.FC = () => {
 
   const handleConfirmRescue = () => {
     if (!tempLocation) return;
+    if (distanceInfo && distanceInfo.distKm > MAX_RESCUE_DISTANCE_KM) return;
     setUserLocation(tempLocation);
     setShowConfirmModal(false);
     setIsLoading(true);
@@ -651,10 +677,16 @@ export const MapTracking: React.FC = () => {
         </MapContainer>
       </div>
 
-      {/* Chú giải icon trên bản đồ */}
+      {/* Chú giải icon trên bản đồ — dùng đúng SVG với marker thật (garageIcon/userIcon/carIcon ở
+          trên) thay vì ảnh CDN rời rạc, tránh lệch hình dạng/màu và tránh lỗi hotlink. */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 bg-white border rounded-lg shadow-sm text-xs text-gray-600">
         <div className="flex items-center gap-2">
-          <img src="https://cdn-icons-png.flaticon.com/512/1986/1986937.png" alt="" className="w-5 h-5" />
+          <div className="w-6 h-6 flex items-center justify-center bg-[#00285E] rounded-full">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 21V10l9-7 9 7v11" />
+              <path d="M9 21v-6h6v6" />
+            </svg>
+          </div>
           <span>Gara Hệ Thống</span>
         </div>
         <div className="flex items-center gap-2">
@@ -662,7 +694,15 @@ export const MapTracking: React.FC = () => {
           <span>Vị trí xe hỏng của bạn</span>
         </div>
         <div className="flex items-center gap-2">
-          <img src="https://cdn-icons-png.flaticon.com/512/744/744402.png" alt="" className="w-5 h-5" />
+          <div className="w-6 h-6 flex items-center justify-center bg-[#00285E] rounded-full">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" />
+              <path d="M15 18H9" />
+              <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14" />
+              <circle cx="17" cy="18" r="2" />
+              <circle cx="7" cy="18" r="2" />
+            </svg>
+          </div>
           <span>Xe cứu hộ đang di chuyển</span>
         </div>
       </div>
@@ -680,21 +720,27 @@ export const MapTracking: React.FC = () => {
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex justify-between items-center">
+              <div className={`p-4 rounded-xl border flex justify-between items-center ${distanceInfo.distKm > MAX_RESCUE_DISTANCE_KM ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-100'}`}>
                 <span className="text-slate-500 font-medium">Khoảng cách:</span>
-                <span className="font-bold text-slate-800 text-lg">{distanceInfo.distKm} km</span>
+                <span className={`font-bold text-lg ${distanceInfo.distKm > MAX_RESCUE_DISTANCE_KM ? 'text-rose-600' : 'text-slate-800'}`}>{distanceInfo.distKm} km</span>
               </div>
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex justify-between items-center">
                 <span className="text-slate-500 font-medium">Thời gian dự kiến:</span>
                 <span className="font-bold text-slate-800 text-lg">{distanceInfo.durMin} phút</span>
               </div>
-              <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex flex-col gap-1">
-                <div className="flex justify-between items-center">
-                  <span className="text-blue-700 font-bold">Phí cứu hộ dự kiến:</span>
-                  <span className="font-black text-blue-700 text-2xl">{estimatedPrice.toLocaleString('vi-VN')} VND</span>
+              {distanceInfo.distKm > MAX_RESCUE_DISTANCE_KM ? (
+                <p className="text-sm font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
+                  Vượt quá phạm vi cứu hộ tối đa ({MAX_RESCUE_DISTANCE_KM}km), không thể gửi yêu cầu. Vui lòng liên hệ trực tiếp gara để được hỗ trợ.
+                </p>
+              ) : (
+                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex flex-col gap-1">
+                  <div className="flex justify-between items-center">
+                    <span className="text-blue-700 font-bold">Phí cứu hộ dự kiến:</span>
+                    <span className="font-black text-blue-700 text-2xl">{estimatedPrice.toLocaleString('vi-VN')} VND</span>
+                  </div>
+                  <span className="text-xs text-blue-500/80 italic text-right">* Chưa bao gồm phí sửa chữa/vật tư</span>
                 </div>
-                <span className="text-xs text-blue-500/80 italic text-right">* Chưa bao gồm phí sửa chữa/vật tư</span>
-              </div>
+              )}
             </div>
 
             <div className="p-4 border-t border-slate-100 flex gap-3 bg-slate-50">
@@ -706,7 +752,12 @@ export const MapTracking: React.FC = () => {
               </button>
               <button
                 onClick={handleConfirmRescue}
-                className="flex-1 py-3 px-4 bg-[#00285E] text-white font-bold rounded-xl hover:bg-blue-900 transition-colors shadow-lg shadow-blue-900/20"
+                disabled={distanceInfo.distKm > MAX_RESCUE_DISTANCE_KM}
+                className={`flex-1 py-3 px-4 font-bold rounded-xl transition-colors shadow-lg ${
+                  distanceInfo.distKm > MAX_RESCUE_DISTANCE_KM
+                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
+                    : 'bg-[#00285E] text-white hover:bg-blue-900 shadow-blue-900/20'
+                }`}
               >
                 Đồng ý gọi xe
               </button>

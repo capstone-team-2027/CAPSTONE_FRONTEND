@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  ShieldCheck,
+  ArrowLeft,
   Search,
   Filter,
   Plus,
@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 const PAGE_SIZE = 6;
-import { useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { WARRANTY_POLICIES_API_ENDPOINTS } from '../../../constants/admin/warrantyPoliciesApiEndpoint';
 
@@ -30,6 +30,7 @@ interface WarrantyPolicy {
 }
 
 export default function AdminWarrantyPolicies() {
+  const navigate = useNavigate();
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: 'success' | 'info' | 'warning') => void;
   }>();
@@ -162,14 +163,22 @@ export default function AdminWarrantyPolicies() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* TITLE BAR */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2 flex items-center gap-2">
-            <ShieldCheck className="text-amber-500" size={28} />
-            Quản lý Chính sách Bảo hành
-          </h1>
-          <p className="text-slate-500 text-sm">
-            Tạo và thiết lập các chính sách bảo hành áp dụng cho các phụ tùng hoặc dịch vụ trong gara.
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-[#00285E] border border-[#00285E] text-white hover:bg-[#003C7D] hover:border-[#003C7D] active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
+              Quản lý Chính sách Bảo hành
+            </h1>
+            <p className="text-slate-500 text-sm">
+              Tạo và thiết lập các chính sách bảo hành áp dụng cho các phụ tùng hoặc dịch vụ trong gara.
+            </p>
+          </div>
         </div>
 
         <button
@@ -214,18 +223,18 @@ export default function AdminWarrantyPolicies() {
       </div>
 
       {/* POLICY TABLE */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-y border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
-                <th className="py-4.5 px-6">Mã chính sách</th>
-                <th className="py-4.5 px-6">Tên chính sách</th>
-                <th className="py-4.5 px-4">Ảnh</th>
-                <th className="py-4.5 px-4">Tài liệu PDF</th>
-                <th className="py-4.5 px-6">Tóm tắt điều kiện / ghi chú</th>
-                <th className="py-4.5 px-4 text-center">Trạng thái</th>
-                <th className="py-4.5 px-6 text-right">Thao tác</th>
+              <tr className="text-xs font-bold text-white uppercase tracking-widest bg-[#00285E]">
+                <th className="py-5 px-6">Mã chính sách</th>
+                <th className="py-5 px-6">Tên chính sách</th>
+                <th className="py-5 px-4">Ảnh</th>
+                <th className="py-5 px-4">Tài liệu PDF</th>
+                <th className="py-5 px-6">Tóm tắt điều kiện / ghi chú</th>
+                <th className="py-5 px-4 text-center">Trạng thái</th>
+                <th className="py-5 px-6 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody>

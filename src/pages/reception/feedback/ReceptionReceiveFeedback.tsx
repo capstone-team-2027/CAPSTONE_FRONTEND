@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   MessageSquare,
@@ -13,9 +13,12 @@ import {
   UserCheck,
   Send,
   Loader2,
+  Star,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
+import { useFetchClient } from '../../../hook/useFetchClient';
+import { RECEPTION_API } from '../../../constants/reception/receptionApiEndpoint';
 import type { FeedbackModel, FeedbackCategory } from '../../../model/Feedback';
 import { FEEDBACK_CATEGORY_LABELS } from '../../../model/Feedback';
 
@@ -72,9 +75,29 @@ const mockCustomers = [
 
 export default function ReceptionReceiveFeedback() {
   const navigate = useNavigate();
-  const [feedbacks, setFeedbacks] = useState<FeedbackModel[]>(mockFeedbacks);
+  const { fetchPrivate } = useFetchClient();
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const loadFeedbacks = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetchPrivate<any>(RECEPTION_API.FEEDBACK);
+      if (response && Array.isArray(response.data)) {
+        setFeedbacks(response.data);
+      }
+    } catch (err) {
+      console.error("Lỗi khi tải danh sách phản hồi:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadFeedbacks();
+  }, []);
 
   // Search & Filters for feedback list
   const [searchTerm, setSearchTerm] = useState('');
@@ -176,10 +199,14 @@ export default function ReceptionReceiveFeedback() {
 
   // Filtered feedbacks
   const filteredFeedbacks = feedbacks.filter((fb) => {
+    const custName = fb.customer?.name || fb.customerName || '';
+    const custPhone = fb.customer?.phone || fb.customerPhone || '';
+    const commentText = fb.service_comment || fb.comment || fb.content || '';
+    
     const matchesSearch =
-      fb.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fb.customerPhone.includes(searchTerm) ||
-      fb.content.toLowerCase().includes(searchTerm.toLowerCase());
+      custName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      custPhone.includes(searchTerm) ||
+      commentText.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === 'all' || fb.category === categoryFilter;
     const matchesStatus = statusFilter === 'all' || fb.status === statusFilter;
     return matchesSearch && matchesCategory && matchesStatus;
@@ -506,7 +533,12 @@ export default function ReceptionReceiveFeedback() {
 
             {/* Feedback items list */}
             <div className="space-y-4">
-              {filteredFeedbacks.length === 0 ? (
+              {isLoading ? (
+                <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-12 text-center text-[#00285E]">
+                  <Loader2 className="animate-spin mx-auto mb-4" size={40} />
+                  <p className="font-semibold text-sm">Đang tải phản hồi khách hàng...</p>
+                </div>
+              ) : filteredFeedbacks.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-12 text-center text-slate-400">
                   <MessageSquare className="mx-auto mb-4 opacity-30" size={40} />
                   <p className="font-semibold text-sm">Không tìm thấy phản hồi nào trùng khớp.</p>
@@ -521,12 +553,14 @@ export default function ReceptionReceiveFeedback() {
                     <div className="space-y-3 flex-1">
                       <div className="flex flex-wrap items-center gap-3">
                         <span className="text-xs font-bold text-[#00285E] bg-[#E0ECFF] px-2.5 py-1 rounded-lg">
-                          {fb.id}
+                          FB-{String(fb.id).padStart(3, '0')}
                         </span>
-                        {getStatusBadge(fb.status)}
-                        <span className="text-xs font-bold text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg">
-                          {FEEDBACK_CATEGORY_LABELS[fb.category]}
-                        </span>
+                        {getStatusBadge(fb.status || 'new')}
+                        {fb.serviceOrder && (
+                          <span className="text-xs font-bold text-slate-500 hover:underline cursor-pointer">
+                            Hóa đơn dịch vụ: SO-{String(fb.serviceOrder.id).padStart(3, '0')}
+                          </span>
+                        )}
                         {fb.serviceOrderId && (
                           <span className="text-xs font-bold text-slate-500 hover:underline cursor-pointer">
                             Hóa đơn dịch vụ: {fb.serviceOrderId}
@@ -534,9 +568,68 @@ export default function ReceptionReceiveFeedback() {
                         )}
                       </div>
 
-                      <p className="text-slate-800 text-sm font-semibold leading-relaxed">
-                        &ldquo;{fb.content}&rdquo;
-                      </p>
+                      {/* Display detailed ratings if available */}
+                      {fb.service_rating !== undefined && fb.service_rating !== null ? (
+                        <div className="space-y-3">
+                          {/* 1. Service Quality */}
+                          <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-extrabold text-slate-600">Dịch vụ & Sửa chữa:</span>
+                              <div className="flex items-center gap-0.5 text-amber-400">
+                                {Array.from({ length: fb.service_rating }).map((_, i) => (
+                                  <Star key={i} size={12} fill="currentColor" />
+                                ))}
+                              </div>
+                            </div>
+                            <p className="text-slate-800 text-xs font-semibold">&ldquo;{fb.service_comment || 'Không có bình luận.'}&rdquo;</p>
+                          </div>
+
+                          {/* 2. Receptionist Attitude */}
+                          <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-extrabold text-slate-600">Thái độ Lễ tân:</span>
+                              <div className="flex items-center gap-0.5 text-amber-400">
+                                {Array.from({ length: fb.receptionist_rating }).map((_, i) => (
+                                  <Star key={i} size={12} fill="currentColor" />
+                                ))}
+                              </div>
+                              {fb.receptionist && (
+                                <span className="text-[10px] text-slate-400 font-semibold">({fb.receptionist.fullName})</span>
+                              )}
+                            </div>
+                            <p className="text-slate-800 text-xs font-semibold">&ldquo;{fb.receptionist_comment || 'Không có bình luận.'}&rdquo;</p>
+                          </div>
+
+                          {/* 3. Chief Technician */}
+                          <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-extrabold text-slate-600">KTV Trưởng quản lý:</span>
+                              <div className="flex items-center gap-0.5 text-amber-400">
+                                {Array.from({ length: fb.head_technician_rating }).map((_, i) => (
+                                  <Star key={i} size={12} fill="currentColor" />
+                                ))}
+                              </div>
+                              {fb.headTechnician && (
+                                <span className="text-[10px] text-slate-400 font-semibold">({fb.headTechnician.fullName})</span>
+                              )}
+                            </div>
+                            <p className="text-slate-800 text-xs font-semibold">&ldquo;{fb.head_technician_comment || 'Không có bình luận.'}&rdquo;</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-slate-50/50 rounded-xl border border-slate-100">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <div className="flex items-center gap-0.5 text-amber-400">
+                              {Array.from({ length: fb.rating || 5 }).map((_, i) => (
+                                <Star key={i} size={12} fill="currentColor" />
+                              ))}
+                            </div>
+                          </div>
+                          <p className="text-slate-800 text-sm font-semibold leading-relaxed">
+                            &ldquo;{fb.comment || fb.content}&rdquo;
+                          </p>
+                        </div>
+                      )}
 
                       {fb.internalNotes && (
                         <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-600 flex gap-2">
@@ -551,14 +644,11 @@ export default function ReceptionReceiveFeedback() {
                       <div className="flex items-center gap-6 text-xs text-slate-400 font-semibold pt-1">
                         <span className="flex items-center gap-1">
                           <User size={12} />
-                          {fb.customerName} ({fb.customerPhone})
+                          {fb.customer?.name || fb.customerName} ({fb.customer?.phone || fb.customerPhone})
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock size={12} />
-                          {new Date(fb.receivedDate).toLocaleDateString('vi-VN')} {new Date(fb.receivedDate).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        <span className="hidden sm:inline">
-                          Tiếp nhận bởi: {fb.receivedBy}
+                          {new Date(fb.createdAt || fb.receivedDate).toLocaleDateString('vi-VN')} {new Date(fb.createdAt || fb.receivedDate).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
                     </div>

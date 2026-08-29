@@ -106,10 +106,22 @@ const ITEMS_PER_PAGE = 5;
 
 // Báo giá có phụ tùng đặt riêng thì phải cọc trước; chưa có deposit_paid_at
 // nghĩa là khách chưa chuyển tiền cọc -> lễ tân theo dõi và xác nhận (không thuộc trang này).
+// Phải còn ít nhất 1 dòng phụ tùng đặt riêng chưa bị hủy: nếu mọi món cần cọc đều đã bị hủy
+// (khách không cọc, lễ tân đóng đơn bỏ món đó) thì không còn gì để thu, dù deposit_amount cũ
+// trong DB chưa kịp về 0.
+const hasPendingCustomPart = (quotation: GetQuotationResponse) =>
+  (quotation.items || []).some(
+    (item) =>
+      item.customPartOrder &&
+      item.status !== "CANCELLED" &&
+      item.customPartOrder.status !== "CANCELLED",
+  );
+
 const isAwaitingDeposit = (quotation: GetQuotationResponse) =>
   ["APPROVED", "PENDING_DEPOSIT"].includes(quotation.status) &&
   Number(quotation.deposit_amount) > 0 &&
-  !quotation.deposit_paid_at;
+  !quotation.deposit_paid_at &&
+  hasPendingCustomPart(quotation);
 
 const formatVND = (value: number | string) =>
   `${new Intl.NumberFormat("vi-VN").format(Number(value) || 0)} VND`;
@@ -374,16 +386,6 @@ export default function LeaderQuoteList() {
       );
     }
   };
-
-  const kpiCounts = useMemo(
-    () => ({
-      total: quotations.length,
-      pending: quotations.filter((q) => q.status === "PENDING").length,
-      approved: quotations.filter((q) => q.status === "APPROVED").length,
-      rejected: quotations.filter((q) => q.status === "REJECTED").length,
-    }),
-    [quotations],
-  );
 
   const openQuotationDetail = (q: QuotationRow) => {
     setIsEditing(false);
@@ -746,62 +748,6 @@ export default function LeaderQuoteList() {
           <FileText size={16} />
           Tạo báo giá
         </button>
-      </div>
-
-      {/* KPI CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          {
-            label: "Tổng báo giá",
-            value: kpiCounts.total,
-            icon: <FileText size={22} />,
-            color: "#00285E",
-            bg: "#EDF3FF",
-          },
-          {
-            label: "Đang chờ duyệt",
-            value: kpiCounts.pending,
-            icon: <Clock size={22} />,
-            color: "#D97706",
-            bg: "#FEF3C7",
-          },
-          {
-            label: "Đã duyệt",
-            value: kpiCounts.approved,
-            icon: <CheckCircle2 size={22} />,
-            color: "#10B981",
-            bg: "#ECFDF5",
-          },
-          {
-            label: "Bị từ chối",
-            value: kpiCounts.rejected,
-            icon: <XCircle size={22} />,
-            color: "#E11D48",
-            bg: "#FFF1F2",
-          },
-        ].map((card, i) => (
-          <div
-            key={i}
-            className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs"
-          >
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
-                  {card.label}
-                </span>
-                <span className="text-2xl font-bold text-slate-900 tracking-tight block">
-                  {card.value}
-                </span>
-              </div>
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{ backgroundColor: card.bg, color: card.color }}
-              >
-                {card.icon}
-              </div>
-            </div>
-          </div>
-        ))}
       </div>
 
       {/* SEARCH & FILTER */}
@@ -1317,16 +1263,20 @@ export default function LeaderQuoteList() {
                                           </div>
                                           {item.customPartOrder && (
                                             <span
-                                              className={`mt-1 ml-3 flex w-fit min-w-[190px] rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.customPartOrder.status === "WAITING_DEPOSIT"
-                                                ? "bg-amber-50 text-amber-700"
-                                                : item.customPartOrder.status === "WAITING_ARRIVAL"
-                                                  ? "bg-blue-50 text-blue-700"
-                                                  : item.customPartOrder.status === "READY_FOR_USE"
-                                                    ? "bg-violet-50 text-violet-700"
-                                                    : "bg-emerald-50 text-emerald-700"
+                                              className={`mt-1 ml-3 flex w-fit min-w-[190px] rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.customPartOrder.status === "CANCELLED"
+                                                ? "bg-rose-50 text-rose-700"
+                                                : item.customPartOrder.status === "WAITING_DEPOSIT"
+                                                  ? "bg-amber-50 text-amber-700"
+                                                  : item.customPartOrder.status === "WAITING_ARRIVAL"
+                                                    ? "bg-blue-50 text-blue-700"
+                                                    : item.customPartOrder.status === "READY_FOR_USE"
+                                                      ? "bg-violet-50 text-violet-700"
+                                                      : "bg-emerald-50 text-emerald-700"
                                                 }`}
                                             >
-                                              {item.customPartOrder.status === "WAITING_DEPOSIT" ? (
+                                              {item.customPartOrder.status === "CANCELLED" ? (
+                                                "Phụ tùng đặt riêng · Đã hủy"
+                                              ) : item.customPartOrder.status === "WAITING_DEPOSIT" ? (
                                                 <>
                                                   Phụ tùng đặt riêng · Cần cọc:{" "}
                                                   {formatVND(

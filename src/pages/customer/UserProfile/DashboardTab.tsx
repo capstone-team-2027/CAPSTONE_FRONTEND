@@ -24,6 +24,7 @@ import {
   Car,
 } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
+import { GARAGE_CONFIG_API_ENDPOINTS } from '../../../constants/customer/garage_configurationsEndpoints';
 import { SERVICE_HISTORY_API_ENDPOINTS } from '../../../constants/customer/serviceHistoryApiEndpoint';
 import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/customer/appointmentsEndpoints';
 import { PROFILE_API_ENDPOINTS } from '../../../constants/customer/profileApiEndpoint';
@@ -59,6 +60,7 @@ interface DashboardTabProps {
   accountStatus?: 'PENDING' | 'ACTIVE' | 'INACTIVE' | 'BANNED';
   membershipTier?: 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM';
   loyaltyPoints?: number;
+  totalSpent?: number;
   joinedAt?: string;
   isEditing: boolean;
   isSubmitting: boolean;
@@ -97,6 +99,7 @@ export default function DashboardTab({
   accountStatus,
   membershipTier,
   loyaltyPoints,
+  totalSpent: totalSpentFromApi,
   joinedAt,
   isEditing,
   isSubmitting,
@@ -111,8 +114,11 @@ export default function DashboardTab({
   onShowToast,
 }: DashboardTabProps) {
   const { t } = useTranslation();
-  const { fetchPrivate } = useFetchClient();
+  const { fetchPrivate, fetchPublic } = useFetchClient();
   const [allOrders, setAllOrders] = useState<RecentActivityOrder[]>([]);
+  // Ngưỡng nâng hạng do admin cấu hình qua Garage_Configurations — fallback về giá trị mặc định
+  // (khớp DEFAULT_LOYALTY_CONFIG ở BE loyalty.service.js) nếu API lỗi, để UI không bao giờ vỡ.
+  const [tierThresholds, setTierThresholds] = useState({ SILVER: 10000000, GOLD: 30000000, PLATINUM: 50000000 });
   const [upcomingAppointmentCount, setUpcomingAppointmentCount] = useState<number | null>(null);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [passwordFields, setPasswordFields] = useState({
@@ -177,8 +183,27 @@ export default function DashboardTab({
         console.error('Không tải được lịch hẹn sắp tới:', error);
       }
     };
+    const loadTierThresholds = async () => {
+      try {
+        const response = await fetchPublic<Array<{ config_key: string; config_value: string }>>(
+          GARAGE_CONFIG_API_ENDPOINTS.GET_CONFIGURATIONS,
+        );
+        const configs: Array<{ config_key: string; config_value: string }> = response?.data ?? [];
+        const silver = configs.find((c) => c.config_key === 'LOYALTY_TIER_SILVER_THRESHOLD');
+        const gold = configs.find((c) => c.config_key === 'LOYALTY_TIER_GOLD_THRESHOLD');
+        const platinum = configs.find((c) => c.config_key === 'LOYALTY_TIER_PLATINUM_THRESHOLD');
+        setTierThresholds((prev) => ({
+          SILVER: silver ? Number(silver.config_value) || prev.SILVER : prev.SILVER,
+          GOLD: gold ? Number(gold.config_value) || prev.GOLD : prev.GOLD,
+          PLATINUM: platinum ? Number(platinum.config_value) || prev.PLATINUM : prev.PLATINUM,
+        }));
+      } catch (error) {
+        console.error('Không tải được ngưỡng nâng hạng, dùng giá trị mặc định:', error);
+      }
+    };
     void loadRecentActivity();
     void loadUpcomingAppointments();
+    void loadTierThresholds();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -208,21 +233,25 @@ export default function DashboardTab({
     PLATINUM: { label: t('profile.tier_PLATINUM', 'Thành viên Bạch Kim'), className: 'bg-indigo-50 text-indigo-700' },
   }[membershipTier ?? 'BRONZE'];
 
+  // Ngưỡng nâng hạng dựa trên TỔNG CHI TIÊU (VNĐ), khớp đúng loyalty.service.js ở BE — không
+  // phải điểm thưởng (loyalty_points chỉ dùng để đổi quà/giảm giá, không quyết định hạng).
+  // Admin cấu hình được qua Garage_Configurations (tierThresholds state, load ở useEffect trên).
   const TIER_THRESHOLDS: Record<'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM', number> = {
     BRONZE: 0,
-    SILVER: 300,
-    GOLD: 700,
-    PLATINUM: 1000,
+    SILVER: tierThresholds.SILVER,
+    GOLD: tierThresholds.GOLD,
+    PLATINUM: tierThresholds.PLATINUM,
   };
   const TIER_ORDER: Array<'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM'> = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM'];
   const currentTier = membershipTier ?? 'BRONZE';
   const currentTierIndex = TIER_ORDER.indexOf(currentTier);
   const nextTier = TIER_ORDER[currentTierIndex + 1];
-  const currentPoints = loyaltyPoints ?? 0;
+  // Sequelize trả DECIMAL dạng string (vd "26831840.00") — ép Number() trước khi tính/format.
+  const currentSpent = Number(totalSpentFromApi) || 0;
   const nextTierThreshold = nextTier ? TIER_THRESHOLDS[nextTier] : TIER_THRESHOLDS[currentTier];
   const currentTierThreshold = TIER_THRESHOLDS[currentTier];
   const tierProgressPercent = nextTier
-    ? Math.min(100, Math.max(0, ((currentPoints - currentTierThreshold) / (nextTierThreshold - currentTierThreshold)) * 100))
+    ? Math.min(100, Math.max(0, ((currentSpent - currentTierThreshold) / (nextTierThreshold - currentTierThreshold)) * 100))
     : 100;
 
   const accountStatusMeta = {
@@ -586,7 +615,7 @@ export default function DashboardTab({
             {t('profile.tierProgressLabel', 'Tiến trình hạng: {{tier}}', { tier: membershipTierMeta.label })}
           </span>
           <span className="text-base font-extrabold" style={{ color: '#00285E' }}>
-            {currentPoints.toLocaleString('vi-VN')}{nextTier ? ` / ${nextTierThreshold.toLocaleString('vi-VN')}` : ''} pts
+            {Math.round(currentSpent).toLocaleString('vi-VN')}{nextTier ? ` / ${nextTierThreshold.toLocaleString('vi-VN')}` : ''} VND
           </span>
         </div>
 

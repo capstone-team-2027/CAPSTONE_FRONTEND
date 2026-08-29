@@ -1,23 +1,41 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, User, ShieldCheck, Star, MapPin, Navigation, CheckCircle, XCircle, Car, CircleAlert, Eye } from 'lucide-react';
 import { useFetchClient_v2 } from '../../../hook/useFetchClient';
 import { RECEPTION_API } from '../../../constants/reception/receptionApiEndpoint';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 
-// Icons for Map
-const garageIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/1986/1986937.png',
-  iconSize: [35, 35],
-  iconAnchor: [17, 35],
-  popupAnchor: [0, -35],
+// Icons for Map — dùng SVG nhúng trực tiếp thay vì ảnh PNG tải từ CDN ngoài, vì các nguồn
+// ảnh bên ngoài (vd flaticon) có thể chặn hotlink và hiện icon lỗi (⊘).
+const garageIcon = L.divIcon({
+  className: 'custom-garage-marker',
+  html: `
+    <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:#00285E;border-radius:9999px;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.35);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 21V10l9-7 9 7v11" />
+        <path d="M9 21v-6h6v6" />
+      </svg>
+    </div>
+  `,
+  iconSize: [28, 28],
+  iconAnchor: [14, 14],
+  popupAnchor: [0, -14],
 });
 
-const userIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/3204/3204936.png',
-  iconSize: [35, 35],
-  iconAnchor: [17, 35],
-  popupAnchor: [0, -35],
+const userIcon = L.divIcon({
+  className: 'custom-user-marker',
+  html: `
+    <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="#DC2626" stroke="white" stroke-width="1.5">
+        <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
+        <circle cx="12" cy="10" r="3" fill="white" stroke="none" />
+      </svg>
+    </div>
+  `,
+  iconSize: [28, 28],
+  iconAnchor: [14, 28],
+  popupAnchor: [0, -28],
 });
 
 const MapFitter = ({ bounds }: { bounds: L.LatLngBounds | null }) => {
@@ -54,15 +72,17 @@ interface AssignTechnicianModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAssign: (technicianId: number) => void;
+  onCancel?: () => void;
   customerName: string;
   customerLat?: number;
   customerLng?: number;
 }
 
-export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({ 
-  isOpen, 
-  onClose, 
-  onAssign, 
+export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
+  isOpen,
+  onClose,
+  onAssign,
+  onCancel,
   customerName,
   customerLat,
   customerLng
@@ -120,12 +140,12 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
               
               setDistanceInfo({ distKm, durMin });
               
-              // Tính tiền (<=15km: 15k/km min 150k. >15km: 15*15k + extra)
+              // Tính tiền (<=5km: 15k/km min 200k. >5km: 200k + extra)
               let price = 0;
-              if (distKm <= 15) {
-                price = Math.max(150000, distKm * 15000);
+              if (distKm <= 5) {
+                price = Math.max(200000, distKm * 15000);
               } else {
-                price = (15 * 15000) + ((distKm - 15) * 20000);
+                price = 200000 + ((distKm - 5) * 20000);
               }
               setEstimatedPrice(price);
 
@@ -222,12 +242,14 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
                 )}
 
                 <div className="flex gap-3 mt-2">
-                  <button
-                    onClick={onClose}
-                    className="flex-1 py-3 px-4 bg-white border border-rose-200 text-rose-600 font-bold rounded-xl hover:bg-rose-50 transition-colors flex justify-center items-center gap-2"
-                  >
-                    <XCircle size={20} /> Từ chối
-                  </button>
+                  {onCancel && (
+                    <button
+                      onClick={onCancel}
+                      className="flex-1 py-3 px-4 bg-white border border-rose-200 text-rose-600 font-bold rounded-xl hover:bg-rose-50 transition-colors flex justify-center items-center gap-2"
+                    >
+                      <XCircle size={20} /> Hủy
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       if (selectedTechnicianId) {
@@ -238,12 +260,12 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
                     }}
                     disabled={!selectedTechnicianId}
                     className={`flex-1 py-3 px-4 text-white font-bold rounded-xl transition-colors flex justify-center items-center gap-2 shadow-lg ${
-                      selectedTechnicianId 
-                        ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20' 
+                      selectedTechnicianId
+                        ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
                         : 'bg-slate-300 cursor-not-allowed shadow-none'
                     }`}
                   >
-                    <CheckCircle size={20} /> Tiếp nhận
+                    <CheckCircle size={20} /> Cập nhật
                   </button>
                 </div>
               </div>
@@ -328,9 +350,9 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
             {expandedTechnicianId != null && (() => {
               const expandedTech = technicians.find((t) => t.id === expandedTechnicianId);
               if (!expandedTech) return null;
-              return (
+              return createPortal(
                 <div
-                  className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
+                  className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
                   onClick={() => {
                     setExpandedTechnicianId(null);
                   }}
@@ -368,7 +390,8 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
                       ))}
                     </div>
                   </div>
-                </div>
+                </div>,
+                document.body
               );
             })()}
           </div>

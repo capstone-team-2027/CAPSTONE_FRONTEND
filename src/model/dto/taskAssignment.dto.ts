@@ -80,26 +80,6 @@ export interface GetIssuesReportItemResponse {
     reportedByTechnician?: IssueHistoryTaskAssignmentTechnician | null;
 }
 
-// ===== Tra cứu chẩn đoán (Diagnostic Knowledge) =====
-
-export interface DiagnosticVehicleModel {
-    id: number;
-    model_name: string;
-}
-export interface DiagnosticVehicleMake {
-    id: number;
-    make_name: string;
-}
-export interface DiagnosticKnowledge {
-    id: number;
-    symptom: string;
-    possible_causes: string | null;
-    model_id: number | null;
-    make_id: number | null;
-    model?: DiagnosticVehicleModel | null;
-    make?: DiagnosticVehicleMake | null;
-}
-
 export interface VehicleMake {
     id: number;
     make_name: string;

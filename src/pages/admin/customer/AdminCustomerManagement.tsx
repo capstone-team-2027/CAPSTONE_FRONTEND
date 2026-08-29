@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
+  ArrowLeft,
   Users,
   UserPlus,
   Pencil,
@@ -22,7 +23,8 @@ import {
   Sparkles,
   ShieldCheck,
   Wrench,
-  MapPin
+  MapPin,
+  Loader2
 } from "lucide-react";
 import RescueTrackingModal from "../../../components/share/RescueTrackingModal";
 import { useSocket } from "../../../hook/useSocket";
@@ -44,11 +46,12 @@ import {
 } from "../../../model/customerTypes";
 
 export default function AdminCustomerManagement() {
+  const navigate = useNavigate();
   const { showToast } = useOutletContext<{
     searchQuery: string;
     showToast: (text: string, type?: "success" | "info" | "warning") => void;
   }>();
-  const { fetchPrivate } = useFetchClient_v2();
+  const { fetchPrivate, fetchPrivateForm } = useFetchClient_v2();
   const socket = useSocket();
 
   // Primary State
@@ -122,9 +125,9 @@ export default function AdminCustomerManagement() {
   }, [socket]);
 
   // Selection & Modal State
-  const navigate = useNavigate();
   const [editingCustomer, setEditingCustomer] = useState<CustomerData | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const handleCustomerClick = (customer: CustomerData) => {
     navigate(`/admin/customers/${customer.id}`);
@@ -137,6 +140,123 @@ export default function AdminCustomerManagement() {
   const [editCustTier, setEditCustTier] = useState<MembershipTier>("BRONZE");
   const [editCustPoints, setEditCustPoints] = useState(0);
   const [editCustStatus, setEditCustStatus] = useState<CustomerStatus>("ACTIVE");
+  const [editCustAvatar, setEditCustAvatar] = useState("");
+  const [isUploadingEditAvatar, setIsUploadingEditAvatar] = useState(false);
+
+  const handleCustEditAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    try {
+      setIsUploadingEditAvatar(true);
+      const response = await fetchPrivateForm(
+        `${CUSTOMER_API_ENDPOINTS.LIST}/upload-avatar`,
+        "POST",
+        formData
+      );
+      if (response && response.url) {
+        setEditCustAvatar(response.url);
+      }
+    } catch (err: any) {
+      showToast(err.message || "Tải ảnh đại diện thất bại", "warning");
+    } finally {
+      setIsUploadingEditAvatar(false);
+    }
+  };
+
+  // Create Customer Form State
+  const [createCustName, setCreateCustName] = useState("");
+  const [createCustPhone, setCreateCustPhone] = useState("");
+  const [createCustEmail, setCreateCustEmail] = useState("");
+  const [createCustTier, setCreateCustTier] = useState<MembershipTier>("BRONZE");
+  const [createCustPoints, setCreateCustPoints] = useState(0);
+  const [createCustStatus, setCreateCustStatus] = useState<CustomerStatus>("ACTIVE");
+  const [createCustType, setCreateCustType] = useState<CustomerType>("REGISTERED");
+  const [createCustPassword, setCreateCustPassword] = useState("");
+  const [createCustConfirmPassword, setCreateCustConfirmPassword] = useState("");
+  const [createCustAvatar, setCreateCustAvatar] = useState("");
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  const handleCustAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    try {
+      setIsUploadingAvatar(true);
+      const response = await fetchPrivateForm(
+        `${CUSTOMER_API_ENDPOINTS.LIST}/upload-avatar`,
+        "POST",
+        formData
+      );
+      if (response && response.url) {
+        setCreateCustAvatar(response.url);
+      }
+    } catch (err: any) {
+      showToast(err.message || "Tải ảnh đại diện thất bại", "warning");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const handleOpenCreate = () => {
+    setCreateCustName("");
+    setCreateCustPhone("");
+    setCreateCustEmail("");
+    setCreateCustTier("BRONZE");
+    setCreateCustPoints(0);
+    setCreateCustStatus("ACTIVE");
+    setCreateCustType("REGISTERED");
+    setCreateCustPassword("");
+    setCreateCustConfirmPassword("");
+    setCreateCustAvatar("");
+    setIsUploadingAvatar(false);
+    setIsCreateModalOpen(true);
+  };
+
+  const handleSaveCreate = async () => {
+    if (!createCustName.trim() || !createCustPhone.trim()) {
+      showToast("Vui lòng điền đầy đủ Tên và Số điện thoại", "warning");
+      return;
+    }
+    if (!createCustPassword) {
+      showToast("Vui lòng nhập mật khẩu", "warning");
+      return;
+    }
+    if (createCustPassword !== createCustConfirmPassword) {
+      showToast("Mật khẩu xác nhận không trùng khớp", "warning");
+      return;
+    }
+    try {
+      const response = await fetchPrivate<{ success: boolean; message?: string }>(
+        CUSTOMER_API_ENDPOINTS.LIST,
+        "POST",
+        {
+          fullName: createCustName,
+          phoneNumber: createCustPhone,
+          email: null,
+          membership_tier: "BRONZE",
+          loyalty_points: 0,
+          status: "ACTIVE",
+          type: "REGISTERED",
+          password: createCustPassword,
+          avatar: createCustAvatar || null
+        }
+      );
+      if (response) {
+        showToast("Tạo khách hàng mới thành công", "success");
+        setIsCreateModalOpen(false);
+        window.location.reload();
+      }
+    } catch (err: any) {
+      showToast(err?.message || "Có lỗi xảy ra khi tạo khách hàng", "warning");
+    }
+  };
 
   // Computed Global Statistics
   const statistics = useMemo(() => {
@@ -172,7 +292,7 @@ export default function AdminCustomerManagement() {
 
   // Filtering Logic
   const filteredCustomers = useMemo(() => {
-    return customers.filter(c => {
+    const list = customers.filter(c => {
       const matchesSearch =
         c.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.phoneNumber.includes(searchTerm) ||
@@ -183,6 +303,21 @@ export default function AdminCustomerManagement() {
       const matchesType = customerTypeFilter === "ALL" || c.type === customerTypeFilter;
 
       return matchesSearch && matchesStatus && matchesTier && matchesType;
+    });
+
+    const tierPriority: Record<MembershipTier, number> = {
+      PLATINUM: 1,
+      GOLD: 2,
+      SILVER: 3,
+      BRONZE: 4,
+      NONE: 5
+    };
+
+    return list.sort((a, b) => {
+      const pA = tierPriority[a.membership_tier] || 5;
+      const pB = tierPriority[b.membership_tier] || 5;
+      if (pA !== pB) return pA - pB;
+      return b.loyalty_points - a.loyalty_points;
     });
   }, [customers, searchTerm, statusFilter, tierFilter, customerTypeFilter]);
 
@@ -199,35 +334,54 @@ export default function AdminCustomerManagement() {
     setEditCustTier(customer.membership_tier);
     setEditCustPoints(customer.loyalty_points);
     setEditCustStatus(customer.status);
+    setEditCustAvatar(customer.avatar || "");
+    setIsUploadingEditAvatar(false);
     setIsEditModalOpen(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editCustName.trim() || !editCustPhone.trim()) {
       showToast("Vui lòng điền đầy đủ Tên và Số điện thoại", "warning");
       return;
     }
 
-    setCustomers(prev =>
-      prev.map(c =>
-        c.id === editingCustomer?.id
-          ? {
-            ...c,
-            fullName: editCustName,
-            phoneNumber: editCustPhone,
-            email: editCustEmail,
-            membership_tier: editCustTier,
-            loyalty_points: Number(editCustPoints),
-            status: editCustStatus
-          }
-          : c
-      )
-    );
+    try {
+      await fetchPrivate(
+        `${CUSTOMER_API_ENDPOINTS.LIST}/${editingCustomer?.id}`,
+        "PUT",
+        {
+          fullName: editCustName,
+          phoneNumber: editCustPhone,
+          membership_tier: editCustTier,
+          loyalty_points: Number(editCustPoints),
+          status: editCustStatus,
+          avatar: editCustAvatar || null
+        }
+      );
 
+      setCustomers(prev =>
+        prev.map(c =>
+          c.id === editingCustomer?.id
+            ? {
+              ...c,
+              fullName: editCustName,
+              phoneNumber: editCustPhone,
+              email: editCustEmail,
+              membership_tier: editCustTier,
+              loyalty_points: Number(editCustPoints),
+              status: editCustStatus,
+              avatar: editCustAvatar
+            }
+            : c
+        )
+      );
 
-    setIsEditModalOpen(false);
-    setEditingCustomer(null);
-    showToast("Cập nhật thông tin khách hàng thành công", "success");
+      setIsEditModalOpen(false);
+      setEditingCustomer(null);
+      showToast("Cập nhật thông tin khách hàng thành công", "success");
+    } catch (err: any) {
+      showToast(err?.message || "Có lỗi xảy ra khi cập nhật khách hàng", "warning");
+    }
   };
 
   const getInitials = (name: string) =>
@@ -266,22 +420,31 @@ export default function AdminCustomerManagement() {
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
-            Quản lý Khách Hàng
-          </h1>
-          <p className="text-slate-500 text-sm">
-            Xem hồ sơ, lịch sử dịch vụ, hạng thành viên và thống kê toàn bộ khách hàng.
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            title="Quay lại"
+            className="mt-0.5 w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-[#00285E] border border-[#00285E] text-white hover:bg-[#003C7D] hover:border-[#003C7D] active:scale-[0.97] transition-all"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">
+              Quản lý Khách Hàng
+            </h1>
+            <p className="text-slate-500 text-sm">
+              Xem hồ sơ, lịch sử dịch vụ, hạng thành viên và thống kê toàn bộ khách hàng.
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
           <button
-            onClick={handleExportCSV}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm"
+            onClick={handleOpenCreate}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#F9A11B] text-[#00285E] rounded-xl text-sm font-bold shadow-md shadow-[#F9A11B]/20 hover:bg-[#E08F12] transition-all transform hover:translate-y-[-1px]"
           >
-            <Download size={16} />
-            <span>Xuất báo cáo</span>
+            <UserPlus size={16} />
+            <span>Tạo khách hàng mới</span>
           </button>
         </div>
       </div>
@@ -555,7 +718,7 @@ export default function AdminCustomerManagement() {
       {/* EDIT CUSTOMER MODAL */}
       <AnimatePresence>
         {isEditModalOpen && (
-          <div className="fixed inset-0 z-55 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-4 pt-24 md:pt-4 overflow-y-auto">
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -586,7 +749,39 @@ export default function AdminCustomerManagement() {
               </div>
 
               {/* Modal Body */}
-              <div className="p-6 space-y-4">
+              <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                {/* Avatar Section */}
+                <div className="flex flex-col items-center gap-2.5 pb-4 border-b border-slate-100">
+                  <div className="relative w-20 h-20 rounded-full overflow-hidden shadow-md border border-slate-200 bg-[#EDF3FF] flex items-center justify-center">
+                    {editCustAvatar ? (
+                      <img
+                        src={editCustAvatar}
+                        alt="Customer Avatar"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Users size={36} className="text-[#00285E]/30" />
+                    )}
+                    
+                    {isUploadingEditAvatar && (
+                      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center">
+                        <Loader2 className="animate-spin text-white" size={18} />
+                      </div>
+                    )}
+                  </div>
+
+                  <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 transition-all cursor-pointer">
+                    <span>Thay đổi ảnh đại diện</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCustEditAvatarUpload}
+                      disabled={isUploadingEditAvatar}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Họ và tên</label>
@@ -609,17 +804,6 @@ export default function AdminCustomerManagement() {
                       className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
                     />
                   </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Email</label>
-                  <input
-                    type="email"
-                    value={editCustEmail}
-                    onChange={(e) => setEditCustEmail(e.target.value)}
-                    placeholder="customer@gmail.com"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
-                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -676,6 +860,141 @@ export default function AdminCustomerManagement() {
                   className="px-6 py-2.5 bg-[#00285E] text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#062047] transition-all"
                 >
                   Lưu thay đổi
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* CREATE CUSTOMER MODAL */}
+      <AnimatePresence>
+        {isCreateModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-4 pt-24 md:pt-4 overflow-y-auto">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsCreateModalOpen(false)}
+              className="absolute inset-0 bg-slate-900/50 backdrop-blur-xs"
+            />
+            {/* Modal Box */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col"
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg">Tạo khách hàng mới</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Thêm thông tin khách hàng mới vào hệ thống</p>
+                </div>
+                <button
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                {/* Avatar Section */}
+                <div className="flex flex-col items-center gap-2.5 pb-4 border-b border-slate-100">
+                  <div className="relative w-20 h-20 rounded-full overflow-hidden shadow-md border border-slate-200 bg-[#EDF3FF] flex items-center justify-center">
+                    {createCustAvatar ? (
+                      <img
+                        src={createCustAvatar}
+                        alt="Customer Avatar"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Users size={36} className="text-[#00285E]/30" />
+                    )}
+                    
+                    {isUploadingAvatar && (
+                      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center">
+                        <Loader2 className="animate-spin text-white" size={18} />
+                      </div>
+                    )}
+                  </div>
+
+                  <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 transition-all cursor-pointer">
+                    <span>Chọn ảnh đại diện</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCustAvatarUpload}
+                      disabled={isUploadingAvatar}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Họ và tên</label>
+                    <input
+                      type="text"
+                      value={createCustName}
+                      onChange={(e) => setCreateCustName(e.target.value)}
+                      placeholder="Nguyễn Văn A"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Số điện thoại</label>
+                    <input
+                      type="text"
+                      value={createCustPhone}
+                      onChange={(e) => setCreateCustPhone(e.target.value.replace(/\D/g, ""))}
+                      placeholder="0901234567"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Mật khẩu</label>
+                    <input
+                      type="password"
+                      value={createCustPassword}
+                      onChange={(e) => setCreateCustPassword(e.target.value)}
+                      placeholder="Mật khẩu tài khoản"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Xác nhận mật khẩu</label>
+                    <input
+                      type="password"
+                      value={createCustConfirmPassword}
+                      onChange={(e) => setCreateCustConfirmPassword(e.target.value)}
+                      placeholder="Nhập lại mật khẩu"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all font-semibold text-slate-800"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleSaveCreate}
+                  className="px-6 py-2.5 bg-[#F9A11B] text-[#00285E] rounded-xl text-sm font-bold shadow-md hover:bg-[#E08F12] transition-all"
+                >
+                  Tạo khách hàng
                 </button>
               </div>
             </motion.div>

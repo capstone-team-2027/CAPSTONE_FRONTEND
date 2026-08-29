@@ -3,17 +3,31 @@ import { useNavigate } from "react-router-dom";
 import { Car, ClipboardList, User, UserPlus, Wrench } from "lucide-react";
 import { useFetchClient } from "../../hook/useFetchClient";
 import { TECHNICIAN_LEADER_TASK_ENDPOINTS } from "../../constants/technicianLeader/taskManagementEndpoint";
-import type { GetLeaderTasksResponse } from "../../model/dto/leaderTaskManagement.dto";
 import type { TaskTrackingServiceOrder } from "../../model/dto/leaderTaskTracking.dto";
 
 const formatDate = (d?: string | null) =>
   d ? new Date(d).toLocaleDateString("vi-VN") : "—";
 
+// Lịch hẹn lễ tân đã tiếp nhận (Appointment.status) nhưng chưa tạo lệnh sửa chữa (Service_Order)
+// — dùng chung API với LeaderAppointmentList.tsx (GET_RECEIVED_APPOINTMENTS), lọc còn lại những
+// cái chưa có serviceOrder, khác hẳn "task chưa gán KTV" (task chỉ tồn tại sau khi có lệnh).
+interface ReceivedAppointment {
+  id: number;
+  createdAt?: string;
+  scheduled_time?: string;
+  serviceOrder?: { id: number } | null;
+  vehicle?: {
+    license_plate?: string;
+    model?: { model_name?: string; make?: { make_name?: string } };
+  };
+  customer?: { name?: string; user?: { fullName?: string } };
+}
+
 export default function LeaderDashboard() {
   const navigate = useNavigate();
   const { fetchPrivate } = useFetchClient();
 
-  const [unassignedOrders, setUnassignedOrders] = useState<GetLeaderTasksResponse[]>([]);
+  const [pendingAppointments, setPendingAppointments] = useState<ReceivedAppointment[]>([]);
   const [activeOrders, setActiveOrders] = useState<TaskTrackingServiceOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -21,15 +35,16 @@ export default function LeaderDashboard() {
     const loadOverview = async () => {
       setIsLoading(true);
       try {
-        const [tasksRes, trackingRes] = await Promise.all([
-          fetchPrivate<GetLeaderTasksResponse[]>(
-            TECHNICIAN_LEADER_TASK_ENDPOINTS.GET_ALL_TASKS,
+        const [appointmentsRes, trackingRes] = await Promise.all([
+          fetchPrivate<ReceivedAppointment[]>(
+            TECHNICIAN_LEADER_TASK_ENDPOINTS.GET_RECEIVED_APPOINTMENTS,
           ),
           fetchPrivate<TaskTrackingServiceOrder[]>(
             TECHNICIAN_LEADER_TASK_ENDPOINTS.GET_TASK_TRACKING,
           ),
         ]);
-        setUnassignedOrders(tasksRes?.data ?? []);
+        const allAppointments: ReceivedAppointment[] = appointmentsRes?.data ?? [];
+        setPendingAppointments(allAppointments.filter((a) => !a.serviceOrder));
         setActiveOrders(trackingRes?.data ?? []);
       } catch (error) {
         console.error("Lỗi khi tải tổng quan phân công:", error);
@@ -40,10 +55,6 @@ export default function LeaderDashboard() {
     void loadOverview();
   }, []);
 
-  const unassignedTaskCount = unassignedOrders.reduce(
-    (sum, order) => sum + order.tasks.length,
-    0,
-  );
   const inProgressTaskCount = activeOrders.reduce(
     (sum, order) => sum + order.tasks.filter((t) => t.status === "IN_PROGRESS").length,
     0,
@@ -51,8 +62,8 @@ export default function LeaderDashboard() {
 
   const stats = [
     {
-      label: "Task chưa gán",
-      value: isLoading ? "—" : unassignedTaskCount,
+      label: "Lịch hẹn chờ tạo lệnh",
+      value: isLoading ? "—" : pendingAppointments.length,
       icon: UserPlus,
       tint: "bg-blue-50 text-blue-600",
     },
@@ -111,10 +122,10 @@ export default function LeaderDashboard() {
           <div className="px-6 py-4 flex items-center justify-between" style={{ backgroundColor: "#00285E" }}>
             <h2 className="text-sm font-bold text-white flex items-center gap-2">
               <ClipboardList size={16} className="text-[#F9A11B]" />
-              Xe có công việc chưa gán kỹ thuật viên
+              Các lịch hẹn đã tiếp nhận
             </h2>
             <button
-              onClick={() => navigate("/leader/assignments")}
+              onClick={() => navigate("/leader/appointments")}
               className="text-xs font-bold text-white/80 hover:text-[#F9A11B] transition-colors"
             >
               Xem tất cả
@@ -125,24 +136,24 @@ export default function LeaderDashboard() {
             <div className="py-12 flex items-center justify-center">
               <div className="w-8 h-8 border-4 border-[#00285E] border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : unassignedOrders.length === 0 ? (
+          ) : pendingAppointments.length === 0 ? (
             <div className="py-12 flex flex-col items-center justify-center text-center gap-3">
               <div className="w-14 h-14 rounded-2xl bg-[#EDF3FF] flex items-center justify-center">
                 <UserPlus size={26} className="text-[#00285E]" />
               </div>
               <h3 className="text-sm font-bold text-slate-800">
-                Không có công việc nào chờ phân công
+                Không có lịch hẹn nào chờ tạo lệnh
               </h3>
               <p className="text-xs text-slate-500 max-w-md">
-                Danh sách sẽ hiển thị ngay khi có task mới cần gán kỹ thuật viên phụ trách.
+                Danh sách sẽ hiển thị ngay khi lễ tân tiếp nhận xe nhưng chưa tạo lệnh sửa chữa.
               </p>
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {unassignedOrders.slice(0, 6).map((order) => (
+              {pendingAppointments.slice(0, 6).map((appt) => (
                 <button
-                  key={order.id}
-                  onClick={() => navigate("/leader/assignments")}
+                  key={appt.id}
+                  onClick={() => navigate("/leader/appointments")}
                   className="w-full flex items-center justify-between gap-4 px-6 py-4 hover:bg-slate-50/60 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -151,22 +162,20 @@ export default function LeaderDashboard() {
                     </div>
                     <div className="min-w-0">
                       <div className="text-sm font-bold text-slate-800 truncate">
-                        {order.vehicle?.license_plate || "—"} · {order.vehicle?.model?.model_name || "—"}
+                        {appt.vehicle?.license_plate || "—"} · {appt.vehicle?.model?.model_name || "—"}
                       </div>
                       <div className="text-xs text-slate-500 flex items-center gap-1.5 truncate">
                         <User size={11} className="shrink-0" />
-                        {order.vehicle?.customer?.name ||
-                          order.vehicle?.customer?.user?.fullName ||
-                          "Khách hàng"}
+                        {appt.customer?.name || appt.customer?.user?.fullName || "Khách hàng"}
                       </div>
                     </div>
                   </div>
                   <div className="text-right shrink-0">
                     <div className="text-xs font-bold text-[#00285E]">
-                      {order.tasks.length} task chưa gán
+                      Chờ tạo lệnh
                     </div>
                     <div className="text-[11px] text-slate-400">
-                      Tiếp nhận: {formatDate(order.createdAt)}
+                      Tiếp nhận: {formatDate(appt.scheduled_time || appt.createdAt)}
                     </div>
                   </div>
                 </button>

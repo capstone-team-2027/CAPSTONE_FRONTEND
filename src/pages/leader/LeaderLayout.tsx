@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  LayoutDashboard,
+  Home,
   ClipboardCheck,
   ClipboardList,
   ShieldCheck,
@@ -78,6 +78,13 @@ export default function LeaderLayout() {
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+  // Card cảnh báo nổi góc màn hình khi có việc khẩn — cùng kiểu UI với cảnh báo tồn kho thấp
+  // bên trang thủ kho (InventoryLayout.tsx), khác với toast thường (toastMessage) ở chỗ nổi bật
+  // hơn và người dùng phải tự đóng, không tự ẩn sau vài giây. serviceOrderId kèm theo để bấm
+  // "Xem chi tiết" là nhảy thẳng tới đúng đơn trong trang theo dõi công việc.
+  const [urgentAlert, setUrgentAlert] = useState<
+    { message: string; serviceOrderId?: number } | null
+  >(null);
 
   // Mở khóa AudioContext ở tương tác đầu tiên theo chính sách autoplay của trình duyệt.
   useEffect(() => {
@@ -124,7 +131,13 @@ export default function LeaderLayout() {
             fullName: userData.fullName,
             phoneNumber: userData.phoneNumber,
             avatar: userData.avatar,
-            role: userData.role,
+            // API login trả role dạng string ('TECHNICIAN_LEADER'), nhưng API profile trả cả
+            // OBJECT role — chuẩn hoá về roleCode để không ghi đè thành object, tránh join sai
+            // room socket ("role-[object Object]") khiến mất thông báo realtime.
+            role:
+              typeof userData.role === 'string'
+                ? userData.role
+                : userData.role?.roleCode,
           })
         );
       } catch (error) {
@@ -193,7 +206,14 @@ export default function LeaderLayout() {
 
     const joinRooms = () => {
       socket.emit('join-user', user.id);
-      if (user.role) socket.emit('join-role', user.role);
+      // API profile trả role là OBJECT ({ roleCode, roleName, ... }) — phải gửi đúng roleCode,
+      // nếu gửi cả object thì BE join nhầm room "role-[object Object]" và không nhận được
+      // urgent_notification (BE emit tới room "role-TECHNICIAN_LEADER").
+      const roleCode =
+        typeof user.role === 'string'
+          ? user.role
+          : (user.role as unknown as { roleCode?: string } | null)?.roleCode;
+      if (roleCode) socket.emit('join-role', roleCode);
     };
     joinRooms();
     socket.on('connect', joinRooms);
@@ -209,13 +229,26 @@ export default function LeaderLayout() {
       fetchNotifications();
       setIsNotificationOpen(true);
     };
+    // Chỉ hiện card cảnh báo nổi góc màn hình (giống cảnh báo tồn kho thấp bên thủ kho), KHÔNG
+    // tự bung panel chuông nữa — panel bung ra che mất card, gây cảm giác thông báo chỉ nằm
+    // trong icon chuông. Người dùng tự bấm chuông hoặc bấm "Xem chi tiết" trên card khi cần.
+    const handleUrgentNotification = (payload?: { message?: string; serviceOrderId?: number }) => {
+      playLeaderNotificationSound().catch(error => console.error('Không thể phát âm báo:', error));
+      setUrgentAlert({
+        message: payload?.message || 'Có công việc vừa hoàn thành, cần chú ý!',
+        serviceOrderId: payload?.serviceOrderId,
+      });
+      fetchUnreadCount();
+    };
     socket.on('new_notification', handleNewNotification);
     socket.on('customer_received', handleCustomerReceived);
+    socket.on('urgent_notification', handleUrgentNotification);
 
     return () => {
       socket.off('connect', joinRooms);
       socket.off('new_notification', handleNewNotification);
       socket.off('customer_received', handleCustomerReceived);
+      socket.off('urgent_notification', handleUrgentNotification);
     };
   }, [socket, user?.id, user?.role, isNotificationOpen]);
 
@@ -233,7 +266,7 @@ export default function LeaderLayout() {
     {
       label: 'Nội dung',
       items: [
-        { name: 'Tổng quan', icon: LayoutDashboard, path: '/leader' },
+        { name: 'Tổng quan', icon: Home, path: '/leader' },
         { name: 'Lịch hẹn đã tiếp nhận', icon: CalendarCheck, path: '/leader/appointments' },
         { name: 'Phân công kỹ thuật', icon: ClipboardCheck, path: '/leader/assignments' },
         { name: 'Theo dõi công việc', icon: ClipboardList, path: '/leader/task-tracking' },
@@ -399,13 +432,14 @@ export default function LeaderLayout() {
                           onClick={() => {
                             if (!notif.isRead) handleMarkAsRead(notif.id);
                           }}
-                          className={`p-3 rounded-xl cursor-pointer transition-colors mb-1 ${notif.isRead ? 'opacity-70 hover:bg-slate-50' : 'bg-blue-50/50 hover:bg-blue-50 border border-blue-100/50'}`}
+                          className={`p-3 rounded-xl cursor-pointer transition-colors mb-1 ${notif.priority === 'HIGH' ? 'bg-rose-50 border border-rose-200 hover:bg-rose-100' : notif.isRead ? 'opacity-70 hover:bg-slate-50' : 'bg-blue-50/50 hover:bg-blue-50 border border-blue-100/50'}`}
                         >
                           <div className="flex justify-between items-start gap-2 mb-1">
-                            <h4 className={`text-sm font-semibold ${notif.isRead ? 'text-slate-700' : 'text-slate-900'}`}>
+                            <h4 className={`text-sm font-semibold flex items-center gap-1.5 ${notif.priority === 'HIGH' ? 'text-rose-700' : notif.isRead ? 'text-slate-700' : 'text-slate-900'}`}>
+                              {notif.priority === 'HIGH' && <span className="rounded bg-rose-600 px-1.5 py-0.5 text-[9px] font-bold text-white shrink-0">KHẨN</span>}
                               {notif.title}
                             </h4>
-                            {!notif.isRead && <span className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0"></span>}
+                            {!notif.isRead && <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${notif.priority === 'HIGH' ? 'bg-rose-500' : 'bg-blue-500'}`}></span>}
                           </div>
                           <p className="text-xs text-slate-500 line-clamp-2">{notif.content}</p>
                           <span className="text-[10px] text-slate-400 mt-2 block font-medium">
@@ -534,7 +568,7 @@ export default function LeaderLayout() {
       )}
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 flex flex-col min-w-0 pb-16">
+      <main className="flex-1 flex flex-col min-w-0 pb-20 lg:pb-0">
 
         {/* DESKTOP HEADER BAR */}
         <header className="hidden lg:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-30">
@@ -649,12 +683,108 @@ export default function LeaderLayout() {
 
       </main>
 
+      {/* MOBILE BOTTOM NAV */}
+      {(() => {
+        const centerItem = menuItems.find((item) => item.name === 'Tổng quan');
+        const sideItems = [
+          ...menuItems.filter((item) => item.name !== 'Tổng quan'),
+          { name: 'Đăng xuất', icon: LogOut, path: '' },
+        ];
+        const half = Math.ceil(sideItems.length / 2);
+        const leftItems = sideItems.slice(0, half);
+        const rightItems = sideItems.slice(half);
+
+        const renderSideButton = (item: (typeof sideItems)[number]) => {
+          const Icon = item.icon;
+          const isActive = activeMenu === item.name;
+          const isLogout = item.name === 'Đăng xuất';
+          return (
+            <button
+              key={item.name}
+              onClick={() => (isLogout ? handleLogout() : navigate(item.path))}
+              className="flex flex-col items-center gap-1 px-1.5 py-1 min-w-0 shrink-0"
+            >
+              <Icon size={19} className={isLogout ? 'text-rose-500' : isActive ? 'text-[#00285E]' : 'text-slate-400'} />
+              <span className={`text-[8.5px] font-semibold truncate max-w-[56px] ${isLogout ? 'text-rose-500' : isActive ? 'text-[#00285E]' : 'text-slate-400'}`}>
+                {item.name}
+              </span>
+            </button>
+          );
+        };
+
+        return (
+          <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex items-end justify-around px-1 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2">
+            {leftItems.map(renderSideButton)}
+            {centerItem && (() => {
+              const Icon = centerItem.icon;
+              const isActive = activeMenu === centerItem.name;
+              return (
+                <button
+                  key={centerItem.name}
+                  onClick={() => navigate(centerItem.path)}
+                  className="flex flex-col items-center gap-1 -mt-6 shrink-0"
+                >
+                  <span
+                    className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-colors ${isActive ? 'bg-[#F9A11B] shadow-[#F9A11B]/40' : 'bg-[#00285E] shadow-[#00285E]/30'}`}
+                  >
+                    <Icon size={24} className="text-white" />
+                  </span>
+                  <span className={`text-[10px] font-bold ${isActive ? 'text-[#F9A11B]' : 'text-[#00285E]'}`}>
+                    {centerItem.name}
+                  </span>
+                </button>
+              );
+            })()}
+            {rightItems.map(renderSideButton)}
+          </nav>
+        );
+      })()}
+
       <LogoutConfirmModal
         isOpen={showLogoutConfirm}
         onCancel={() => setShowLogoutConfirm(false)}
         onConfirm={handleLogoutConfirm}
       />
 
+      {/* Card cảnh báo việc khẩn nổi góc màn hình — cùng kiểu UI với cảnh báo tồn kho thấp bên
+          trang thủ kho (InventoryLayout.tsx), tự đứng yên tới khi người dùng đóng. */}
+      <AnimatePresence>
+        {urgentAlert && (
+          <motion.div
+            initial={{ opacity: 0, x: 100, y: 0 }}
+            animate={{ opacity: 1, x: 0, y: 0 }}
+            exit={{ opacity: 0, x: 100 }}
+            className="fixed bottom-6 right-6 z-[9999] max-w-sm w-full bg-white/95 backdrop-blur-md border border-amber-200 rounded-2xl p-4 shadow-2xl flex items-start gap-3.5 select-none"
+          >
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+              <AlertTriangle size={20} className="animate-bounce text-[#F9A11B]" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <h4 className="font-bold text-slate-800 text-sm">Có công việc vừa hoàn thành!</h4>
+              <p className="text-xs text-slate-500 leading-normal">{urgentAlert.message}</p>
+              <button
+                onClick={() => {
+                  navigate('/leader/task-tracking', {
+                    state: urgentAlert.serviceOrderId
+                      ? { expandServiceOrderId: urgentAlert.serviceOrderId }
+                      : undefined,
+                  });
+                  setUrgentAlert(null);
+                }}
+                className="text-xs font-bold text-[#00285E] hover:text-[#F9A11B] transition-colors mt-1 block cursor-pointer bg-transparent border-0 p-0"
+              >
+                Xem chi tiết &rarr;
+              </button>
+            </div>
+            <button
+              onClick={() => setUrgentAlert(null)}
+              className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors shrink-0 cursor-pointer bg-transparent border-0"
+            >
+              <X size={16} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

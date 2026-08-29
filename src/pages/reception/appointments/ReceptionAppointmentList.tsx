@@ -25,8 +25,8 @@ import { APPOINTMENT_API_ENDPOINTS } from '../../../constants/reception/appointm
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   pending: { label: 'Chờ xác nhận', color: '#D97706', bg: '#FEF3C7', icon: Clock },
   confirmed: { label: 'Chờ tiếp nhận', color: '#2563EB', bg: '#DBEAFE', icon: Clock },
-  information_received: { label: 'Đã tiếp nhận', color: '#EA580C', bg: '#FED7AA', icon: CheckCircle2 },
-  in_progress: { label: 'Đã tiếp nhận ', color: '#EA580C', bg: '#FED7AA', icon: Loader2 },
+  information_received: { label: 'Đã tiếp nhận', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
+  in_progress: { label: 'Đã tiếp nhận', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
   completed: { label: 'Đã tiếp nhận', color: '#059669', bg: '#D1FAE5', icon: CheckCircle2 },
   cancelled: { label: 'Đã hủy', color: '#DC2626', bg: '#FEE2E2', icon: XCircle },
   no_show: { label: 'Khách không đến (No Show)', color: '#6B7280', bg: '#F3F4F6', icon: XCircle },
@@ -491,11 +491,7 @@ export default function AppointmentList() {
                       <Eye size={14} /> Chi tiết
                     </button>
                     {(apt.status === 'confirmed' || apt.status === 'pending' || apt.status === 'in_progress') && (
-                      apt.hasServiceOrder ? (
-                        <button onClick={() => navigate(`/reception/service-orders/${apt.serviceOrderId}`)} className="flex items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-100 px-3 py-2 text-xs font-bold text-[#00285E] hover:bg-emerald-200">
-                          <CarFront size={14} /> Xem Lệnh S/C
-                        </button>
-                      ) : apt.status === 'in_progress' ? (
+                      apt.hasServiceOrder ? null : apt.status === 'in_progress' ? (
                         <button onClick={() => navigate(`/reception/service-orders/create?appointmentId=${apt.id}`)} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#00285E] px-3 py-2 text-xs font-bold text-white hover:bg-[#001a3f]">
                           <CarFront size={14} /> Tạo hóa đơn
                         </button>
@@ -601,15 +597,7 @@ export default function AppointmentList() {
                           </button>
                           {(apt.status === 'confirmed' || apt.status === 'pending' || apt.status === 'in_progress') && (
                             <>
-                              {apt.hasServiceOrder ? (
-                                <button
-                                  onClick={() => navigate(`/reception/service-orders/${apt.serviceOrderId}`)}
-                                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#00285E] bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 transition-colors"
-                                >
-                                  <CarFront size={13} />
-                                  Xem Lệnh S/C
-                                </button>
-                              ) : apt.status === 'in_progress' ? (
+                              {apt.hasServiceOrder ? null : apt.status === 'in_progress' ? (
                                 <button
                                   onClick={() => navigate(`/reception/service-orders/create?appointmentId=${apt.id}`)}
                                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:bg-[#001a3f] transition-colors"

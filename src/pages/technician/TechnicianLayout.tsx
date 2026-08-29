@@ -14,7 +14,7 @@ import {
   Info,
   AlertTriangle,
   Siren,
-  LayoutDashboard,
+  Home,
   RefreshCw,
 } from "lucide-react";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
@@ -191,7 +191,7 @@ export default function TechnicianLayout() {
     {
       label: null,
       items: [
-        { name: "Tổng quan", icon: LayoutDashboard, path: "/technician/overview" },
+        { name: "Tổng quan", icon: Home, path: "/technician/overview" },
         { name: 'Cứu hộ khẩn cấp', icon: Siren, path: '/technician/rescue' },
         { name: "Phân công", icon: CheckSquare, path: "/technician/assignments" },
         { name: "Lịch sử công việc", icon: History, path: "/technician/work-history" },
@@ -268,7 +268,7 @@ export default function TechnicianLayout() {
                     >
                       <Icon
                         size={18}
-                        className={isActive ? "text-white" : (item.name === 'Cứu hộ khẩn cấp' ? 'text-rose-300 group-hover:text-rose-200' : 'text-blue-200/60 group-hover:text-white')}
+                        className={isActive ? "text-white" : "text-blue-200/60 group-hover:text-white"}
                       />
                       <span>{item.name}</span>
                     </button>
@@ -458,9 +458,9 @@ export default function TechnicianLayout() {
       )}
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 flex flex-col min-w-0 pb-16">
+      <main className="flex-1 flex flex-col min-w-0 pb-20 lg:pb-0">
         {/* DESKTOP HEADER BAR */}
-        <header className="hidden lg:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-25">
+        <header className="hidden lg:flex bg-white h-20 px-8 items-center justify-end border-b border-slate-100 shadow-xs sticky top-0 z-30">
           {/* Search bar */}
 
 
@@ -585,6 +585,62 @@ export default function TechnicianLayout() {
         {/* NESTED CONTENT PAGES RENDER HERE */}
         <Outlet context={{ searchQuery, setSearchQuery, showToast }} />
       </main>
+
+      {/* MOBILE BOTTOM NAV */}
+      {(() => {
+        const centerItem = menuItems.find((item) => item.name === "Tổng quan");
+        const sideItems = menuItems.filter((item) => item.name !== "Tổng quan");
+        const half = Math.ceil(sideItems.length / 2);
+        const leftItems = sideItems.slice(0, half);
+        const rightItems = sideItems.slice(half);
+
+        const renderSideButton = (item: (typeof menuItems)[number]) => {
+          const Icon = item.icon;
+          const isActive = activeMenu === item.name;
+          return (
+            <button
+              key={item.name}
+              onClick={() => navigate(item.path)}
+              className="flex flex-col items-center gap-1 px-2 py-1 min-w-0 shrink-0"
+            >
+              <Icon
+                size={20}
+                className={isActive ? "text-[#00285E]" : "text-slate-400"}
+              />
+              <span className={`text-[9px] font-semibold truncate max-w-[64px] ${isActive ? "text-[#00285E]" : "text-slate-400"}`}>
+                {item.name}
+              </span>
+            </button>
+          );
+        };
+
+        return (
+          <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex items-end justify-around px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2">
+            {leftItems.map(renderSideButton)}
+            {centerItem && (() => {
+              const Icon = centerItem.icon;
+              const isActive = activeMenu === centerItem.name;
+              return (
+                <button
+                  key={centerItem.name}
+                  onClick={() => navigate(centerItem.path)}
+                  className="flex flex-col items-center gap-1 -mt-6 shrink-0"
+                >
+                  <span
+                    className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-colors ${isActive ? "bg-[#F9A11B] shadow-[#F9A11B]/40" : "bg-[#00285E] shadow-[#00285E]/30"}`}
+                  >
+                    <Icon size={24} className="text-white" />
+                  </span>
+                  <span className={`text-[10px] font-bold ${isActive ? "text-[#F9A11B]" : "text-[#00285E]"}`}>
+                    {centerItem.name}
+                  </span>
+                </button>
+              );
+            })()}
+            {rightItems.map(renderSideButton)}
+          </nav>
+        );
+      })()}
 
       <LogoutConfirmModal
         isOpen={showLogoutConfirm}

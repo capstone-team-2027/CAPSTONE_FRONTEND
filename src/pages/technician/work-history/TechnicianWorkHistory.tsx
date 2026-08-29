@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   Car,
   Clock,
-  Coins,
   Eye,
   Filter,
   History,
@@ -18,7 +17,7 @@ import {
 import { useFetchClient_v2 as useFetchClient } from "../../../hook/useFetchClient";
 import { useSocket } from "../../../hook/useSocket";
 import { TASK_ASSIGNMENT_ENDPOINTS } from "../../../constants/technician/taskAssignmentEndpoint";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 interface WorkHistoryItem {
   id: number;
@@ -123,6 +122,7 @@ const formatStatus = (status: string) =>
 
 export default function TechnicianWorkHistory() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { fetchPrivate } = useFetchClient();
   const socket = useSocket();
   const [workHistory, setWorkHistory] = useState<WorkHistoryItem[]>([]);
@@ -231,6 +231,21 @@ export default function TechnicianWorkHistory() {
     void loadCompletedTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchPrivate]);
+
+  useEffect(() => {
+    const openServiceOrderId = (
+      location.state as { openServiceOrderId?: string } | null
+    )?.openServiceOrderId;
+    if (!openServiceOrderId || workHistory.length === 0) return;
+    const target = workHistory.find(
+      (item) => item.code === `SO-${openServiceOrderId}`,
+    );
+    if (target) {
+      setSelectedItem(target);
+    }
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workHistory]);
 
   // QC reject có thể rút task khỏi lịch sử hoàn thành -> tự tải lại khi có thông báo mới
   useEffect(() => {
@@ -422,13 +437,14 @@ export default function TechnicianWorkHistory() {
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-left text-sm">
+          <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="border-b border-slate-100 bg-[#00285E] text-[10px] font-bold uppercase tracking-widest text-blue-100 lg:bg-slate-50/70 lg:text-slate-400">
               <tr>
-                <th className="px-4 py-4">Mã</th>
-                <th className="px-4 py-4">Khách hàng & Xe</th>
+                <th className="px-4 py-4">Ngày bắt đầu</th>
+                <th className="px-4 py-4">Ngày kết thúc</th>
+                <th className="px-4 py-4">Thông tin khách hàng & Xe</th>
                 <th className="px-4 py-4">Trạng thái</th>
-                <th className="px-4 py-4 text-right">Thao tác</th>
+                <th className="px-4 py-4 text-left">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -437,8 +453,11 @@ export default function TechnicianWorkHistory() {
                   key={item.id}
                   className="transition-colors hover:bg-slate-50/60"
                 >
-                  <td className="px-4 py-4 font-bold text-[#00285E]">
-                    {item.code}
+                  <td className="px-4 py-4 whitespace-nowrap text-xs font-semibold text-slate-700">
+                    {formatDateTime(item.startedAt)}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-xs font-semibold text-slate-700">
+                    {formatDateTime(item.completedAt)}
                   </td>
                   <td className="px-4 py-4">
                     <div className="flex min-w-[220px] items-center gap-2">
@@ -458,11 +477,11 @@ export default function TechnicianWorkHistory() {
                     </div>
                   </td>
                   <td className="px-4 py-4">
-                    <span className="inline-flex whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                    <span className="inline-flex whitespace-nowrap rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white">
                       {formatStatus(item.status)}
                     </span>
                   </td>
-                  <td className="px-4 py-4 text-right">
+                  <td className="px-4 py-4">
                     <button
                       onClick={() => setSelectedItem(item)}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-[#00285E] px-3 py-1.5 text-xs font-bold text-white transition-all hover:brightness-125"
@@ -577,7 +596,7 @@ export default function TechnicianWorkHistory() {
 
             <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4 bg-slate-50/50">
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                <div className="bg-white rounded-2xl border border-slate-100 p-4">
                   <div className="flex items-center gap-1.5 mb-2.5">
                     <Users size={13} className="text-[#00285E]" />
                     <span className="text-[10px] font-bold text-[#00285E] uppercase tracking-widest">
@@ -592,7 +611,7 @@ export default function TechnicianWorkHistory() {
                     {selectedItem.customerPhone || "—"}
                   </p>
                 </div>
-                <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
+                <div className="bg-white rounded-2xl border border-slate-100 p-4">
                   <div className="flex items-center gap-1.5 mb-2.5">
                     <Car size={13} className="text-[#00285E]" />
                     <span className="text-[10px] font-bold text-[#00285E] uppercase tracking-widest">
@@ -608,13 +627,13 @@ export default function TechnicianWorkHistory() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl border border-slate-200/70 divide-y divide-slate-100">
+              <div className="bg-white rounded-2xl border border-slate-100 divide-y divide-slate-100">
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                       Dịch vụ
                     </span>
-                    <span className="inline-flex whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                    <span className="inline-flex whitespace-nowrap rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white">
                       {formatStatus(selectedItem.status)}
                     </span>
                   </div>
@@ -651,43 +670,27 @@ export default function TechnicianWorkHistory() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 divide-x divide-slate-100">
-                  <div className="p-4">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <Clock size={13} className="text-slate-400" />
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        Bắt đầu
-                      </span>
-                    </div>
-                    <p className="text-sm font-semibold text-slate-800">
-                      {formatDateTime(selectedItem.startedAt)}
-                    </p>
-                  </div>
-                  <div className="p-4">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <Clock size={13} className="text-slate-400" />
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        Hoàn thành
-                      </span>
-                    </div>
-                    <p className="text-sm font-semibold text-slate-800">
-                      {formatDateTime(selectedItem.completedAt)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-1.5">
-                    <Coins size={13} className="text-slate-400" />
+                <div className="p-4">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Clock size={13} className="text-slate-400" />
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Giá tiền
+                      Bắt đầu
                     </span>
                   </div>
-                  <span className="text-sm font-bold text-[#00285E]">
-                    {selectedItem.amount != null
-                      ? `${selectedItem.amount.toLocaleString("vi-VN")} VND`
-                      : "—"}
-                  </span>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {formatDateTime(selectedItem.startedAt)}
+                  </p>
+                </div>
+                <div className="p-4">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Clock size={13} className="text-slate-400" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      Hoàn thành
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {formatDateTime(selectedItem.completedAt)}
+                  </p>
                 </div>
               </div>
             </div>

@@ -4,7 +4,7 @@ export const RECEPTION_API = {
   APPOINTMENTS: `${BASE}/api/reception/appointments`,
   APPOINTMENT_DETAIL: (id: string) => `${BASE}/api/reception/appointments/${id}`,
   SERVICE_ORDERS: `${BASE}/api/reception/service-orders`,
-  FEEDBACK: `${BASE}/api/reception/feedback`,
+  FEEDBACK: `${BASE}/api/receptionist/feedback`,
   SERVICE_HISTORY: (customerId: string) => `${BASE}/api/reception/customers/${customerId}/history`,
   PAYMENTS: `${BASE}/api/reception/payments`,
   QUOTES: `${BASE}/api/reception/quotes`,
@@ -17,4 +17,5 @@ export const RECEPTION_API = {
   TECHNICIANS_WORKING_TODAY: `${BASE}/api/receptionist/technicians/working-today`,
   ASSIGN_RESCUE: `${BASE}/api/receptionist/rescue/assign`,
   CREATE_RESCUE: `${BASE}/api/receptionist/rescue/create`,
+  CANCEL_RESCUE: (rescueId: number) => `${BASE}/api/receptionist/rescue/${rescueId}/cancel`,
 };

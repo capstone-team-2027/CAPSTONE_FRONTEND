@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   CheckSquare,
   Search,
@@ -28,7 +28,6 @@ import { useFetchClient_v2 as useFetchClient } from "../../../hook/useFetchClien
 import { useSocket } from "../../../hook/useSocket";
 import { TASK_ASSIGNMENT_ENDPOINTS } from "../../../constants/technician/taskAssignmentEndpoint";
 import type {
-  DiagnosticKnowledge,
   VehicleMake,
   VehicleModel,
   AiSuggestCausesRequest,
@@ -266,7 +265,7 @@ const ASSIGNMENT_STATUS_CONFIG: Record<
     icon: Package,
   },
   PENDING_QC: {
-    label: "Chờ QC",
+    label: "Chờ nghiệm thu",
     className: "bg-violet-50 text-violet-700 border border-violet-200",
     icon: Eye,
   },
@@ -366,10 +365,11 @@ export default function TechnicianAssignments() {
   const [issueReportOpen, setIssueReportOpen] = useState(false);
   const [issueReportAssignment, setIssueReportAssignment] =
     useState<Assignment | null>(null);
+  // Bật lên khi tự đóng modal sau lúc hoàn thành hết task — chặn đúng 1 lần chạy kế tiếp của
+  // effect đồng bộ modal, tránh nó lấy lại assignment cũ từ danh sách vừa tải và mở lại modal.
+  const skipModalSyncRef = useRef(false);
   const [lookupOpen, setLookupOpen] = useState(false);
-  const [lookupView, setLookupView] = useState<"common" | "garage">("common");
   const [lookupTerm, setLookupTerm] = useState("");
-  const [diagnostics, setDiagnostics] = useState<DiagnosticKnowledge[]>([]);
   const [inspectionDiagnostics, setInspectionDiagnostics] = useState<
     InspectionHistoryItem[]
   >([]);
@@ -400,6 +400,7 @@ export default function TechnicianAssignments() {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   const [startingTaskAssignmentId, setStartingTaskAssignmentId] = useState<number | null>(null);
+  const [completingTaskAssignmentId, setCompletingTaskAssignmentId] = useState<number | null>(null);
   const [requestingExportServiceOrderId, setRequestingExportServiceOrderId] = useState<string | null>(null);
 
   const openIssueReportModal = (assignment: Assignment) => {
@@ -441,15 +442,6 @@ export default function TechnicianAssignments() {
   );
 
   const lookupRows = useMemo(() => {
-    if (lookupView === "common") {
-      return diagnostics.map((item) => ({
-        id: `common-${item.id}`,
-        issue: item.symptom || "—",
-        cause: item.possible_causes || "—",
-        vehicleLabel: null as string | null,
-        customerName: null as string | null,
-      }));
-    }
     return inspectionDiagnostics.map((item) => {
       const componentName = item.component?.name?.trim() ?? "";
       const errorDescription = item.error_description?.trim() ?? "";
@@ -476,7 +468,7 @@ export default function TechnicianAssignments() {
         customerName,
       };
     });
-  }, [diagnostics, inspectionDiagnostics, lookupView]);
+  }, [inspectionDiagnostics]);
 
   useEffect(() => {
     const fetchAssignments = async () => {
@@ -526,11 +518,22 @@ export default function TechnicianAssignments() {
                 ),
               ),
             );
+            // KTV đã báo xong task REPAIR, đang chờ KTV trưởng nghiệm thu — Task.status vẫn giữ
+            // IN_PROGRESS ở BE (chỉ assignment chuyển PENDING_QC), nên phải xét riêng assignment,
+            // và ưu tiên hiển thị "Chờ QC" khi không còn assignment nào thực sự đang làm dở.
+            const hasWorkingAssignment = allAssignments.some((assignment) =>
+              ["IN_PROGRESS", "PAUSED", "WAITING_STOCK"].includes(assignment.status ?? ""),
+            );
+            const hasPendingQcAssignment = allAssignments.some(
+              (assignment) => assignment.status === "PENDING_QC",
+            );
             const status: Assignment["status"] = allTasksCompleted
               ? "COMPLETED"
-              : hasStartedTask
-                ? "IN_PROGRESS"
-                : "ASSIGNED";
+              : hasPendingQcAssignment && !hasWorkingAssignment
+                ? "PENDING_QC"
+                : hasStartedTask
+                  ? "IN_PROGRESS"
+                  : "ASSIGNED";
 
             const aptDate = so.appointment?.scheduled_time
               ? new Date(so.appointment.scheduled_time)
@@ -582,9 +585,14 @@ export default function TechnicianAssignments() {
                           item.name === part.name && item.sku === part.sku,
                       ) === index,
                   );
+                // PENDING_QC chỉ nằm ở assignment — BE giữ Task.status = IN_PROGRESS cho tới khi
+                // KTV trưởng nghiệm thu, nên phải xét assignment trước, nếu không modal vẫn hiện
+                // nút "Đã hoàn tất" dù KTV đã bấm xong.
                 const taskStatus =
-                  t.status === "WAITING_STOCK" ||
-                  taskAssignment?.status === "WAITING_STOCK"
+                  taskAssignment?.status === "PENDING_QC"
+                    ? "PENDING_QC"
+                    : t.status === "WAITING_STOCK" ||
+                      taskAssignment?.status === "WAITING_STOCK"
                     ? "WAITING_STOCK"
                     : (t.status ?? taskAssignment?.status);
                 return {
@@ -649,14 +657,60 @@ export default function TechnicianAssignments() {
     };
   }, [socket]);
 
+  // Thứ tự tiến triển của 1 task — dùng để không cho dữ liệu tải lại (có thể là ảnh chụp cũ do
+  // request bay đi trước lúc KTV bấm xong) kéo ngược trạng thái đã tiến xa hơn ở máy KTV.
+  const TASK_PROGRESS_RANK: Record<string, number> = {
+    PENDING: 0,
+    WAITING_STOCK: 1,
+    PAUSED: 1,
+    IN_PROGRESS: 2,
+    PENDING_QC: 3,
+    COMPLETED: 4,
+  };
+
   useEffect(() => {
     if (!issueReportAssignment) return;
+    // Vừa chủ động đóng modal (hoàn thành hết task) — bỏ qua đồng bộ để không lấy lại
+    // assignment cũ từ danh sách vừa tải rồi mở lại modal.
+    if (skipModalSyncRef.current) {
+      skipModalSyncRef.current = false;
+      return;
+    }
     const refreshed = assignments.find(
       (a) => a.serviceOrderId === issueReportAssignment.serviceOrderId,
     );
-    if (refreshed && refreshed !== issueReportAssignment) {
-      setIssueReportAssignment(refreshed);
+    if (!refreshed || refreshed === issueReportAssignment) return;
+
+    // Giữ lại trạng thái nào đang tiến xa hơn cho từng task: dữ liệu mới bổ sung được các thay
+    // đổi từ nơi khác (vd thủ kho vừa xuất phụ tùng), nhưng không được kéo lùi task mà chính
+    // KTV vừa bấm xong trên máy này.
+    const mergedTasks = refreshed.tasks.map((incoming) => {
+      const current = issueReportAssignment.tasks.find(
+        (t) => t.taskAssignmentId === incoming.taskAssignmentId,
+      );
+      if (!current) return incoming;
+      const currentRank = TASK_PROGRESS_RANK[current.status ?? ""] ?? -1;
+      const incomingRank = TASK_PROGRESS_RANK[incoming.status ?? ""] ?? -1;
+      return incomingRank >= currentRank ? incoming : { ...incoming, status: current.status };
+    });
+
+    const statusesUnchanged =
+      mergedTasks.length === issueReportAssignment.tasks.length &&
+      mergedTasks.every((t, index) => t.status === issueReportAssignment.tasks[index]?.status);
+    if (statusesUnchanged && refreshed.tasks.every((t, i) => t === issueReportAssignment.tasks[i])) {
+      return;
     }
+    // Task cuối cùng vừa xong (có thể do KTV khác cùng đơn) — đóng modal luôn thay vì để trống.
+    if (
+      mergedTasks.length > 0 &&
+      mergedTasks.every((t) => t.status === "COMPLETED" || t.status === "PENDING_QC")
+    ) {
+      skipModalSyncRef.current = true;
+      setIssueReportOpen(false);
+      setIssueReportAssignment(null);
+      return;
+    }
+    setIssueReportAssignment({ ...refreshed, tasks: mergedTasks });
   }, [assignments, issueReportAssignment]);
 
   useEffect(() => {
@@ -695,9 +749,46 @@ export default function TechnicianAssignments() {
       setRefreshKey((prev) => prev + 1);
     } catch (error: unknown) {
       console.error("Lỗi khi bắt đầu công việc:", error);
-      alert(getErrorMessage(error, "Đã xảy ra lỗi khi bắt đầu công việc."));
+      showToast(getErrorMessage(error, "Đã xảy ra lỗi khi bắt đầu công việc."), "warning");
     } finally {
       setStartingTaskAssignmentId(null);
+    }
+  };
+
+  const handleCompleteSingleTask = async (taskAssignmentId: number) => {
+    setCompletingTaskAssignmentId(taskAssignmentId);
+    try {
+      await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.COMPLETE_TASK, "PATCH", {
+        taskAssignmentId,
+      });
+      let allCompleted = false;
+      setIssueReportAssignment((prev) => {
+        if (!prev) return prev;
+        const updatedTasks = prev.tasks.map((t) => {
+          if (t.taskAssignmentId !== taskAssignmentId) return t;
+          // Task REPAIR chỉ dừng ở "chờ nghiệm thu" — KTV trưởng xác nhận mới thành COMPLETED
+          // (khớp completeTask bên BE). INSPECTION vẫn xong thẳng như cũ.
+          return { ...t, status: t.taskType === "REPAIR" ? "PENDING_QC" : "COMPLETED" };
+        });
+        allCompleted = updatedTasks.every(
+          (t) => t.status === "COMPLETED" || t.status === "PENDING_QC",
+        );
+        return { ...prev, tasks: updatedTasks };
+      });
+      // Toàn bộ công việc trong lệnh sửa chữa này đã xong (hoặc đã chuyển sang chờ nghiệm thu) —
+      // đóng modal và dọn state để lần mở sau không còn dính dữ liệu cũ, khỏi bắt KTV tự bấm X.
+      // Bật cờ chặn để effect đồng bộ modal không vô tình mở lại modal vừa đóng.
+      if (allCompleted) {
+        skipModalSyncRef.current = true;
+        setIssueReportOpen(false);
+        setIssueReportAssignment(null);
+      }
+      setRefreshKey((prev) => prev + 1);
+    } catch (error: unknown) {
+      console.error("Lỗi khi hoàn thành công việc:", error);
+      showToast(getErrorMessage(error, "Đã xảy ra lỗi khi hoàn thành công việc."), "warning");
+    } finally {
+      setCompletingTaskAssignmentId(null);
     }
   };
 
@@ -725,32 +816,16 @@ export default function TechnicianAssignments() {
   // load toàn bộ lỗi. Luôn load danh sách hãng xe cho filter.
   const openLookup = () => {
     const symptom = issueReportAssignment?.symptom?.trim() ?? "";
-    setLookupView("common");
     setLookupTerm(symptom);
     setDiagMakeId("");
     setDiagModelId("");
     setLookupOpen(true);
     if (symptom) {
-      searchDiagnostics(symptom);
+      searchInspectionDiagnostics(symptom);
     } else {
-      loadAllDiagnostics();
+      loadAllInspectionDiagnostics();
     }
     loadMakes();
-  };
-
-  const loadAllDiagnostics = async () => {
-    setIsDiagLoading(true);
-    try {
-      const result = await fetchPrivate<DiagnosticKnowledge[]>(
-        TASK_ASSIGNMENT_ENDPOINTS.GET_ALL_DIAGNOSTICS,
-        "GET",
-      );
-      setDiagnostics(result.data ?? []);
-    } catch (error) {
-      console.error("Lỗi khi lấy danh sách chẩn đoán", error);
-    } finally {
-      setIsDiagLoading(false);
-    }
   };
 
   const loadMakes = async () => {
@@ -787,36 +862,6 @@ export default function TechnicianAssignments() {
     } catch (error) {
       console.error("Lỗi khi lấy dòng xe cho tra cứu sửa chữa", error);
       setRepairModels([]);
-    }
-  };
-
-  const searchDiagnostics = async (keyword: string) => {
-    setIsDiagLoading(true);
-    try {
-      const result = await fetchPrivate<DiagnosticKnowledge[]>(
-        TASK_ASSIGNMENT_ENDPOINTS.SEARCH_DIAGNOSTICS(keyword),
-        "GET",
-      );
-      setDiagnostics(result.data ?? []);
-    } catch (error) {
-      console.error("Lỗi khi tìm kiếm chẩn đoán", error);
-    } finally {
-      setIsDiagLoading(false);
-    }
-  };
-
-  const filterDiagnostics = async (makeId?: number, modelId?: number) => {
-    setIsDiagLoading(true);
-    try {
-      const result = await fetchPrivate<DiagnosticKnowledge[]>(
-        TASK_ASSIGNMENT_ENDPOINTS.FILTER_DIAGNOSTICS({ makeId, modelId }),
-        "GET",
-      );
-      setDiagnostics(result.data ?? []);
-    } catch (error) {
-      console.error("Lỗi khi lọc chẩn đoán", error);
-    } finally {
-      setIsDiagLoading(false);
     }
   };
 
@@ -871,25 +916,6 @@ export default function TechnicianAssignments() {
     }
   };
 
-  // Đổi tab vẫn giữ nguyên triệu chứng gốc của đơn (nếu có) và tự tìm lại theo triệu chứng đó
-  // trên tab mới — tránh việc tab "garage" luôn load toàn bộ không liên quan như trước đây.
-  const changeLookupView = (view: "common" | "garage") => {
-    const symptom = issueReportAssignment?.symptom?.trim() ?? "";
-    setLookupView(view);
-    setLookupTerm(symptom);
-    setDiagMakeId("");
-    setDiagModelId("");
-    setDiagModels([]);
-    setShowFilterPanel(false);
-    if (view === "common") {
-      if (symptom) searchDiagnostics(symptom);
-      else loadAllDiagnostics();
-    } else {
-      if (symptom) searchInspectionDiagnostics(symptom);
-      else loadAllInspectionDiagnostics();
-    }
-  };
-
   // Mở khung chat AI — chỉ điền sẵn triệu chứng vào ô nhập, KTV xem/sửa lại rồi tự bấm gửi.
   // Không tự động gọi AI khi mở modal để tránh tốn quota mỗi lần lỡ tay mở.
   const openAiChat = () => {
@@ -935,14 +961,13 @@ export default function TechnicianAssignments() {
   const sendAiFollowUp = async () => {
     const question = aiInput.trim();
     if (!question || isAiLoading || !aiTaskAssignmentId) return;
-    const isFirstMessage = aiMessages.length === 0;
     setAiMessages((prev) => [...prev, { role: "user", text: question }]);
     setAiInput("");
     setIsAiLoading(true);
     try {
       const payload: AiSuggestCausesRequest = {
         taskAssignmentId: aiTaskAssignmentId,
-        ...(isFirstMessage ? {} : { followUpQuestion: question }),
+        followUpQuestion: question,
       };
       const result = await fetchPrivate<AiSuggestCausesResponse>(
         TASK_ASSIGNMENT_ENDPOINTS.AI_SUGGEST_CAUSES,
@@ -1124,22 +1149,19 @@ export default function TechnicianAssignments() {
             label: "Tổng phân công",
             value: kpiCounts.total,
             icon: <CheckSquare size={22} />,
-            color: "#00285E",
-            bg: "#EDF3FF",
+            bg: "#00285E",
           },
           {
             label: "Mới phân công",
             value: kpiCounts.assigned,
             icon: <Clock size={22} />,
-            color: "#D97706",
-            bg: "#FEF3C7",
+            bg: "#D97706",
           },
           {
             label: "Đang thực hiện",
             value: kpiCounts.inProgress,
             icon: <CheckSquare size={22} />,
-            color: "#3B82F6",
-            bg: "#EFF6FF",
+            bg: "#3B82F6",
           },
         ].map((card, i) => (
           <div
@@ -1156,8 +1178,8 @@ export default function TechnicianAssignments() {
                 </span>
               </div>
               <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{ backgroundColor: card.bg, color: card.color }}
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-white"
+                style={{ backgroundColor: card.bg }}
               >
                 {card.icon}
               </div>
@@ -1200,7 +1222,7 @@ export default function TechnicianAssignments() {
               <option value="IN_PROGRESS">Đang thực hiện</option>
               <option value="PAUSED">Tạm dừng</option>
               <option value="WAITING_STOCK">Chờ phụ tùng</option>
-              <option value="PENDING_QC">Chờ QC</option>
+              <option value="PENDING_QC">Chờ nghiệm thu</option>
             </select>
           </div>
         </div>
@@ -1246,8 +1268,10 @@ export default function TechnicianAssignments() {
               </thead>
               <tbody>
                 {paginatedData.map((asg) => {
+                  // PENDING_QC = đã báo xong, đang chờ KTV trưởng nghiệm thu — vẫn cho KTV mở
+                  // modal xem tiến độ để biết công việc đang ở bước nào.
                   const hasProgressTask = asg.tasks.some((task) =>
-                    ["PENDING", "IN_PROGRESS", "PAUSED", "WAITING_STOCK"].includes(
+                    ["PENDING", "IN_PROGRESS", "PAUSED", "WAITING_STOCK", "PENDING_QC"].includes(
                       task.status ?? "",
                     ),
                   );
@@ -1574,9 +1598,41 @@ export default function TechnicianAssignments() {
                     : Math.round((doneCount / modalTasks.length) * 100);
                 return (
                   <div className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden">
+                    {/* Tiến độ tổng */}
+                    <div className="px-4 py-4 border-b border-slate-100">
+                      <div className="flex items-baseline justify-between gap-4 mb-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          Tiến độ công việc
+                        </span>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xs text-slate-400 font-medium">
+                            {doneCount}/{modalTasks.length} công việc
+                          </span>
+                          <span className="text-xl font-bold text-[#00285E] tabular-nums leading-none">
+                            {overall}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="relative h-2.5 w-full rounded-full bg-slate-200/70 overflow-hidden">
+                        {/* Shimmer nền chạy khi chưa hoàn tất, để thanh đỡ trống */}
+                        {overall < 100 && (
+                          <div className="absolute inset-0 progress-shimmer" />
+                        )}
+                        <div
+                          className={`relative h-full rounded-full bg-[#00285E] transition-all duration-700 ease-out ${
+                            overall > 0 && overall < 100 ? "progress-stripes" : ""
+                          }`}
+                          style={{ width: `${overall}%` }}
+                        />
+                      </div>
+                    </div>
+
                     {/* Danh sách công việc + nút hoàn thành */}
-                    <div className="divide-y divide-slate-100">
-                      {modalTasks.map((t) => {
+                    <div className="p-3 space-y-2.5 bg-slate-50/60">
+                      {modalTasks.map((t, taskIndex) => {
+                        // KTV đã báo xong task REPAIR, đang chờ KTV trưởng nghiệm thu — không còn
+                        // thao tác gì, nhưng cũng chưa phải "Hoàn thành" nên tách badge riêng.
+                        const isAwaitingQc = t.status === "PENDING_QC";
                         const isDone =
                           t.status === "COMPLETED" ||
                           t.status === "PENDING_QC";
@@ -1587,7 +1643,9 @@ export default function TechnicianAssignments() {
                           t.spareParts?.filter((part) =>
                             RECEIVED_PART_STATUSES.includes(part.status ?? ""),
                           ).length ?? 0;
-                        const taskStatusLabel = isDone
+                        const taskStatusLabel = isAwaitingQc
+                          ? "Chờ nghiệm thu"
+                          : isDone
                           ? "Đã xong"
                           : isWaitingStock
                             ? "Chờ phụ tùng"
@@ -1599,20 +1657,14 @@ export default function TechnicianAssignments() {
                         return (
                           <div
                             key={t.taskId}
-                            className="px-4 py-4"
+                            className="rounded-xl border border-slate-200/70 bg-white px-4 py-3.5"
                           >
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                              <div
-                                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                                  isDone
-                                    ? "bg-emerald-50 text-emerald-600"
-                                    : "bg-[#00285E] text-white"
-                                }`}
-                              >
-                                <Wrench size={15} />
-                              </div>
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm font-semibold text-slate-800 truncate">
+                                  <span className="text-slate-400 font-bold mr-1.5">
+                                    {taskIndex + 1}.
+                                  </span>
                                   {t.serviceName}
                                 </p>
                                 {t.repairIssue ? (
@@ -1690,7 +1742,12 @@ export default function TechnicianAssignments() {
                                 </div>
                               </div>
                               <div className="flex flex-col items-start sm:items-end gap-1.5">
-                                {isDone ? (
+                                {isAwaitingQc ? (
+                                  <span className="inline-flex self-start sm:self-auto items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-violet-700 bg-violet-50 border border-violet-200">
+                                    <Eye size={13} />
+                                    Chờ nghiệm thu
+                                  </span>
+                                ) : isDone ? (
                                   <span className="inline-flex self-start sm:self-auto items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200">
                                     <CheckCircle2 size={13} />
                                     Hoàn thành
@@ -1707,6 +1764,19 @@ export default function TechnicianAssignments() {
                                       <PlayCircle size={13} />
                                     )}
                                     Bắt đầu
+                                  </button>
+                                ) : !isPaused && !isWaitingStock && t.taskAssignmentId ? (
+                                  <button
+                                    onClick={() => void handleCompleteSingleTask(t.taskAssignmentId!)}
+                                    disabled={completingTaskAssignmentId === t.taskAssignmentId}
+                                    className="inline-flex self-start sm:self-auto items-center gap-1.5 px-2.5 py-2 sm:py-1 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50"
+                                  >
+                                    {completingTaskAssignmentId === t.taskAssignmentId ? (
+                                      <Loader2 size={13} className="animate-spin" />
+                                    ) : (
+                                      <CheckCircle2 size={13} />
+                                    )}
+                                    Đã hoàn tất
                                   </button>
                                 ) : (
                                   <span
@@ -1729,35 +1799,6 @@ export default function TechnicianAssignments() {
                           </div>
                         );
                       })}
-                    </div>
-
-                    {/* Tiến độ tổng */}
-                    <div className="px-4 py-4 border-t border-slate-100">
-                      <div className="flex items-baseline justify-between gap-4 mb-2">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                          Tiến độ công việc
-                        </span>
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-xs text-slate-400 font-medium">
-                            {doneCount}/{modalTasks.length} công việc
-                          </span>
-                          <span className="text-xl font-bold text-[#00285E] tabular-nums leading-none">
-                            {overall}%
-                          </span>
-                        </div>
-                      </div>
-                      <div className="relative h-2.5 w-full rounded-full bg-slate-200/70 overflow-hidden">
-                        {/* Shimmer nền chạy khi chưa hoàn tất, để thanh đỡ trống */}
-                        {overall < 100 && (
-                          <div className="absolute inset-0 progress-shimmer" />
-                        )}
-                        <div
-                          className={`relative h-full rounded-full bg-[#00285E] transition-all duration-700 ease-out ${
-                            overall > 0 && overall < 100 ? "progress-stripes" : ""
-                          }`}
-                          style={{ width: `${overall}%` }}
-                        />
-                      </div>
                     </div>
                   </div>
                 );
@@ -1812,7 +1853,7 @@ export default function TechnicianAssignments() {
                   <Search size={16} />
                 </div>
                 <h3 className="text-base font-bold text-white leading-tight">
-                  Tra cứu các lỗi thường gặp
+                  Lỗi đã gặp tại garage
                 </h3>
               </div>
               <button
@@ -1824,31 +1865,6 @@ export default function TechnicianAssignments() {
             </div>
 
             <div className="px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0 space-y-3">
-              <div className="inline-flex flex-wrap rounded-xl bg-slate-100 p-1">
-                <button
-                  type="button"
-                  onClick={() => changeLookupView("common")}
-                  className={`rounded-lg px-4 py-2 text-xs font-bold transition-colors ${
-                    lookupView === "common"
-                      ? "bg-white text-[#00285E] shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  Các lỗi thường gặp
-                </button>
-                <button
-                  type="button"
-                  onClick={() => changeLookupView("garage")}
-                  className={`rounded-lg px-4 py-2 text-xs font-bold transition-colors ${
-                    lookupView === "garage"
-                      ? "bg-white text-[#00285E] shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  Lỗi đã gặp tại garage
-                </button>
-              </div>
-
               {/* Ô search + nút Hỏi AI */}
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -1864,24 +1880,12 @@ export default function TechnicianAssignments() {
                       const value = e.target.value;
                       setLookupTerm(value);
                       if (value.trim() === "") {
-                        if (lookupView === "common") {
-                          loadAllDiagnostics();
-                        } else {
-                          loadAllInspectionDiagnostics();
-                        }
+                        loadAllInspectionDiagnostics();
                         return;
                       }
-                      if (lookupView === "common") {
-                        searchDiagnostics(value);
-                      } else {
-                        searchInspectionDiagnostics(value);
-                      }
+                      searchInspectionDiagnostics(value);
                     }}
-                    placeholder={
-                      lookupView === "common"
-                        ? "Nhập triệu chứng, nguyên nhân cần tra cứu..."
-                        : "Nhập lỗi hoặc nguyên nhân đã gặp tại garage..."
-                    }
+                    placeholder="Nhập lỗi hoặc nguyên nhân đã gặp tại garage..."
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
                   />
                 </div>
@@ -1907,17 +1911,9 @@ export default function TechnicianAssignments() {
                         setDiagModels([]);
                         if (val) {
                           loadModels(val);
-                          if (lookupView === "common") {
-                            filterDiagnostics(val, undefined);
-                          } else {
-                            filterInspectionDiagnostics(val, undefined);
-                          }
+                          filterInspectionDiagnostics(val, undefined);
                         } else {
-                          if (lookupView === "common") {
-                            loadAllDiagnostics();
-                          } else {
-                            loadAllInspectionDiagnostics();
-                          }
+                          loadAllInspectionDiagnostics();
                         }
                       }}
                       className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-[#00285E] transition-colors"
@@ -1940,11 +1936,7 @@ export default function TechnicianAssignments() {
                           ? Number(diagMakeId)
                           : undefined;
                         const modelId = val ? Number(val) : undefined;
-                        if (lookupView === "common") {
-                          filterDiagnostics(makeId, modelId);
-                        } else {
-                          filterInspectionDiagnostics(makeId, modelId);
-                        }
+                        filterInspectionDiagnostics(makeId, modelId);
                       }}
                       className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-[#00285E] transition-colors disabled:opacity-50"
                     >
@@ -1961,21 +1953,17 @@ export default function TechnicianAssignments() {
               </div>
             <div className="overflow-y-auto flex-1 px-4 sm:px-6 py-5 space-y-4 bg-slate-50/50">
              <div className="overflow-x-auto overflow-hidden rounded-2xl border border-slate-200 bg-white">
-  <div className={`grid ${lookupView === "garage" ? "grid-cols-[36px_1fr_1fr_1fr] sm:grid-cols-[56px_1.2fr_1.3fr_1fr]" : "grid-cols-[36px_1fr_1fr] sm:grid-cols-[56px_1.4fr_1.6fr]"} border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-widest text-slate-400`}>
+  <div className="grid grid-cols-[36px_1fr_1fr_1fr] sm:grid-cols-[56px_1.2fr_1.3fr_1fr] border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-widest text-slate-400">
     <div className="px-2 sm:px-3 py-2.5">STT</div>
-    <div className="px-2 sm:px-3 py-2.5">
-      {lookupView === "common" ? "Các lỗi thường gặp" : "Lỗi đã gặp"}
-    </div>
+    <div className="px-2 sm:px-3 py-2.5">Lỗi đã gặp</div>
     <div className="px-2 sm:px-3 py-2.5">Nguyên nhân</div>
-    {lookupView === "garage" && (
-      <div className="px-2 sm:px-3 py-2.5">Thuộc đơn</div>
-    )}
+    <div className="px-2 sm:px-3 py-2.5">Thuộc đơn</div>
   </div>
 
   {lookupRows.map((row, index) => (
     <div
       key={row.id}
-      className={`grid ${lookupView === "garage" ? "grid-cols-[36px_1fr_1fr_1fr] sm:grid-cols-[56px_1.2fr_1.3fr_1fr]" : "grid-cols-[36px_1fr_1fr] sm:grid-cols-[56px_1.4fr_1.6fr]"} border-b border-slate-100 last:border-b-0`}
+      className="grid grid-cols-[36px_1fr_1fr_1fr] sm:grid-cols-[56px_1.2fr_1.3fr_1fr] border-b border-slate-100 last:border-b-0"
     >
       <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm font-semibold text-slate-500">
         {index + 1}
@@ -1986,14 +1974,12 @@ export default function TechnicianAssignments() {
       <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm text-slate-600 whitespace-pre-line leading-relaxed">
         {row.cause}
       </div>
-      {lookupView === "garage" && (
-        <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm text-slate-600">
-          <p className="font-semibold text-slate-700">
-            {row.customerName || "Khách vãng lai"}
-          </p>
-          <p className="text-slate-400">{row.vehicleLabel || "—"}</p>
-        </div>
-      )}
+      <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm text-slate-600">
+        <p className="font-semibold text-slate-700">
+          {row.customerName || "Khách vãng lai"}
+        </p>
+        <p className="text-slate-400">{row.vehicleLabel || "—"}</p>
+      </div>
     </div>
   ))}
 </div>
@@ -2038,6 +2024,19 @@ export default function TechnicianAssignments() {
 
             {/* Khung hội thoại */}
             <div className="overflow-y-auto flex-1 px-4 py-4 space-y-3 bg-slate-50/50">
+              {aiMessages.length === 0 && !isAiLoading && (
+                <div className="h-full flex flex-col items-center justify-center text-center gap-2 py-10">
+                  <div className="w-12 h-12 rounded-2xl bg-[#00285E]/10 text-[#00285E] flex items-center justify-center">
+                    <Sparkles size={20} />
+                  </div>
+                  <p className="text-sm font-semibold text-slate-600">
+                    Nhập câu hỏi bên dưới để AI tư vấn nguyên nhân và cách xử lý
+                  </p>
+                  <p className="text-xs text-slate-400 max-w-xs">
+                    Nội dung đã điền sẵn theo lỗi/triệu chứng của công việc này — bạn có thể sửa lại rồi gửi.
+                  </p>
+                </div>
+              )}
               {aiMessages.map((m, i) =>
                 m.role === "user" ? (
                   <div key={i} className="flex justify-end">
@@ -2047,12 +2046,10 @@ export default function TechnicianAssignments() {
                   </div>
                 ) : (
                   <div key={i} className="flex justify-start">
-                    <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-white border border-slate-200 px-3.5 py-2.5">
-                      <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">
-                        {m.text}
-                      </p>
+                    <div className="max-w-[90%] w-full rounded-2xl rounded-bl-md bg-white border border-slate-200 px-3.5 py-3 space-y-2">
+                      <AiFormattedText text={m.text} />
                       {m.disclaimer && (
-                        <p className="text-[11px] text-slate-400 italic mt-2 pt-2 border-t border-slate-100">
+                        <p className="text-[11px] text-slate-400 italic pt-2 border-t border-slate-100">
                           {m.disclaimer}
                         </p>
                       )}
@@ -2273,6 +2270,36 @@ export default function TechnicianAssignments() {
         </div>
       )}
 
+    </div>
+  );
+}
+
+// Tiêu đề nhóm (vd "Nguyên nhân khả dĩ:") do formatAiCausesResponse/formatAiRepairStepsResponse
+// ở BE luôn kết thúc bằng dấu ":" và không đứng đầu bằng số thứ tự hay gạch đầu dòng — dùng đặc
+// điểm đó để tách tiêu đề khỏi nội dung mà không cần đổi shape response.
+function AiFormattedText({ text }: { text: string }) {
+  const lines = text.split("\n");
+  return (
+    <div className="space-y-1.5">
+      {lines.map((line, idx) => {
+        if (!line.trim()) return null;
+        const isTitle = /:$/.test(line.trim()) && !/^[-\d]/.test(line.trim());
+        if (isTitle) {
+          return (
+            <div
+              key={idx}
+              className="px-3 py-1.5 rounded-lg bg-[#00285E] text-white text-xs font-bold uppercase tracking-wide"
+            >
+              {line.trim().replace(/:$/, "")}
+            </div>
+          );
+        }
+        return (
+          <p key={idx} className="text-sm text-slate-700 leading-relaxed pl-1">
+            {line}
+          </p>
+        );
+      })}
     </div>
   );
 }
