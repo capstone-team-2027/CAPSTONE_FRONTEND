@@ -116,7 +116,7 @@ const resources = {
           history: "Lịch sử dịch vụ",
           warranty: "Bảo hành",
           tracking: "Theo dõi",
-          map: "Bản đồ",
+          map: "Yêu cầu cứu hộ",
           settings: "Cài đặt"
         }
       },
@@ -1407,7 +1407,7 @@ const resources = {
           history: "Service History",
           warranty: "Warranty",
           tracking: "Tracking",
-          map: "Map",
+          map: "Rescue Request",
           settings: "Settings"
         }
       },

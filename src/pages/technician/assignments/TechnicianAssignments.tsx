@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   CheckSquare,
   Search,
@@ -365,6 +365,9 @@ export default function TechnicianAssignments() {
   const [issueReportOpen, setIssueReportOpen] = useState(false);
   const [issueReportAssignment, setIssueReportAssignment] =
     useState<Assignment | null>(null);
+  // Bật lên khi tự đóng modal sau lúc hoàn thành hết task — chặn đúng 1 lần chạy kế tiếp của
+  // effect đồng bộ modal, tránh nó lấy lại assignment cũ từ danh sách vừa tải và mở lại modal.
+  const skipModalSyncRef = useRef(false);
   const [lookupOpen, setLookupOpen] = useState(false);
   const [lookupTerm, setLookupTerm] = useState("");
   const [inspectionDiagnostics, setInspectionDiagnostics] = useState<
@@ -638,14 +641,57 @@ export default function TechnicianAssignments() {
     };
   }, [socket]);
 
+  // Thứ tự tiến triển của 1 task — dùng để không cho dữ liệu tải lại (có thể là ảnh chụp cũ do
+  // request bay đi trước lúc KTV bấm xong) kéo ngược trạng thái đã tiến xa hơn ở máy KTV.
+  const TASK_PROGRESS_RANK: Record<string, number> = {
+    PENDING: 0,
+    WAITING_STOCK: 1,
+    PAUSED: 1,
+    IN_PROGRESS: 2,
+    PENDING_QC: 3,
+    COMPLETED: 4,
+  };
+
   useEffect(() => {
     if (!issueReportAssignment) return;
+    // Vừa chủ động đóng modal (hoàn thành hết task) — bỏ qua đồng bộ để không lấy lại
+    // assignment cũ từ danh sách vừa tải rồi mở lại modal.
+    if (skipModalSyncRef.current) {
+      skipModalSyncRef.current = false;
+      return;
+    }
     const refreshed = assignments.find(
       (a) => a.serviceOrderId === issueReportAssignment.serviceOrderId,
     );
-    if (refreshed && refreshed !== issueReportAssignment) {
-      setIssueReportAssignment(refreshed);
+    if (!refreshed || refreshed === issueReportAssignment) return;
+
+    // Giữ lại trạng thái nào đang tiến xa hơn cho từng task: dữ liệu mới bổ sung được các thay
+    // đổi từ nơi khác (vd thủ kho vừa xuất phụ tùng), nhưng không được kéo lùi task mà chính
+    // KTV vừa bấm xong trên máy này.
+    const mergedTasks = refreshed.tasks.map((incoming) => {
+      const current = issueReportAssignment.tasks.find(
+        (t) => t.taskAssignmentId === incoming.taskAssignmentId,
+      );
+      if (!current) return incoming;
+      const currentRank = TASK_PROGRESS_RANK[current.status ?? ""] ?? -1;
+      const incomingRank = TASK_PROGRESS_RANK[incoming.status ?? ""] ?? -1;
+      return incomingRank >= currentRank ? incoming : { ...incoming, status: current.status };
+    });
+
+    const statusesUnchanged =
+      mergedTasks.length === issueReportAssignment.tasks.length &&
+      mergedTasks.every((t, index) => t.status === issueReportAssignment.tasks[index]?.status);
+    if (statusesUnchanged && refreshed.tasks.every((t, i) => t === issueReportAssignment.tasks[i])) {
+      return;
     }
+    // Task cuối cùng vừa xong (có thể do KTV khác cùng đơn) — đóng modal luôn thay vì để trống.
+    if (mergedTasks.length > 0 && mergedTasks.every((t) => t.status === "COMPLETED")) {
+      skipModalSyncRef.current = true;
+      setIssueReportOpen(false);
+      setIssueReportAssignment(null);
+      return;
+    }
+    setIssueReportAssignment({ ...refreshed, tasks: mergedTasks });
   }, [assignments, issueReportAssignment]);
 
   useEffect(() => {
@@ -696,18 +742,25 @@ export default function TechnicianAssignments() {
       await fetchPrivate(TASK_ASSIGNMENT_ENDPOINTS.COMPLETE_TASK, "PATCH", {
         taskAssignmentId,
       });
-      setIssueReportAssignment((prev) =>
-        prev
-          ? {
-              ...prev,
-              tasks: prev.tasks.map((t) =>
-                t.taskAssignmentId === taskAssignmentId
-                  ? { ...t, status: "COMPLETED" }
-                  : t,
-              ),
-            }
-          : prev,
-      );
+      let allCompleted = false;
+      setIssueReportAssignment((prev) => {
+        if (!prev) return prev;
+        const updatedTasks = prev.tasks.map((t) =>
+          t.taskAssignmentId === taskAssignmentId
+            ? { ...t, status: "COMPLETED" }
+            : t,
+        );
+        allCompleted = updatedTasks.every((t) => t.status === "COMPLETED");
+        return { ...prev, tasks: updatedTasks };
+      });
+      // Toàn bộ công việc trong lệnh sửa chữa này đã xong — đóng modal và dọn state để lần mở
+      // sau không còn dính dữ liệu cũ, khỏi bắt KTV tự bấm X. Bật cờ chặn để effect đồng bộ
+      // modal (chạy khi assignments tải lại xong) không vô tình mở lại modal vừa đóng.
+      if (allCompleted) {
+        skipModalSyncRef.current = true;
+        setIssueReportOpen(false);
+        setIssueReportAssignment(null);
+      }
       setRefreshKey((prev) => prev + 1);
     } catch (error: unknown) {
       console.error("Lỗi khi hoàn thành công việc:", error);
@@ -1265,9 +1318,7 @@ export default function TechnicianAssignments() {
                             </button>
                           ) : hasProgressTask ? (
                             <button
-                              onClick={() =>
-                                navigate(`/technician/progress/${asg.serviceOrderId}`)
-                              }
+                              onClick={() => openIssueReportModal(asg)}
                               className="flex items-center gap-1 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:brightness-110 transition-all"
                             >
                               <ClipboardList size={13} />
@@ -1503,17 +1554,6 @@ export default function TechnicianAssignments() {
                       <Sparkles size={13} />
                       Tham khảo AI
                     </button>
-                    {issueReportAssignment.taskType === "REPAIR" && (
-                      <button
-                        onClick={() =>
-                          navigate(`/technician/progress/${issueReportAssignment.serviceOrderId}`)
-                        }
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.97] transition-all"
-                      >
-                        <CheckCircle2 size={13} />
-                        Tiến độ công việc
-                      </button>
-                    )}
                   </div>
                 </div>
                 <p className="text-sm text-slate-700 leading-relaxed">

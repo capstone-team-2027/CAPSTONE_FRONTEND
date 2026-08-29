@@ -7,6 +7,7 @@ export interface UserModel {
     status?: 'PENDING' | 'ACTIVE' | 'INACTIVE' | 'BANNED';
     membershipTier?: 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM';
     loyaltyPoints?: number;
+    totalSpent?: number;
     createdAt?: string;
     updatedAt?: string;
 }

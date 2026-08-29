@@ -78,6 +78,13 @@ export default function LeaderLayout() {
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+  // Card cảnh báo nổi góc màn hình khi có việc khẩn — cùng kiểu UI với cảnh báo tồn kho thấp
+  // bên trang thủ kho (InventoryLayout.tsx), khác với toast thường (toastMessage) ở chỗ nổi bật
+  // hơn và người dùng phải tự đóng, không tự ẩn sau vài giây. serviceOrderId kèm theo để bấm
+  // "Xem chi tiết" là nhảy thẳng tới đúng đơn trong trang theo dõi công việc.
+  const [urgentAlert, setUrgentAlert] = useState<
+    { message: string; serviceOrderId?: number } | null
+  >(null);
 
   // Mở khóa AudioContext ở tương tác đầu tiên theo chính sách autoplay của trình duyệt.
   useEffect(() => {
@@ -124,7 +131,13 @@ export default function LeaderLayout() {
             fullName: userData.fullName,
             phoneNumber: userData.phoneNumber,
             avatar: userData.avatar,
-            role: userData.role,
+            // API login trả role dạng string ('TECHNICIAN_LEADER'), nhưng API profile trả cả
+            // OBJECT role — chuẩn hoá về roleCode để không ghi đè thành object, tránh join sai
+            // room socket ("role-[object Object]") khiến mất thông báo realtime.
+            role:
+              typeof userData.role === 'string'
+                ? userData.role
+                : userData.role?.roleCode,
           })
         );
       } catch (error) {
@@ -193,7 +206,14 @@ export default function LeaderLayout() {
 
     const joinRooms = () => {
       socket.emit('join-user', user.id);
-      if (user.role) socket.emit('join-role', user.role);
+      // API profile trả role là OBJECT ({ roleCode, roleName, ... }) — phải gửi đúng roleCode,
+      // nếu gửi cả object thì BE join nhầm room "role-[object Object]" và không nhận được
+      // urgent_notification (BE emit tới room "role-TECHNICIAN_LEADER").
+      const roleCode =
+        typeof user.role === 'string'
+          ? user.role
+          : (user.role as unknown as { roleCode?: string } | null)?.roleCode;
+      if (roleCode) socket.emit('join-role', roleCode);
     };
     joinRooms();
     socket.on('connect', joinRooms);
@@ -209,12 +229,16 @@ export default function LeaderLayout() {
       fetchNotifications();
       setIsNotificationOpen(true);
     };
-    const handleUrgentNotification = () => {
+    // Chỉ hiện card cảnh báo nổi góc màn hình (giống cảnh báo tồn kho thấp bên thủ kho), KHÔNG
+    // tự bung panel chuông nữa — panel bung ra che mất card, gây cảm giác thông báo chỉ nằm
+    // trong icon chuông. Người dùng tự bấm chuông hoặc bấm "Xem chi tiết" trên card khi cần.
+    const handleUrgentNotification = (payload?: { message?: string; serviceOrderId?: number }) => {
       playLeaderNotificationSound().catch(error => console.error('Không thể phát âm báo:', error));
-      showToast('Có công việc vừa hoàn thành, cần chú ý!', 'info');
+      setUrgentAlert({
+        message: payload?.message || 'Có công việc vừa hoàn thành, cần chú ý!',
+        serviceOrderId: payload?.serviceOrderId,
+      });
       fetchUnreadCount();
-      fetchNotifications();
-      setIsNotificationOpen(true);
     };
     socket.on('new_notification', handleNewNotification);
     socket.on('customer_received', handleCustomerReceived);
@@ -722,6 +746,45 @@ export default function LeaderLayout() {
         onConfirm={handleLogoutConfirm}
       />
 
+      {/* Card cảnh báo việc khẩn nổi góc màn hình — cùng kiểu UI với cảnh báo tồn kho thấp bên
+          trang thủ kho (InventoryLayout.tsx), tự đứng yên tới khi người dùng đóng. */}
+      <AnimatePresence>
+        {urgentAlert && (
+          <motion.div
+            initial={{ opacity: 0, x: 100, y: 0 }}
+            animate={{ opacity: 1, x: 0, y: 0 }}
+            exit={{ opacity: 0, x: 100 }}
+            className="fixed bottom-6 right-6 z-[9999] max-w-sm w-full bg-white/95 backdrop-blur-md border border-amber-200 rounded-2xl p-4 shadow-2xl flex items-start gap-3.5 select-none"
+          >
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+              <AlertTriangle size={20} className="animate-bounce text-[#F9A11B]" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <h4 className="font-bold text-slate-800 text-sm">Có công việc vừa hoàn thành!</h4>
+              <p className="text-xs text-slate-500 leading-normal">{urgentAlert.message}</p>
+              <button
+                onClick={() => {
+                  navigate('/leader/task-tracking', {
+                    state: urgentAlert.serviceOrderId
+                      ? { expandServiceOrderId: urgentAlert.serviceOrderId }
+                      : undefined,
+                  });
+                  setUrgentAlert(null);
+                }}
+                className="text-xs font-bold text-[#00285E] hover:text-[#F9A11B] transition-colors mt-1 block cursor-pointer bg-transparent border-0 p-0"
+              >
+                Xem chi tiết &rarr;
+              </button>
+            </div>
+            <button
+              onClick={() => setUrgentAlert(null)}
+              className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors shrink-0 cursor-pointer bg-transparent border-0"
+            >
+              <X size={16} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

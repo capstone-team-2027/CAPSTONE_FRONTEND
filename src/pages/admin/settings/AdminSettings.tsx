@@ -1,12 +1,15 @@
-import { ArrowLeft } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft, Store, Award } from 'lucide-react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import GeneralSettings from './GeneralSettings';
+import LoyaltySettings from './LoyaltySettings';
 
 export default function AdminSettings() {
   const navigate = useNavigate();
   const { showToast } = useOutletContext<{
     showToast: (text: string, type?: 'success' | 'info' | 'warning') => void;
   }>();
+  const [activeTab, setActiveTab] = useState<'general' | 'loyalty'>('general');
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto font-sans">
@@ -20,16 +23,41 @@ export default function AdminSettings() {
           <ArrowLeft size={24} />
         </button>
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">Cài đặt hệ thống</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-[#00285E] tracking-tight leading-none mb-2">Cấu hình hệ thống</h1>
           <p className="text-slate-500 text-sm">
-            Quản lý cấu hình dịch vụ, chính sách bảo hành và thông tin chung của Garage.
+            Quản lý thông tin chung của Garage và chính sách hạng thành viên.
           </p>
         </div>
       </div>
 
-      <div className="mt-4">
-        <GeneralSettings showToast={showToast} />
+      {/* SUB-TABS NAVIGATION */}
+      <div className="inline-flex items-center gap-1 p-1 bg-slate-100 rounded-xl">
+        <button
+          onClick={() => setActiveTab('general')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${
+            activeTab === 'general'
+              ? 'bg-white text-[#00285E] shadow-sm'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Store size={16} />
+          Thông tin chung
+        </button>
+        <button
+          onClick={() => setActiveTab('loyalty')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${
+            activeTab === 'loyalty'
+              ? 'bg-white text-[#00285E] shadow-sm'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Award size={16} />
+          Hạng thành viên
+        </button>
       </div>
+
+      {activeTab === 'general' && <GeneralSettings showToast={showToast} />}
+      {activeTab === 'loyalty' && <LoyaltySettings showToast={showToast} />}
     </div>
   );
 }

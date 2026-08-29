@@ -34,7 +34,7 @@ const MENU_ITEMS = [
     { id: 'appointments', label: 'Lịch hẹn', icon: Calendar },
     { id: 'history', label: 'Lịch sử dịch vụ', icon: History },
     { id: 'tracking', label: 'Theo dõi', icon: Clock },
-    { id: 'map', label: 'Bản đồ', icon: MapPin },
+    { id: 'map', label: 'Yêu cầu cứu hộ', icon: MapPin },
 ] as const;
 
 type TabId = typeof MENU_ITEMS[number]['id'];
@@ -75,6 +75,7 @@ export default function UserProfile() {
                         status: userData.status,
                         membershipTier: userData.customerProfile?.membership_tier,
                         loyaltyPoints: userData.customerProfile?.loyalty_points,
+                        totalSpent: userData.customerProfile?.total_spent,
                         createdAt: userData.createdAt,
                     })
                 );
@@ -287,6 +288,7 @@ export default function UserProfile() {
                         accountStatus={user?.status}
                         membershipTier={user?.membershipTier}
                         loyaltyPoints={user?.loyaltyPoints}
+                        totalSpent={user?.totalSpent}
                         joinedAt={user?.createdAt}
                         isEditing={isEditing}
                         isSubmitting={isSubmitting}

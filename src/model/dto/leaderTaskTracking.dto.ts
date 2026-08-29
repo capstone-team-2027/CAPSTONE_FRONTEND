@@ -19,6 +19,7 @@ export interface TaskTrackingTask {
   createdAt: string;
   catalog?: TaskTrackingCatalog | null;
   assignments: TaskTrackingAssignment[];
+  issues?: { id: number }[];
 }
 export interface TaskTrackingCustomerUser {
   id: number;

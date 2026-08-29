@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowLeft,
@@ -13,7 +13,6 @@ import {
   AlertCircle,
   Clock,
   CalendarClock,
-  Sparkles,
   X,
   Plus,
   Trash2,
@@ -54,6 +53,7 @@ const formatDateTime = (d?: string | null) =>
 
 export default function LeaderTaskTracking() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { fetchPrivate } = useFetchClient();
   const socket = useSocket();
   const { showToast } = useOutletContext<{
@@ -126,6 +126,19 @@ export default function LeaderTaskTracking() {
       socket.off("PROGRESS_UPDATED", handleNewNotification);
     };
   }, [socket]);
+
+  // Vào từ card cảnh báo "Có công việc vừa hoàn thành" bên LeaderLayout — tự bung đúng đơn đó
+  // ra để KTV trưởng thấy ngay danh sách công việc, khỏi phải tự tìm và bấm mở.
+  useEffect(() => {
+    const expandServiceOrderId = (
+      location.state as { expandServiceOrderId?: number } | null
+    )?.expandServiceOrderId;
+    if (!expandServiceOrderId || orders.length === 0) return;
+    if (!orders.some((order) => order.id === expandServiceOrderId)) return;
+    setExpandedIds((prev) => new Set(prev).add(expandServiceOrderId));
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders]);
 
   const toggleExpand = (orderId: number) =>
     setExpandedIds((prev) => {
@@ -377,7 +390,6 @@ export default function LeaderTaskTracking() {
             const totalTasks = order.tasks.length;
             const completedTasks = order.tasks.filter((t) => t.status === "COMPLETED").length;
             const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-            const isFullyDone = totalTasks > 0 && completedTasks === totalTasks;
 
             return (
               <motion.div
@@ -387,7 +399,7 @@ export default function LeaderTaskTracking() {
                 transition={{ duration: 0.25, delay: Math.min(orderIdx * 0.04, 0.3) }}
                 className="flex items-stretch bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden"
               >
-                <span className={`w-1.5 shrink-0 ${isFullyDone ? "bg-emerald-500" : "bg-[#00285E]"}`} />
+                <span className="w-1.5 shrink-0 bg-[#00285E]" />
                 <div className="flex-1 min-w-0 flex flex-col">
                 <button
                   onClick={() => toggleExpand(order.id)}
@@ -396,19 +408,10 @@ export default function LeaderTaskTracking() {
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <Car
-                          size={15}
-                          className={isFullyDone ? "text-emerald-500 shrink-0" : "text-[#00285E] shrink-0"}
-                        />
+                        <Car size={15} className="text-[#00285E] shrink-0" />
                         <span className="text-sm font-bold text-slate-800 truncate">
                           {vehicle?.license_plate || "—"} · {vehicle?.model?.model_name || "—"}
                         </span>
-                        {isFullyDone && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full whitespace-nowrap">
-                            <Sparkles size={10} />
-                            Sẵn sàng bàn giao
-                          </span>
-                        )}
                       </div>
                       <div className="text-xs text-slate-500 flex items-center gap-1.5 truncate mt-0.5">
                         <User size={11} className="shrink-0" />
@@ -419,7 +422,7 @@ export default function LeaderTaskTracking() {
                   <div className="flex items-center gap-4 shrink-0">
                     <div className="hidden sm:flex flex-col items-end gap-1.5 w-36">
                       <div className="flex items-center justify-between w-full text-[11px]">
-                        <span className={`font-bold ${isFullyDone ? "text-emerald-600" : "text-[#00285E]"}`}>
+                        <span className="font-bold text-[#00285E]">
                           {completedTasks}/{totalTasks} công việc
                         </span>
                         <span className="text-slate-400">{progressPct}%</span>
@@ -429,7 +432,7 @@ export default function LeaderTaskTracking() {
                           initial={{ width: 0 }}
                           animate={{ width: `${progressPct}%` }}
                           transition={{ duration: 0.5, ease: "easeOut" }}
-                          className={`h-full rounded-full ${isFullyDone ? "bg-emerald-500" : "bg-[#00285E]"}`}
+                          className="h-full rounded-full bg-[#00285E]"
                         />
                       </div>
                     </div>
@@ -448,14 +451,14 @@ export default function LeaderTaskTracking() {
                 {/* Progress bar mobile */}
                 <div className="sm:hidden px-5 pb-3 -mt-1">
                   <div className="flex items-center justify-between text-[11px] mb-1">
-                    <span className={`font-bold ${isFullyDone ? "text-emerald-600" : "text-[#00285E]"}`}>
+                    <span className="font-bold text-[#00285E]">
                       {completedTasks}/{totalTasks} công việc
                     </span>
                     <span className="text-slate-400">{progressPct}%</span>
                   </div>
                   <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${isFullyDone ? "bg-emerald-500" : "bg-[#00285E]"}`}
+                      className="h-full rounded-full bg-[#00285E]"
                       style={{ width: `${progressPct}%` }}
                     />
                   </div>
@@ -484,6 +487,14 @@ export default function LeaderTaskTracking() {
                             const completableAssignment = task.assignments.find(
                               (a) => a.status === "IN_PROGRESS",
                             );
+                            // Task INSPECTION đã COMPLETED do chính KTV tự bấm hoàn thành (không
+                            // qua Leader xác nhận) thì chưa từng được hỏi "có lỗi phát hiện không"
+                            // — luồng Leader tự xác nhận (completeConfirmTarget) đã tự hỏi sẵn rồi,
+                            // nên chỉ cần bù riêng cho case này khi chưa có Vehicle_Issues nào.
+                            const needsIssueReport =
+                              task.type === "INSPECTION" &&
+                              task.status === "COMPLETED" &&
+                              !(task.issues && task.issues.length > 0);
                             const technicianNames =
                               activeAssignments
                                 .map((a) => a.technician?.fullName)
@@ -537,6 +548,22 @@ export default function LeaderTaskTracking() {
                                           <CheckCircle2 size={14} />
                                         )}
                                         Xác nhận hoàn thành
+                                      </button>
+                                    )}
+                                    {needsIssueReport && (
+                                      <button
+                                        onClick={() =>
+                                          openInspectionComplete(
+                                            order.id,
+                                            `${vehicle?.license_plate || "—"} · ${vehicle?.model?.model_name || "—"}`,
+                                            task.id,
+                                            task.assignments.find((a) => a.status === "COMPLETED")?.id ?? 0,
+                                          )
+                                        }
+                                        className="shrink-0 h-9 flex items-center gap-1.5 px-3.5 rounded-lg text-xs font-bold text-white bg-[#00285E] hover:brightness-125 active:scale-[0.97] transition-all"
+                                      >
+                                        <FileWarning size={14} />
+                                        Tạo báo cáo lỗi
                                       </button>
                                     )}
                                   </div>
