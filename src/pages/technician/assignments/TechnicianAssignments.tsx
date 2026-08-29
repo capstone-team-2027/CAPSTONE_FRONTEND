@@ -265,7 +265,7 @@ const ASSIGNMENT_STATUS_CONFIG: Record<
     icon: Package,
   },
   PENDING_QC: {
-    label: "Chờ QC",
+    label: "Chờ nghiệm thu",
     className: "bg-violet-50 text-violet-700 border border-violet-200",
     icon: Eye,
   },
@@ -518,11 +518,22 @@ export default function TechnicianAssignments() {
                 ),
               ),
             );
+            // KTV đã báo xong task REPAIR, đang chờ KTV trưởng nghiệm thu — Task.status vẫn giữ
+            // IN_PROGRESS ở BE (chỉ assignment chuyển PENDING_QC), nên phải xét riêng assignment,
+            // và ưu tiên hiển thị "Chờ QC" khi không còn assignment nào thực sự đang làm dở.
+            const hasWorkingAssignment = allAssignments.some((assignment) =>
+              ["IN_PROGRESS", "PAUSED", "WAITING_STOCK"].includes(assignment.status ?? ""),
+            );
+            const hasPendingQcAssignment = allAssignments.some(
+              (assignment) => assignment.status === "PENDING_QC",
+            );
             const status: Assignment["status"] = allTasksCompleted
               ? "COMPLETED"
-              : hasStartedTask
-                ? "IN_PROGRESS"
-                : "ASSIGNED";
+              : hasPendingQcAssignment && !hasWorkingAssignment
+                ? "PENDING_QC"
+                : hasStartedTask
+                  ? "IN_PROGRESS"
+                  : "ASSIGNED";
 
             const aptDate = so.appointment?.scheduled_time
               ? new Date(so.appointment.scheduled_time)
@@ -574,9 +585,14 @@ export default function TechnicianAssignments() {
                           item.name === part.name && item.sku === part.sku,
                       ) === index,
                   );
+                // PENDING_QC chỉ nằm ở assignment — BE giữ Task.status = IN_PROGRESS cho tới khi
+                // KTV trưởng nghiệm thu, nên phải xét assignment trước, nếu không modal vẫn hiện
+                // nút "Đã hoàn tất" dù KTV đã bấm xong.
                 const taskStatus =
-                  t.status === "WAITING_STOCK" ||
-                  taskAssignment?.status === "WAITING_STOCK"
+                  taskAssignment?.status === "PENDING_QC"
+                    ? "PENDING_QC"
+                    : t.status === "WAITING_STOCK" ||
+                      taskAssignment?.status === "WAITING_STOCK"
                     ? "WAITING_STOCK"
                     : (t.status ?? taskAssignment?.status);
                 return {
@@ -685,7 +701,10 @@ export default function TechnicianAssignments() {
       return;
     }
     // Task cuối cùng vừa xong (có thể do KTV khác cùng đơn) — đóng modal luôn thay vì để trống.
-    if (mergedTasks.length > 0 && mergedTasks.every((t) => t.status === "COMPLETED")) {
+    if (
+      mergedTasks.length > 0 &&
+      mergedTasks.every((t) => t.status === "COMPLETED" || t.status === "PENDING_QC")
+    ) {
       skipModalSyncRef.current = true;
       setIssueReportOpen(false);
       setIssueReportAssignment(null);
@@ -745,17 +764,20 @@ export default function TechnicianAssignments() {
       let allCompleted = false;
       setIssueReportAssignment((prev) => {
         if (!prev) return prev;
-        const updatedTasks = prev.tasks.map((t) =>
-          t.taskAssignmentId === taskAssignmentId
-            ? { ...t, status: "COMPLETED" }
-            : t,
+        const updatedTasks = prev.tasks.map((t) => {
+          if (t.taskAssignmentId !== taskAssignmentId) return t;
+          // Task REPAIR chỉ dừng ở "chờ nghiệm thu" — KTV trưởng xác nhận mới thành COMPLETED
+          // (khớp completeTask bên BE). INSPECTION vẫn xong thẳng như cũ.
+          return { ...t, status: t.taskType === "REPAIR" ? "PENDING_QC" : "COMPLETED" };
+        });
+        allCompleted = updatedTasks.every(
+          (t) => t.status === "COMPLETED" || t.status === "PENDING_QC",
         );
-        allCompleted = updatedTasks.every((t) => t.status === "COMPLETED");
         return { ...prev, tasks: updatedTasks };
       });
-      // Toàn bộ công việc trong lệnh sửa chữa này đã xong — đóng modal và dọn state để lần mở
-      // sau không còn dính dữ liệu cũ, khỏi bắt KTV tự bấm X. Bật cờ chặn để effect đồng bộ
-      // modal (chạy khi assignments tải lại xong) không vô tình mở lại modal vừa đóng.
+      // Toàn bộ công việc trong lệnh sửa chữa này đã xong (hoặc đã chuyển sang chờ nghiệm thu) —
+      // đóng modal và dọn state để lần mở sau không còn dính dữ liệu cũ, khỏi bắt KTV tự bấm X.
+      // Bật cờ chặn để effect đồng bộ modal không vô tình mở lại modal vừa đóng.
       if (allCompleted) {
         skipModalSyncRef.current = true;
         setIssueReportOpen(false);
@@ -1200,7 +1222,7 @@ export default function TechnicianAssignments() {
               <option value="IN_PROGRESS">Đang thực hiện</option>
               <option value="PAUSED">Tạm dừng</option>
               <option value="WAITING_STOCK">Chờ phụ tùng</option>
-              <option value="PENDING_QC">Chờ QC</option>
+              <option value="PENDING_QC">Chờ nghiệm thu</option>
             </select>
           </div>
         </div>
@@ -1246,8 +1268,10 @@ export default function TechnicianAssignments() {
               </thead>
               <tbody>
                 {paginatedData.map((asg) => {
+                  // PENDING_QC = đã báo xong, đang chờ KTV trưởng nghiệm thu — vẫn cho KTV mở
+                  // modal xem tiến độ để biết công việc đang ở bước nào.
                   const hasProgressTask = asg.tasks.some((task) =>
-                    ["PENDING", "IN_PROGRESS", "PAUSED", "WAITING_STOCK"].includes(
+                    ["PENDING", "IN_PROGRESS", "PAUSED", "WAITING_STOCK", "PENDING_QC"].includes(
                       task.status ?? "",
                     ),
                   );
@@ -1606,6 +1630,9 @@ export default function TechnicianAssignments() {
                     {/* Danh sách công việc + nút hoàn thành */}
                     <div className="p-3 space-y-2.5 bg-slate-50/60">
                       {modalTasks.map((t, taskIndex) => {
+                        // KTV đã báo xong task REPAIR, đang chờ KTV trưởng nghiệm thu — không còn
+                        // thao tác gì, nhưng cũng chưa phải "Hoàn thành" nên tách badge riêng.
+                        const isAwaitingQc = t.status === "PENDING_QC";
                         const isDone =
                           t.status === "COMPLETED" ||
                           t.status === "PENDING_QC";
@@ -1616,7 +1643,9 @@ export default function TechnicianAssignments() {
                           t.spareParts?.filter((part) =>
                             RECEIVED_PART_STATUSES.includes(part.status ?? ""),
                           ).length ?? 0;
-                        const taskStatusLabel = isDone
+                        const taskStatusLabel = isAwaitingQc
+                          ? "Chờ nghiệm thu"
+                          : isDone
                           ? "Đã xong"
                           : isWaitingStock
                             ? "Chờ phụ tùng"
@@ -1713,7 +1742,12 @@ export default function TechnicianAssignments() {
                                 </div>
                               </div>
                               <div className="flex flex-col items-start sm:items-end gap-1.5">
-                                {isDone ? (
+                                {isAwaitingQc ? (
+                                  <span className="inline-flex self-start sm:self-auto items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-violet-700 bg-violet-50 border border-violet-200">
+                                    <Eye size={13} />
+                                    Chờ nghiệm thu
+                                  </span>
+                                ) : isDone ? (
                                   <span className="inline-flex self-start sm:self-auto items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200">
                                     <CheckCircle2 size={13} />
                                     Hoàn thành

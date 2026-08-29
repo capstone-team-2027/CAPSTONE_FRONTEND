@@ -484,9 +484,12 @@ export default function LeaderTaskTracking() {
                             const activeAssignments = task.assignments.filter(
                               (a) => a.status !== "CANCELLED",
                             );
+                            // PENDING_QC = KTV đã tự bấm "hoàn tất" task REPAIR trên máy họ, đang
+                            // chờ trưởng nghiệm thu; IN_PROGRESS = thợ báo miệng, trưởng tự bấm.
                             const completableAssignment = task.assignments.find(
-                              (a) => a.status === "IN_PROGRESS",
+                              (a) => a.status === "IN_PROGRESS" || a.status === "PENDING_QC",
                             );
+                            const isAwaitingQc = completableAssignment?.status === "PENDING_QC";
                             // Task INSPECTION đã COMPLETED do chính KTV tự bấm hoàn thành (không
                             // qua Leader xác nhận) thì chưa từng được hỏi "có lỗi phát hiện không"
                             // — luồng Leader tự xác nhận (completeConfirmTarget) đã tự hỏi sẵn rồi,
@@ -521,12 +524,19 @@ export default function LeaderTaskTracking() {
                                     </p>
                                   </div>
                                   <div className="flex items-center gap-3 shrink-0">
-                                    <span
-                                      className={`hidden sm:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${statusCfg.className}`}
-                                    >
-                                      <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
-                                      {statusCfg.label}
-                                    </span>
+                                    {isAwaitingQc ? (
+                                      <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap bg-violet-50 text-violet-600">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+                                        Chờ nghiệm thu
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className={`hidden sm:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${statusCfg.className}`}
+                                      >
+                                        <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
+                                        {statusCfg.label}
+                                      </span>
+                                    )}
                                     {completableAssignment && (
                                       <button
                                         onClick={() =>

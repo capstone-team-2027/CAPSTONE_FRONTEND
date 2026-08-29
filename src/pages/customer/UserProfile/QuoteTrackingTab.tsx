@@ -120,10 +120,22 @@ const getItemName = (item: GetQuotationResponse['items'][number], t: TFunction) 
 const getItemType = (item: GetQuotationResponse['items'][number]) =>
   item.service_catalog ? 'Dịch vụ' : 'Phụ tùng';
 
+// Phải còn ít nhất 1 dòng phụ tùng đặt riêng chưa bị hủy: nếu mọi món cần cọc đều đã bị hủy
+// (khách không cọc, lễ tân đóng đơn bỏ món đó) thì không còn gì để thu, dù deposit_amount cũ
+// trong DB chưa kịp về 0.
+const hasPendingCustomPart = (quote: GetQuotationResponse) =>
+  (quote.items || []).some(
+    (item) =>
+      item.customPartOrder &&
+      item.status !== 'CANCELLED' &&
+      item.customPartOrder.status !== 'CANCELLED',
+  );
+
 const isAwaitingDeposit = (quote: GetQuotationResponse) =>
   ['APPROVED', 'PENDING_DEPOSIT'].includes(quote.status) &&
   Number(quote.deposit_amount ?? 0) > 0 &&
-  !quote.deposit_paid_at;
+  !quote.deposit_paid_at &&
+  hasPendingCustomPart(quote);
 
 const getVehicleText = (quote: CustomerQuotationRow) => {
   const vehicle = quote.task?.serviceOrder?.vehicle;

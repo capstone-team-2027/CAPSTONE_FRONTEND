@@ -106,10 +106,22 @@ const ITEMS_PER_PAGE = 5;
 
 // Báo giá có phụ tùng đặt riêng thì phải cọc trước; chưa có deposit_paid_at
 // nghĩa là khách chưa chuyển tiền cọc -> lễ tân theo dõi và xác nhận (không thuộc trang này).
+// Phải còn ít nhất 1 dòng phụ tùng đặt riêng chưa bị hủy: nếu mọi món cần cọc đều đã bị hủy
+// (khách không cọc, lễ tân đóng đơn bỏ món đó) thì không còn gì để thu, dù deposit_amount cũ
+// trong DB chưa kịp về 0.
+const hasPendingCustomPart = (quotation: GetQuotationResponse) =>
+  (quotation.items || []).some(
+    (item) =>
+      item.customPartOrder &&
+      item.status !== "CANCELLED" &&
+      item.customPartOrder.status !== "CANCELLED",
+  );
+
 const isAwaitingDeposit = (quotation: GetQuotationResponse) =>
   ["APPROVED", "PENDING_DEPOSIT"].includes(quotation.status) &&
   Number(quotation.deposit_amount) > 0 &&
-  !quotation.deposit_paid_at;
+  !quotation.deposit_paid_at &&
+  hasPendingCustomPart(quotation);
 
 const formatVND = (value: number | string) =>
   `${new Intl.NumberFormat("vi-VN").format(Number(value) || 0)} VND`;
@@ -1251,16 +1263,20 @@ export default function LeaderQuoteList() {
                                           </div>
                                           {item.customPartOrder && (
                                             <span
-                                              className={`mt-1 ml-3 flex w-fit min-w-[190px] rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.customPartOrder.status === "WAITING_DEPOSIT"
-                                                ? "bg-amber-50 text-amber-700"
-                                                : item.customPartOrder.status === "WAITING_ARRIVAL"
-                                                  ? "bg-blue-50 text-blue-700"
-                                                  : item.customPartOrder.status === "READY_FOR_USE"
-                                                    ? "bg-violet-50 text-violet-700"
-                                                    : "bg-emerald-50 text-emerald-700"
+                                              className={`mt-1 ml-3 flex w-fit min-w-[190px] rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.customPartOrder.status === "CANCELLED"
+                                                ? "bg-rose-50 text-rose-700"
+                                                : item.customPartOrder.status === "WAITING_DEPOSIT"
+                                                  ? "bg-amber-50 text-amber-700"
+                                                  : item.customPartOrder.status === "WAITING_ARRIVAL"
+                                                    ? "bg-blue-50 text-blue-700"
+                                                    : item.customPartOrder.status === "READY_FOR_USE"
+                                                      ? "bg-violet-50 text-violet-700"
+                                                      : "bg-emerald-50 text-emerald-700"
                                                 }`}
                                             >
-                                              {item.customPartOrder.status === "WAITING_DEPOSIT" ? (
+                                              {item.customPartOrder.status === "CANCELLED" ? (
+                                                "Phụ tùng đặt riêng · Đã hủy"
+                                              ) : item.customPartOrder.status === "WAITING_DEPOSIT" ? (
                                                 <>
                                                   Phụ tùng đặt riêng · Cần cọc:{" "}
                                                   {formatVND(
