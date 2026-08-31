@@ -64,6 +64,7 @@ export default function AdminTechnicalDocuments() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deletingDoc, setDeletingDoc] = useState<TechnicalDocument | null>(null);
 
   const loadDocuments = useCallback(async () => {
     setIsLoading(true);
@@ -133,16 +134,17 @@ export default function AdminTechnicalDocuments() {
     }
   };
 
-  const handleDelete = async (doc: TechnicalDocument) => {
-    if (!window.confirm(`Xóa tài liệu "${doc.title}"? Hành động này không thể hoàn tác.`)) return;
-    setDeletingId(doc.id);
+  const handleConfirmDelete = async () => {
+    if (!deletingDoc) return;
+    setDeletingId(deletingDoc.id);
     try {
       const response = await fetchPrivate(
-        TECHNICAL_DOCUMENT_API_ENDPOINTS.DELETE_TECHNICAL_DOCUMENT(doc.id),
+        TECHNICAL_DOCUMENT_API_ENDPOINTS.DELETE_TECHNICAL_DOCUMENT(deletingDoc.id),
         'DELETE'
       );
       if (response && response.success) {
         showToast('Đã xóa tài liệu kỹ thuật.', 'success');
+        setDeletingDoc(null);
         void loadDocuments();
       }
     } catch (error) {
@@ -299,7 +301,7 @@ export default function AdminTechnicalDocuments() {
                     <td className="py-4 px-6">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => handleDelete(doc)}
+                          onClick={() => setDeletingDoc(doc)}
                           disabled={deletingId === doc.id}
                           className="p-2 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition-colors cursor-pointer disabled:opacity-50"
                           title="Xóa tài liệu"
@@ -348,6 +350,60 @@ export default function AdminTechnicalDocuments() {
             onClose={() => setIsModalOpen(false)}
             onSave={handleSaveDocument}
           />
+        )}
+      </AnimatePresence>
+
+      {/* MODAL XÁC NHẬN XÓA */}
+      <AnimatePresence>
+        {deletingDoc && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => deletingId === null && setDeletingDoc(null)}
+              className="absolute inset-0 bg-slate-900/50 backdrop-blur-xs"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden"
+            >
+              <div className="px-6 py-5 flex items-start gap-4">
+                <div className="w-11 h-11 shrink-0 rounded-xl bg-rose-50 flex items-center justify-center">
+                  <AlertTriangle size={20} className="text-rose-600" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-slate-800 text-base">Xóa tài liệu kỹ thuật?</h3>
+                  <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
+                    Tài liệu{' '}
+                    <span className="font-semibold text-slate-700">"{deletingDoc.title}"</span>{' '}
+                    sẽ bị xóa khỏi hệ thống cùng toàn bộ dữ liệu đã lập chỉ mục cho AI. Hành động
+                    này không thể hoàn tác.
+                  </p>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setDeletingDoc(null)}
+                  disabled={deletingId !== null}
+                  className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors disabled:opacity-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={() => void handleConfirmDelete()}
+                  disabled={deletingId !== null}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-rose-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deletingId !== null && <Loader2 size={15} className="animate-spin" />}
+                  Xóa tài liệu
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

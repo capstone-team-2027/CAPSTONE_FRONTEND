@@ -26,6 +26,9 @@ import {
   Printer,
   Trash2,
   Wallet,
+  ChevronDown,
+  Check,
+  Plus,
 } from "lucide-react";
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { useSocket } from "../../../hook/useSocket";
@@ -173,20 +176,171 @@ function PriceInput({
       title={title}
       value={display}
       onFocus={() => {
+        if (readOnly) return;
         setDraft(value ? String(value) : "");
         setFocused(true);
       }}
       onChange={(e) => {
+        if (readOnly) return;
         const nextDraft = e.target.value.replace(/\D/g, "");
         setDraft(nextDraft);
         if (commitOnChange) onCommit(Number(nextDraft) || 0);
       }}
       onBlur={() => {
+        if (readOnly) return;
         setFocused(false);
         onCommit(Number(draft) || 0);
       }}
       className={className}
     />
+  );
+}
+
+interface SearchableSelectOption {
+  value: number;
+  label: string;
+  sublabel?: string;
+  outOfStock?: boolean;
+}
+
+// Dropdown tự vẽ thay cho <select> native — giống hệt form tạo báo giá: có ô tìm kiếm,
+// danh sách cuộn giới hạn chiều cao, dùng position fixed để thoát khỏi vùng overflow của
+// bảng/modal (trục overflow-x auto khiến trục dọc bị clip, absolute không thoát được).
+function SearchableSelect({
+  options,
+  value,
+  placeholder,
+  emptyText,
+  invalid,
+  onChange,
+}: {
+  options: SearchableSelectOption[];
+  value: number | null;
+  placeholder: string;
+  emptyText?: string;
+  invalid?: boolean;
+  onChange: (value: number | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [keyword, setKeyword] = useState("");
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const updatePosition = () => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setMenuPos({ top: rect.bottom + 6, left: rect.left, width: Math.max(rect.width, 260) });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target as Node) &&
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+        setKeyword("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const sortedOptions = useMemo(
+    () => [...options].sort((a, b) => a.label.localeCompare(b.label, "vi")),
+    [options],
+  );
+  const filteredOptions = useMemo(() => {
+    const kw = keyword.trim().toLowerCase();
+    if (!kw) return sortedOptions;
+    return sortedOptions.filter(
+      (o) => o.label.toLowerCase().includes(kw) || o.sublabel?.toLowerCase().includes(kw),
+    );
+  }, [sortedOptions, keyword]);
+
+  const selected = options.find((o) => o.value === value) ?? null;
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`w-full min-w-[180px] flex items-center justify-between gap-2 bg-slate-50 border rounded-lg px-3 py-2 text-xs font-semibold text-left focus:outline-none transition-colors ${
+          invalid ? "border-amber-300 text-slate-400" : "border-slate-200 text-slate-800"
+        } ${open ? "ring-1 ring-[#00285E] border-[#00285E]" : ""}`}
+      >
+        <span className="truncate">{selected ? selected.label : placeholder}</span>
+        <ChevronDown size={14} className={`shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && menuPos && (
+        <div
+          ref={menuRef}
+          style={{ position: "fixed", top: menuPos.top, left: menuPos.left, width: menuPos.width }}
+          className="z-[60] rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden"
+        >
+          <div className="relative p-2 border-b border-slate-100">
+            <Search size={13} className="absolute left-4.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              autoFocus
+              type="text"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="Tìm kiếm..."
+              className="w-full bg-slate-50 rounded-lg pl-8 pr-2 py-1.5 text-xs font-semibold outline-none placeholder:font-normal placeholder:text-slate-400"
+            />
+          </div>
+          <div className="max-h-56 overflow-y-auto py-1">
+            {filteredOptions.length === 0 ? (
+              <p className="px-3 py-3 text-xs text-slate-400 italic">
+                {emptyText ?? "Không tìm thấy kết quả phù hợp."}
+              </p>
+            ) : (
+              filteredOptions.map((option) => {
+                const isSelected = option.value === value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      onChange(option.value);
+                      setOpen(false);
+                      setKeyword("");
+                    }}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-xs text-left transition-colors ${
+                      isSelected
+                        ? "bg-[#EDF3FF] text-[#00285E] font-semibold"
+                        : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <span className="truncate">{option.label}</span>
+                    {isSelected ? (
+                      <Check size={13} className="shrink-0 text-[#00285E]" />
+                    ) : option.outOfStock ? (
+                      <span className="shrink-0 text-[10px] font-semibold text-amber-600">Thiếu tồn — chờ nhập kho</span>
+                    ) : option.sublabel ? (
+                      <span className="shrink-0 text-[10px] font-semibold text-slate-400">{option.sublabel}</span>
+                    ) : null}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -521,7 +675,22 @@ export default function LeaderQuoteList() {
       : 0;
   };
 
-  const updateEditPart = (uid: number, partId: number | null) =>
+  const updateEditPart = (uid: number, partId: number | null) => {
+    const currentRow = editRows.find((row) => row.uid === uid);
+    const part = spareParts.find((p) => p.id === partId);
+    if (part && currentRow) {
+      const isDuplicatedInIssue = editRows.some(
+        (row) =>
+          row.uid !== uid &&
+          row.kind === "part" &&
+          row.issueId === currentRow.issueId &&
+          row.partId === partId,
+      );
+      if (isDuplicatedInIssue) {
+        showToast(`"${part.name}" đã được chọn cho hạng mục lỗi này.`, "warning");
+        return;
+      }
+    }
     setEditRows((prev) => {
       const currentRow = prev.find((row) => row.uid === uid);
       const updatedRows = prev.map((row) =>
@@ -536,17 +705,29 @@ export default function LeaderQuoteList() {
       );
       if (hasEmptyRow) return updatedRows;
       editUidRef.current += 1;
+      const emptyRow: EditRow = {
+        ...currentRow,
+        uid: editUidRef.current,
+        detailId: null,
+        kind: "part",
+        partId: null,
+        customItemName: "",
+        customUnitPrice: 0,
+        quantity: 1,
+      };
+      // Chèn ngay sau nhóm dòng của hạng mục lỗi đó thay vì đẩy xuống cuối mảng
+      const lastIssueIndex = updatedRows.reduce(
+        (lastIndex, row, index) =>
+          row.kind !== "service" && row.issueId === currentRow.issueId ? index : lastIndex,
+        -1,
+      );
       return [
-        ...updatedRows,
-        {
-          ...currentRow,
-          uid: editUidRef.current,
-          detailId: null,
-          partId: null,
-          quantity: 1,
-        },
+        ...updatedRows.slice(0, lastIssueIndex + 1),
+        emptyRow,
+        ...updatedRows.slice(lastIssueIndex + 1),
       ];
     });
+  };
 
   const updateEditCustomItem = (
     uid: number,
@@ -589,15 +770,13 @@ export default function LeaderQuoteList() {
     setEditCustomPrice(0);
   };
 
+  // Cho phép vượt tồn giống form tạo — thiếu tồn chỉ hiện cảnh báo, hệ thống tự tạo yêu cầu
+  // nhập kho khi khách duyệt báo giá.
   const updateEditQuantity = (uid: number, quantity: number) =>
     setEditRows((prev) =>
-      prev.map((row) => {
-        if (row.uid !== uid) return row;
-        // available_quantity: tồn đã trừ phần bị báo giá APPROVED giữ chỗ
-        const part = spareParts.find((p) => p.id === row.partId);
-        const stock = part ? Number(part.available_quantity) : Infinity;
-        return { ...row, quantity: Math.min(Math.max(0, quantity), stock) };
-      }),
+      prev.map((row) =>
+        row.uid === uid ? { ...row, quantity: Math.max(0, quantity) } : row,
+      ),
     );
 
   const updateEditIssue = (uid: number, issueId: number | null) =>
@@ -612,8 +791,33 @@ export default function LeaderQuoteList() {
       ),
     );
 
+  // Xóa dòng phụ tùng cuối cùng của 1 hạng mục lỗi thì reset về dòng trống thay vì bỏ hẳn,
+  // để hạng mục đó vẫn còn chỗ chọn phụ tùng mới — giống form tạo báo giá.
   const removeEditRow = (uid: number) =>
-    setEditRows((prev) => prev.filter((row) => row.uid !== uid));
+    setEditRows((prev) => {
+      const target = prev.find((row) => row.uid === uid);
+      if (!target) return prev;
+      if (target.kind === "service") return prev.filter((row) => row.uid !== uid);
+      const issueRows = prev.filter(
+        (row) => row.kind !== "service" && row.issueId === target.issueId,
+      );
+      if (issueRows.length === 1) {
+        return prev.map((row) =>
+          row.uid === uid
+            ? {
+              ...row,
+              kind: "part" as const,
+              detailId: null,
+              partId: null,
+              customItemName: "",
+              customUnitPrice: 0,
+              quantity: 1,
+            }
+            : row,
+        );
+      }
+      return prev.filter((row) => row.uid !== uid);
+    });
 
   // Thêm dịch vụ: chọn 1 dịch vụ rồi tích nhiều lỗi -> sinh mỗi lỗi 1 dòng.
   // Bỏ qua lỗi đã có chính dịch vụ đó để không tạo dòng trùng (service + lỗi).
@@ -651,6 +855,32 @@ export default function LeaderQuoteList() {
         });
       return [...prev, ...newRows];
     });
+  };
+
+  // Dịch vụ khách yêu cầu thêm ngoài các hạng mục lỗi đã báo (vd rửa xe, thay dầu định kỳ) —
+  // không gắn issueId, không bị validate "phải có phụ tùng đi kèm dịch vụ" ở BE.
+  const addEditStandaloneService = (id: number) => {
+    const service = services.find((s) => s.id === id);
+    if (!service) return;
+    const dbPrice = Number(service.labor_price) || 0;
+    editUidRef.current += 1;
+    setEditRows((prev) => [
+      ...prev,
+      {
+        uid: editUidRef.current,
+        detailId: null,
+        issueId: null,
+        kind: "service",
+        partId: null,
+        customItemName: "",
+        customUnitPrice: 0,
+        quantity: 1,
+        serviceId: id,
+        serviceName: service.service_name,
+        hasDbPrice: dbPrice > 0,
+        repairPrice: dbPrice,
+      },
+    ]);
   };
 
   const editTotal = editRows.reduce(
@@ -1419,618 +1649,659 @@ export default function LeaderQuoteList() {
                     );
                   })()
                 ) : (
-                  /* ===== CHẾ ĐỘ SỬA: form giống modal tạo báo giá ===== */
+                  /* ===== CHẾ ĐỘ SỬA: bố cục giống hệt form tạo báo giá ===== */
                   <div className="space-y-5">
-                    {/* Tầng phụ tùng: mỗi dòng gắn 1 hạng mục lỗi */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-2 px-1">
-                        <Package size={14} className="text-slate-500" />
-                        <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">
-                          Phụ tùng
-                        </span>
-                        <span className="text-[11px] font-semibold text-slate-400">
-                          (
-                          {
-                            editRows.filter(
-                              (r) =>
-                                (r.kind === "part" && r.partId) ||
-                                r.kind === "custom",
-                            ).length
-                          }
-                          )
-                        </span>
-                      </div>
-                      {editRows.some(
-                        (r) =>
-                          r.kind === "part" || r.kind === "custom",
-                      ) ? (
-                        <div className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden">
-                          <div className="overflow-x-auto">
-                            <table className="w-full min-w-[560px] text-left border-collapse text-sm">
-                              <thead>
-                                <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
-                                  <th className="py-3 px-4 align-middle">
-                                    Hạng mục lỗi
-                                  </th>
-                                  <th className="py-3 px-4 align-middle">
-                                    Sản phẩm trong kho
-                                  </th>
-                                  <th className="py-3 px-3 align-middle w-20">
-                                    SL
-                                  </th>
-                                  <th className="py-3 px-4 align-middle text-right whitespace-nowrap">
-                                    Thành tiền
-                                  </th>
-                                  <th className="py-3 px-2 align-middle w-10"></th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {editRows
-                                  .filter(
-                                    (row) =>
-                                      row.kind === "part" ||
-                                      row.kind === "custom",
-                                  )
-                                  .map((row, rowIndex, visibleRows) => {
-                                    const detail = selectedQuotation.items.find(
-                                      (i) => i.id === row.detailId,
-                                    );
-                                    const unitPrice = getEditUnitPrice(row);
-                                    const isEmptyPart =
-                                      row.kind === "part" && !row.partId;
-                                    // Chỉ dòng đầu của mỗi hạng mục lỗi mới hiện tên lỗi
-                                    const isFirstRowOfIssue =
-                                      visibleRows.findIndex(
-                                        (r) => r.issueId === row.issueId,
-                                      ) === rowIndex;
-                                    const issueName =
-                                      detail?.issue?.component?.name ??
-                                      editIssues.find(
-                                        (issue) =>
-                                          issue.issueId === row.issueId,
-                                      )?.componentName ??
-                                      "Không gắn lỗi";
-                                    const issueDescription =
-                                      detail?.issue?.error_description ??
-                                      editIssues.find(
-                                        (issue) =>
-                                          issue.issueId === row.issueId,
-                                      )?.description ??
-                                      "";
-                                    return (
-                                      <tr
-                                        key={row.uid}
-                                        className="border-b border-slate-100 last:border-0 align-top"
-                                      >
-                                        <td className="py-3.5 px-4">
-                                          {isFirstRowOfIssue && (
-                                            <>
-                                              <p
-                                                className="text-xs font-semibold text-slate-800 max-w-[140px] truncate"
-                                                title={issueName}
-                                              >
-                                                {issueName}
-                                              </p>
-                                              {issueDescription && (
-                                                <p
-                                                  className="text-[11px] text-slate-400 max-w-[140px] truncate mt-0.5"
-                                                  title={issueDescription}
-                                                >
-                                                  {issueDescription}
-                                                </p>
-                                              )}
-                                            </>
-                                          )}
-                                        </td>
-                                        <td className="py-3.5 px-4">
-                                          {row.kind === "custom" ? (
-                                            <div>
-                                              <div className="grid grid-cols-[minmax(0,1fr)_130px] gap-2">
-                                                <input
-                                                  type="text"
-                                                  value={row.customItemName}
-                                                  onChange={(event) =>
-                                                    updateEditCustomItem(
-                                                      row.uid,
-                                                      {
-                                                        customItemName:
-                                                          event.target.value,
-                                                      },
-                                                    )
-                                                  }
-                                                  placeholder="Tên phụ tùng đặt riêng"
-                                                  className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                                                />
-                                                <PriceInput
-                                                  value={row.customUnitPrice}
-                                                  placeholder="Đơn giá"
-                                                  commitOnChange
-                                                  formatWhileTyping
-                                                  onCommit={(value) =>
-                                                    updateEditCustomItem(
-                                                      row.uid,
-                                                      {
-                                                        customUnitPrice: value,
-                                                      },
-                                                    )
-                                                  }
-                                                  className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                                                />
-                                              </div>
-                                              <p className="mt-1 text-[10px] font-semibold text-amber-600">
-                                                Phụ tùng đặt riêng · Cọc 30%:{" "}
-                                                {formatVND(
-                                                  Math.round(
-                                                    row.quantity *
-                                                    row.customUnitPrice *
-                                                    0.3,
-                                                  ),
-                                                )}
-                                              </p>
-                                            </div>
-                                          ) : (
-                                            <>
-                                              <select
-                                                value={row.partId ?? ""}
-                                                onChange={(e) =>
-                                                  updateEditPart(
-                                                    row.uid,
-                                                    e.target.value
-                                                      ? Number(e.target.value)
-                                                      : null,
-                                                  )
-                                                }
-                                                className={`w-full min-w-[180px] bg-slate-50 border rounded-lg px-3 py-2 text-xs font-semibold focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors ${row.partId
-                                                  ? "border-slate-200 text-slate-800"
-                                                  : "border-amber-300 text-slate-400"
-                                                  }`}
-                                              >
-                                                <option value="">
-                                                  -- Chọn phụ tùng tiếp theo --
-                                                </option>
-                                                {detail?.sparePart &&
-                                                  !spareParts.some(
-                                                    (p) =>
-                                                      p.id === detail.sparePart!.id,
-                                                  ) && (
-                                                    <option
-                                                      value={detail.sparePart.id}
-                                                    >
-                                                      {detail.sparePart.name}
-                                                    </option>
-                                                  )}
-                                                {spareParts.map((part) => {
-                                                  const available = Number(
-                                                    part.available_quantity,
-                                                  );
-                                                  return (
-                                                    <option
-                                                      key={part.id}
-                                                      value={part.id}
-                                                      disabled={available <= 0}
-                                                    >
-                                                      {part.name}
-                                                      {part.brand
-                                                        ? ` - ${part.brand}`
-                                                        : ""}
-                                                      {available <= 0
-                                                        ? " (hết hàng)"
-                                                        : ` (còn: ${available})`}
-                                                    </option>
-                                                  );
-                                                })}
-                                              </select>
-                                              {row.partId != null && (
-                                                <p className="text-[11px] text-slate-400 mt-1">
-                                                  Đơn giá:{" "}
-                                                  <span className="font-semibold text-slate-600">
-                                                    {formatVND(unitPrice)}
-                                                  </span>
-                                                </p>
-                                              )}
-                                            </>
-                                          )}
-                                        </td>
-                                        <td className="py-3.5 px-3">
-                                          {!isEmptyPart ? (
-                                            <input
-                                              type="number"
-                                              min={0}
-                                              value={row.quantity}
-                                              onChange={(e) =>
-                                                updateEditQuantity(
-                                                  row.uid,
-                                                  Number(e.target.value),
-                                                )
-                                              }
-                                              className="w-16 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-800 text-center focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
-                                            />
-                                          ) : (
-                                            <span className="text-xs text-slate-300">—</span>
-                                          )}
-                                        </td>
-                                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                                          {!isEmptyPart ? (
-                                            <span className="text-xs font-bold text-[#00285E]">
-                                              {formatVND(row.quantity * unitPrice)}
-                                            </span>
-                                          ) : (
-                                            <span className="text-xs text-slate-300">—</span>
-                                          )}
-                                        </td>
-                                        <td className="py-3.5 px-2 text-center">
-                                          {!isEmptyPart && (
-                                            <button
-                                              onClick={() => removeEditRow(row.uid)}
-                                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                                              title="Xóa phụ tùng"
-                                            >
-                                              <Trash2 size={14} />
-                                            </button>
-                                          )}
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-slate-400 italic px-1">
-                          Không có phụ tùng.
-                        </p>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowEditCustomPartForm((current) => !current)
-                        }
-                        className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[#00285E]/25 bg-white px-3 text-xs font-semibold text-[#00285E] hover:bg-slate-50"
-                      >
-                        <span className="text-base font-normal">+</span>
-                        Đặt phụ tùng riêng
-                      </button>
-                      {showEditCustomPartForm && (
-                        <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-4">
-                          <div className="mb-4 flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-bold text-slate-800">
-                                Thêm phụ tùng đặt riêng
-                              </p>
-                              <p className="mt-0.5 text-xs text-slate-400">
-                                Nhập thông tin phụ tùng cần đặt cho hạng mục lỗi.
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setShowEditCustomPartForm(false)}
-                              className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                            >
-                              <X size={16} />
-                            </button>
-                          </div>
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <div>
-                              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                                Hạng mục lỗi
-                              </label>
-                              <select
-                                value={editCustomIssueId}
-                                onChange={(event) =>
-                                  setEditCustomIssueId(
-                                    Number(event.target.value),
-                                  )
-                                }
-                                className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                              >
-                                {editIssues.map((issue) => (
-                                  <option
-                                    key={issue.issueId}
-                                    value={issue.issueId}
-                                  >
-                                    {issue.componentName}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                                Tên phụ tùng
-                              </label>
-                              <input
-                                type="text"
-                                value={editCustomName}
-                                onChange={(event) =>
-                                  setEditCustomName(event.target.value)
-                                }
-                                placeholder="Nhập tên phụ tùng"
-                                className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                              />
-                            </div>
-                            <div>
-                              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                                Số lượng
-                              </label>
-                              <input
-                                type="number"
-                                min={1}
-                                value={editCustomQuantity}
-                                onChange={(event) =>
-                                  setEditCustomQuantity(
-                                    Math.max(1, Number(event.target.value)),
-                                  )
-                                }
-                                className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                              />
-                            </div>
-                            <div>
-                              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                                Đơn giá
-                              </label>
-                              <PriceInput
-                                value={editCustomPrice}
-                                placeholder="Nhập đơn giá"
-                                commitOnChange
-                                formatWhileTyping
-                                onCommit={setEditCustomPrice}
-                                className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-right text-xs font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                              />
-                            </div>
-                          </div>
-                          <div className="mt-4 flex items-center justify-between gap-3">
-                            <div className="text-xs text-slate-500">
-                              Cọc áp dụng:{" "}
-                              <span className="font-bold text-amber-600">30%</span>
-                              {editCustomPrice > 0 && (
-                                <span className="ml-2 font-semibold text-slate-700">
-                                  (
-                                  {formatVND(
-                                    Math.round(
-                                      editCustomQuantity *
-                                      editCustomPrice *
-                                      0.3,
-                                    ),
-                                  )}
-                                  )
-                                </span>
-                              )}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={addEditCustomItem}
-                              disabled={
-                                editCustomIssueId === "" ||
-                                !editCustomName.trim() ||
-                                editCustomQuantity <= 0 ||
-                                editCustomPrice <= 0
-                              }
-                              className="h-9 rounded-lg bg-[#00285E] px-4 text-xs font-semibold text-white hover:bg-[#003C7D] disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                              Thêm vào báo giá
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Tầng dịch vụ: chọn 1 dịch vụ + tích các lỗi -> thêm dòng */}
-                    <div className="bg-white rounded-2xl border border-slate-200/70 p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <Wrench size={14} className="text-slate-500" />
-                          Dịch vụ
-                        </label>
-                        {editRows.some((r) => r.kind === "service") && (
+                    {/* Danh sách hạng mục lỗi + Chọn dịch vụ cho hạng mục lỗi — chung 1 card */}
+                    <div className="bg-white rounded-2xl border border-slate-200/70 p-4 space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                            <ClipboardList size={14} className="text-slate-500" />
+                            Danh sách hạng mục lỗi
+                          </label>
                           <span
                             className="text-xs font-semibold px-2.5 py-1 rounded-full"
                             style={{ backgroundColor: "#00285E", color: "#fff" }}
                           >
-                            {editRows.filter((r) => r.kind === "service").length}{" "}
-                            dịch vụ
+                            {editIssues.length} hạng mục
                           </span>
-                        )}
-                      </div>
-
-                      {/* Chọn 1 dịch vụ + tích các lỗi cần áp -> bấm Thêm */}
-                      <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-3">
-                        <select
-                          value={servicePicker}
-                          onChange={(e) => {
-                            setServicePicker(
-                              e.target.value ? Number(e.target.value) : "",
+                        </div>
+                        <div className="space-y-1.5">
+                          {editIssues.map((issue) => {
+                            const hasService = editRows.some(
+                              (r) => r.kind === "service" && r.issueId === issue.issueId,
                             );
-                            setPickedIssueIds([]);
-                          }}
-                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
-                        >
-                          <option value="">
-                            -- Chọn dịch vụ trong hệ thống --
-                          </option>
-                          {services.map((service) => (
-                            <option key={service.id} value={service.id}>
-                              {service.service_name}
-                            </option>
-                          ))}
-                        </select>
-
-                        {servicePicker !== "" &&
-                          (() => {
-                            const availableIssues = editIssues.filter(
-                              (item) =>
-                                !editRows.some(
-                                  (r) =>
-                                    r.kind === "service" &&
-                                    r.serviceId === servicePicker &&
-                                    r.issueId === item.issueId,
-                                ),
-                            );
-                            if (availableIssues.length === 0)
-                              return (
-                                <p className="text-xs text-rose-500 italic px-1">
-                                  Mọi hạng mục lỗi đã được áp dịch vụ này.
-                                </p>
-                              );
                             return (
-                              <>
-                                <div className="flex items-center justify-between px-1">
-                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                    Áp cho hạng mục lỗi
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setPickedIssueIds(
-                                        pickedIssueIds.length ===
-                                          availableIssues.length
-                                          ? []
-                                          : availableIssues.map(
-                                            (i) => i.issueId,
-                                          ),
-                                      )
-                                    }
-                                    className="text-[11px] font-semibold text-[#00285E] hover:underline"
-                                  >
-                                    {pickedIssueIds.length ===
-                                      availableIssues.length
-                                      ? "Bỏ chọn tất cả"
-                                      : "Chọn tất cả"}
-                                  </button>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                                  {availableIssues.map((item) => {
-                                    const checked = pickedIssueIds.includes(
-                                      item.issueId,
-                                    );
-                                    return (
-                                      <label
-                                        key={item.issueId}
-                                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-semibold cursor-pointer transition-colors ${checked
-                                          ? "border-[#00285E] bg-white text-slate-800"
-                                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
-                                          }`}
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={checked}
-                                          onChange={() =>
-                                            setPickedIssueIds((prev) =>
-                                              prev.includes(item.issueId)
-                                                ? prev.filter(
-                                                  (id) => id !== item.issueId,
-                                                )
-                                                : [...prev, item.issueId],
-                                            )
-                                          }
-                                          className="accent-[#00285E]"
-                                        />
-                                        <span className="truncate">
-                                          {item.componentName}
-                                        </span>
-                                      </label>
-                                    );
-                                  })}
-                                </div>
-                                <button
-                                  type="button"
-                                  disabled={pickedIssueIds.length === 0}
-                                  onClick={() => {
-                                    addEditServicesForIssues(
-                                      servicePicker,
-                                      pickedIssueIds,
-                                    );
-                                    setServicePicker("");
-                                    setPickedIssueIds([]);
-                                  }}
-                                  style={{ backgroundColor: "#00285E" }}
-                                  className="w-full py-2 rounded-lg text-xs font-semibold text-white transition-all hover:brightness-125 disabled:opacity-40 disabled:cursor-not-allowed"
-                                >
-                                  Thêm dịch vụ cho {pickedIssueIds.length} hạng
-                                  mục
-                                </button>
-                              </>
-                            );
-                          })()}
-                      </div>
-
-                      {editRows.some((r) => r.kind === "service") && (
-                        <div className="mt-3 space-y-2">
-                          <div className="flex items-center gap-3 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                            <span className="flex-1 min-w-[140px]">Dịch vụ</span>
-                            <span className="w-40">Hạng mục lỗi</span>
-                            <span className="w-32 text-right">Đơn giá (VND)</span>
-                            <span className="w-28 text-right">Thành tiền</span>
-                            <span className="w-7" />
-                          </div>
-                          {editRows
-                            .filter((row) => row.kind === "service")
-                            .map((row) => (
                               <div
-                                key={row.uid}
-                                className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5"
+                                key={issue.issueId}
+                                className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 ${hasService
+                                  ? "border-emerald-200 bg-emerald-50/50"
+                                  : "border-slate-200 bg-slate-50/60"
+                                  }`}
                               >
-                                <span className="flex-1 min-w-[140px] text-sm font-semibold text-slate-800 truncate">
-                                  {row.serviceName}
-                                </span>
-                                <select
-                                  value={row.issueId ?? ""}
-                                  onChange={(e) =>
-                                    updateEditIssue(
-                                      row.uid,
-                                      e.target.value
-                                        ? Number(e.target.value)
-                                        : null,
-                                    )
-                                  }
-                                  className={`w-40 bg-white border rounded-lg px-2 py-1.5 text-xs font-semibold focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors ${row.issueId
-                                    ? "border-slate-200 text-slate-800"
-                                    : "border-amber-300 text-slate-400"
+                                {hasService ? (
+                                  <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />
+                                ) : (
+                                  <AlertCircle size={14} className="shrink-0 text-amber-500" />
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-semibold text-slate-800 truncate">
+                                    {issue.componentName}
+                                  </p>
+                                  {issue.description && (
+                                    <p className="text-[11px] text-slate-400 truncate">
+                                      {issue.description}
+                                    </p>
+                                  )}
+                                </div>
+                                <span
+                                  className={`shrink-0 text-[10px] font-bold ${hasService ? "text-emerald-600" : "text-amber-600"
                                     }`}
                                 >
-                                  <option value="">-- Chọn hạng mục --</option>
-                                  {editIssues
-                                    .filter(
-                                      (item) =>
-                                        item.issueId === row.issueId ||
-                                        !editRows.some(
-                                          (s) =>
-                                            s.uid !== row.uid &&
-                                            s.kind === "service" &&
-                                            s.serviceId === row.serviceId &&
-                                            s.issueId === item.issueId,
-                                        ),
-                                    )
-                                    .map((item) => (
-                                      <option
-                                        key={item.issueId}
-                                        value={item.issueId}
-                                      >
-                                        {item.componentName}
-                                      </option>
-                                    ))}
-                                </select>
-                                <PriceInput
-                                  placeholder="Nhập giá"
-                                  formatWhileTyping
-                                  value={row.repairPrice}
-                                  onCommit={(v) => updateEditFee(row.uid, v)}
-                                  className="w-32 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-right transition-colors focus:outline-none bg-white text-slate-800 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
-                                />
-                                <span className="w-28 text-right text-xs font-bold text-[#00285E] whitespace-nowrap">
-                                  {formatVND(row.repairPrice)}
+                                  {hasService ? "Đã có dịch vụ" : "Chưa có dịch vụ"}
                                 </span>
-                                <button
-                                  onClick={() => removeEditRow(row.uid)}
-                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                                  title="Xóa dịch vụ"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
                               </div>
-                            ))}
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100">
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                            <Wrench size={14} className="text-slate-500" />
+                            Chọn dịch vụ cho hạng mục lỗi
+                          </label>
+                          {editRows.some((r) => r.kind === "service") && (
+                            <span
+                              className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                              style={{ backgroundColor: "#00285E", color: "#fff" }}
+                            >
+                              {editRows.filter((r) => r.kind === "service").length} dịch vụ
+                            </span>
+                          )}
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-3">
+                          <SearchableSelect
+                            value={servicePicker === "" ? null : servicePicker}
+                            placeholder="-- Chọn dịch vụ trong hệ thống --"
+                            emptyText="Không tìm thấy dịch vụ phù hợp."
+                            onChange={(v) => {
+                              setServicePicker(v ?? "");
+                              setPickedIssueIds([]);
+                            }}
+                            options={services.map((service) => ({
+                              value: service.id,
+                              label: service.service_name,
+                            }))}
+                          />
+
+                          {servicePicker !== "" &&
+                            (() => {
+                              const availableIssues = editIssues.filter(
+                                (item) =>
+                                  !editRows.some(
+                                    (r) =>
+                                      r.kind === "service" &&
+                                      r.serviceId === servicePicker &&
+                                      r.issueId === item.issueId,
+                                  ),
+                              );
+                              if (availableIssues.length === 0)
+                                return (
+                                  <p className="text-xs text-rose-500 italic px-1">
+                                    Mọi hạng mục lỗi đã được áp dịch vụ này.
+                                  </p>
+                                );
+                              return (
+                                <>
+                                  <div className="flex items-center justify-between px-1">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                      Áp cho hạng mục lỗi
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setPickedIssueIds(
+                                          pickedIssueIds.length === availableIssues.length
+                                            ? []
+                                            : availableIssues.map((i) => i.issueId),
+                                        )
+                                      }
+                                      className="text-[11px] font-semibold text-[#00285E] hover:underline"
+                                    >
+                                      {pickedIssueIds.length === availableIssues.length
+                                        ? "Bỏ chọn tất cả"
+                                        : "Chọn tất cả"}
+                                    </button>
+                                  </div>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                    {availableIssues.map((item) => {
+                                      const checked = pickedIssueIds.includes(item.issueId);
+                                      return (
+                                        <label
+                                          key={item.issueId}
+                                          className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-semibold cursor-pointer transition-colors ${checked
+                                            ? "border-[#00285E] bg-white text-slate-800"
+                                            : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                                            }`}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={() =>
+                                              setPickedIssueIds((prev) =>
+                                                prev.includes(item.issueId)
+                                                  ? prev.filter((id) => id !== item.issueId)
+                                                  : [...prev, item.issueId],
+                                              )
+                                            }
+                                            className="accent-[#00285E]"
+                                          />
+                                          <span className="truncate">{item.componentName}</span>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    disabled={pickedIssueIds.length === 0}
+                                    onClick={() => {
+                                      addEditServicesForIssues(servicePicker, pickedIssueIds);
+                                      setServicePicker("");
+                                      setPickedIssueIds([]);
+                                    }}
+                                    style={{ backgroundColor: "#00285E" }}
+                                    className="w-full py-2 rounded-lg text-xs font-semibold text-white transition-all hover:brightness-125 disabled:opacity-40 disabled:cursor-not-allowed"
+                                  >
+                                    Thêm dịch vụ cho {pickedIssueIds.length} hạng mục
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      addEditStandaloneService(servicePicker);
+                                      setServicePicker("");
+                                      setPickedIssueIds([]);
+                                    }}
+                                    className="w-full py-2 rounded-lg border border-[#00285E]/25 text-xs font-semibold text-[#00285E] transition-all hover:bg-slate-50"
+                                  >
+                                    Thêm dịch vụ này không thuộc hạng mục lỗi nào
+                                  </button>
+                                </>
+                              );
+                            })()}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Hạng mục báo giá — chỉ hiện lỗi đã có dịch vụ, gắn phụ tùng cho lỗi đó */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3 px-1">
+                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          <Package size={14} className="text-slate-500" />
+                          Hạng mục báo giá
+                        </label>
+                        <span
+                          className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                          style={{ backgroundColor: "#00285E", color: "#fff" }}
+                        >
+                          {editIssues.length} hạng mục ·{" "}
+                          {
+                            editRows.filter(
+                              (r) => (r.kind === "part" && r.partId) || r.kind === "custom",
+                            ).length
+                          }{" "}
+                          phụ tùng
+                        </span>
+                      </div>
+                      {(() => {
+                        const issuesWithService = editIssues.filter((issue) =>
+                          editRows.some(
+                            (r) => r.kind === "service" && r.issueId === issue.issueId,
+                          ),
+                        );
+                        if (issuesWithService.length === 0) {
+                          return (
+                            <div className="bg-white rounded-2xl border border-slate-200/70 p-6 text-center text-sm text-slate-400">
+                              Chưa có hạng mục nào được áp dịch vụ — chọn dịch vụ ở trên trước.
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="space-y-3">
+                            {issuesWithService.map((issue) => {
+                              const issueServices = editRows.filter(
+                                (r) => r.kind === "service" && r.issueId === issue.issueId,
+                              );
+                              const issueParts = editRows.filter(
+                                (r) => r.kind !== "service" && r.issueId === issue.issueId,
+                              );
+                              return (
+                                <div
+                                  key={issue.issueId}
+                                  className="rounded-2xl border border-slate-200/70 bg-white p-4"
+                                >
+                                  <p className="text-xs font-semibold text-slate-800">
+                                    {issue.componentName}
+                                  </p>
+                                  {issue.description && (
+                                    <p className="mt-0.5 text-[11px] text-slate-400">
+                                      {issue.description}
+                                    </p>
+                                  )}
+
+                                  <div className="mt-3">
+                                    <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                      Dịch vụ cần dùng
+                                    </span>
+                                    <div className="space-y-1.5">
+                                      {issueServices.map((row) => (
+                                        <div
+                                          key={row.uid}
+                                          className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2"
+                                        >
+                                          <Wrench size={12} className="shrink-0 text-slate-400" />
+                                          <span className="flex-1 min-w-[120px] text-xs font-semibold text-slate-800 truncate">
+                                            {row.serviceName}
+                                          </span>
+                                          <PriceInput
+                                            placeholder="Nhập giá"
+                                            formatWhileTyping
+                                            value={row.repairPrice}
+                                            onCommit={(v) => updateEditFee(row.uid, v)}
+                                            readOnly={row.hasDbPrice}
+                                            title={row.hasDbPrice ? "Giá đã có sẵn trong hệ thống, không thể sửa" : undefined}
+                                            className={`w-28 border rounded-lg px-2.5 py-1.5 text-xs font-semibold text-right transition-colors focus:outline-none ${row.hasDbPrice
+                                              ? "border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed"
+                                              : "border-slate-200 bg-white text-slate-800 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                              }`}
+                                          />
+                                          <button
+                                            onClick={() => removeEditRow(row.uid)}
+                                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                                            title="Xóa dịch vụ"
+                                          >
+                                            <Trash2 size={13} />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-4 pt-4 border-t border-slate-100">
+                                    <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                      Phụ tùng cần dùng
+                                    </span>
+                                    <div className="space-y-2">
+                                      {issueParts.map((row) => {
+                                        const unitPrice = getEditUnitPrice(row);
+                                        const isEmptyItem = row.kind === "part" && !row.partId;
+                                        return (
+                                          <div key={row.uid} className="flex items-start gap-2">
+                                            <div className="flex-1 min-w-0">
+                                              {row.kind !== "custom" ? (
+                                                <SearchableSelect
+                                                  value={row.partId}
+                                                  placeholder="-- Chọn phụ tùng tiếp theo --"
+                                                  emptyText="Không tìm thấy phụ tùng phù hợp."
+                                                  invalid={!row.partId}
+                                                  onChange={(v) => updateEditPart(row.uid, v)}
+                                                  options={spareParts.map((part) => {
+                                                    const usedElsewhere = editRows
+                                                      .filter(
+                                                        (r) =>
+                                                          r.uid !== row.uid &&
+                                                          r.kind === "part" &&
+                                                          r.partId === part.id,
+                                                      )
+                                                      .reduce((sum, r) => sum + r.quantity, 0);
+                                                    const available =
+                                                      Number(part.available_quantity) - usedElsewhere;
+                                                    const outOfStock = available <= 0;
+                                                    return {
+                                                      value: part.id,
+                                                      label: `${part.name}${part.brand ? ` - ${part.brand}` : ""}`,
+                                                      sublabel: outOfStock ? "Hết hàng" : `Còn: ${available}`,
+                                                      outOfStock,
+                                                    };
+                                                  })}
+                                                />
+                                              ) : (
+                                                <div className="grid grid-cols-[minmax(0,1fr)_110px] gap-2">
+                                                  <input
+                                                    type="text"
+                                                    value={row.customItemName}
+                                                    onChange={(e) =>
+                                                      updateEditCustomItem(row.uid, {
+                                                        customItemName: e.target.value,
+                                                      })
+                                                    }
+                                                    placeholder="Tên phụ tùng đặt riêng"
+                                                    className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                                  />
+                                                  <PriceInput
+                                                    value={row.customUnitPrice}
+                                                    placeholder="Đơn giá"
+                                                    commitOnChange
+                                                    formatWhileTyping
+                                                    onCommit={(value) =>
+                                                      updateEditCustomItem(row.uid, {
+                                                        customUnitPrice: value,
+                                                      })
+                                                    }
+                                                    className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                                  />
+                                                </div>
+                                              )}
+                                              {row.kind === "custom" && (
+                                                <p className="mt-1 text-[10px] font-semibold text-amber-600">
+                                                  Phụ tùng đặt riêng · Cọc 30%:{" "}
+                                                  {formatVND(
+                                                    Math.round(row.quantity * row.customUnitPrice * 0.3),
+                                                  )}
+                                                </p>
+                                              )}
+                                              {row.kind === "part" && row.partId && (() => {
+                                                const selectedPart = spareParts.find(
+                                                  (p) => p.id === row.partId,
+                                                );
+                                                if (!selectedPart) return null;
+                                                const usedElsewhere = editRows
+                                                  .filter(
+                                                    (r) =>
+                                                      r.uid !== row.uid &&
+                                                      r.kind === "part" &&
+                                                      r.partId === row.partId,
+                                                  )
+                                                  .reduce((sum, r) => sum + r.quantity, 0);
+                                                const available =
+                                                  Number(selectedPart.available_quantity) - usedElsewhere;
+                                                if (available >= row.quantity) return null;
+                                                return (
+                                                  <p className="mt-1 text-[10px] font-semibold text-amber-600">
+                                                    Thiếu tồn kho — sẽ tự động gửi yêu cầu nhập kho khi khách duyệt báo giá.
+                                                  </p>
+                                                );
+                                              })()}
+                                            </div>
+                                            {!isEmptyItem && (
+                                              <input
+                                                type="number"
+                                                min={0}
+                                                value={row.quantity}
+                                                onChange={(e) =>
+                                                  updateEditQuantity(row.uid, Number(e.target.value))
+                                                }
+                                                className="w-16 shrink-0 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-800 text-center focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
+                                              />
+                                            )}
+                                            {!isEmptyItem && (
+                                              <span className="w-24 shrink-0 pt-2 text-right text-xs font-bold text-[#00285E]">
+                                                {formatVND(row.quantity * unitPrice)}
+                                              </span>
+                                            )}
+                                            {!isEmptyItem && (
+                                              <button
+                                                onClick={() => removeEditRow(row.uid)}
+                                                className="shrink-0 p-1.5 mt-0.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                                                title="Xóa phụ tùng"
+                                              >
+                                                <Trash2 size={14} />
+                                              </button>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditCustomIssueId(issue.issueId);
+                                        setShowEditCustomPartForm((v) =>
+                                          editCustomIssueId === issue.issueId ? !v : true,
+                                        );
+                                      }}
+                                      className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[#00285E]/25 bg-white px-3 text-xs font-semibold text-[#00285E] hover:bg-slate-50"
+                                    >
+                                      <Plus size={14} />
+                                      Đặt phụ tùng riêng
+                                    </button>
+                                    {showEditCustomPartForm && editCustomIssueId === issue.issueId && (
+                                      <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-4">
+                                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                          <div>
+                                            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                              Tên phụ tùng
+                                            </label>
+                                            <input
+                                              type="text"
+                                              value={editCustomName}
+                                              onChange={(e) => setEditCustomName(e.target.value)}
+                                              placeholder="Nhập tên phụ tùng"
+                                              className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                              Số lượng
+                                            </label>
+                                            <input
+                                              type="number"
+                                              min={1}
+                                              value={editCustomQuantity}
+                                              onChange={(e) =>
+                                                setEditCustomQuantity(Math.max(1, Number(e.target.value)))
+                                              }
+                                              className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                              Đơn giá
+                                            </label>
+                                            <PriceInput
+                                              value={editCustomPrice}
+                                              placeholder="Nhập đơn giá"
+                                              commitOnChange
+                                              formatWhileTyping
+                                              onCommit={setEditCustomPrice}
+                                              className="h-9 w-full rounded-lg border border-amber-300 bg-slate-50 px-3 text-right text-xs font-semibold text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                            />
+                                          </div>
+                                        </div>
+                                        <div className="mt-4 flex items-center justify-between gap-3">
+                                          <div className="text-xs text-slate-500">
+                                            Cọc áp dụng:{" "}
+                                            <span className="font-bold text-amber-600">30%</span>
+                                            {editCustomPrice > 0 && (
+                                              <span className="ml-2 font-semibold text-slate-700">
+                                                ({formatVND(Math.round(editCustomQuantity * editCustomPrice * 0.3))})
+                                              </span>
+                                            )}
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={addEditCustomItem}
+                                            disabled={
+                                              (editCustomIssueId as number | "") === "" ||
+                                              !editCustomName.trim() ||
+                                              editCustomQuantity <= 0 ||
+                                              editCustomPrice <= 0
+                                            }
+                                            className="h-9 rounded-lg bg-[#00285E] px-4 text-xs font-semibold text-white hover:bg-[#003C7D] disabled:cursor-not-allowed disabled:opacity-40"
+                                          >
+                                            Thêm vào báo giá
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                      Thành tiền hạng mục
+                                    </span>
+                                    <span className="text-sm font-bold text-[#00285E]">
+                                      {formatVND(
+                                        issueServices.reduce((sum, r) => sum + r.repairPrice, 0) +
+                                        issueParts.reduce(
+                                          (sum, r) => sum + r.quantity * getEditUnitPrice(r),
+                                          0,
+                                        ),
+                                      )}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Dịch vụ không thuộc hạng mục lỗi nào — khách yêu cầu thêm ngoài các lỗi đã báo */}
+                    {editRows.some((r) => r.kind === "service" && r.issueId === null) && (
+                      <div>
+                        <div className="flex items-center justify-between mb-3 px-1">
+                          <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                            <Wrench size={14} className="text-slate-500" />
+                            Dịch vụ khác (không thuộc hạng mục lỗi)
+                          </label>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200/70 bg-white p-4">
+                          <div className="space-y-1.5">
+                            {editRows
+                              .filter((r) => r.kind === "service" && r.issueId === null)
+                              .map((row) => (
+                                <div
+                                  key={row.uid}
+                                  className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2"
+                                >
+                                  <Wrench size={12} className="shrink-0 text-slate-400" />
+                                  <span className="flex-1 min-w-[120px] text-xs font-semibold text-slate-800 truncate">
+                                    {row.serviceName}
+                                  </span>
+                                  <PriceInput
+                                    placeholder="Nhập giá"
+                                    formatWhileTyping
+                                    value={row.repairPrice}
+                                    onCommit={(v) => updateEditFee(row.uid, v)}
+                                    readOnly={row.hasDbPrice}
+                                    title={row.hasDbPrice ? "Giá đã có sẵn trong hệ thống, không thể sửa" : undefined}
+                                    className={`w-28 border rounded-lg px-2.5 py-1.5 text-xs font-semibold text-right transition-colors focus:outline-none ${row.hasDbPrice
+                                      ? "border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed"
+                                      : "border-slate-200 bg-white text-slate-800 focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                      }`}
+                                  />
+                                  <button
+                                    onClick={() => removeEditRow(row.uid)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                                    title="Xóa dịch vụ"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Phụ tùng không gắn hạng mục lỗi nào (dữ liệu cũ) — vẫn cho sửa để không mất dòng */}
+                    {editRows.some(
+                      (r) =>
+                        r.kind !== "service" &&
+                        (r.issueId == null ||
+                          !editIssues.some((i) => i.issueId === r.issueId)),
+                    ) && (
+                        <div>
+                          <div className="flex items-center justify-between mb-3 px-1">
+                            <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                              <Package size={14} className="text-slate-500" />
+                              Phụ tùng khác (không thuộc hạng mục lỗi)
+                            </label>
+                          </div>
+                          <div className="rounded-2xl border border-slate-200/70 bg-white p-4 space-y-2">
+                            {editRows
+                              .filter(
+                                (r) =>
+                                  r.kind !== "service" &&
+                                  (r.issueId == null ||
+                                    !editIssues.some((i) => i.issueId === r.issueId)),
+                              )
+                              .map((row) => {
+                                const unitPrice = getEditUnitPrice(row);
+                                return (
+                                  <div key={row.uid} className="flex items-start gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      {row.kind !== "custom" ? (
+                                        <SearchableSelect
+                                          value={row.partId}
+                                          placeholder="-- Chọn phụ tùng --"
+                                          emptyText="Không tìm thấy phụ tùng phù hợp."
+                                          invalid={!row.partId}
+                                          onChange={(v) => updateEditPart(row.uid, v)}
+                                          options={spareParts.map((part) => {
+                                            const available = Number(part.available_quantity);
+                                            return {
+                                              value: part.id,
+                                              label: `${part.name}${part.brand ? ` - ${part.brand}` : ""}`,
+                                              sublabel: available <= 0 ? "Hết hàng" : `Còn: ${available}`,
+                                              outOfStock: available <= 0,
+                                            };
+                                          })}
+                                        />
+                                      ) : (
+                                        <div className="grid grid-cols-[minmax(0,1fr)_110px] gap-2">
+                                          <input
+                                            type="text"
+                                            value={row.customItemName}
+                                            onChange={(e) =>
+                                              updateEditCustomItem(row.uid, {
+                                                customItemName: e.target.value,
+                                              })
+                                            }
+                                            placeholder="Tên phụ tùng đặt riêng"
+                                            className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                          />
+                                          <PriceInput
+                                            value={row.customUnitPrice}
+                                            placeholder="Đơn giá"
+                                            commitOnChange
+                                            formatWhileTyping
+                                            onCommit={(value) =>
+                                              updateEditCustomItem(row.uid, {
+                                                customUnitPrice: value,
+                                              })
+                                            }
+                                            className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs font-semibold text-slate-800 outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E]"
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      value={row.quantity}
+                                      onChange={(e) => updateEditQuantity(row.uid, Number(e.target.value))}
+                                      className="w-16 shrink-0 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-800 text-center focus:outline-none focus:border-[#00285E] focus:ring-1 focus:ring-[#00285E] transition-colors"
+                                    />
+                                    <span className="w-24 shrink-0 pt-2 text-right text-xs font-bold text-[#00285E]">
+                                      {formatVND(row.quantity * unitPrice)}
+                                    </span>
+                                    <button
+                                      onClick={() => removeEditRow(row.uid)}
+                                      className="shrink-0 p-1.5 mt-0.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                                      title="Xóa phụ tùng"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                          </div>
                         </div>
                       )}
-                    </div>
                   </div>
                 )}
               </div>

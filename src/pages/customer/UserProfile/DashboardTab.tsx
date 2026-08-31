@@ -19,8 +19,9 @@ import {
   Gift,
   CalendarClock,
   KeyRound,
-  Sun,
-  Moon,
+  Lock,
+  Eye,
+  EyeOff,
   Car,
 } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
@@ -128,13 +129,18 @@ export default function DashboardTab({
   });
   const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
   const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [visiblePasswordFields, setVisiblePasswordFields] = useState({
+    currentPassword: false,
+    newPassword: false,
+    confirmNewPassword: false,
+  });
   const recentOrders = allOrders.slice(0, 3);
 
   const closeChangePasswordModal = () => {
     setIsChangePasswordOpen(false);
     setPasswordFields({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
     setPasswordErrors({});
+    setVisiblePasswordFields({ currentPassword: false, newPassword: false, confirmNewPassword: false });
   };
 
   const handlePasswordChangeSubmit = async () => {
@@ -358,15 +364,6 @@ export default function DashboardTab({
           >
             <KeyRound className="w-3 h-3" />
             {t('profile.changePassword', 'Đổi mật khẩu')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsDarkMode((prev) => !prev)}
-            className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-white font-bold text-[11px] transition-all shadow-xs hover:opacity-90"
-            style={{ backgroundColor: '#00285E' }}
-          >
-            {isDarkMode ? <Sun className="w-3 h-3" /> : <Moon className="w-3 h-3" />}
-            {isDarkMode ? t('profile.lightMode', 'Chế độ sáng') : t('profile.darkMode', 'Chế độ tối')}
           </button>
         </div>
       </motion.div>
@@ -659,70 +656,101 @@ export default function DashboardTab({
 
       {/* Change Password Modal */}
       {isChangePasswordOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-[2px]">
-          <div className="bg-white shadow-2xl border border-slate-200 rounded-2xl w-full max-w-sm p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-base font-extrabold text-brand-blue">
-                {t('profile.changePassword', 'Đổi mật khẩu')}
-              </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
+          <div className="bg-white shadow-2xl rounded-2xl w-full max-w-md overflow-hidden">
+            {/* Header nền navy — bám tông thương hiệu, tách bạch với vùng nhập liệu bên dưới */}
+            <div className="relative flex items-center justify-between gap-3 px-6 py-5 bg-[#00285E] overflow-hidden">
+              <div className="absolute -top-8 -right-6 w-28 h-28 rounded-full bg-white/5" />
+              <div className="relative flex items-center gap-3">
+                <span className="w-10 h-10 shrink-0 rounded-xl bg-[#F9A11B] flex items-center justify-center">
+                  <KeyRound className="w-5 h-5 text-white" />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold text-white leading-tight">
+                    {t('profile.changePassword', 'Đổi mật khẩu')}
+                  </h3>
+                  <p className="text-[11px] text-white/60 mt-0.5">
+                    {t('profile.changePasswordHint', 'Mật khẩu mới tối thiểu 6 ký tự')}
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={closeChangePasswordModal}
-                className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 flex items-center justify-center transition-colors"
+                className="relative w-8 h-8 rounded-lg text-white/70 hover:text-white hover:bg-white/15 flex items-center justify-center transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-gray-500 block">
-                  {t('profile.currentPassword', 'Mật khẩu hiện tại')}
-                </label>
-                <input
-                  type="password"
-                  value={passwordFields.currentPassword}
-                  onChange={(e) => setPasswordFields((prev) => ({ ...prev, currentPassword: e.target.value }))}
-                  className={`w-full px-3 py-2.5 text-sm rounded-lg border focus:outline-none focus:border-brand-blue ${passwordErrors.currentPassword ? 'border-red-400' : 'border-gray-200'}`}
-                />
-                {passwordErrors.currentPassword && (
-                  <p className="text-[11px] text-red-500 font-medium">{passwordErrors.currentPassword}</p>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-gray-500 block">
-                  {t('profile.newPassword', 'Mật khẩu mới')}
-                </label>
-                <input
-                  type="password"
-                  value={passwordFields.newPassword}
-                  onChange={(e) => setPasswordFields((prev) => ({ ...prev, newPassword: e.target.value }))}
-                  className={`w-full px-3 py-2.5 text-sm rounded-lg border focus:outline-none focus:border-brand-blue ${passwordErrors.newPassword ? 'border-red-400' : 'border-gray-200'}`}
-                />
-                {passwordErrors.newPassword && (
-                  <p className="text-[11px] text-red-500 font-medium">{passwordErrors.newPassword}</p>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-gray-500 block">
-                  {t('profile.confirmNewPassword', 'Xác nhận mật khẩu mới')}
-                </label>
-                <input
-                  type="password"
-                  value={passwordFields.confirmNewPassword}
-                  onChange={(e) => setPasswordFields((prev) => ({ ...prev, confirmNewPassword: e.target.value }))}
-                  className={`w-full px-3 py-2.5 text-sm rounded-lg border focus:outline-none focus:border-brand-blue ${passwordErrors.confirmNewPassword ? 'border-red-400' : 'border-gray-200'}`}
-                />
-                {passwordErrors.confirmNewPassword && (
-                  <p className="text-[11px] text-red-500 font-medium">{passwordErrors.confirmNewPassword}</p>
-                )}
-              </div>
+
+            <div className="px-6 py-5 space-y-4">
+              {[
+                {
+                  key: 'currentPassword' as const,
+                  label: t('profile.currentPassword', 'Mật khẩu hiện tại'),
+                },
+                {
+                  key: 'newPassword' as const,
+                  label: t('profile.newPassword', 'Mật khẩu mới'),
+                },
+                {
+                  key: 'confirmNewPassword' as const,
+                  label: t('profile.confirmNewPassword', 'Xác nhận mật khẩu mới'),
+                },
+              ].map((field) => {
+                const hasError = Boolean(passwordErrors[field.key]);
+                return (
+                  <div key={field.key} className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block">
+                      {field.label}
+                    </label>
+                    <div className="relative">
+                      <Lock
+                        className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 ${
+                          hasError ? 'text-rose-400' : 'text-slate-400'
+                        }`}
+                      />
+                      <input
+                        type={visiblePasswordFields[field.key] ? 'text' : 'password'}
+                        value={passwordFields[field.key]}
+                        onChange={(e) =>
+                          setPasswordFields((prev) => ({ ...prev, [field.key]: e.target.value }))
+                        }
+                        className={`w-full pl-10 pr-11 py-2.5 text-sm rounded-xl border bg-slate-50 font-medium text-slate-800 transition-all focus:outline-none focus:bg-white focus:ring-2 ${
+                          hasError
+                            ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
+                            : 'border-slate-200 focus:border-[#00285E] focus:ring-[#00285E]/10'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setVisiblePasswordFields((prev) => ({ ...prev, [field.key]: !prev[field.key] }))
+                        }
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#00285E] transition-colors"
+                        title={visiblePasswordFields[field.key] ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                      >
+                        {visiblePasswordFields[field.key] ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                    {hasError && (
+                      <p className="text-[11px] text-rose-500 font-semibold">{passwordErrors[field.key]}</p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <div className="flex gap-2 mt-6">
+
+            <div className="flex gap-2.5 px-6 py-4 bg-slate-50 border-t border-slate-100">
               <button
                 type="button"
                 onClick={closeChangePasswordModal}
                 disabled={isPasswordSubmitting}
-                className="flex-1 py-2.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 text-xs font-bold transition-all disabled:opacity-50"
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 text-xs font-bold transition-all disabled:opacity-50"
               >
                 {t('common.cancel', 'Hủy')}
               </button>
@@ -730,7 +758,7 @@ export default function DashboardTab({
                 type="button"
                 onClick={() => void handlePasswordChangeSubmit()}
                 disabled={isPasswordSubmitting}
-                className="flex-1 py-2.5 rounded-lg bg-brand-blue text-white hover:bg-brand-blue/90 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                className="flex-1 py-2.5 rounded-xl bg-[#00285E] text-white hover:brightness-125 active:scale-[0.98] text-xs font-bold transition-all shadow-md shadow-[#00285E]/20 disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
                 {isPasswordSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 {t('common.save', 'Lưu')}

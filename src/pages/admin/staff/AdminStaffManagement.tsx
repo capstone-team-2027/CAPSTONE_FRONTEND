@@ -9,8 +9,6 @@ import {
   Filter,
   ShieldCheck,
   UserCheck,
-  Award,
-  Star,
   Download,
   AlertTriangle,
   Briefcase,
@@ -18,12 +16,13 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  ShieldAlert,
 } from "lucide-react";
 import 'react-phone-input-2/lib/style.css';
 import * as PhoneInputLib from 'react-phone-input-2';
 
 const PAGE_SIZE = 6;
-import { useNavigate,useLocation,useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import type { Role, StaffManagement } from "../../../model/dto/staffManagement.dto";
 
 // ── resolve PhoneInput default export ─────────────────────────
@@ -103,15 +102,22 @@ const phoneStyles = `
 `;
 import { useFetchClient } from "../../../hook/useFetchClient";
 import { STAFF_MANAGEMENT_API_ENDPOINTS } from "../../../constants/admin/staffManagementApiEndPoint";
+import { formatPhoneDisplay } from "../../../utils/formatPhone";
 
 type StaffStatus = "ACTIVE" | "INACTIVE" | "PENDING" | "BANNED";
 
 
+// Nhãn đầy đủ cho badge — DB có thể còn bản ghi BANNED/PENDING cũ nên vẫn phải hiển thị đúng.
 const STATUS_OPTIONS: { value: StaffStatus; label: string }[] = [
   { value: "ACTIVE", label: "Đang hoạt động" },
   { value: "INACTIVE", label: "Tạm nghỉ" },
   { value: "BANNED", label: "Bị khóa" },
 ];
+
+// Trạng thái admin được phép đặt/lọc: chỉ hoạt động và tạm khóa.
+const SELECTABLE_STATUS_OPTIONS = STATUS_OPTIONS.filter(
+  (option) => option.value === "ACTIVE" || option.value === "INACTIVE",
+);
 
 export default function AdminStaffManagement() {
   const navigate = useNavigate();
@@ -124,74 +130,23 @@ export default function AdminStaffManagement() {
   const [editingStaff, setEditingStaff] = useState<StaffManagement | null>( null,);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Tab & Ranking State variables
-  const location = useLocation();
-  const activeTab = location.pathname.includes("staff-ranking") ? "ranking" : "list";
-  const [timeframe, setTimeframe] = useState<string>("month");
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
-  const [customStartDate, setCustomStartDate] = useState<string>("");
-  const [customEndDate, setCustomEndDate] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<StaffStatus | "ALL">("ALL");
   const [page, setPage] = useState(1);
   const [loadingError, setLoadingError] = useState<string | null>(null);
 
-  // Real performance & reviews state
-  const [performanceData, setPerformanceData] = useState<any[]>([]);
-  const [isPerformanceLoading, setIsPerformanceLoading] = useState(false);
-  const [feedbackStaff, setFeedbackStaff] = useState<any | null>(null);
-  const [staffFeedbacks, setStaffFeedbacks] = useState<any[]>([]);
-  const [isFeedbacksLoading, setIsFeedbacksLoading] = useState(false);
-
-  const handleGetPerformance = async () => {
-    try {
-      setIsPerformanceLoading(true);
-      const response = await fetchPrivate<any[]>(
-        `${STAFF_MANAGEMENT_API_ENDPOINTS.PERFORMANCE}?timeframe=${timeframe}`,
-        "GET"
-      );
-      if (response && Array.isArray(response.data)) {
-        setPerformanceData(response.data);
-      }
-    } catch (error) {
-      console.error("Lỗi lấy dữ liệu hiệu suất:", error);
-    } finally {
-      setIsPerformanceLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === "ranking") {
-      handleGetPerformance();
-    }
-  }, [activeTab, timeframe]);
-
-  const handleOpenFeedbacksModal = async (employee: any) => {
-    setFeedbackStaff(employee);
-    setStaffFeedbacks([]);
-    try {
-      setIsFeedbacksLoading(true);
-      const response = await fetchPrivate<any>(
-        STAFF_MANAGEMENT_API_ENDPOINTS.STAFF_FEEDBACKS(employee.id),
-        "GET"
-      );
-      if (response && response.success && Array.isArray(response.data)) {
-        setStaffFeedbacks(response.data);
-      }
-    } catch (error) {
-      console.error("Lỗi lấy danh sách đánh giá nhân viên:", error);
-    } finally {
-      setIsFeedbacksLoading(false);
-    }
-  };
-
   const totalActive = staff.filter((s) => s.status === "ACTIVE").length;
   const totalTechnicians = staff.filter((s) => s.role.roleCode === "TECHNICIAN",).length;
   const filteredStaff = useMemo(() => {
     const list = staff.filter((s) => {
+      // Tìm được cả khi gõ kiểu 0555... lẫn 84555... vì DB lưu dạng 84...
+      const searchDigits = searchTerm.replace(/\D/g, "");
+      const phoneDigits = (s.phoneNumber || "").replace(/\D/g, "");
+      const phoneLocal = phoneDigits.startsWith("84") ? `0${phoneDigits.slice(2)}` : phoneDigits;
       const searchMatch =
         s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.phoneNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (searchDigits !== "" &&
+          (phoneDigits.includes(searchDigits) || phoneLocal.includes(searchDigits))) ||
         s.role.roleName.toLowerCase().includes(searchTerm.toLowerCase());
 
       const statusMatch =
@@ -225,68 +180,6 @@ export default function AdminStaffManagement() {
   const totalPages = Math.max(1, Math.ceil(filteredStaff.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageItems = filteredStaff.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-
-  // Date range validation helper
-  const isDateRangeInvalid = useMemo(() => {
-    if (timeframe === "custom" && customStartDate && customEndDate) {
-      return new Date(customStartDate) > new Date(customEndDate);
-    }
-    return false;
-  }, [timeframe, customStartDate, customEndDate]);
-
-  // Compute Employee Rankings and statistics
-  const rankingList = useMemo(() => {
-    if (isDateRangeInvalid) {
-      return [];
-    }
-    return [...performanceData].sort((a, b) => b.rating - a.rating || b.completedTasks - a.completedTasks);
-  }, [performanceData, isDateRangeInvalid]);
-
-  // Export CSV Report
-  const handleExportRanking = () => {
-    // Validations
-    if (timeframe === "custom" && (!customStartDate || !customEndDate)) {
-      showToast("Vui lòng chọn đầy đủ ngày bắt đầu và kết thúc", "warning");
-      return;
-    }
-    if (isDateRangeInvalid) {
-      showToast("Lọc ngày không hợp lệ: Ngày bắt đầu lớn hơn ngày kết thúc", "warning");
-      return;
-    }
-    if (rankingList.length === 0) {
-      showToast("Không tìm thấy dữ liệu xếp hạng nhân viên", "warning");
-      return;
-    }
-
-    // Revenue contribution and completed tasks value validation (>0)
-    const hasInvalidData = rankingList.some(r => r.completedTasks <= 0 || r.revenueContribution <= 0);
-    if (hasInvalidData) {
-      showToast("Lỗi dữ liệu: Doanh thu và lượt hoàn thành của nhân viên phải lớn hơn 0", "warning");
-      return;
-    }
-
-    const headers = ["Thu hang", "Ten nhan vien", "Vai tro", "So nhiem vu hoan thanh", "Doanh thu dong gop", "Danh gia trung binh", "Diem hieu suat", "Ngay lam viec", "Trang thai"];
-    const rows = rankingList.map((r, idx) => [
-      idx + 1,
-      r.fullName,
-      r.roleName,
-      r.completedTasks,
-      `${r.revenueContribution} VND`,
-      r.rating,
-      r.performanceScore,
-      r.workDate,
-      r.status
-    ]);
-    
-    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(e => e.map(val => `"${val}"`).join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `bao-cao-xep-hang-nhan-vien-${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-
-    showToast("Xuất báo cáo xếp hạng nhân viên thành công", "success");
-  };
 
   const handleGetStaff = async () => {
     try {
@@ -332,66 +225,19 @@ export default function AdminStaffManagement() {
               Quản lý Nhân sự
             </h1>
             <p className="text-slate-500 text-sm">
-              {activeTab === "list"
-                ? "Tạo và quản lý tài khoản nhân viên trong gara."
-                : "Theo dõi, đánh giá và xếp hạng hiệu suất công việc của nhân viên."}
+              Tạo và quản lý tài khoản nhân viên trong gara.
             </p>
           </div>
         </div>
 
-        {activeTab === "list" ? (
-          <button
-            onClick={handleOpenCreate}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#F9A11B] text-[#00285E] rounded-xl text-sm font-bold shadow-md shadow-[#F9A11B]/20 hover:bg-[#E08F12] transition-all transform hover:translate-y-[-1px]"
-          >
-            <UserPlus size={16} />
-            <span>Thêm nhân sự</span>
-          </button>
-        ) : (
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <select
-                value={timeframe}
-                onChange={(e) => setTimeframe(e.target.value)}
-                className="px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#00285E]/10"
-              >
-                <option value="today">Hôm nay</option>
-                <option value="7days">7 ngày qua</option>
-                <option value="month">Tháng này</option>
-                <option value="quarter">Quý này</option>
-                <option value="custom">Tùy chỉnh...</option>
-              </select>
-              {timeframe === "custom" && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    value={customStartDate}
-                    onChange={(e) => setCustomStartDate(e.target.value)}
-                    className="border border-slate-200 rounded-xl text-xs px-2.5 py-1.5 focus:ring-1 focus:ring-blue-100 focus:outline-none"
-                  />
-                  <span className="text-slate-400 text-xs">→</span>
-                  <input
-                    type="date"
-                    value={customEndDate}
-                    onChange={(e) => setCustomEndDate(e.target.value)}
-                    className="border border-slate-200 rounded-xl text-xs px-2.5 py-1.5 focus:ring-1 focus:ring-blue-100 focus:outline-none"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        <button
+          onClick={handleOpenCreate}
+          className="flex items-center gap-2 px-5 py-2.5 bg-[#F9A11B] text-[#00285E] rounded-xl text-sm font-bold shadow-md shadow-[#F9A11B]/20 hover:bg-[#E08F12] transition-all transform hover:translate-y-[-1px]"
+        >
+          <UserPlus size={16} />
+          <span>Thêm nhân sự</span>
+        </button>
       </div>
-
-      {/* TABS SWITCHER REMOVED */}
-
-      {/* ERROR MESSAGE WHEN DATE RANGE IS INVALID */}
-      {isDateRangeInvalid && (
-        <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center gap-2.5 text-xs font-bold text-rose-600">
-          <AlertTriangle size={16} className="text-rose-500" />
-          <span>Bộ lọc ngày không hợp lệ: Ngày bắt đầu không được lớn hơn ngày kết thúc!</span>
-        </div>
-      )}
 
       {/* ERROR MESSAGE WHEN SYSTEM DATA CANNOT BE LOADED */}
       {loadingError && (
@@ -401,8 +247,7 @@ export default function AdminStaffManagement() {
         </div>
       )}
 
-      {activeTab === "list" ? (
-        <>
+      <>
           {/* KPI CARDS */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <motion.div
@@ -484,7 +329,7 @@ export default function AdminStaffManagement() {
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E]"
                   >
                     <option value="ALL">Tất cả trạng thái</option>
-                    {STATUS_OPTIONS.map((option) => (
+                    {SELECTABLE_STATUS_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
                   </select>
@@ -535,8 +380,8 @@ export default function AdminStaffManagement() {
                             {s.fullName}
                           </span>
                         </td>
-                        <td className="py-4 px-4 text-slate-600 text-sm">
-                          {s.phoneNumber}
+                        <td className="py-4 px-4 text-slate-600 text-sm whitespace-nowrap">
+                          {formatPhoneDisplay(s.phoneNumber)}
                         </td>
                         <td className="py-4 px-4">
                           <RoleBadge roleCode={s.role.roleCode} roleName={s.role.roleName} />
@@ -586,195 +431,7 @@ export default function AdminStaffManagement() {
               </div>
             </div>
           </div>
-        </>
-      ) : (
-        /* EMPLOYEE RANKINGS VIEW */
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Employee Ranking List */}
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden p-6 space-y-4">
-            <h2 className="text-lg font-bold text-slate-800 tracking-tight flex items-center gap-2">
-              <Award className="text-[#F9A11B]" size={20} />
-              Xếp hạng hiệu suất nhân sự
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="border-y border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">
-                    <th className="py-3 px-4 text-center">Hạng</th>
-                    <th className="py-3 px-4">Nhân viên</th>
-                    <th className="py-3 px-4">Vai trò</th>
-                    <th className="py-3 px-4 text-center">Nhiệm vụ</th>
-                    <th className="py-3 px-4 text-center">Đánh giá</th>
-                    <th className="py-3 px-4 text-center">Hành động</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {isPerformanceLoading ? (
-                    <tr>
-                      <td colSpan={7} className="py-12 text-center text-[#00285E] text-sm">
-                        <Loader2 className="animate-spin mx-auto mb-2" size={24} />
-                        Đang tải dữ liệu xếp hạng...
-                      </td>
-                    </tr>
-                  ) : rankingList.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400 text-sm">
-                        Không có dữ liệu xếp hạng nhân viên được tìm thấy.
-                      </td>
-                    </tr>
-                  ) : (
-                    rankingList.map((r, idx) => {
-                      const isSelected = selectedEmployeeId === r.id || (selectedEmployeeId === null && idx === 0);
-                      const isTop3 = idx < 3;
-                      const badgeColors = [
-                        "bg-amber-100 text-amber-800 border-amber-200", // Gold
-                        "bg-slate-100 text-slate-800 border-slate-200", // Silver
-                        "bg-orange-100 text-orange-800 border-orange-200", // Bronze
-                      ];
-                      return (
-                        <tr
-                          key={r.id}
-                          onClick={() => setSelectedEmployeeId(r.id)}
-                          className={`border-b border-slate-100 hover:bg-slate-50/70 transition-colors cursor-pointer ${
-                            isSelected ? "bg-blue-50/30 border-l-4 border-l-[#00285E]" : ""
-                          }`}
-                        >
-                          <td className="py-4 px-4 text-center font-bold">
-                            {isTop3 ? (
-                              <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full border font-black text-xs ${badgeColors[idx]}`}>
-                                {idx + 1}
-                              </span>
-                            ) : (
-                              <span className="text-slate-500 text-xs">#{idx + 1}</span>
-                            )}
-                          </td>
-                          <td className="py-4 px-4">
-                            <div className="flex items-center gap-3">
-                              {r.avatar ? (
-                                <img
-                                  src={r.avatar}
-                                  alt={r.fullName}
-                                  className="w-8 h-8 rounded-full object-cover shadow-xs border border-slate-100 shrink-0"
-                                />
-                              ) : (
-                                <div className="w-8 h-8 rounded-full bg-[#EDF3FF] flex items-center justify-center text-xs font-bold text-[#00285E] shrink-0">
-                                  {getInitials(r.fullName)}
-                                </div>
-                              )}
-                              <span className="font-bold text-[#00285E] text-sm">{r.fullName}</span>
-                            </div>
-                          </td>
-                          <td className="py-4 px-4 text-slate-500 font-semibold text-xs">{r.roleName}</td>
-                          <td className="py-4 px-4 text-center font-semibold text-slate-700">{r.completedTasks}</td>
-                          <td className="py-4 px-4 text-center">
-                            {r.feedbackCount === 0 || r.rating === 0 ? (
-                              <span className="inline-flex items-center gap-1 font-bold text-slate-400 text-xs">
-                                <Star size={12} className="text-slate-300" fill="none" /> 0
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 font-bold text-amber-500 text-xs">
-                                <Star size={12} fill="currentColor" /> {r.rating}
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-4 px-4 text-center">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenFeedbacksModal(r);
-                              }}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-[#00285E] bg-blue-50 hover:bg-[#EDF3FF] border border-blue-100 transition-colors"
-                            >
-                              <Eye size={12} /> Xem đánh giá
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Employee Details & Performance Evaluation Card */}
-          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs p-6 space-y-6">
-            {(() => {
-              const selectedEmp = rankingList.find(r => r.id === selectedEmployeeId) || rankingList[0];
-              if (!selectedEmp) {
-                return (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm py-12">
-                    <Briefcase size={40} className="text-slate-300 mb-2" />
-                    Không có thông tin nhân viên
-                  </div>
-                );
-              }
-              return (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-4 border-b border-slate-100 pb-5">
-                    {selectedEmp.avatar ? (
-                      <img
-                        src={selectedEmp.avatar}
-                        alt={selectedEmp.fullName}
-                        className="w-14 h-14 rounded-2xl object-cover border border-slate-100 shadow-md shrink-0"
-                      />
-                    ) : (
-                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#00285E] to-[#003a8a] flex items-center justify-center text-white font-bold text-xl shadow-md shrink-0">
-                        {getInitials(selectedEmp.fullName)}
-                      </div>
-                    )}
-                    <div>
-                      <h3 className="font-bold text-base text-slate-800 leading-tight">{selectedEmp.fullName}</h3>
-                      <p className="text-xs text-slate-400 font-semibold mt-0.5">{selectedEmp.roleName}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Chỉ số năng suất</h4>
-                    
-                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nhiệm vụ hoàn thành</span>
-                      <span className="text-xl font-bold text-slate-800 block mt-1">{selectedEmp.completedTasks}</span>
-                    </div>
-
-                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Đánh giá sao</span>
-                        {selectedEmp.feedbackCount === 0 || selectedEmp.rating === 0 ? (
-                          <span className="text-xl font-bold text-slate-400 flex items-center gap-1.5 mt-1">
-                            <Star size={16} className="text-slate-300 shrink-0" fill="none" /> 0
-                          </span>
-                        ) : (
-                          <span className="text-xl font-bold text-amber-500 flex items-center gap-1.5 mt-1">
-                            <Star size={16} fill="currentColor" className="shrink-0" /> {selectedEmp.rating}
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenFeedbacksModal(selectedEmp)}
-                        className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-white bg-[#00285E] hover:bg-[#00285E]/90 transition-all active:scale-[0.98]"
-                      >
-                        <Eye size={14} /> Chi tiết đánh giá
-                      </button>
-                    </div>
-
-                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Ngày tham gia</span>
-                      <span className="text-sm font-bold text-slate-800 block mt-1">
-                        {new Date(selectedEmp.createdAt).toLocaleDateString("vi-VN")}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Visual progress score bar removed */}
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
+      </>
 
       {isModalOpen && (
         <StaffFormModal
@@ -785,84 +442,6 @@ export default function AdminStaffManagement() {
           }}
           onRefresh={handleGetStaff}
         />
-      )}
-
-      {feedbackStaff && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="px-6 py-5 bg-[#00285E] text-white flex items-center justify-between shrink-0">
-              <div>
-                <h3 className="text-lg font-bold">Lịch sử đánh giá nhân sự</h3>
-                <p className="text-xs text-slate-200 mt-1">Đang xem đánh giá của: <span className="font-extrabold">{feedbackStaff.fullName}</span></p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFeedbackStaff(null)}
-                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {isFeedbacksLoading ? (
-                <div className="flex flex-col items-center justify-center py-16 text-[#00285E]">
-                  <Loader2 className="animate-spin mb-3" size={32} />
-                  <p className="text-sm font-bold">Đang tải danh sách đánh giá...</p>
-                </div>
-              ) : staffFeedbacks.length === 0 ? (
-                <div className="text-center py-16 text-slate-400 space-y-2">
-                  <Star size={36} className="mx-auto opacity-30" />
-                  <p className="text-sm font-semibold">Nhân viên này chưa nhận được đánh giá nào.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {staffFeedbacks.map((fb) => (
-                    <div key={fb.id} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-amber-500">
-                          {Array.from({ length: fb.rating }).map((_, i) => (
-                            <Star key={i} size={14} fill="currentColor" />
-                          ))}
-                          {Array.from({ length: 5 - fb.rating }).map((_, i) => (
-                            <Star key={i} size={14} className="text-slate-200" />
-                          ))}
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-semibold">
-                          {new Date(fb.createdAt).toLocaleDateString('vi-VN')}
-                        </span>
-                      </div>
-                      <p className="text-slate-800 text-sm font-semibold italic">&ldquo;{fb.comment}&rdquo;</p>
-                      <div className="flex items-center justify-between text-[11px] text-slate-500 font-bold">
-                        <div>
-                          Người đánh giá: {fb.customerName} {fb.customerPhone && `(${fb.customerPhone})`}
-                        </div>
-                        {fb.serviceOrderId && (
-                          <span className="px-2 py-0.5 rounded-md bg-blue-50 text-[#00285E] border border-blue-100 font-bold">
-                            Mã đơn: #{fb.serviceOrderId}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
-              <button
-                type="button"
-                onClick={() => setFeedbackStaff(null)}
-                className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-sm transition-colors"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
@@ -960,15 +539,27 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
   }; 
 
   const handleUpdateStaff = async () => {
+    // Để trống 2 ô mật khẩu nghĩa là giữ nguyên mật khẩu cũ, không gửi lên BE.
+    if (password || confirmPassword) {
+      if (password.length < 6) {
+        setErrorMsg("Mật khẩu mới phải có ít nhất 6 ký tự");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setErrorMsg("Mật khẩu xác nhận không khớp");
+        return;
+      }
+    }
     try {
         await fetchPrivate(
           `${STAFF_MANAGEMENT_API_ENDPOINTS.STAFF_MANAGEMENT}/${initial?.id}`,
           "PUT",
-          { fullName, 
+          { fullName,
             phoneNumber,
             roleCode,
             status,
-            avatar
+            avatar,
+            ...(password ? { password, confirmPassword } : {}),
           }
         );
       setSuccessMsg("Cập nhật thông tin nhân sự thành công!");
@@ -1057,11 +648,6 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
               />
             </label>
 
-            <div className="text-[11px] text-slate-600 leading-relaxed bg-white/60 rounded p-3 border border-white/40">
-              <span className="font-bold text-[#00285E]">Gợi ý:</span> Để trống
-              mật khẩu khi tạo, hệ thống sẽ tự tạo mật khẩu tạm và gửi cho nhân
-              viên.
-            </div>
           </div>
 
           {/* RIGHT */}
@@ -1091,42 +677,29 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
             />
           </div>
         </FormField>
-            <div className="grid grid-cols-2 gap-4">
-             <FormField label="Vai trò">
-           
-            <select
-              value={roleCode}
-              onChange={(e) => setRoleCode(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-            >
-              <option value="" disabled>-- Chọn vai trò --</option>
-              {roleList.filter(r => r.roleCode !== "CUSTOMER").map((r) => (
-                <option key={r.id} value={r.roleCode}>
-                  {r.roleName}
-                </option>
-              ))}
-            </select>
-          </FormField>
-              {isEdit && (
-                <FormField label="Trạng thái">
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as StaffStatus)}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
-                  >
-                    {STATUS_OPTIONS.map((s) => (
-                      <option key={s.value} value={s.value}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
-                </FormField>
-              )}
-            </div>
+            <FormField label="Vai trò">
+              <select
+                value={roleCode}
+                onChange={(e) => setRoleCode(e.target.value)}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00285E]/10 focus:border-[#00285E] transition-all"
+              >
+                <option value="" disabled>-- Chọn vai trò --</option>
+                {roleList.filter(r => r.roleCode !== "CUSTOMER").map((r) => (
+                  <option key={r.id} value={r.roleCode}>
+                    {r.roleName}
+                  </option>
+                ))}
+              </select>
+            </FormField>
 
-            {!isEdit && (
+            <div>
+              {isEdit && (
+                <p className="text-[11px] text-slate-400 mb-2">
+                  Để trống nếu không muốn đổi mật khẩu của nhân viên.
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-4">
-                <FormField label="Mật khẩu (tùy chọn)">
+                <FormField label={isEdit ? "Mật khẩu mới" : "Mật khẩu (tùy chọn)"}>
                   <div className="relative">
                     <input
                       type={showPassword ? "text" : "password"}
@@ -1163,6 +736,45 @@ function StaffFormModal({ initial, onClose, onRefresh  }: StaffFormModalProps) {
                   </div>
                 </FormField>
               </div>
+            </div>
+
+            {/* Trạng thái tài khoản: bật = INACTIVE (tạm khóa), tắt = ACTIVE */}
+            {isEdit && (
+              <FormField label="Trạng thái tài khoản">
+                <button
+                  type="button"
+                  onClick={() => setStatus(status === "INACTIVE" ? "ACTIVE" : "INACTIVE")}
+                  className={`w-full flex items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-all ${status === "INACTIVE"
+                    ? "border-amber-300 bg-amber-50/70"
+                    : "border-slate-200 bg-slate-50 hover:border-slate-300"
+                    }`}
+                >
+                  <ShieldAlert
+                    size={18}
+                    className={`shrink-0 ${status === "INACTIVE" ? "text-amber-600" : "text-slate-400"
+                      }`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-slate-800">
+                      Nhân viên bị tạm khóa tài khoản
+                    </p>
+                    <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
+                      {status === "INACTIVE"
+                        ? "Tài khoản đang bị chặn đăng nhập."
+                        : "Tài khoản đang hoạt động bình thường."}
+                    </p>
+                  </div>
+                  <span
+                    className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${status === "INACTIVE" ? "bg-amber-500" : "bg-slate-300"
+                      }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${status === "INACTIVE" ? "left-[22px]" : "left-0.5"
+                        }`}
+                    />
+                  </span>
+                </button>
+              </FormField>
             )}
 
             {errorMsg && (

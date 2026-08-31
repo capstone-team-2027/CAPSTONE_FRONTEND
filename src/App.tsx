@@ -50,7 +50,6 @@ const ReceptionCreateAppointment = lazy(() => import("./pages/reception/appointm
 const ReceptionServiceOrderList = lazy(() => import("./pages/reception/service-orders/ReceptionServiceOrderList"));
 const ReceptionServiceOrderDetail = lazy(() => import("./pages/reception/service-orders/ReceptionServiceOrderDetail"));
 const ReceptionCreateServiceOrder = lazy(() => import("./pages/reception/service-orders/ReceptionCreateServiceOrder"));
-const ReceptionReceiveFeedback = lazy(() => import("./pages/reception/feedback/ReceptionReceiveFeedback"));
 const ReceptionServiceHistory = lazy(() => import("./pages/reception/service-history/ReceptionServiceHistory"));
 const ReceptionProcessPayment = lazy(() => import("./pages/reception/payments/ReceptionProcessPayment"));
 const ReceptionQuoteList = lazy(() => import("./pages/reception/quotes/ReceptionQuoteList"));
@@ -137,7 +136,6 @@ function App() {
             <Route path="settings" element={<AdminSettings />} />
             <Route path="services" element={<AdminServiceCatalog />} />
             <Route path="staff" element={<AdminStaffManagement />} />
-            <Route path="staff-ranking" element={<AdminStaffManagement />} />
             <Route path="warranty" element={<AdminWarrantyPolicies />} />
             <Route path="technical-documents" element={<AdminTechnicalDocuments />} />
             <Route path="statistics" element={<AdminStatistics />} />
@@ -192,7 +190,6 @@ function App() {
             <Route path="customers" element={<ReceptionCustomerList />} />
             <Route path="customers/receive" element={<ReceptionReceiveCustomer />} />
             <Route path="customers/rescue-service-order/:rescueId" element={<ReceptionRescueCreateServiceOrder />} />
-            <Route path="feedback" element={<ReceptionReceiveFeedback />} />
             <Route path="service-history" element={<ReceptionServiceHistory />} />
             <Route path="payments" element={<ReceptionProcessPayment />} />
             <Route path="quotes" element={<ReceptionQuoteList />} />
