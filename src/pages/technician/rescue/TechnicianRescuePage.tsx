@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Siren, MapPin, Navigation, Phone, CheckCircle, CarFront, Loader2, Radio, RadioTower } from 'lucide-react';
+import { Siren, MapPin, Navigation, Phone, CheckCircle, CarFront, Loader2, Radio, RadioTower, Volume2, VolumeX } from 'lucide-react';
 import { useFetchClient } from '../../../hook/useFetchClient';
 import { TASK_ASSIGNMENT_ENDPOINTS } from '../../../constants/technician/taskAssignmentEndpoint';
 import { useSocket } from '../../../hook/useSocket';
@@ -83,16 +83,123 @@ const userIcon = L.divIcon({
   popupAnchor: [0, -28],
 });
 
-const MapFitter = ({ bounds, lat, lng }: { bounds?: L.LatLngBounds | null, lat?: number; lng?: number }) => {
+interface RouteInstruction {
+  text: string;
+  location: [number, number];
+  routeIndex: number;
+}
+
+interface OsrmStep {
+  name?: string;
+  maneuver: {
+    type: string;
+    modifier?: string;
+    location: [number, number];
+  };
+}
+
+interface OsrmRoute {
+  geometry: {
+    coordinates: [number, number][];
+  };
+  legs: {
+    steps: OsrmStep[];
+  }[];
+  distance: number;
+  duration: number;
+}
+
+const toRadians = (degrees: number) => degrees * (Math.PI / 180);
+
+const distanceBetween = (first: [number, number], second: [number, number]) => {
+  const earthRadius = 6371000;
+  const latitudeDifference = toRadians(second[0] - first[0]);
+  const longitudeDifference = toRadians(second[1] - first[1]);
+  const value =
+    Math.sin(latitudeDifference / 2) ** 2 +
+    Math.cos(toRadians(first[0])) * Math.cos(toRadians(second[0])) * Math.sin(longitudeDifference / 2) ** 2;
+
+  return 2 * earthRadius * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
+};
+
+const closestRouteIndex = (route: [number, number][], point: [number, number]) => {
+  return route.reduce((closestIndex, coordinate, index) => (
+    distanceBetween(coordinate, point) < distanceBetween(route[closestIndex], point) ? index : closestIndex
+  ), 0);
+};
+
+const instructionText = (step: OsrmStep) => {
+  const maneuver = step.maneuver;
+  const roadName = step.name ? ` vào ${step.name}` : '';
+
+  if (maneuver.type === 'depart') return `bắt đầu di chuyển${roadName}`;
+  if (maneuver.type === 'arrive') return 'đến nơi';
+  if (maneuver.type === 'roundabout' || maneuver.type === 'rotary') return `đi vào vòng xuyến${roadName}`;
+  if (maneuver.type === 'uturn' || maneuver.modifier === 'uturn') return `quay đầu${roadName}`;
+
+  const directions: Record<string, string> = {
+    left: 'rẽ trái',
+    right: 'rẽ phải',
+    'slight left': 'chếch sang trái',
+    'slight right': 'chếch sang phải',
+    'sharp left': 'rẽ gắt sang trái',
+    'sharp right': 'rẽ gắt sang phải',
+    straight: 'đi thẳng',
+  };
+
+  const direction = maneuver.modifier ? directions[maneuver.modifier] : undefined;
+  return `${direction ?? 'tiếp tục di chuyển'}${roadName}`;
+};
+
+const MapInteractionDetector = ({ onUserInteract }: { onUserInteract: () => void }) => {
   const map = useMap();
   useEffect(() => {
+    const handleInteraction = () => {
+      onUserInteract();
+    };
+
+    map.on('dragstart', handleInteraction);
+    map.on('zoomstart', handleInteraction);
+    map.on('touchmove', handleInteraction);
+
+    return () => {
+      map.off('dragstart', handleInteraction);
+      map.off('zoomstart', handleInteraction);
+      map.off('touchmove', handleInteraction);
+    };
+  }, [map, onUserInteract]);
+
+  return null;
+};
+
+const MapFitter = ({ bounds, lat, lng, isUserPanned }: { bounds?: L.LatLngBounds | null, lat?: number; lng?: number, isUserPanned: boolean }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (isUserPanned) return; // Không tự động co dãn bản đồ nếu người dùng đang tự vuốt/kéo
     if (bounds) {
       map.fitBounds(bounds, { padding: [50, 50] });
     } else if (lat && lng) {
       map.flyTo([lat, lng], 15, { animate: true, duration: 1.5 });
     }
-  }, [lat, lng, bounds, map]);
+  }, [lat, lng, bounds, map, isUserPanned]);
   return null;
+};
+
+const getInstructionIcon = (text: string) => {
+  const lowercaseText = text.toLowerCase();
+  if (lowercaseText.includes('rẽ trái') || lowercaseText.includes('chếch sang trái') || lowercaseText.includes('gắt sang trái')) {
+    return <Navigation className="w-6 h-6 text-blue-400 rotate-[-90deg] shrink-0" />;
+  }
+  if (lowercaseText.includes('rẽ phải') || lowercaseText.includes('chếch sang phải') || lowercaseText.includes('gắt sang phải')) {
+    return <Navigation className="w-6 h-6 text-blue-400 rotate-[90deg] shrink-0" />;
+  }
+  if (lowercaseText.includes('quay đầu')) {
+    return <Navigation className="w-6 h-6 text-blue-400 rotate-[180deg] shrink-0" />;
+  }
+  if (lowercaseText.includes('vòng xuyến')) {
+    return <Navigation className="w-6 h-6 text-blue-400 animate-spin shrink-0" style={{ animationDuration: '6s' }} />;
+  }
+  return <Navigation className="w-6 h-6 text-emerald-400 shrink-0" />; // Mặc định là đi thẳng/bắt đầu
 };
 
 // Toạ độ Gara cố định — khớp với MapTracking.tsx (480 Trần Quốc Hoàn, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng)
@@ -107,6 +214,7 @@ export default function TechnicianRescuePage() {
   const [toastMessage, setToastMessage] = useState<{ text: string, type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
 
   const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
+  const [routeInstructions, setRouteInstructions] = useState<RouteInstruction[]>([]);
   const [distance, setDistance] = useState<string>('');
   const [duration, setDuration] = useState<string>('');
   const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
@@ -115,9 +223,99 @@ export default function TechnicianRescuePage() {
   const [technicianLocation, setTechnicianLocation] = useState<[number, number]>([15.9675, 108.2605]); // Default to Garage Đà Nẵng, update via GPS
   const [hasTechnicianLocation, setHasTechnicianLocation] = useState(false);
   const [isSharingLocation, setIsSharingLocation] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const voiceEnabledRef = useRef(true);
+  const [hudInstruction, setHudInstruction] = useState<string | null>(null);
+  const [isMapUserPanned, setIsMapUserPanned] = useState(false);
+  const [useFallbackTiles, setUseFallbackTiles] = useState(false);
+
   const gpsWatchRef = useRef<number | null>(null);
+  const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
   const lastLocationEmitRef = useRef(0);
   const lastRouteFetchRef = useRef(0);
+
+  const routeCoordsRef = useRef<[number, number][]>([]);
+  const routeInstructionsRef = useRef<RouteInstruction[]>([]);
+  const announcedWarningsRef = useRef(new Set<number>());
+  const announcedTurnsRef = useRef(new Set<number>());
+
+  const speak = (text: string, forceVoiceEnabled?: boolean) => {
+    showToast(text, 'info');
+
+    const isEnabled = forceVoiceEnabled !== undefined ? forceVoiceEnabled : voiceEnabledRef.current;
+    if (!isEnabled) return;
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      setToastMessage({ text: 'Trình duyệt này không hỗ trợ đọc chỉ dẫn giọng nói.', type: 'error' });
+      return;
+    }
+
+    try {
+      window.speechSynthesis.resume();
+      const isSpeaking = window.speechSynthesis.speaking;
+      if (isSpeaking) {
+        window.speechSynthesis.cancel();
+      }
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'vi-VN';
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      const vietnameseVoice = voicesRef.current.find(voice => voice.lang.toLowerCase().startsWith('vi'));
+      if (vietnameseVoice) utterance.voice = vietnameseVoice;
+
+      (window as any).activeUtterance = utterance;
+
+      if (isSpeaking) {
+        setTimeout(() => {
+          window.speechSynthesis.speak(utterance);
+        }, 50);
+      } else {
+        window.speechSynthesis.speak(utterance);
+      }
+    } catch (error) {
+      console.error("Lỗi âm thanh chỉ dẫn:", error);
+    }
+  };
+
+  const updateNavigation = (position: [number, number]) => {
+    const coordinates = routeCoordsRef.current;
+    if (coordinates.length === 0) return;
+
+    const currentRouteIndex = closestRouteIndex(coordinates, position);
+    // 1. Chỉ tìm ngã rẽ tiếp theo mà KTV CHƯA đi qua (không bỏ qua các ngã rẽ đã đọc để tránh đọc vượt đầu)
+    const nextInstructionIndex = routeInstructionsRef.current.findIndex(
+      (instruction) => instruction.routeIndex >= currentRouteIndex
+    );
+    if (nextInstructionIndex === -1) {
+      setHudInstruction(null);
+      return;
+    }
+
+    const instruction = routeInstructionsRef.current[nextInstructionIndex];
+    const metersToTurn = distanceBetween(position, instruction.location);
+    const roundedDistance = Math.round(metersToTurn);
+
+    if (instruction.text === 'đến nơi') {
+      if (metersToTurn <= 25) {
+        setHudInstruction('Bạn đã đến nơi.');
+        if (!announcedTurnsRef.current.has(nextInstructionIndex)) {
+          announcedTurnsRef.current.add(nextInstructionIndex);
+          speak('Bạn đã đến nơi.');
+        }
+      } else {
+        setHudInstruction(`Cách ${roundedDistance} mét là đến nơi.`);
+      }
+    } else {
+      const capitalizedText = `Cách ${roundedDistance} mét ${instruction.text}`;
+      setHudInstruction(capitalizedText);
+
+      // 2. Chỉ phát giọng nói khi khoảng cách <= 40 mét và ngã rẽ này chưa từng được phát
+      if (metersToTurn <= 40 && !announcedTurnsRef.current.has(nextInstructionIndex)) {
+        announcedTurnsRef.current.add(nextInstructionIndex);
+        speak(`Cách ${Math.round(metersToTurn)} mét ${instruction.text}`);
+      }
+    }
+  };
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' | 'warning') => {
     setToastMessage({ text, type });
@@ -144,6 +342,9 @@ export default function TechnicianRescuePage() {
     if (gpsWatchRef.current !== null) navigator.geolocation.clearWatch(gpsWatchRef.current);
     gpsWatchRef.current = null;
     setIsSharingLocation(false);
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
   }, []);
 
   const getCurrentGps = () => new Promise<[number, number]>((resolve, reject) => {
@@ -168,6 +369,10 @@ export default function TechnicianRescuePage() {
         setTechnicianLocation(location);
         setCarLocation(location);
         setHasTechnicianLocation(true);
+
+        // Đọc chỉ dẫn khúc cua bằng giọng nói
+        updateNavigation(location);
+
         if (now - lastLocationEmitRef.current < 3000) return;
         lastLocationEmitRef.current = now;
         socket.emit('update-rescue-location', {
@@ -189,7 +394,34 @@ export default function TechnicianRescuePage() {
     setIsSharingLocation(true);
   }, [socket]);
 
-  useEffect(() => () => stopLocationSharing(), [stopLocationSharing]);
+  useEffect(() => {
+    if (routeCoords.length === 0 || routeInstructions.length === 0) {
+      setHudInstruction(null);
+      return;
+    }
+    updateNavigation(technicianLocation);
+  }, [technicianLocation, routeCoords, routeInstructions]);
+
+  // Tránh đơ giọng đọc iOS: Tải trước tiếng nói khi component render
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const loadVoices = () => {
+        voicesRef.current = window.speechSynthesis.getVoices();
+      };
+      loadVoices();
+      window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+      return () => window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopLocationSharing();
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [stopLocationSharing]);
 
   useEffect(() => {
     getCurrentGps()
@@ -227,8 +459,7 @@ export default function TechnicianRescuePage() {
   }, [socket]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Đoạn 1 (KTV -> khách): điểm xuất phát là GPS realtime của KTV, đích là vị trí khách.
-  // Đoạn 2 (khách -> Gara, khi status = TOWING): điểm xuất phát cố định là vị trí khách (nơi KTV
-  // vừa nhận xe), đích là Gara — không dùng GPS realtime nữa vì KTV đang lái, không đứng yên bấm nút.
+  // Đoạn 2 (KTV -> Gara, khi status = TOWING): điểm xuất phát vẫn là GPS realtime của KTV, đích là Gara.
   useEffect(() => {
     if (!rescueTask?.customer_lat || !rescueTask?.customer_lng) return;
     const now = Date.now();
@@ -239,12 +470,12 @@ export default function TechnicianRescuePage() {
     const isTowingBack = rescueTask.status === 'TOWING' || rescueTask.status === 'COMPLETED';
     const customerLat = parseFloat(rescueTask.customer_lat);
     const customerLng = parseFloat(rescueTask.customer_lng);
-    const from: [number, number] = isTowingBack ? [customerLat, customerLng] : technicianLocation;
+    const from: [number, number] = technicianLocation;
     const to: [number, number] = isTowingBack ? garageLocation : [customerLat, customerLng];
 
     const fetchRoute = async () => {
       try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=full&geometries=geojson`;
+        const url = `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=full&geometries=geojson&steps=true`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -259,6 +490,21 @@ export default function TechnicianRescuePage() {
             (c: [number, number]) => [c[1], c[0]]
           );
           setRouteCoords(coordsArray);
+          routeCoordsRef.current = coordsArray;
+
+          // Parse các chỉ dẫn ngã rẽ từ OSRM
+          const steps: OsrmStep[] = route.legs?.flatMap((leg: { steps: OsrmStep[] }) => leg.steps) ?? [];
+          const instructions = steps.map(step => {
+            const maneuverLocation: [number, number] = [step.maneuver.location[1], step.maneuver.location[0]];
+            return {
+              text: instructionText(step),
+              location: maneuverLocation,
+              routeIndex: closestRouteIndex(coordsArray, maneuverLocation),
+            };
+          });
+          setRouteInstructions(instructions);
+          routeInstructionsRef.current = instructions;
+
           const bounds = L.latLngBounds([from, to]);
           coordsArray.forEach(c => bounds.extend(c));
           setMapBounds(bounds);
@@ -289,23 +535,24 @@ export default function TechnicianRescuePage() {
       lastRouteFetchRef.current = 0;
       setRescueTask({ ...rescueTask, status: newStatus });
 
-      // Không tự gọi startCarSimulation() ở đây — route cho đoạn mới (EN_ROUTE/TOWING) chưa kịp
-      // fetch xong tại thời điểm này. Effect riêng theo dõi routeCoords sẽ tự bắt đầu animation
-      // đúng lúc route mới đã sẵn sàng.
       if (newStatus === 'EN_ROUTE') {
         startLocationSharing(rescueTask.id);
+        speak('Bắt đầu di chuyển và chia sẻ vị trí cứu hộ.');
         showToast('Đã bắt đầu di chuyển và chia sẻ GPS thật!', 'success');
       }
       else if (newStatus === 'ARRIVED') {
         stopLocationSharing();
+        speak('Bạn đã tiếp cận vị trí khách hàng.');
         showToast('Đã đến nơi thành công!', 'success');
       }
       else if (newStatus === 'TOWING') {
         startLocationSharing(rescueTask.id);
+        speak('Bắt đầu chở xe về gara.');
         showToast('Đã bắt đầu chở xe về Gara và chia sẻ GPS thật!', 'success');
       }
       else if (newStatus === 'COMPLETED') {
         stopLocationSharing();
+        speak('Đã hoàn thành cứu hộ.');
         showToast('Đã đưa xe về Gara thành công! Đang chuyển trang...', 'success');
       }
 
@@ -319,16 +566,37 @@ export default function TechnicianRescuePage() {
 
   const beginMovement = async (status: 'EN_ROUTE' | 'TOWING') => {
     try {
+      // Đặt âm thanh chào mừng đồng bộ trong thread click để mở khóa tiếng duyệt trên iOS
+      speak(status === 'EN_ROUTE' ? 'Bắt đầu di chuyển cứu hộ.' : 'Bắt đầu chở xe về gara.');
+
       const location = await getCurrentGps();
       setTechnicianLocation(location);
       setCarLocation(location);
       setHasTechnicianLocation(true);
+
+      announcedWarningsRef.current.clear();
+      announcedTurnsRef.current.clear();
+
       await updateStatus(status, location);
     } catch (error) {
       console.error('Không thể bắt đầu GPS:', error);
       showToast('Không thể bắt đầu di chuyển vì chưa lấy được GPS. Hãy bật quyền vị trí.', 'error');
     }
   };
+
+  const mapApiKey = import.meta.env.VITE_API_BANDO;
+  const primaryTileUrl = mapApiKey
+    ? `https://tiles.goong.io/assets/goong_map_web/{z}/{x}/{y}.png?api_key=${mapApiKey}`
+    : 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png';
+  const primaryTileAttribution = mapApiKey
+    ? '&copy; <a href="https://goong.io">Goong</a>'
+    : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://openstreetmap.fr">OSM France</a>';
+  const tileUrl = useFallbackTiles
+    ? 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png'
+    : primaryTileUrl;
+  const tileAttribution = useFallbackTiles
+    ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://openstreetmap.fr">OSM France</a>'
+    : primaryTileAttribution;
 
   if (loading) {
     return (
@@ -351,13 +619,35 @@ export default function TechnicianRescuePage() {
             animate={{ opacity: 1, y: 16, x: '-50%' }}
             exit={{ opacity: 0, y: -20, x: '-50%' }}
             className={`fixed top-4 left-1/2 z-[1000] transform -translate-x-1/2 flex items-center gap-2 px-4 sm:px-6 py-3 rounded-xl shadow-xl font-semibold text-white max-w-[90vw] ${toastMessage.type === 'success' ? 'bg-emerald-500' :
-                toastMessage.type === 'error' ? 'bg-rose-500' :
-                  toastMessage.type === 'warning' ? 'bg-amber-500' : 'bg-blue-500'
+              toastMessage.type === 'error' ? 'bg-rose-500' :
+                toastMessage.type === 'warning' ? 'bg-amber-500' : 'bg-blue-500'
               }`}
           >
             {toastMessage.type === 'success' && <CheckCircle size={20} />}
             {toastMessage.type === 'info' && <Siren size={20} className="animate-pulse" />}
             <span>{toastMessage.text}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Top Navigation HUD Card */}
+      <AnimatePresence>
+        {hudInstruction && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, x: '-50%' }}
+            animate={{ opacity: 1, y: 16, x: '-50%' }}
+            exit={{ opacity: 0, y: -20, x: '-50%' }}
+            className="absolute top-4 left-1/2 z-[500] transform -translate-x-1/2 w-[calc(100%-2rem)] max-w-md bg-slate-900/90 text-white backdrop-blur-md rounded-2xl shadow-2xl shadow-slate-950/20 border border-slate-700/50 p-4 pointer-events-auto flex items-center gap-4"
+          >
+            <div className="p-2 bg-slate-800 rounded-xl border border-slate-700 shadow-inner flex items-center justify-center shrink-0">
+              {getInstructionIcon(hudInstruction)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Chỉ dẫn cứu hộ</p>
+              <p className="text-sm font-bold text-white mt-0.5 leading-snug break-words">
+                {hudInstruction}
+              </p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -389,52 +679,65 @@ export default function TechnicianRescuePage() {
         <>
           {/* Map Layer */}
           <div className="absolute inset-0 z-0">
-            {rescueTask.customer_lat && rescueTask.customer_lng ? (
-              <MapContainer
-                center={technicianLocation}
-                zoom={14}
-                style={{ height: '100%', width: '100%' }}
-                zoomControl={false}
-              >
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-
-                <Marker position={technicianLocation} icon={technicianIcon}>
-                  <Popup className="font-bold text-blue-800">Vị trí của bạn (KTV)</Popup>
-                </Marker>
-
-                <Marker
-                  position={[parseFloat(rescueTask.customer_lat), parseFloat(rescueTask.customer_lng)]}
-                  icon={userIcon}
+            {rescueTask.customer_lat && rescueTask.customer_lng && hasTechnicianLocation ? (
+              <>
+                <MapContainer
+                  center={technicianLocation}
+                  zoom={14}
+                  style={{ height: '100%', width: '100%' }}
+                  zoomControl={false}
                 >
-                  <Popup className="rounded-xl overflow-hidden shadow-xl font-bold text-slate-800 text-center">
-                    Vị trí Khách hàng <br />
-                    <span className="text-xs text-rose-500 uppercase tracking-widest mt-1 block">Đang đợi cứu hộ</span>
-                  </Popup>
-                </Marker>
+                  <TileLayer
+                    key={tileUrl}
+                    attribution={tileAttribution}
+                    url={tileUrl}
+                    eventHandlers={{
+                      tileerror: () => {
+                        if (!useFallbackTiles && mapApiKey) setUseFallbackTiles(true);
+                      },
+                    }}
+                  />
 
-                {/* Điểm đến khi đang chở xe về — chỉ hiện ở đoạn TOWING trở đi */}
-                {(rescueTask.status === 'TOWING' || rescueTask.status === 'COMPLETED') && (
-                  <Marker position={garageLocation} icon={garageIcon}>
-                    <Popup className="font-bold text-blue-800">Gara Hệ Thống (điểm đến)</Popup>
+                  <Marker position={technicianLocation} icon={isSharingLocation ? carIcon : technicianIcon} zIndexOffset={1000}>
+                    <Popup className="font-bold text-blue-800">Vị trí của bạn (KTV)</Popup>
                   </Marker>
-                )}
 
-                {routeCoords.length > 0 && (
-                  <Polyline positions={routeCoords} color="#3b82f6" weight={6} opacity={0.6} />
-                )}
-
-                {/* Simulated Car Icon */}
-                {routeCoords.length > 0 && (rescueTask.status === 'EN_ROUTE' || rescueTask.status === 'ARRIVED' || rescueTask.status === 'TOWING') && (
-                  <Marker position={carLocation} icon={carIcon} zIndexOffset={1000}>
-                    <Popup className="font-bold text-green-600">Bạn đang ở đây</Popup>
+                  <Marker
+                    position={[parseFloat(rescueTask.customer_lat), parseFloat(rescueTask.customer_lng)]}
+                    icon={userIcon}
+                  >
+                    <Popup className="rounded-xl overflow-hidden shadow-xl font-bold text-slate-800 text-center">
+                      Vị trí Khách hàng <br />
+                      <span className="text-xs text-rose-500 uppercase tracking-widest mt-1 block">Đang đợi cứu hộ</span>
+                    </Popup>
                   </Marker>
-                )}
 
-                <MapFitter bounds={mapBounds} />
-              </MapContainer>
+                  {/* Điểm đến khi đang chở xe về — chỉ hiện ở đoạn TOWING trở đi */}
+                  {(rescueTask.status === 'TOWING' || rescueTask.status === 'COMPLETED') && (
+                    <Marker position={garageLocation} icon={garageIcon}>
+                      <Popup className="font-bold text-blue-800">Gara Hệ Thống (điểm đến)</Popup>
+                    </Marker>
+                  )}
+
+                  {routeCoords.length > 0 && (
+                    <Polyline positions={routeCoords} color="#3b82f6" weight={6} opacity={0.6} />
+                  )}
+
+                  <MapInteractionDetector onUserInteract={() => setIsMapUserPanned(true)} />
+                  <MapFitter bounds={mapBounds} isUserPanned={isMapUserPanned} />
+                </MapContainer>
+
+                {isMapUserPanned && (
+                  <button
+                    type="button"
+                    onClick={() => setIsMapUserPanned(false)}
+                    className="absolute right-4 bottom-24 sm:bottom-28 z-[500] pointer-events-auto px-4 py-2.5 bg-[#00285E] hover:bg-blue-800 text-white rounded-full shadow-2xl transition-all flex items-center gap-2 text-xs font-bold"
+                  >
+                    <Navigation size={14} className="rotate-45 shrink-0" />
+                    ĐỊNH VỊ LẠI
+                  </button>
+                )}
+              </>
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center bg-slate-200">
                 <MapPin size={64} className="text-slate-400 mb-4" />
@@ -505,7 +808,7 @@ export default function TechnicianRescuePage() {
               </motion.div>
 
               {distance && duration && (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   className="hidden sm:flex bg-white/95 backdrop-blur-md rounded-2xl shadow-xl shadow-slate-900/10 border border-white px-6 py-4 pointer-events-auto gap-6"
@@ -524,39 +827,61 @@ export default function TechnicianRescuePage() {
             </div>
 
             {/* Bottom Action Bar */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="pointer-events-auto mx-auto w-full max-w-md"
             >
               {(rescueTask.status === 'EN_ROUTE' || rescueTask.status === 'TOWING') && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (isSharingLocation) {
-                      stopLocationSharing();
-                      showToast('Đã tắt chia sẻ vị trí.', 'info');
-                    } else {
-                      try {
-                        const location = await getCurrentGps();
-                        setTechnicianLocation(location);
-                        setCarLocation(location);
-                        setHasTechnicianLocation(true);
-                        startLocationSharing(rescueTask.id);
-                        showToast('Đã bật chia sẻ GPS thật.', 'success');
-                      } catch {
-                        showToast('Không lấy được GPS. Hãy cấp quyền vị trí cho trình duyệt.', 'error');
+                <div className="flex gap-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newEnabled = !voiceEnabled;
+                      setVoiceEnabled(newEnabled);
+                      voiceEnabledRef.current = newEnabled;
+                      if (newEnabled) {
+                        speak('Đã bật chỉ dẫn giọng nói.', true);
+                      } else {
+                        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                          window.speechSynthesis.cancel();
+                        }
                       }
-                    }
-                  }}
-                  className={`mb-3 w-full rounded-xl border px-4 py-2.5 font-bold shadow-lg flex items-center justify-center gap-2 ${isSharingLocation ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-700'}`}
-                >
-                  {isSharingLocation ? <RadioTower size={18} className="animate-pulse" /> : <Radio size={18} />}
-                  {isSharingLocation ? 'ĐANG CHIA SẺ GPS · BẤM ĐỂ TẮT' : 'BẬT CHIA SẺ GPS'}
-                </button>
+                    }}
+                    className="p-3 bg-white text-slate-700 border border-slate-200 rounded-xl shadow-lg hover:bg-slate-50 transition-colors shrink-0 flex items-center justify-center pointer-events-auto"
+                    title={voiceEnabled ? 'Tắt âm chỉ dẫn' : 'Bật âm chỉ dẫn'}
+                  >
+                    {voiceEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (isSharingLocation) {
+                        stopLocationSharing();
+                        showToast('Đã tắt chia sẻ vị trí.', 'info');
+                      } else {
+                        try {
+                          if (voiceEnabled) speak('Đã bật chia sẻ GPS và chỉ dẫn giọng nói.', true);
+                          const location = await getCurrentGps();
+                          setTechnicianLocation(location);
+                          setCarLocation(location);
+                          setHasTechnicianLocation(true);
+                          startLocationSharing(rescueTask.id);
+                          showToast('Đã bật chia sẻ GPS thật.', 'success');
+                        } catch {
+                          showToast('Không lấy được GPS. Hãy cấp quyền vị trí cho trình duyệt.', 'error');
+                        }
+                      }
+                    }}
+                    className={`flex-1 rounded-xl border px-4 py-2.5 font-bold shadow-lg flex items-center justify-center gap-2 pointer-events-auto ${isSharingLocation ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-700'}`}
+                  >
+                    {isSharingLocation ? <RadioTower size={18} className="animate-pulse" /> : <Radio size={18} />}
+                    {isSharingLocation ? 'ĐANG CHIA SẺ GPS · BẤM ĐỂ TẮT' : 'BẬT CHIA SẺ GPS'}
+                  </button>
+                </div>
               )}
               {rescueTask.status === 'ASSIGNED' && (
-                <button 
+                <button
                   onClick={() => beginMovement('EN_ROUTE')}
                   disabled={actionLoading}
                   className="w-full py-3.5 sm:py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-full font-black tracking-wide shadow-2xl hover:scale-105 transition-all flex items-center justify-center gap-2 text-base sm:text-lg animate-bounce"
@@ -569,7 +894,7 @@ export default function TechnicianRescuePage() {
               {/* TEST: tạm thời chưa kiểm tra khoảng cách <= 100 m.
                   Khi triển khai thật, bổ sung `&& canConfirmArrival` vào điều kiện bên dưới. */}
               {rescueTask.status === 'EN_ROUTE' && (
-                <button 
+                <button
                   onClick={() => updateStatus('ARRIVED')}
                   disabled={actionLoading}
                   className="w-full py-3.5 sm:py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-full font-black tracking-wide shadow-2xl hover:scale-105 transition-all flex items-center justify-center gap-2 text-base sm:text-lg"
@@ -578,7 +903,7 @@ export default function TechnicianRescuePage() {
                   TÔI ĐÃ ĐẾN NƠI
                 </button>
               )}
-              
+
               {rescueTask.status === 'ARRIVED' && (
                 <button
                   onClick={() => beginMovement('TOWING')}

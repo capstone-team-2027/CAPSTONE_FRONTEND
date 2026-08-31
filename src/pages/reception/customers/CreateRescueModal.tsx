@@ -42,7 +42,7 @@ const userIcon = L.divIcon({
   popupAnchor: [0, -28],
 });
 
-const MAX_RESCUE_DISTANCE_KM = 20;
+const MAX_RESCUE_DISTANCE_KM = 40;
 
 const assignmentStatusLabel = (status: string) => ({
   ASSIGNED: 'Chờ thực hiện',
