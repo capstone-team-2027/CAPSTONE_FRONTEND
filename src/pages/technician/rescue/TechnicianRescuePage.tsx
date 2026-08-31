@@ -31,11 +31,22 @@ const garageIcon = L.divIcon({
   popupAnchor: [0, -14],
 });
 
-const carIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/744/744402.png',
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
-  popupAnchor: [0, -20],
+const carIcon = L.divIcon({
+  className: 'custom-car-marker',
+  html: `
+    <div style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:#00285E;border-radius:9999px;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.35);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" />
+        <path d="M15 18H9" />
+        <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14" />
+        <circle cx="17" cy="18" r="2" />
+        <circle cx="7" cy="18" r="2" />
+      </svg>
+    </div>
+  `,
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
+  popupAnchor: [0, -16],
 });
 
 // Icon vị trí KTV lúc đứng yên (chưa bắt đầu di chuyển) — phân biệt với garageIcon (Gara thật)
@@ -181,9 +192,23 @@ export default function TechnicianRescuePage() {
   useEffect(() => () => stopLocationSharing(), [stopLocationSharing]);
 
   useEffect(() => {
+    getCurrentGps()
+      .then((location) => {
+        setTechnicianLocation(location);
+        setCarLocation(location);
+        setHasTechnicianLocation(true);
+      })
+      .catch((err) => {
+        console.warn('Không tự động lấy được GPS ban đầu:', err);
+        // Để hiển thị map ngay cả khi không lấy được GPS thực tế, set true và dùng vị trí mặc định Gara
+        setHasTechnicianLocation(true);
+      });
+  }, []);
+
+  useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchActiveRescue();
-    
+
     // Nhận nhiệm vụ cứu hộ mới realtime — BE emit 'new_notification' qua room 'user-{id}' (đã
     // được TechnicianLayout tự join sẵn) khi lễ tân gán KTV cho 1 cuốc cứu hộ.
     if (socket) {
@@ -317,7 +342,7 @@ export default function TechnicianRescuePage() {
   }
 
   return (
-    <div className="relative w-full h-[calc(100vh-64px)] overflow-hidden bg-slate-100">
+    <div className="relative w-full h-[calc(100vh-136px)] lg:h-[calc(100vh-80px)] overflow-hidden bg-slate-100">
       {/* Toast Notification */}
       <AnimatePresence>
         {toastMessage && (
@@ -325,11 +350,10 @@ export default function TechnicianRescuePage() {
             initial={{ opacity: 0, y: -20, x: '-50%' }}
             animate={{ opacity: 1, y: 16, x: '-50%' }}
             exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className={`fixed top-4 left-1/2 z-[1000] transform -translate-x-1/2 flex items-center gap-2 px-4 sm:px-6 py-3 rounded-xl shadow-xl font-semibold text-white max-w-[90vw] ${
-              toastMessage.type === 'success' ? 'bg-emerald-500' :
-              toastMessage.type === 'error' ? 'bg-rose-500' : 
-              toastMessage.type === 'warning' ? 'bg-amber-500' : 'bg-blue-500'
-            }`}
+            className={`fixed top-4 left-1/2 z-[1000] transform -translate-x-1/2 flex items-center gap-2 px-4 sm:px-6 py-3 rounded-xl shadow-xl font-semibold text-white max-w-[90vw] ${toastMessage.type === 'success' ? 'bg-emerald-500' :
+                toastMessage.type === 'error' ? 'bg-rose-500' :
+                  toastMessage.type === 'warning' ? 'bg-amber-500' : 'bg-blue-500'
+              }`}
           >
             {toastMessage.type === 'success' && <CheckCircle size={20} />}
             {toastMessage.type === 'info' && <Siren size={20} className="animate-pulse" />}
@@ -340,7 +364,7 @@ export default function TechnicianRescuePage() {
 
       {!rescueTask ? (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-50/80 backdrop-blur-sm z-10">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="bg-white rounded-3xl p-6 sm:p-16 flex flex-col items-center justify-center text-center shadow-xl border border-slate-200 max-w-lg mx-4"
@@ -352,7 +376,7 @@ export default function TechnicianRescuePage() {
             <p className="text-slate-500 leading-relaxed">
               Hệ thống đang ở trạng thái chờ. Khi có khách hàng gặp sự cố, thông báo sẽ tự động hiện lên tại đây.
             </p>
-            <button 
+            <button
               onClick={fetchActiveRescue}
               className="mt-8 px-8 py-3.5 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/30 flex items-center gap-2"
             >
@@ -365,7 +389,7 @@ export default function TechnicianRescuePage() {
         <>
           {/* Map Layer */}
           <div className="absolute inset-0 z-0">
-            {rescueTask.customer_lat && rescueTask.customer_lng && hasTechnicianLocation ? (
+            {rescueTask.customer_lat && rescueTask.customer_lng ? (
               <MapContainer
                 center={technicianLocation}
                 zoom={14}
@@ -373,10 +397,10 @@ export default function TechnicianRescuePage() {
                 zoomControl={false}
               >
                 <TileLayer
-                  url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-                  attribution='&copy; <a href="https://carto.com/">Carto</a>'
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                
+
                 <Marker position={technicianLocation} icon={technicianIcon}>
                   <Popup className="font-bold text-blue-800">Vị trí của bạn (KTV)</Popup>
                 </Marker>
@@ -386,7 +410,7 @@ export default function TechnicianRescuePage() {
                   icon={userIcon}
                 >
                   <Popup className="rounded-xl overflow-hidden shadow-xl font-bold text-slate-800 text-center">
-                    Vị trí Khách hàng <br/>
+                    Vị trí Khách hàng <br />
                     <span className="text-xs text-rose-500 uppercase tracking-widest mt-1 block">Đang đợi cứu hộ</span>
                   </Popup>
                 </Marker>
@@ -420,49 +444,71 @@ export default function TechnicianRescuePage() {
           </div>
 
           {/* Floating UI Overlays */}
-          <div className="absolute inset-0 z-[400] pointer-events-none p-3 sm:p-6 flex flex-col justify-between">
+          <div className="absolute inset-0 z-30 pointer-events-none p-3 sm:p-6 flex flex-col justify-between">
             {/* Top Bar Overlay */}
             <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-start gap-3">
               {/* Left Customer Info */}
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl shadow-slate-900/10 border border-white p-4 sm:p-5 pointer-events-auto w-full sm:max-w-sm"
+                className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl shadow-slate-900/10 border border-white p-3.5 sm:p-5 pointer-events-auto w-full sm:max-w-sm"
               >
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="bg-rose-100 p-2 rounded-lg text-rose-600">
-                    <Siren size={20} className="animate-pulse" />
-                  </span>
-                  <h3 className="font-bold text-slate-800 text-lg">Cứu hộ khẩn cấp</h3>
-                </div>
-
-                <div className="flex items-center gap-4 mb-4">
-                  <img
-                    src={rescueTask.customer?.user?.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=256&auto=format&fit=crop"}
-                    alt="Avatar"
-                    className="w-14 h-14 rounded-full border-2 border-white shadow-sm object-cover shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <div className="font-bold text-slate-800 truncate">{rescueTask.customer?.name || rescueTask.customer?.user?.fullName || 'Khách Vãng Lai'}</div>
-                    <div className="text-slate-500 text-sm font-medium mt-0.5 flex items-center gap-1.5">
-                      <Phone size={14} className="shrink-0" /> <span className="truncate">{rescueTask.customer?.phone || rescueTask.customer?.user?.phoneNumber}</span>
-                    </div>
+                <div className="flex items-center gap-2.5 sm:flex-row justify-between mb-3.5">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <span className="bg-rose-100 p-2 rounded-lg text-rose-600">
+                      <Siren size={18} className="animate-pulse" />
+                    </span>
+                    <h3 className="font-bold text-slate-800 text-base sm:text-lg">Cứu hộ khẩn cấp</h3>
                   </div>
                 </div>
 
-                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                <div className="flex items-center gap-3 sm:gap-4 mb-3.5">
+                  <img
+                    src={rescueTask.customer?.user?.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=256&auto=format&fit=crop"}
+                    alt="Avatar"
+                    className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 border-white shadow-sm object-cover shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-slate-800 text-sm sm:text-base truncate">
+                      {rescueTask.customer?.name || rescueTask.customer?.user?.fullName || 'Khách Vãng Lai'}
+                    </div>
+                    <a
+                      href={`tel:${rescueTask.customer?.phone || rescueTask.customer?.user?.phoneNumber}`}
+                      className="text-blue-600 hover:text-blue-800 text-xs sm:text-sm font-semibold mt-1 flex items-center gap-1.5 pointer-events-auto transition-colors"
+                    >
+                      <Phone size={13} className="shrink-0" />
+                      <span className="truncate hover:underline">
+                        {rescueTask.customer?.phone || rescueTask.customer?.user?.phoneNumber || 'Chưa có SĐT'}
+                      </span>
+                    </a>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 rounded-xl p-2.5 sm:p-3 border border-slate-100">
                   <p className="text-xs text-slate-600 font-medium line-clamp-2">
                     <span className="text-slate-400 font-bold">MÔ TẢ:</span> {rescueTask.issue_description || "Không có ghi chú"}
                   </p>
                 </div>
+                {distance && duration && (
+                  <div className="flex sm:hidden justify-around items-center mt-3 pt-3 border-t border-slate-100 text-center">
+                    <div className="flex flex-col items-center">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Khoảng cách</span>
+                      <span className="text-sm font-black text-blue-600">{distance}</span>
+                    </div>
+                    <div className="w-px h-6 bg-slate-200"></div>
+                    <div className="flex flex-col items-center">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Thời gian</span>
+                      <span className="text-sm font-black text-emerald-600">{duration}</span>
+                    </div>
+                  </div>
+                )}
               </motion.div>
 
-              {/* Right Route Info */}
               {distance && duration && (
                 <motion.div 
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl shadow-slate-900/10 border border-white px-6 py-4 pointer-events-auto flex gap-6"
+                  className="hidden sm:flex bg-white/95 backdrop-blur-md rounded-2xl shadow-xl shadow-slate-900/10 border border-white px-6 py-4 pointer-events-auto gap-6"
                 >
                   <div className="flex flex-col items-center">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Khoảng cách</span>
@@ -513,9 +559,9 @@ export default function TechnicianRescuePage() {
                 <button 
                   onClick={() => beginMovement('EN_ROUTE')}
                   disabled={actionLoading}
-                  className="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-full font-black tracking-wide shadow-2xl hover:scale-105 transition-all flex items-center justify-center gap-2 text-lg animate-bounce"
+                  className="w-full py-3.5 sm:py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-full font-black tracking-wide shadow-2xl hover:scale-105 transition-all flex items-center justify-center gap-2 text-base sm:text-lg animate-bounce"
                 >
-                  {actionLoading ? <Loader2 size={24} className="animate-spin" /> : <Navigation size={24} />}
+                  {actionLoading ? <Loader2 size={22} className="animate-spin" /> : <Navigation size={22} />}
                   BẮT ĐẦU DI CHUYỂN
                 </button>
               )}
@@ -526,9 +572,9 @@ export default function TechnicianRescuePage() {
                 <button 
                   onClick={() => updateStatus('ARRIVED')}
                   disabled={actionLoading}
-                  className="w-full py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-full font-black tracking-wide shadow-2xl hover:scale-105 transition-all flex items-center justify-center gap-2 text-lg"
+                  className="w-full py-3.5 sm:py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-full font-black tracking-wide shadow-2xl hover:scale-105 transition-all flex items-center justify-center gap-2 text-base sm:text-lg"
                 >
-                  {actionLoading ? <Loader2 size={24} className="animate-spin" /> : <MapPin size={24} />}
+                  {actionLoading ? <Loader2 size={22} className="animate-spin" /> : <MapPin size={22} />}
                   TÔI ĐÃ ĐẾN NƠI
                 </button>
               )}
@@ -537,10 +583,10 @@ export default function TechnicianRescuePage() {
                 <button
                   onClick={() => beginMovement('TOWING')}
                   disabled={actionLoading}
-                  className="w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl font-black tracking-wide shadow-2xl hover:scale-105 transition-all flex items-center justify-center gap-2 text-center text-sm sm:text-base leading-snug"
+                  className="w-full py-3.5 sm:py-4 px-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl font-black tracking-wide shadow-2xl hover:scale-105 transition-all flex items-center justify-center gap-2 text-center text-sm sm:text-base leading-snug"
                 >
-                  {actionLoading ? <Loader2 size={24} className="animate-spin shrink-0" /> : <CarFront size={24} className="shrink-0" />}
-                  <span>BẮT ĐẦU CHỞ XE VỀ GARA</span>
+                  {actionLoading ? <Loader2 size={22} className="animate-spin shrink-0" /> : <CarFront size={22} className="shrink-0" />}
+                  <span>BẮT ĐẦU CHỜ XE VỀ GARA</span>
                 </button>
               )}
 
@@ -553,9 +599,9 @@ export default function TechnicianRescuePage() {
                     }, 1500);
                   }}
                   disabled={actionLoading}
-                  className="w-full py-4 px-6 bg-slate-800 text-white rounded-2xl font-black tracking-wide shadow-2xl hover:bg-slate-700 transition-all flex items-center justify-center gap-2 text-center text-sm sm:text-base leading-snug"
+                  className="w-full py-3.5 sm:py-4 px-6 bg-slate-800 text-white rounded-2xl font-black tracking-wide shadow-2xl hover:bg-slate-700 transition-all flex items-center justify-center gap-2 text-center text-sm sm:text-base leading-snug"
                 >
-                  {actionLoading ? <Loader2 size={24} className="animate-spin shrink-0" /> : <CheckCircle size={24} className="shrink-0" />}
+                  {actionLoading ? <Loader2 size={22} className="animate-spin shrink-0" /> : <CheckCircle size={22} className="shrink-0" />}
                   <span>ĐÃ VỀ TỚI GARA</span>
                 </button>
               )}
