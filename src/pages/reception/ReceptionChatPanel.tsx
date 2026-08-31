@@ -123,7 +123,13 @@ export default function ReceptionChatPanel({ isOpen, onClose, currentUserId }: P
 
     const handleNewMessage = (payload: { conversationId: number; message: ChatMessage }) => {
       if (payload.conversationId === selectedId) {
-        setMessages((prev) => [...prev, payload.message]);
+        // Tin do chính lễ tân gửi đã được thêm ngay lúc gọi API, socket bắn lại lần nữa
+        // -> chặn theo id để không hiện 2 tin trùng.
+        setMessages((prev) =>
+          prev.some((m) => m.id === payload.message.id)
+            ? prev
+            : [...prev, payload.message],
+        );
       }
       setConversations((prev) => {
         const exists = prev.some((c) => c.id === payload.conversationId);
@@ -226,7 +232,11 @@ export default function ReceptionChatPanel({ isOpen, onClose, currentUserId }: P
         { content },
       );
       if (response?.data) {
-        setMessages((prev) => [...prev, response.data]);
+        setMessages((prev) =>
+          prev.some((m) => m.id === response.data.id)
+            ? prev
+            : [...prev, response.data],
+        );
       }
     } catch (error) {
       console.error("Lỗi khi gửi tin nhắn:", error);

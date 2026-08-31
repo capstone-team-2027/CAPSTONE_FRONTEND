@@ -118,7 +118,13 @@ export default function CustomerChatWidget({ currentUserId }: Props) {
 
         const handleNewMessage = (payload: { conversationId: number; message: ChatMessage }) => {
             if (isOpen) {
-                setMessages((prev) => [...prev, payload.message]);
+                // Tin do chính khách gửi đã được thêm lúc gọi API, socket bắn lại lần nữa
+                // -> chặn theo id để không hiện 2 tin trùng.
+                setMessages((prev) =>
+                    prev.some((m) => m.id === payload.message.id)
+                        ? prev
+                        : [...prev, payload.message],
+                );
             } else if (payload.message.sender_role === 'RECEPTIONIST') {
                 setUnreadCount((prev) => prev + 1);
             }
@@ -142,7 +148,11 @@ export default function CustomerChatWidget({ currentUserId }: Props) {
         try {
             const response = await fetchPrivate(CHAT_API_ENDPOINTS.SEND_QUOTE_REFERENCE, 'POST', { quotationId });
             if (response?.data) {
-                setMessages((prev) => [...prev, response.data]);
+                setMessages((prev) =>
+                    prev.some((m) => m.id === response.data.id)
+                        ? prev
+                        : [...prev, response.data],
+                );
                 setConversationId(response.data.conversation_id);
             }
         } catch (error) {
@@ -175,7 +185,11 @@ export default function CustomerChatWidget({ currentUserId }: Props) {
         try {
             const response = await fetchPrivate(CHAT_API_ENDPOINTS.SEND_MESSAGE, 'POST', { content });
             if (response?.data) {
-                setMessages((prev) => [...prev, response.data]);
+                setMessages((prev) =>
+                    prev.some((m) => m.id === response.data.id)
+                        ? prev
+                        : [...prev, response.data],
+                );
                 setConversationId(response.data.conversation_id);
             }
         } catch (error) {

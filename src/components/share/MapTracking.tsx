@@ -600,21 +600,6 @@ export const MapTracking: React.FC = () => {
         </div>
       </div>
 
-      {/* Nút test nhanh (Dùng toạ độ giả) */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => {
-            // Lấy một vị trí ngẫu nhiên gần Gara để test (10-20km)
-            const randomLat = garageLocation[0] + (Math.random() - 0.5) * 0.2;
-            const randomLng = garageLocation[1] + (Math.random() - 0.5) * 0.2;
-            processLocation(randomLat, randomLng);
-          }}
-          className="text-xs px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded transition"
-        >
-          🔧 Chạy Test (Dùng vị trí giả)
-        </button>
-      </div>
-
       {/* Thanh thông báo lỗi (nếu có) */}
       {errorMsg && <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-md text-sm">{errorMsg}</div>}
 

@@ -4,7 +4,6 @@ import {
   CalendarCheck,
   ClipboardPlus,
   CreditCard,
-  MessageSquare,
   History,
   HelpCircle,
   LogOut,
@@ -274,7 +273,6 @@ export default function ReceptionLayout() {
         { name: "Quản lý hóa đơn dịch vụ", icon: ClipboardPlus, path: "/reception/service-orders" },
         { name: 'Khách hàng & Cứu hộ', icon: Users, path: '/reception/customers' },
         { name: "Thanh toán dịch vụ", icon: CreditCard, path: "/reception/payments" },
-        { name: "Phản hồi khách hàng", icon: MessageSquare, path: "/reception/feedback" },
       ],
     },
   ];
@@ -291,7 +289,6 @@ export default function ReceptionLayout() {
     if (path.includes("/quotes")) return "Danh sách báo giá";
     if (path.includes('/customers')) return 'Khách hàng & Cứu hộ';
     if (path.includes('/technicians')) return 'Kỹ thuật viên hôm nay';
-    if (path.includes("/feedback")) return "Phản hồi khách hàng";
     if (path.includes("/service-orders")) return "Quản lý hóa đơn dịch vụ";
     if (path.includes("/payments")) return "Thanh toán dịch vụ";
 

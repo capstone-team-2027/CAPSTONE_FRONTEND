@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     LayoutDashboard,
     Calendar,
-    HelpCircle,
     LogOut,
     CheckCircle2,
     History,
@@ -440,15 +439,7 @@ export default function UserProfile() {
                             })}
                         </div>
 
-                        <div className="pt-2 mt-2 border-t border-gray-100 grid grid-cols-2 gap-2 lg:flex lg:flex-col lg:space-y-1">
-                            <button
-                                onClick={() => alert(t('profile.supportMessage', 'Hệ thống hỗ trợ trực tuyến đang kết nối...'))}
-                                className="w-full flex items-center gap-2.5 md:gap-3 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-semibold text-xs md:text-sm text-slate-500 hover:bg-slate-50 hover:text-brand-blue transition-colors text-left"
-                            >
-                                <HelpCircle className="w-4 h-4 md:w-[18px] md:h-[18px] text-slate-400 shrink-0" />
-                                <span className="truncate">{t('profile.support', 'Trợ giúp & Hỗ trợ')}</span>
-                            </button>
-
+                        <div className="pt-2 mt-2 border-t border-gray-100 grid grid-cols-1 gap-2 lg:flex lg:flex-col lg:space-y-1">
                             <button
                                 onClick={() => setShowLogoutConfirm(true)}
                                 className="w-full flex items-center gap-2.5 md:gap-3 px-3 py-2.5 md:px-4 md:py-3 rounded-xl font-semibold text-xs md:text-sm text-rose-600 hover:bg-rose-50 transition-colors text-left"
