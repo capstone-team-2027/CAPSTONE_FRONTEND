@@ -193,6 +193,16 @@ interface RepairHistoryTask {
     content?: string;
     createdAt?: string;
   }>;
+  serviceOrder?: {
+    id: number;
+    vehicle?: {
+      license_plate?: string | null;
+      model?: {
+        model_name?: string | null;
+        make?: { make_name?: string | null } | null;
+      } | null;
+    } | null;
+  } | null;
 }
 
 interface InspectionHistoryItem {
@@ -421,12 +431,28 @@ export default function TechnicianAssignments() {
             : componentName || errorDescription;
         const serviceName =
           task.catalog?.service_name || `Công việc #${task.id}`;
+        // Kinh nghiệm này rút ra từ đơn nào, xe nào — để KTV đối chiếu xem có cùng dòng xe không.
+        // Trình bày giống cột "Thuộc đơn" của modal tra cứu lỗi (task kiểm tra).
+        const vehicle = task.serviceOrder?.vehicle;
+        const orderCode = task.serviceOrder?.id ? `SO-${task.serviceOrder.id}` : null;
+        const plate = vehicle?.license_plate?.trim();
+        const modelName = [vehicle?.model?.make?.make_name, vehicle?.model?.model_name]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        const vehicleLabel = plate
+          ? modelName
+            ? `${plate} · ${modelName}`
+            : plate
+          : modelName || null;
         if (!task.repairNotes?.length) {
           return [
             {
               key: `task-${task.id}-empty`,
               serviceName,
               issueText,
+              orderCode,
+              vehicleLabel,
               guide: "Chưa có hướng dẫn",
             },
           ];
@@ -435,6 +461,8 @@ export default function TechnicianAssignments() {
           key: `task-${task.id}-note-${note.id}`,
           serviceName,
           issueText,
+          orderCode,
+          vehicleLabel,
           guide: note.content?.trim() || "Chưa có hướng dẫn",
         }));
       }),
@@ -2109,7 +2137,7 @@ export default function TechnicianAssignments() {
             onClick={() => setRepairLookupOpen(false)}
             className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
           />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5">
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden ring-1 ring-slate-900/5">
             <div
               className="flex items-center justify-between px-4 sm:px-6 py-4 shrink-0"
               style={{ backgroundColor: "#00285E" }}
@@ -2119,7 +2147,7 @@ export default function TechnicianAssignments() {
                   <Wrench size={16} />
                 </div>
                 <h3 className="text-base font-bold text-white leading-tight">
-                  Tra cứu kinh nghiệm sửa lỗi
+                  Kinh nghiệm sửa lỗi tại garage
                 </h3>
               </div>
               <button
@@ -2213,7 +2241,7 @@ export default function TechnicianAssignments() {
               )}
             </div>
 
-            <div className="overflow-y-auto flex-1 px-4 sm:px-6 py-5 bg-slate-50/50">
+            <div className="overflow-y-auto flex-1 px-4 sm:px-6 py-5 space-y-4 bg-slate-50/50">
               {isRepairLoading ? (
                 <div className="py-12 text-center">
                   <span className="inline-flex items-center gap-2 text-slate-400 text-sm">
@@ -2228,41 +2256,37 @@ export default function TechnicianAssignments() {
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-                  <table className="w-full min-w-[640px] text-left text-sm">
-                    <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500">
-                      <tr>
-                        <th className="w-16 px-4 py-3 text-center">STT</th>
-                        <th className="w-1/3 px-4 py-3">Nội dung</th>
-                        <th className="px-4 py-3">Kinh nghiệm</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {repairHistoryRows.map((row, index) => (
-                        <tr
-                          key={row.key}
-                          className="align-top hover:bg-slate-50/70 transition-colors"
-                        >
-                          <td className="px-4 py-4 text-center font-semibold text-slate-500">
-                            {index + 1}
-                          </td>
-                          <td className="px-4 py-4">
-                            <p className="font-semibold text-slate-800">
-                              {row.serviceName}
-                            </p>
-                            {row.issueText && (
-                              <p className="mt-1 text-xs text-slate-500">
-                                {row.issueText}
-                              </p>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 whitespace-pre-line leading-relaxed text-slate-600">
-                            {row.guide}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="overflow-x-auto overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                  <div className="grid grid-cols-[36px_1fr_1fr_1fr] sm:grid-cols-[56px_1.2fr_1.3fr_1fr] border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                    <div className="px-2 sm:px-3 py-2.5">STT</div>
+                    <div className="px-2 sm:px-3 py-2.5">Nội dung sửa</div>
+                    <div className="px-2 sm:px-3 py-2.5">Kinh nghiệm</div>
+                    <div className="px-2 sm:px-3 py-2.5">Thuộc đơn</div>
+                  </div>
+
+                  {repairHistoryRows.map((row, index) => (
+                    <div
+                      key={row.key}
+                      className="grid grid-cols-[36px_1fr_1fr_1fr] sm:grid-cols-[56px_1.2fr_1.3fr_1fr] border-b border-slate-100 last:border-b-0"
+                    >
+                      <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm font-semibold text-slate-500">
+                        {index + 1}
+                      </div>
+                      <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm text-slate-700 font-semibold">
+                        {row.serviceName}
+                        {row.issueText && (
+                          <p className="mt-1 font-normal text-slate-400">{row.issueText}</p>
+                        )}
+                      </div>
+                      <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm text-slate-600 whitespace-pre-line leading-relaxed">
+                        {row.guide}
+                      </div>
+                      <div className="px-2 sm:px-3 py-3 text-xs sm:text-sm text-slate-600">
+                        <p className="font-semibold text-slate-700">{row.orderCode || "—"}</p>
+                        <p className="text-slate-400">{row.vehicleLabel || "—"}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
