@@ -27,6 +27,7 @@ import { useFetchClient_v2 } from '../../hook/useFetchClient';
 import { loginSuccess, logout } from '../../store/slices/userSlice';
 import { API_BASE_URL } from '../../constants/customer/profileApiEndpoint';
 import LogoutConfirmModal from '../../components/share/LogoutConfirmModal';
+import { clearAuthStorage } from '../../utils/clearAuthStorage';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -52,8 +53,7 @@ export default function AdminLayout() {
     setShowLogoutConfirm(false);
     setIsMobileSidebarOpen(false);
     showToast('Đang đăng xuất tài khoản...', 'warning');
-    localStorage.removeItem('token');
-    localStorage.removeItem('userAvatar');
+    clearAuthStorage();
     dispatch(logout());
     setTimeout(() => {
       window.location.href = '/login';

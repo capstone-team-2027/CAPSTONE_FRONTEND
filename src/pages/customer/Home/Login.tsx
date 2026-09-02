@@ -247,24 +247,24 @@ export default function Login() {
             if (!accessToken) throw new Error('Không nhận được mã xác thực (Token) từ hệ thống.');
 
             // --- 4. Lưu Token & Thông tin User vào Storage ---
-            const storage = rememberMe ? localStorage : sessionStorage;
-
-            // Ghi nhớ số điện thoại (không lưu mật khẩu) để tự điền ở lần đăng nhập sau
+            // Token luôn nằm ở localStorage nên user/refreshToken cũng phải lưu cùng chỗ:
+            // trước đây user vào sessionStorage khi không tick "Ghi nhớ" -> đóng tab là mất
+            // thông tin user trong khi token vẫn còn, khiến vào lại trang bị sai dữ liệu/role.
+            // "Ghi nhớ đăng nhập" chỉ có nhiệm vụ tự điền SĐT ở lần sau.
             if (rememberMe) {
                 localStorage.setItem('rememberedPhone', formData.phone);
             } else {
                 localStorage.removeItem('rememberedPhone');
             }
 
-            // Luôn khuyến khích đồng bộ accessToken vào localStorage nếu useFetchClient chỉ đọc từ đó
             localStorage.setItem('token', accessToken);
-            storage.setItem('accessToken', accessToken);
+            localStorage.setItem('accessToken', accessToken);
 
             if (refreshToken) {
-                storage.setItem('refreshToken', refreshToken);
+                localStorage.setItem('refreshToken', refreshToken);
             }
             if (userData) {
-                storage.setItem('user', JSON.stringify(userData));
+                localStorage.setItem('user', JSON.stringify(userData));
             }
             if (userData) {
                 dispatch(loginSuccess({

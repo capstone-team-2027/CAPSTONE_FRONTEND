@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Route, Routes, useLocation, Navigate } from "react-router-dom";
+import InitialRoleRedirect from "./components/share/InitialRoleRedirect";
 
 const Header = lazy(() => import("./pages/customer/Header"));
 const Home = lazy(() => import("./pages/customer/Home/Home"));
@@ -106,6 +107,7 @@ function App() {
     location.pathname.startsWith("/video-call");
   return (
     <Suspense fallback={<LoadingScreen />}>
+      <InitialRoleRedirect />
       <Routes>
         <Route path="/" element={<Header />}>
           <Route path="" element={<Home />} />

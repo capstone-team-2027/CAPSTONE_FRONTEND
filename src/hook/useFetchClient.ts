@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useCallback } from "react";
+import { clearAuthStorage } from "../utils/clearAuthStorage";
 
 // Original hook (unchanged)
 export const useFetchClient = () => {
@@ -53,7 +54,7 @@ export const useFetchClient = () => {
       const data = text ? JSON.parse(text) : {};
       if (response.status === 401) {
         console.warn("Lỗi 401: Token hết hạn hoặc bay màu. Đá về Login!");
-        localStorage.removeItem("token");
+        clearAuthStorage();
         navigate("/login");
         throw new Error("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.");
       }
@@ -86,7 +87,7 @@ export const useFetchClient = () => {
       const data = text ? JSON.parse(text) : {};
       if (response.status === 401) {
         console.warn("Lỗi 401: Token hết hạn hoặc bay màu. Đá về Login!");
-        localStorage.removeItem("token");
+        clearAuthStorage();
         navigate("/login");
         throw new Error("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.");
       }
@@ -120,7 +121,7 @@ export const useFetchClient = () => {
       const data = text ? JSON.parse(text) : {};
       if (response.status === 401) {
         console.warn("Lỗi 401: Token hết hạn. Đá về Login!");
-        localStorage.removeItem("token");
+        clearAuthStorage();
         navigate("/login");
         throw { status: 401, message: "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại." };
       }
@@ -192,7 +193,7 @@ export const useFetchClient_v2 = () => {
       const data = text ? JSON.parse(text) : {};
       if (response.status === 401) {
         console.warn("Lỗi 401: Token hết hạn hoặc bay màu. Đá về Login!");
-        localStorage.removeItem("token");
+        clearAuthStorage();
         navigate("/login");
         throw new Error("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.");
       }
@@ -225,7 +226,7 @@ export const useFetchClient_v2 = () => {
       const data = text ? JSON.parse(text) : {};
       if (response.status === 401) {
         console.warn("Lỗi 401: Token hết hạn hoặc bay màu. Đá về Login!");
-        localStorage.removeItem("token");
+        clearAuthStorage();
         navigate("/login");
         throw new Error("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.");
       }
@@ -259,7 +260,7 @@ export const useFetchClient_v2 = () => {
       const data = text ? JSON.parse(text) : {};
       if (response.status === 401) {
         console.warn("Lỗi 401: Token hết hạn. Đá về Login!");
-        localStorage.removeItem("token");
+        clearAuthStorage();
         navigate("/login");
         throw new Error("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.");
       }

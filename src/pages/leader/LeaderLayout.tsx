@@ -26,6 +26,7 @@ import type { UserModel } from '../../model/User';
 import { useFetchClient } from '../../hook/useFetchClient';
 import { useSocket } from '../../hook/useSocket';
 import { loginSuccess, logout } from '../../store/slices/userSlice';
+import { clearAuthStorage } from '../../utils/clearAuthStorage';
 import { PROFILE_API_ENDPOINTS } from '../../constants/common/profileEndpoints';
 import { NOTIFICATION_API_ENDPOINTS } from '../../constants/technicianLeader/notificationEndpoints';
 import LogoutConfirmModal from '../../components/share/LogoutConfirmModal';
@@ -336,8 +337,7 @@ export default function LeaderLayout() {
     setShowLogoutConfirm(false);
     setIsMobileSidebarOpen(false);
     showToast('Đang đăng xuất tài khoản...', 'warning');
-    localStorage.removeItem('token');
-    localStorage.removeItem('userAvatar');
+    clearAuthStorage();
     dispatch(logout());
     setTimeout(() => {
       window.location.href = '/login';

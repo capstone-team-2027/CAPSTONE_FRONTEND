@@ -24,6 +24,7 @@ import type { UserModel } from "../../model/User";
 import { useFetchClient } from "../../hook/useFetchClient";
 import { useSocket } from '../../hook/useSocket';
 import { loginSuccess, logout } from "../../store/slices/userSlice";
+import { clearAuthStorage } from "../../utils/clearAuthStorage";
 import { PROFILE_API_ENDPOINTS } from "../../constants/common/profileEndpoints";
 import { NOTIFICATION_API_ENDPOINTS } from "../../constants/technician/notificationEndpoints";
 import { AUTH_API_ENDPOINTS } from "../../constants/customer/authApiEndpoints";
@@ -123,8 +124,7 @@ export default function TechnicianLayout() {
     } catch (err) {
       console.error("Lỗi khi đăng xuất trên server:", err);
     }
-    localStorage.removeItem("token");
-    localStorage.removeItem("userAvatar");
+    clearAuthStorage();
     dispatch(logout());
     setTimeout(() => {
       window.location.href = "/login";

@@ -23,11 +23,22 @@ const customerIcon = L.divIcon({
   popupAnchor: [0, -28],
 });
 
-const technicianIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/744/744402.png',
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
-  popupAnchor: [0, -20],
+const technicianIcon = L.divIcon({
+  className: 'custom-car-marker',
+  html: `
+    <div style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:#00285E;border-radius:9999px;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.35);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" />
+        <path d="M15 18H9" />
+        <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14" />
+        <circle cx="17" cy="18" r="2" />
+        <circle cx="7" cy="18" r="2" />
+      </svg>
+    </div>
+  `,
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
+  popupAnchor: [0, -16],
 });
 
 // Icon gara — dùng SVG nhúng trực tiếp thay vì ảnh PNG tải từ CDN ngoài, vì các nguồn ảnh
@@ -124,7 +135,10 @@ export default function RescueTrackingModal({ rescue, customerName, onClose }: {
       </div>
       <div className="flex-1 relative">
         {customerLocation ? <MapContainer center={technicianLocation || customerLocation} zoom={14} style={{ height: '100%', width: '100%' }}>
-          <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" attribution="&copy; OpenStreetMap &copy; CARTO" />
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
           <Marker position={customerLocation} icon={customerIcon}><Popup>Vị trí khách hàng: {customerName}</Popup></Marker>
           {technicianLocation && <Marker position={technicianLocation} icon={technicianIcon}><Popup>{rescue.technician?.fullName || 'Kỹ thuật viên'} đang ở đây</Popup></Marker>}
           {rescue.status === 'TOWING' && <Marker position={garageLocation} icon={garageIcon}><Popup>Gara</Popup></Marker>}

@@ -26,6 +26,7 @@ import type { RootState } from "../../store/store";
 import type { UserModel } from "../../model/User";
 import { useFetchClient_v2 as useFetchClient } from "../../hook/useFetchClient";
 import { loginSuccess, logout } from "../../store/slices/userSlice";
+import { clearAuthStorage } from "../../utils/clearAuthStorage";
 import { PROFILE_API_ENDPOINTS } from "../../constants/common/profileEndpoints";
 import { NOTIFICATION_API_ENDPOINTS } from "../../constants/reception/notificationEndpoints";
 import { CHAT_API_ENDPOINTS } from "../../constants/reception/chatEndpoints";
@@ -103,8 +104,7 @@ export default function ReceptionLayout() {
   const handleLogoutConfirm = () => {
     setShowLogoutConfirm(false);
     showToast("Đang đăng xuất tài khoản...", "warning");
-    localStorage.removeItem("token");
-    localStorage.removeItem("userAvatar");
+    clearAuthStorage();
     dispatch(logout());
     setTimeout(() => {
       window.location.href = "/login";

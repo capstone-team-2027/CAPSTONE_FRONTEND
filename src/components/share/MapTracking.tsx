@@ -153,7 +153,7 @@ const carIcon = L.divIcon({
 });
 
 // Giữ đồng bộ với CreateRescueModal.tsx (lễ tân) — cùng giới hạn phạm vi cứu hộ tối đa.
-const MAX_RESCUE_DISTANCE_KM = 20;
+const MAX_RESCUE_DISTANCE_KM = 40;
 
 // Component con để tự động dịch chuyển bản đồ tới vị trí người dùng khi tìm thấy
 const LocationUpdater = ({ userLocation }: { userLocation: [number, number] | null }) => {
