@@ -30,6 +30,7 @@ import { useFetchClient } from "../../hook/useFetchClient";
 import { useSocket } from "../../hook/useSocket";
 import { useFetchClient_v2 } from "../../hook/useFetchClient";
 import { loginSuccess, logout } from "../../store/slices/userSlice";
+import { clearAuthStorage } from "../../utils/clearAuthStorage";
 import { PROFILE_API_ENDPOINTS } from "../../constants/common/profileEndpoints";
 import { NOTIFICATION_API_ENDPOINTS } from "../../constants/inventory/notificationEndpoints";
 import { RESTOCK_SUGGESTION_API_ENDPOINTS } from "../../constants/inventory/restockSuggestionApiEndpoint";
@@ -353,8 +354,7 @@ export default function InventoryLayout() {
     setShowLogoutConfirm(false);
     setIsMobileSidebarOpen(false);
     showToast("Đang đăng xuất tài khoản...", "warning");
-    localStorage.removeItem("token");
-    localStorage.removeItem("userAvatar");
+    clearAuthStorage();
     dispatch(logout());
     setTimeout(() => {
       window.location.href = "/login";

@@ -15,6 +15,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import { logout, loginSuccess } from '../../../store/slices/userSlice';
+import { clearAuthStorage } from '../../../utils/clearAuthStorage';
 
 import DashboardTab from './DashboardTab';
 import QuoteTrackingTab from './QuoteTrackingTab';
@@ -387,8 +388,7 @@ export default function UserProfile() {
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        localStorage.removeItem('token');
-                                        localStorage.removeItem('userAvatar');
+                                        clearAuthStorage();
                                         dispatch(logout());
                                         window.location.href = '/login';
                                     }}
