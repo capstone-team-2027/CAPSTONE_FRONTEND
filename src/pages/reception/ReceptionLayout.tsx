@@ -18,6 +18,7 @@ import {
   PhoneCall,
   Users,
   MessageCircle,
+  MessageSquare,
   RefreshCw,
 } from "lucide-react";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
@@ -273,6 +274,7 @@ export default function ReceptionLayout() {
         { name: "Quản lý hóa đơn dịch vụ", icon: ClipboardPlus, path: "/reception/service-orders" },
         { name: 'Khách hàng & Cứu hộ', icon: Users, path: '/reception/customers' },
         { name: "Thanh toán dịch vụ", icon: CreditCard, path: "/reception/payments" },
+        { name: "Đánh giá khách hàng", icon: MessageSquare, path: "/reception/feedback" },
       ],
     },
   ];
@@ -291,6 +293,7 @@ export default function ReceptionLayout() {
     if (path.includes('/technicians')) return 'Kỹ thuật viên hôm nay';
     if (path.includes("/service-orders")) return "Quản lý hóa đơn dịch vụ";
     if (path.includes("/payments")) return "Thanh toán dịch vụ";
+    if (path.includes("/feedback")) return "Đánh giá khách hàng";
 
     return "Danh sách lịch hẹn";
   }, [location.pathname]);
