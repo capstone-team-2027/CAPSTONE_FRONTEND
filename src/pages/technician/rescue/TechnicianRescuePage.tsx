@@ -630,28 +630,6 @@ export default function TechnicianRescuePage() {
         )}
       </AnimatePresence>
 
-      {/* Top Navigation HUD Card */}
-      <AnimatePresence>
-        {hudInstruction && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, x: '-50%' }}
-            animate={{ opacity: 1, y: 16, x: '-50%' }}
-            exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className="absolute top-4 left-1/2 z-[500] transform -translate-x-1/2 w-[calc(100%-2rem)] max-w-md bg-slate-900/90 text-white backdrop-blur-md rounded-2xl shadow-2xl shadow-slate-950/20 border border-slate-700/50 p-4 pointer-events-auto flex items-center gap-4"
-          >
-            <div className="p-2 bg-slate-800 rounded-xl border border-slate-700 shadow-inner flex items-center justify-center shrink-0">
-              {getInstructionIcon(hudInstruction)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Chỉ dẫn cứu hộ</p>
-              <p className="text-sm font-bold text-white mt-0.5 leading-snug break-words">
-                {hudInstruction}
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {!rescueTask ? (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-50/80 backdrop-blur-sm z-10">
           <motion.div
@@ -832,6 +810,31 @@ export default function TechnicianRescuePage() {
               animate={{ opacity: 1, y: 0 }}
               className="pointer-events-auto mx-auto w-full max-w-md"
             >
+              {/* Chỉ dẫn đường đi: đặt ngay trên cụm nút thay vì trên đầu màn hình,
+                  vì ở trên nó che mất thẻ thông tin khách hàng và số điện thoại. */}
+              <AnimatePresence>
+                {hudInstruction && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 12 }}
+                    className="mb-3 bg-slate-900/92 text-white backdrop-blur-md rounded-2xl shadow-2xl shadow-slate-950/25 border border-slate-700/50 p-3.5 flex items-center gap-3"
+                  >
+                    <div className="p-2 bg-slate-800 rounded-xl border border-slate-700 shadow-inner flex items-center justify-center shrink-0">
+                      {getInstructionIcon(hudInstruction)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        Chỉ dẫn đường đi
+                      </p>
+                      <p className="text-sm font-bold text-white mt-0.5 leading-snug break-words">
+                        {hudInstruction}
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {(rescueTask.status === 'EN_ROUTE' || rescueTask.status === 'TOWING') && (
                 <div className="flex gap-2 mb-3">
                   <button
@@ -853,31 +856,23 @@ export default function TechnicianRescuePage() {
                   >
                     {voiceEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
                   </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (isSharingLocation) {
-                        stopLocationSharing();
-                        showToast('Đã tắt chia sẻ vị trí.', 'info');
-                      } else {
-                        try {
-                          if (voiceEnabled) speak('Đã bật chia sẻ GPS và chỉ dẫn giọng nói.', true);
-                          const location = await getCurrentGps();
-                          setTechnicianLocation(location);
-                          setCarLocation(location);
-                          setHasTechnicianLocation(true);
-                          startLocationSharing(rescueTask.id);
-                          showToast('Đã bật chia sẻ GPS thật.', 'success');
-                        } catch {
-                          showToast('Không lấy được GPS. Hãy cấp quyền vị trí cho trình duyệt.', 'error');
-                        }
-                      }
-                    }}
-                    className={`flex-1 rounded-xl border px-4 py-2.5 font-bold shadow-lg flex items-center justify-center gap-2 pointer-events-auto ${isSharingLocation ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-700'}`}
+                  {/* Vị trí luôn được chia sẻ trong lúc di chuyển (updateStatus tự bật khi
+                      chuyển sang EN_ROUTE/TOWING) nên chỉ hiển thị trạng thái, không cho tắt. */}
+                  <div
+                    className={`flex-1 rounded-xl border px-4 py-2.5 text-xs font-bold shadow-lg flex items-center justify-center gap-2 ${isSharingLocation
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-amber-200 bg-amber-50 text-amber-700'
+                      }`}
                   >
-                    {isSharingLocation ? <RadioTower size={18} className="animate-pulse" /> : <Radio size={18} />}
-                    {isSharingLocation ? 'ĐANG CHIA SẺ GPS · BẤM ĐỂ TẮT' : 'BẬT CHIA SẺ GPS'}
-                  </button>
+                    {isSharingLocation ? (
+                      <RadioTower size={18} className="animate-pulse shrink-0" />
+                    ) : (
+                      <Radio size={18} className="shrink-0" />
+                    )}
+                    <span className="truncate">
+                      {isSharingLocation ? 'KHÁCH ĐANG THEO DÕI VỊ TRÍ' : 'ĐANG CHỜ TÍN HIỆU GPS'}
+                    </span>
+                  </div>
                 </div>
               )}
               {rescueTask.status === 'ASSIGNED' && (
