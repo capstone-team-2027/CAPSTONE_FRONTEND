@@ -455,7 +455,9 @@ export default function AdminCustomerManagement() {
   const statistics = useMemo(() => {
     const total = customers.length;
     const active = customers.filter(c => c.status === "ACTIVE").length;
-    const banned = customers.filter(c => c.status === "BANNED").length;
+    // Tài khoản không đăng nhập được: admin chỉ đặt được INACTIVE, nhưng dữ liệu cũ
+    // vẫn có thể còn BANNED nên đếm cả hai.
+    const locked = customers.filter(c => c.status === "INACTIVE" || c.status === "BANNED").length;
 
     let totalPoints = 0;
     let totalSpendVal = 0;
@@ -480,7 +482,7 @@ export default function AdminCustomerManagement() {
       NONE: customers.filter(c => c.membership_tier === "NONE").length,
     };
 
-    return { total, active, banned, avgPoints, totalSpendVal, tiersBreakdown };
+    return { total, active, locked, avgPoints, totalSpendVal, tiersBreakdown };
   }, [customers]);
 
   // Filtering Logic
@@ -651,7 +653,7 @@ export default function AdminCustomerManagement() {
       </div>
 
       {/* STATISTICS GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {/* KPI CARD: TOTAL CUSTOMERS */}
         <motion.div
           whileHover={{ y: -4 }}
@@ -662,7 +664,7 @@ export default function AdminCustomerManagement() {
           </div>
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block">
-              Tổng số khách hàng
+              Tổng số tài khoản
             </span>
             <span className="text-2xl font-black text-slate-900 tracking-tight block mt-0.5">
               {statistics.total}
@@ -680,7 +682,7 @@ export default function AdminCustomerManagement() {
           </div>
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block">
-              Khách hàng hoạt động
+              Tài khoản đang hoạt động
             </span>
             <span className="text-2xl font-black text-slate-900 tracking-tight block mt-0.5">
               {statistics.active}
@@ -688,38 +690,20 @@ export default function AdminCustomerManagement() {
           </div>
         </motion.div>
 
-        {/* KPI CARD: TOTAL SPEND */}
+        {/* KPI CARD: LOCKED ACCOUNTS */}
         <motion.div
           whileHover={{ y: -4 }}
           className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs flex items-center gap-4 transition-all"
         >
-          <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
-            <TrendingUp size={22} />
+          <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
+            <ShieldAlert size={22} />
           </div>
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block">
-              Tổng doanh thu dịch vụ
-            </span>
-            <span className="text-lg font-black text-slate-900 tracking-tight block mt-1">
-              {statistics.totalSpendVal.toLocaleString("vi-VN")} đ
-            </span>
-          </div>
-        </motion.div>
-
-        {/* KPI CARD: AVG LOYALTY POINTS */}
-        <motion.div
-          whileHover={{ y: -4 }}
-          className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs flex items-center gap-4 transition-all"
-        >
-          <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500 shrink-0">
-            <Coins size={22} />
-          </div>
-          <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block">
-              Điểm tích lũy TB
+              Tài khoản bị khóa
             </span>
             <span className="text-2xl font-black text-slate-900 tracking-tight block mt-0.5">
-              {statistics.avgPoints} pts
+              {statistics.locked}
             </span>
           </div>
         </motion.div>

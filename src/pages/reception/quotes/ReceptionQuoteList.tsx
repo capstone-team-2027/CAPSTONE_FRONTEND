@@ -29,6 +29,7 @@ import { useFetchClient } from "../../../hook/useFetchClient";
 import { useSocket } from "../../../hook/useSocket";
 import { QUOTE_MANAGEMENT_ENDPOINTS } from "../../../constants/reception/quoteManagementEndpoints";
 import { buildQuotationPdfDocument } from "../../../services/quotationPdf.service";
+import { formatPhoneDisplay } from "../../../utils/formatPhone";
 
 interface QuotationRow extends GetQuotationResponse {
   code: string;
@@ -126,6 +127,8 @@ export default function ReceptionQuoteList() {
   const [isApproving, setIsApproving] = useState(false);
   const [showDepositQr, setShowDepositQr] = useState(false);
   const [isDepositPaid, setIsDepositPaid] = useState(false);
+  const [isConfirmingCash, setIsConfirmingCash] = useState(false);
+  const [showCashConfirm, setShowCashConfirm] = useState(false);
   const { fetchPrivate, fetchPublic } = useFetchClient();
   const socket = useSocket();
   const { showToast } = useOutletContext<{
@@ -248,10 +251,38 @@ export default function ReceptionQuoteList() {
     setSelectedQuotation(null);
     setShowDepositQr(false);
     setIsDepositPaid(false);
+    setShowCashConfirm(false);
   };
   const closeDepositQr = () => {
     setShowDepositQr(false);
     setIsDepositPaid(false);
+    setShowCashConfirm(false);
+  };
+
+  // Khách trả cọc bằng tiền mặt tại quầy: BE ghi nhận hóa đơn cọc rồi mở khóa phụ tùng
+  // đặt riêng cho thủ kho, giống hệt khi Sepay đối soát được chuyển khoản.
+  const handleConfirmDepositCash = async () => {
+    if (!selectedQuotation || isConfirmingCash) return;
+    setIsConfirmingCash(true);
+    try {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "";
+      await fetchPrivate(`${apiBaseUrl}/api/payment/confirm-deposit-cash`, "POST", {
+        quotationId: selectedQuotation.id,
+      });
+      setShowCashConfirm(false);
+      setIsDepositPaid(true);
+      showToast(
+        `Đã ghi nhận thu cọc tiền mặt ${formatVND(selectedQuotation.deposit_amount ?? 0)}`,
+        "success",
+      );
+      await handleGetQuotationHistory();
+      setTimeout(() => closeQuotationDetail(), 1500);
+    } catch (error: any) {
+      showToast(error?.message || "Không ghi nhận được tiền cọc.", "warning");
+      setShowCashConfirm(false);
+    } finally {
+      setIsConfirmingCash(false);
+    }
   };
 
   const downloadQuotationPdf = async (quotation: QuotationRow) => {
@@ -916,7 +947,9 @@ export default function ReceptionQuoteList() {
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
                   <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Khách hàng</p>
                   <p className="mt-1.5 text-sm font-bold text-slate-700">{selectedQuotation.customerName}</p>
-                  <p className="mt-1 text-xs text-slate-500">{selectedQuotation.customerPhone || "—"}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {formatPhoneDisplay(selectedQuotation.customerPhone)}
+                  </p>
                 </div>
               </div>
 
@@ -965,8 +998,20 @@ export default function ReceptionQuoteList() {
                       </div>
                     </div>
                     <p className="mt-3 text-[11px] font-medium text-slate-500">
-                      Hệ thống đang tự động chờ xác nhận tiền cọc...
+                      Hệ thống đang tự động chờ xác nhận chuyển khoản...
                     </p>
+
+                    {/* Lối thu tiền mặt tại quầy — đặt ngay dưới mã QR để lễ tân chọn được
+                        cách thu ngay tại chỗ. Bấm sẽ mở popup xác nhận riêng. */}
+                    <div className="mt-4 w-full border-t border-slate-200 pt-4">
+                      <button
+                        onClick={() => setShowCashConfirm(true)}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-emerald-700 hover:bg-emerald-50 active:scale-[0.98] transition-all"
+                      >
+                        <Wallet className="h-4 w-4" />
+                        Khách trả tiền mặt
+                      </button>
+                    </div>
                   </>
                 ) : (
                   <div className="my-auto flex flex-col items-center py-12">
@@ -974,7 +1019,7 @@ export default function ReceptionQuoteList() {
                       <CheckCircle2 className="h-8 w-8" strokeWidth={2.5} />
                     </div>
                     <p className="mt-4 text-base font-extrabold text-emerald-700">
-                      Thanh toán cọc thành công!
+                      Đã thu tiền cọc!
                     </p>
                     <p className="mt-2 max-w-[230px] text-xs leading-relaxed text-slate-500">
                       Hệ thống đã ghi nhận tiền cọc cho báo giá {selectedQuotation.code}.
@@ -990,6 +1035,59 @@ export default function ReceptionQuoteList() {
                 className="rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100"
               >
                 Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP XÁC NHẬN THU CỌC TIỀN MẶT — thao tác không hoàn tác được nên tách riêng */}
+      {showCashConfirm && selectedQuotation && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="px-6 py-5">
+              <div className="flex items-start gap-3.5">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                  <Wallet className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-base font-bold text-slate-800">
+                    Xác nhận đã nhận đủ tiền mặt?
+                  </h4>
+                  <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+                    Ghi nhận đã thu{" "}
+                    <span className="font-bold text-slate-700">
+                      {formatVND(selectedQuotation.deposit_amount ?? 0)}
+                    </span>{" "}
+                    cho báo giá{" "}
+                    <span className="font-bold text-slate-700">{selectedQuotation.code}</span>.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 px-3.5 py-3">
+                <p className="text-xs leading-relaxed text-amber-800">
+                  Sau khi xác nhận, thủ kho sẽ được báo đặt phụ tùng và{" "}
+                  <span className="font-bold">thao tác này không thể hoàn tác</span>.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 border-t border-slate-100 bg-slate-50 px-6 py-4">
+              <button
+                onClick={() => setShowCashConfirm(false)}
+                disabled={isConfirmingCash}
+                className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => void handleConfirmDepositCash()}
+                disabled={isConfirmingCash}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/25 hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isConfirmingCash && <Loader2 className="h-4 w-4 animate-spin" />}
+                Đã nhận đủ tiền
               </button>
             </div>
           </div>

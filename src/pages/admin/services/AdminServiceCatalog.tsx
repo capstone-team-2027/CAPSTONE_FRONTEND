@@ -2004,14 +2004,19 @@ function ImportExcelModal({ categories, onClose, onImported }: ImportExcelModalP
                         </td>
                         <td className="py-2 px-2 align-top text-right">
                           <div className="relative flex items-center">
-                            <input 
-                              type="number" 
-                              min="0"
-                              value={row.labor_price} 
-                              onChange={(e) => handleRowChange(idx, 'labor_price', Number(e.target.value))}
-                              className="w-full text-xs text-right font-bold text-[#00285E] border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:border-[#00285E] bg-white pr-5"
+                            {/* type="text" thay vì number để hiện được dấu chấm ngăn cách hàng nghìn */}
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={row.labor_price ? Number(row.labor_price).toLocaleString('vi-VN') : ''}
+                              onChange={(e) => {
+                                const raw = e.target.value.replace(/\./g, '').replace(/[^0-9]/g, '');
+                                handleRowChange(idx, 'labor_price', raw ? Number(raw) : 0);
+                              }}
+                              placeholder="0"
+                              className="w-full text-xs text-right font-bold text-[#00285E] border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:border-[#00285E] bg-white pr-10"
                             />
-                            <span className="absolute right-2 text-[#00285E] font-bold text-[10px]">đ</span>
+                            <span className="absolute right-2 text-[#00285E] font-bold text-[10px]">VND</span>
                           </div>
                         </td>
                         <td className="py-2 px-2 align-top text-center">
