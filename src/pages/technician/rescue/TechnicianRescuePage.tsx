@@ -219,8 +219,8 @@ export default function TechnicianRescuePage() {
   const [duration, setDuration] = useState<string>('');
   const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
 
-  const [carLocation, setCarLocation] = useState<[number, number]>([15.9675, 108.2605]);
-  const [technicianLocation, setTechnicianLocation] = useState<[number, number]>([15.9675, 108.2605]); // Default to Garage Đà Nẵng, update via GPS
+  const [carLocation, setCarLocation] = useState<[number, number]>([16.08100332219308, 108.16569510559148]);
+  const [technicianLocation, setTechnicianLocation] = useState<[number, number]>([16.08100332219308, 108.16569510559148]); // Default to Garage Đà Nẵng, update via GPS
   const [hasTechnicianLocation, setHasTechnicianLocation] = useState(false);
   const [isSharingLocation, setIsSharingLocation] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
