@@ -578,7 +578,11 @@ export default function LeaderQuoteList() {
     const mappedRows: EditRow[] = selectedQuotation.items.map((item) => {
       editUidRef.current += 1;
       const isPart = !!item.sparePart;
-      const isCustom = Boolean(item.custom_item_name);
+      // Tên/giá thật của phụ tùng đặt riêng sống ở Custom_Part_Orders, không phải
+      // Quotation_Details.custom_item_name — BE luôn ghi field đó null (dòng trong DB chỉ là
+      // "shell"). Trước đây check theo custom_item_name nên luôn ra false, dòng phụ tùng đặt
+      // riêng bị rơi vào nhánh "service" mặc định, hiện thành "Dịch vụ sửa chữa" ma.
+      const isCustom = Boolean(item.customPartOrder);
       const svc = item.service_catalog;
       return {
         uid: editUidRef.current,
@@ -586,8 +590,8 @@ export default function LeaderQuoteList() {
         issueId: item.issue?.id ?? null,
         kind: isPart ? "part" : isCustom ? "custom" : "service",
         partId: item.sparePart?.id ?? null,
-        customItemName: item.custom_item_name ?? "",
-        customUnitPrice: isCustom ? Number(item.unit_price) || 0 : 0,
+        customItemName: item.customPartOrder?.item_name ?? item.custom_item_name ?? "",
+        customUnitPrice: isCustom ? Number(item.customPartOrder?.unit_price ?? item.unit_price) || 0 : 0,
         quantity: item.quantity,
         serviceId: svc?.id ?? null,
         serviceName: svc?.service_name ?? "Dịch vụ sửa chữa",
