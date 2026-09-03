@@ -203,7 +203,7 @@ const getInstructionIcon = (text: string) => {
 };
 
 // Toạ độ Gara cố định — khớp với MapTracking.tsx (480 Trần Quốc Hoàn, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng)
-const garageLocation: [number, number] = [15.9675, 108.2605];
+const garageLocation: [number, number] = [16.08100332219308, 108.16569510559148];
 
 export default function TechnicianRescuePage() {
   const { fetchPrivate } = useFetchClient();

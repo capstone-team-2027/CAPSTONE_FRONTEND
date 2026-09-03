@@ -99,7 +99,7 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
   const [estimatedPrice, setEstimatedPrice] = useState<number>(0);
   const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
 
-  const garageLocation: [number, number] = [15.9675, 108.2605]; // 480 Trần Quốc Hoàn, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng
+  const garageLocation: [number, number] = [16.08100332219308, 108.16569510559148]; // 480 Trần Quốc Hoàn, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng
 
   // Fetch Technicians
   useEffect(() => {
