@@ -756,23 +756,38 @@ export default function QuoteTrackingTab() {
                                 </td>
                                 <td className="px-3 py-3.5">
                                   <p className="text-xs font-semibold text-slate-700">{getItemName(item, t)}</p>
-                                  {isCustom && (
-                                    <span
-                                      className={`inline-flex mt-2 px-2 py-1 rounded-full text-[11px] font-semibold ${
-                                        item.status === "WAITING_DEPOSIT"
-                                          ? "bg-[#FFF3DA] text-[#C05600]"
-                                          : "bg-emerald-50 text-emerald-700"
-                                      }`}
-                                    >
-                                      {item.status === "WAITING_DEPOSIT" ? (
-                                        t('quoteTracking.modal.customPartWaiting', 'Phụ tùng đặt riêng · Cần cọc: {{amount}}', {
-                                          amount: formatCurrency(Math.round(item.quantity * item.unit_price * 0.3)),
-                                        })
-                                      ) : (
-                                        t('quoteTracking.modal.customPartPaid', 'Phụ tùng đặt riêng · Đã cọc')
-                                      )}
-                                    </span>
-                                  )}
+                                  {isCustom && (() => {
+                                    // Trạng thái cọc nằm ở Custom_Part_Orders.status, không phải
+                                    // Quotation_Details.status (item.status) — trước đây so nhầm
+                                    // bảng nên mọi trạng thái khác WAITING_DEPOSIT đều bị hiện
+                                    // "Đã cọc", kể cả báo giá còn PENDING chưa hề thu cọc.
+                                    const partStatus = item.customPartOrder?.status;
+                                    const isPending = partStatus === "WAITING_DEPOSIT" || !partStatus;
+                                    if (partStatus === "CANCELLED") {
+                                      return (
+                                        <span className="inline-flex mt-2 px-2 py-1 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-600">
+                                          {t('quoteTracking.modal.customPartCancelled', 'Phụ tùng đặt riêng · Đã hủy')}
+                                        </span>
+                                      );
+                                    }
+                                    return (
+                                      <span
+                                        className={`inline-flex mt-2 px-2 py-1 rounded-full text-[11px] font-semibold ${
+                                          isPending
+                                            ? "bg-[#FFF3DA] text-[#C05600]"
+                                            : "bg-emerald-50 text-emerald-700"
+                                        }`}
+                                      >
+                                        {isPending ? (
+                                          t('quoteTracking.modal.customPartWaiting', 'Phụ tùng đặt riêng · Cần cọc: {{amount}}', {
+                                            amount: formatCurrency(Math.round(item.quantity * item.unit_price * 0.3)),
+                                          })
+                                        ) : (
+                                          t('quoteTracking.modal.customPartPaid', 'Phụ tùng đặt riêng · Đã cọc')
+                                        )}
+                                      </span>
+                                    );
+                                  })()}
                                   {!isCustom && item.status === "WAITING_STOCK" && (
                                     <span className="inline-flex mt-2 px-2 py-1 rounded-full text-[11px] font-semibold bg-[#FFF3DA] text-[#C05600]">
                                       {t('quoteTracking.modal.partWaitingStock', 'Đang chờ nhập kho')}
