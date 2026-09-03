@@ -168,7 +168,7 @@ const LocationUpdater = ({ userLocation }: { userLocation: [number, number] | nu
 
 export const MapTracking: React.FC = () => {
   // Dữ liệu gara cố định tại 480 Trần Quốc Hoàn, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng
-  const garageLocation: [number, number] = [15.9675, 108.2605];
+  const garageLocation: [number, number] = [16.08100332219308, 108.16569510559148];
 
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');

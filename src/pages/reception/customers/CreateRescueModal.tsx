@@ -267,7 +267,7 @@ export const CreateRescueModal: React.FC<CreateRescueModalProps> = ({
     handleMapClick(lat, lng, result.display_name);
   };
 
-  const garageLocation: [number, number] = [15.9675, 108.2605]; // 480 Trần Quốc Hoàn, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng
+  const garageLocation: [number, number] = [16.08100332219308, 108.16569510559148]; // 480 Trần Quốc Hoàn, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng
 
   // Fetch technicians working today
   useEffect(() => {

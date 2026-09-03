@@ -5,7 +5,7 @@ import { MapPin, Navigation, Radio, X } from 'lucide-react';
 import { useSocket } from '../../hook/useSocket';
 import 'leaflet/dist/leaflet.css';
 
-const garageLocation: [number, number] = [15.9675, 108.2605];
+const garageLocation: [number, number] = [16.08100332219308, 108.16569510559148];
 
 // Dùng đúng bộ icon của MapTracking (customer) và TechnicianRescuePage để ba màn đồng nhất.
 const customerIcon = L.divIcon({
